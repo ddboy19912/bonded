@@ -246,11 +246,6 @@ const QUESTIONS: { id: string; q: string; a: string }[] = [
     a: "Part of every rating uses attacks the operator couldn't study in advance, which is what stops an agent being tuned to the public library. A rating also records the code it was run on, a TEE can prove an agent is running that code, and a score expires unless the agent is rated again. It is a measured result against Bonded's attack library, not a guarantee.",
   },
   {
-    id: "cost",
-    q: "What does cover cost?",
-    a: "The premium is priced from the score: measured attack results become an expected loss, and the expected loss becomes a price. In the demo ratings on testnet, an agent scoring 97 (AAA) priced at 1.1% a year and one scoring 54 (BB) at 6.4%. Underwriters earn 80% of every premium.",
-  },
-  {
     id: "preview",
     q: "Can I test my agent without a vault or tokens?",
     a: "Yes. A preview rating needs only a wallet sign-in. It is scored the same way as an official rating, but it isn't on chain and can't be insured.",

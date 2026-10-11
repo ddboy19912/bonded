@@ -110,12 +110,12 @@ describe("the questions", () => {
       "What counts as a breach, and what isn't covered?",
       "How fast is a claim paid, and how much?",
       "Can an agent game its score?",
-      "What does cover cost?",
       "Can I test my agent without a vault or tokens?",
       "Which chains does it use?",
     ]);
     expect(questions).not.toContain("Is this real money?");
     expect(questions).not.toContain("Has it been audited?");
+    expect(questions).not.toContain("What does cover cost?");
   });
 
   it("answers whether it is only for trading agents", () => {
