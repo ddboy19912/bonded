@@ -210,28 +210,35 @@ export function ConnectRunner({
             token={input.token}
             gatewayUrl={input.gatewayUrl}
           />
-          <CopyBlock
-            label="Or start the runner yourself (Node)"
-            text={runnerCommand(input)}
-            note={
-              <>
-                Replace <code className="font-mono">&lt;your agent command&gt;</code> with how you
-                start your agent, e.g. <code className="font-mono">node agent.js</code> or{" "}
-                <code className="font-mono">python agent.py</code>.
-              </>
-            }
-          />
-          <CopyBlock
-            label="With Docker"
-            text={runnerDockerCommand(input)}
-            note="Build your agent into an image FROM the runner's image first (see the guide)."
-          />
+          <details className="border-t border-line pt-4">
+            <summary className="cursor-pointer text-sm font-semibold marker:text-muted">
+              Other ways to start the runner
+            </summary>
+            <div className="mt-4 flex flex-col gap-4">
+              <CopyBlock
+                label="Or start the runner yourself (Node)"
+                text={runnerCommand(input)}
+                note={
+                  <>
+                    Replace <code className="font-mono">&lt;your agent command&gt;</code> with how
+                    you start your agent, e.g. <code className="font-mono">node agent.js</code> or{" "}
+                    <code className="font-mono">python agent.py</code>.
+                  </>
+                }
+              />
+              <CopyBlock
+                label="With Docker"
+                text={runnerDockerCommand(input)}
+                note="Build your agent into an image FROM the runner's image first (see the guide)."
+              />
+            </div>
+          </details>
           <p className="text-xs text-warn">
             The token is in these commands and won't be shown again. Copy them now.
           </p>
         </>
       ) : (
-        <div className="flex min-h-24 flex-col gap-3 rounded-2xl border border-dashed border-line-strong p-4">
+        <div className="flex flex-col gap-3">
           <p className="text-muted">
             {status.hasToken
               ? "A runner token exists, but it's only shown once. If you didn't keep the command, make a new token: the old one stops working."
@@ -402,7 +409,7 @@ export function ConnectUrl({
           </p>
         </form>
       ) : isVerified ? (
-        <div className="flex flex-col gap-2 rounded-2xl border border-safe/30 bg-safe-soft p-4">
+        <div className="flex flex-col gap-3 border-l-2 border-safe/60 pl-4">
           <p className="flex flex-wrap items-center gap-2">
             <Badge tone="safe" dot>
               Verified
@@ -433,7 +440,7 @@ export function ConnectUrl({
           <NewSecret busy={busy === "secret"} signing={signing} onConfirm={() => void renew()} />
         </div>
       ) : (
-        <div className="flex flex-col gap-3 rounded-2xl border border-warn/30 bg-warn-soft p-4">
+        <div className="flex flex-col gap-3 border-l-2 border-warn/60 pl-4">
           <p className="flex flex-wrap items-center gap-2">
             <Badge tone="warn" dot>
               Saved, not verified yet
@@ -478,7 +485,7 @@ export function ConnectUrl({
         </div>
       )}
       {failure ? (
-        <div role="alert" className="rounded-2xl border border-breach/35 bg-breach-soft p-4">
+        <div role="alert" className="border-l-2 border-breach/70 pl-4">
           <p className="font-semibold">{failure}</p>
           {advice && <p className="mt-1 text-soft">{advice}</p>}
           <p className="mt-1 flex flex-wrap gap-x-3 text-xs">
@@ -517,10 +524,7 @@ function NewSecret({
       </div>
     );
   return (
-    <div
-      role="alert"
-      className="flex flex-col gap-2 rounded-xl border border-breach/35 bg-breach-soft p-3 text-xs"
-    >
+    <div role="alert" className="flex flex-col gap-2 border-l-2 border-breach/70 pl-4 text-xs">
       <p>
         The current secret stops working at once: until your agent has the new one, it can't answer
         Bonded. Then verify the URL and run a connection check again.
@@ -556,7 +560,7 @@ export function Snippets({
   const selected = picked ?? (list.some((s) => s.id === preferred) ? preferred! : list[0]!.id);
   const current = list.find((s) => s.id === selected) ?? list[0]!;
   return (
-    <details className="group rounded-2xl border border-line-strong p-4">
+    <details className="group border-t border-line pt-4">
       <summary className="cursor-pointer text-sm font-semibold marker:text-muted">
         {connection === "url"
           ? "Code for your agent: the handler and frameworks"

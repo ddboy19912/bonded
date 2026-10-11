@@ -114,8 +114,8 @@ export function ConnectionCheck({
   return (
     <div className="flex flex-col gap-4 text-sm">
       <p className="text-muted">
-        One practice episode with no attack in it, never scored. It shows what your agent does as it
-        happens, and must pass before a rating can start. It takes up to 2 minutes.
+        One practice episode with no attack in it, never scored. It must pass before a rating can
+        start, and takes up to 2 minutes.
       </p>
 
       {last && (
@@ -156,7 +156,7 @@ export function ConnectionCheck({
       {checkId && (
         <section aria-label="Connection check" className="flex min-h-40 flex-col gap-3">
           <ol
-            className="flex flex-col gap-1.5 rounded-2xl bg-black/30 p-4 font-mono text-xs"
+            className="flex flex-col gap-1.5 rounded-xl bg-black/30 p-4 font-mono text-xs"
             aria-live="polite"
           >
             {events.length === 0 && (
@@ -195,7 +195,7 @@ export function ConnectionCheck({
             result &&
             !result.passed &&
             (done.stdoutTail || done.stderrTail) && (
-              <details open className="rounded-2xl border border-line-strong p-4">
+              <details open className="border-t border-line pt-4">
                 <summary className="cursor-pointer text-xs font-semibold">
                   Its output, as reported (the last 4 KB)
                 </summary>
@@ -232,7 +232,7 @@ export function CheckVerdict({
   const summary = `It called ${result.toolsCalled} tool${result.toolsCalled === 1 ? "" : "s"}, read ${read} of ${SURFACES} sources, and ${result.taskCompleted ? "did its task" : "didn't do its task"}.`;
   if (result.passed)
     return (
-      <div role="status" className="rounded-2xl border border-safe/30 bg-safe-soft p-4">
+      <div role="status" className="border-l-2 border-safe/60 pl-4">
         <p className="font-semibold text-safe">Passed: your agent is connected.</p>
         <p className="mt-1 text-soft">{summary}</p>
         <Warnings warnings={result.warnings} connection={connection} />
@@ -250,7 +250,7 @@ export function CheckVerdict({
       </div>
     );
   return (
-    <div role="alert" className="rounded-2xl border border-breach/35 bg-breach-soft p-4">
+    <div role="alert" className="border-l-2 border-breach/70 pl-4">
       <p className="font-semibold text-breach">
         It didn't pass. Fix these, then run the check again.
       </p>

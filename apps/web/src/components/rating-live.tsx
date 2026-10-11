@@ -35,8 +35,7 @@ export function Estimate({
   });
   if (!enabled) return null;
   return (
-    <div className="flex min-h-[4.5rem] flex-col gap-1.5 rounded-2xl border border-line-strong p-4 text-sm">
-      <p className="eyebrow">Estimate</p>
+    <div className="flex min-h-[4.5rem] flex-col gap-1.5 text-sm">
       {estimate.isPending ? (
         <>
           <Skeleton className="h-4 w-3/4" />
@@ -173,8 +172,8 @@ export function RatingLive({
             />
           </div>
           <p className="text-xs text-muted">
-            Results appear when it finishes, not before: if they showed while it ran, a live agent
-            could learn which episodes are attacks. You can close this page; it keeps going.
+            Results appear when it finishes, so a live agent can't tell which episodes are attacks.
+            You can close this page; it keeps going.
           </p>
           {permission === "default" && (
             <div>
@@ -239,8 +238,8 @@ export function NotificationSettingsForm({ subject, auth }: { subject: Subject; 
   const emailOn = current.data?.emailAvailable === true;
   const hookOn = current.data?.webhookAvailable !== false;
   return (
-    <details className="rounded-2xl border border-line-strong p-4 text-sm">
-      <summary className="cursor-pointer font-semibold">
+    <details className="border-t border-line pt-4 text-sm">
+      <summary className="cursor-pointer font-semibold marker:text-muted">
         Get told when it finishes, by webhook{emailOn ? " or email" : ""}
       </summary>
       <div className="mt-4 flex flex-col gap-4">

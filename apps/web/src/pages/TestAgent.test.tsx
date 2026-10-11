@@ -104,12 +104,8 @@ describe("Test your agent", () => {
     ])
       expect(screen.getByRole("heading", { name: new RegExp(title) })).toBeTruthy();
     expect(screen.getAllByText(/Preview: not on chain, not insurable/).length).toBeGreaterThan(0);
-    // What a preview runs and how long it may take come from the API's plan, not a guess.
-    expect(
-      screen.getByText(
-        /Each published attack runs once \(an official rating runs each three times\)/,
-      ),
-    ).toBeTruthy();
+    // The page says this is a preview: nothing else on it does.
+    expect(screen.getByRole("heading", { name: "This is a preview rating" })).toBeTruthy();
   });
 
   it("says how big a preview is from the API's plan, and nothing when it has none", async () => {
@@ -236,9 +232,11 @@ describe("Test your agent", () => {
       expect(within(current()).getByText("Start the preview rating")).toBeTruthy(),
     );
     expect(await screen.findByText(/About 19 min for 56 episodes/)).toBeTruthy();
-    expect(screen.getByText(/up to 56 episodes, at most 37 min/)).toBeTruthy();
-    // The check's advice stays in view after it passed.
-    expect(screen.getByText(/Worth fixing before you start: It read 2 of 9 surfaces/)).toBeTruthy();
+    // How big a preview is comes from the API's plan, beside the steps.
+    expect(screen.getByText(/up to 56 episodes, stopped at 37 min at the most/)).toBeTruthy();
+    // The check's advice stays reachable after it passed, folded away until asked for.
+    fireEvent.click(screen.getByText("1 thing worth fixing before you start"));
+    expect(screen.getByText(/It read 2 of 9 surfaces/)).toBeTruthy();
     vi.spyOn(byoaApi, "startPreviewRating").mockRejectedValue(
       new ApiError(429, "one preview per wallet per day", { retryAt: iso(9 * 3_600_000) }),
     );

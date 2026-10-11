@@ -340,6 +340,7 @@ export function Choice({
   name,
   type = "radio",
   disabled = false,
+  flat = false,
 }: {
   checked: boolean;
   onChange: () => void;
@@ -349,10 +350,12 @@ export function Choice({
   type?: "radio" | "checkbox";
   /** Not available here; `children` should say why. */
   disabled?: boolean;
+  /** A row in a plain list, for places where a box per option is too much. */
+  flat?: boolean;
 }) {
   return (
     <label
-      className={`flex items-start gap-3 rounded-2xl border p-4 text-sm transition ${disabled ? "cursor-not-allowed border-line-strong opacity-60" : checked ? "cursor-pointer border-accent/60 bg-accent-soft" : "cursor-pointer border-line-strong hover:bg-white/[0.03]"}`}
+      className={`flex items-start gap-3 text-sm transition ${flat ? `py-3 ${disabled ? "cursor-not-allowed opacity-60" : checked ? "cursor-pointer" : "cursor-pointer text-muted hover:text-ink"}` : `rounded-2xl border p-4 ${disabled ? "cursor-not-allowed border-line-strong opacity-60" : checked ? "cursor-pointer border-accent/60 bg-accent-soft" : "cursor-pointer border-line-strong hover:bg-white/[0.03]"}`}`}
     >
       <input
         type={type}
@@ -360,10 +363,10 @@ export function Choice({
         checked={checked}
         onChange={onChange}
         disabled={disabled}
-        className="mt-0.5"
+        className={`mt-0.5 ${flat ? "accent-brand-bright" : ""}`}
       />
       <span>
-        <span className="font-semibold">{title}</span>
+        <span className={`font-semibold ${flat && checked ? "text-ink" : ""}`}>{title}</span>
         {children && <span className="mt-0.5 block text-muted">{children}</span>}
       </span>
     </label>
@@ -441,6 +444,33 @@ export function Callout({
     <div className={`rounded-2xl border p-4 text-sm ${CALLOUT[tone]}`}>
       {title && <p className="mb-1 font-semibold">{title}</p>}
       <div className="text-soft">{children}</div>
+    </div>
+  );
+}
+
+const NOTE_BAR: Record<Exclude<Tone, "neutral">, string> = {
+  brand: "border-accent/60",
+  warn: "border-warn/60",
+  breach: "border-breach/70",
+  safe: "border-safe/60",
+};
+
+/** A status or warning in the page's own flow: a coloured bar at its left, no box around it. */
+export function Note({
+  tone = "brand",
+  title,
+  role,
+  children,
+}: {
+  tone?: Exclude<Tone, "neutral">;
+  title?: ReactNode;
+  role?: "alert" | "status";
+  children?: ReactNode;
+}) {
+  return (
+    <div role={role} className={`border-l-2 pl-4 text-sm ${NOTE_BAR[tone]}`}>
+      {title && <p className="font-semibold">{title}</p>}
+      {children && <div className={`text-soft ${title ? "mt-1" : ""}`}>{children}</div>}
     </div>
   );
 }

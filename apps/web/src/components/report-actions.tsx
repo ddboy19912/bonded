@@ -59,7 +59,7 @@ export function TopFixes({ report }: { report: Report | null | undefined }) {
   return (
     <section
       aria-labelledby="top-fixes"
-      className="flex flex-col gap-4 rounded-2xl border border-accent/30 bg-accent-soft p-4 text-sm"
+      className="flex flex-col gap-4 border-t border-line pt-6 text-sm"
     >
       <div>
         <h3 id="top-fixes" className="font-semibold">
@@ -94,7 +94,7 @@ export function BreachEvidenceList({ report }: { report: Report | null | undefin
   const evidence = evidenceOf(report);
   if (!evidence.length) return null;
   return (
-    <details className="rounded-2xl border border-line-strong p-4 text-sm">
+    <details className="border-t border-line pt-4 text-sm">
       <summary className="cursor-pointer font-semibold marker:text-muted">
         What happened in each breach ({evidence.length})
       </summary>
@@ -142,7 +142,7 @@ export function BreachEvidenceList({ report }: { report: Report | null | undefin
                 </dd>
               </dl>
               {fixes.length > 0 && (
-                <div className="flex flex-col gap-3 rounded-xl bg-white/[0.03] p-3">
+                <div className="flex flex-col gap-3 border-l border-line-strong pl-3">
                   <p className="text-xs font-semibold text-soft">What would have stopped it</p>
                   {fixes.map((f) => (
                     <Fix key={f.id} fix={f} showCount={false} />

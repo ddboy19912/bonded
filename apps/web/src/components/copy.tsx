@@ -32,6 +32,9 @@ export function CopyButton({ text, label = "Copy" }: { text: string; label?: str
   );
 }
 
+/** A note longer than this waits behind "What this does", so a command isn't buried in prose. */
+const LONG_NOTE = 140;
+
 /** A labelled block of text to copy: a command, a config or a snippet. */
 export function CopyBlock({
   label,
@@ -58,7 +61,14 @@ export function CopyBlock({
       >
         {text}
       </pre>
-      {note && <p className="text-xs text-muted">{note}</p>}
+      {typeof note === "string" && note.length > LONG_NOTE ? (
+        <details className="text-xs text-muted">
+          <summary className="cursor-pointer marker:text-muted">What this does</summary>
+          <p className="mt-1.5">{note}</p>
+        </details>
+      ) : (
+        note && <p className="text-xs text-muted">{note}</p>
+      )}
     </div>
   );
 }
@@ -74,7 +84,7 @@ export function SecretOnce({
   children?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-2 rounded-2xl border border-warn/30 bg-warn-soft p-4 text-sm">
+    <div className="flex flex-col gap-2 border-l-2 border-warn/60 pl-4 text-sm">
       <p className="font-semibold">{label}: copy it now, it won't be shown again</p>
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <code className="min-w-0 flex-1 rounded-lg bg-black/40 px-3 py-2 font-mono text-xs break-all text-soft">

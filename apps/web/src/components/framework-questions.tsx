@@ -36,6 +36,7 @@ export function FrameworkQuestions({
   advanced,
   advancedOpen,
   onAdvancedToggle,
+  flat = false,
 }: {
   framework: Framework | undefined;
   hosting: Hosting;
@@ -45,7 +46,67 @@ export function FrameworkQuestions({
   advanced?: ReactNode;
   advancedOpen?: boolean;
   onAdvancedToggle?: (open: boolean) => void;
+  /** Chips for the framework and a plain list for where it runs, instead of a box per option. */
+  flat?: boolean;
 }) {
+  if (flat)
+    return (
+      <div className="flex flex-col gap-7 text-sm">
+        <fieldset>
+          <legend className="mb-3 font-medium">Which framework is your agent built on?</legend>
+          <div className="flex flex-wrap gap-2">
+            {FRAMEWORKS.map((f) => (
+              <label
+                key={f}
+                className={`flex cursor-pointer items-center rounded-full border px-4 py-2 text-sm transition has-focus-visible:ring-2 has-focus-visible:ring-accent ${framework === f ? "border-accent/60 bg-accent-soft text-ink" : "border-line-strong text-muted hover:text-ink"}`}
+              >
+                <input
+                  type="radio"
+                  name={`${name}-framework`}
+                  className="sr-only"
+                  checked={framework === f}
+                  onChange={() => {
+                    rememberFramework(f);
+                    onFramework(f);
+                  }}
+                />
+                {FRAMEWORK_TEXT[f].title}
+              </label>
+            ))}
+          </div>
+          {framework && <p className="mt-3 text-muted">{FRAMEWORK_TEXT[framework].line}</p>}
+        </fieldset>
+        <fieldset>
+          <legend className="font-medium">Where do you run it?</legend>
+          <div className="mt-1 divide-y divide-line">
+            {(["machine", "online"] as const).map((h) => (
+              <Choice
+                key={h}
+                flat
+                name={`${name}-hosting`}
+                checked={hosting === h}
+                onChange={() => onHosting(h)}
+                title={HOSTING_TEXT[h].title}
+              >
+                {HOSTING_TEXT[h].line}
+              </Choice>
+            ))}
+          </div>
+        </fieldset>
+        {advanced && (
+          <details
+            {...(advancedOpen !== undefined ? { open: advancedOpen } : {})}
+            onToggle={(e) => onAdvancedToggle?.((e.currentTarget as HTMLDetailsElement).open)}
+            className="border-t border-line pt-4"
+          >
+            <summary className="cursor-pointer font-medium marker:text-muted">
+              Advanced (optional)
+            </summary>
+            <div className="mt-4 flex flex-col gap-4">{advanced}</div>
+          </details>
+        )}
+      </div>
+    );
   return (
     <div className="flex flex-col gap-5 text-sm">
       <fieldset className="flex flex-col gap-2">
@@ -175,7 +236,7 @@ export function KeepRunning({ gatewayUrl }: { gatewayUrl?: string | null }) {
   const [selected, setSelected] = useState<string>(SERVICE_KINDS[0].id);
   const current = SERVICE_KINDS.find((k) => k.id === selected) ?? SERVICE_KINDS[0];
   return (
-    <details className="rounded-2xl border border-line-strong p-4">
+    <details className="border-t border-line pt-4">
       <summary className="cursor-pointer text-sm font-semibold marker:text-muted">
         Keep it running
       </summary>
