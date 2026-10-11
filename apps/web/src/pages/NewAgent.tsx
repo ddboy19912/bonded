@@ -272,6 +272,16 @@ export function NewAgent() {
   const editedMark = (field: MandateField) =>
     isEdited(field) ? <span className="ml-1.5 text-xs font-normal text-warn">(edited)</span> : null;
   const [wantedCover, setWantedCover] = useState("");
+  // The limits and details of the mandate stay folded until asked for, unless a field is wrong.
+  const [limitsOpen, setLimitsOpen] = useState(false);
+  const limitsInvalid = Boolean(
+    limitError(maxTx) ||
+    dailyLimitError(maxDaily, maxTx) ||
+    percentError(drawdown, { min: 0.01 }) ||
+    percentError(slippage, { min: 0 }) ||
+    addressError(refund, true) ||
+    descriptionError(description),
+  );
   const [steps, setSteps] = useState<Step[]>([]);
   const [error, setError] = useState<unknown>(null);
   const [created, setCreated] = useState<{
@@ -932,9 +942,9 @@ export function NewAgent() {
                   label="Rate it with Sentinel in front"
                   description={
                     <>
-                      Sentinel checks each trade the agent proposes and stops the ones driven by
-                      what it read, so it breaches less, scores higher and cover costs less. Your
-                      agent should then ask Sentinel before each trade (
+                      Sentinel stops the trades driven by what the agent read, so it breaches less,
+                      scores higher and cover costs less. Your agent then asks it before each trade
+                      (
                       <Link to="/sentinel" className={linkClass}>
                         how
                       </Link>
@@ -1059,72 +1069,90 @@ export function NewAgent() {
                   ))}
                 </div>
               </fieldset>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Input
-                  label={<>Per-trade limit{editedMark("maxTx")}</>}
-                  value={maxTx}
-                  onChange={custom("maxTx", setMaxTx)}
-                  inputMode="decimal"
-                  suffix="USD"
-                  error={limitError(maxTx)}
-                />
-                <Input
-                  label={<>Daily limit{editedMark("maxDaily")}</>}
-                  value={maxDaily}
-                  onChange={custom("maxDaily", setMaxDaily)}
-                  inputMode="decimal"
-                  suffix="USD"
-                  error={dailyLimitError(maxDaily, maxTx)}
-                />
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Input
-                  label={<>Maximum drawdown{editedMark("drawdown")}</>}
-                  hint="The largest fall in the vault's value over 24 hours. Used for disputes."
-                  value={drawdown}
-                  onChange={custom("drawdown", setDrawdown)}
-                  inputMode="decimal"
-                  suffix="%"
-                  error={percentError(drawdown, { min: 0.01 })}
-                />
-                <Input
-                  label={<>Maximum slippage{editedMark("slippage")}</>}
-                  hint="The largest loss one trade may cause, as a share of what it sends out."
-                  value={slippage}
-                  onChange={custom("slippage", setSlippage)}
-                  inputMode="decimal"
-                  suffix="%"
-                  error={percentError(slippage, { min: 0 })}
-                />
-              </div>
-              <Input
-                label={<>Refund address{editedMark("refund")}</>}
-                hint={
-                  presetRules.destinations && presetRules.destinations.length === 0
-                    ? "This preset allows no refund address: the agent may not send funds anywhere. Type one to allow it."
-                    : "The one address the agent may send funds to. Defaults to your wallet."
-                }
-                value={refund}
-                onChange={(v) => {
-                  // A typed address is the owner's, not the preset's.
-                  setPresetRules((r) => ({ ...r, destinations: undefined }));
-                  custom("refund", setRefund)(v);
-                }}
-                placeholder={
-                  presetRules.destinations && presetRules.destinations.length === 0
-                    ? "None"
-                    : (user ?? "0x…")
-                }
-                error={addressError(refund, true)}
-              />
-              <Input
-                label="Description"
-                hint="Part of the mandate, so it's hashed on chain."
-                value={description}
-                onChange={setDescription}
-                mono={false}
-                error={descriptionError(description)}
-              />
+              <details
+                open={limitsOpen || limitsInvalid}
+                onToggle={(e) => setLimitsOpen((e.currentTarget as HTMLDetailsElement).open)}
+                className="border-t border-line pt-4"
+              >
+                <summary className="cursor-pointer marker:text-muted">
+                  <span className="font-medium">Limits and details</span>
+                  {edited.length > 0 && preset === "custom" && (
+                    <span className="ml-2 text-xs text-warn">edited</span>
+                  )}
+                  <span className="mt-0.5 block text-xs text-muted">
+                    {maxTx || "–"} USD a trade · {maxDaily || "–"} USD a day · {drawdown || "–"}%
+                    drawdown · {slippage || "–"}% slippage
+                  </span>
+                </summary>
+                <div className="mt-5 flex flex-col gap-5">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Input
+                      label={<>Per-trade limit{editedMark("maxTx")}</>}
+                      value={maxTx}
+                      onChange={custom("maxTx", setMaxTx)}
+                      inputMode="decimal"
+                      suffix="USD"
+                      error={limitError(maxTx)}
+                    />
+                    <Input
+                      label={<>Daily limit{editedMark("maxDaily")}</>}
+                      value={maxDaily}
+                      onChange={custom("maxDaily", setMaxDaily)}
+                      inputMode="decimal"
+                      suffix="USD"
+                      error={dailyLimitError(maxDaily, maxTx)}
+                    />
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Input
+                      label={<>Maximum drawdown{editedMark("drawdown")}</>}
+                      hint="The largest fall in the vault's value over 24 hours. Used for disputes."
+                      value={drawdown}
+                      onChange={custom("drawdown", setDrawdown)}
+                      inputMode="decimal"
+                      suffix="%"
+                      error={percentError(drawdown, { min: 0.01 })}
+                    />
+                    <Input
+                      label={<>Maximum slippage{editedMark("slippage")}</>}
+                      hint="The largest loss one trade may cause, as a share of what it sends out."
+                      value={slippage}
+                      onChange={custom("slippage", setSlippage)}
+                      inputMode="decimal"
+                      suffix="%"
+                      error={percentError(slippage, { min: 0 })}
+                    />
+                  </div>
+                  <Input
+                    label={<>Refund address{editedMark("refund")}</>}
+                    hint={
+                      presetRules.destinations && presetRules.destinations.length === 0
+                        ? "This preset allows no refund address: the agent may not send funds anywhere. Type one to allow it."
+                        : "The one address the agent may send funds to. Defaults to your wallet."
+                    }
+                    value={refund}
+                    onChange={(v) => {
+                      // A typed address is the owner's, not the preset's.
+                      setPresetRules((r) => ({ ...r, destinations: undefined }));
+                      custom("refund", setRefund)(v);
+                    }}
+                    placeholder={
+                      presetRules.destinations && presetRules.destinations.length === 0
+                        ? "None"
+                        : (user ?? "0x…")
+                    }
+                    error={addressError(refund, true)}
+                  />
+                  <Input
+                    label="Description"
+                    hint="Part of the mandate, so it's hashed on chain."
+                    value={description}
+                    onChange={setDescription}
+                    mono={false}
+                    error={descriptionError(description)}
+                  />
+                </div>
+              </details>
             </div>
           </StepCard>
 
@@ -1453,67 +1481,74 @@ function BondAdvice({
   const valid = Number.isFinite(cover) && cover > 0;
   const rec = valid ? recommendedBond(cover, score) : undefined;
   return (
-    <div className="flex flex-col gap-4 border-t border-line pt-5 text-sm">
-      <div>
-        <p className="font-medium">What the bond is for</p>
-        <p className="mt-1 text-muted">
-          Your own stake in the agent. It's lost only if the agent breaks its mandate and someone is
-          paid for it.
-        </p>
-        <details className="mt-2 text-xs text-muted">
-          <summary className="cursor-pointer marker:text-muted">More on the bond</summary>
-          <p className="mt-1.5">{BOND_EXPLAINED}</p>
-        </details>
-      </div>
-      <Input
-        label="Cover you want"
-        hint={
-          wantedCover.trim()
-            ? undefined
-            : "Starts at your deposit: cover pays for what the vault holds."
-        }
-        value={wantedCover}
-        onChange={onWantedCover}
-        placeholder={deposit || "20000"}
-        inputMode="decimal"
-        suffix={<Token symbol="tUSDG" />}
-      />
-      {valid && (
-        <>
-          <table className="w-full text-sm">
-            <caption className="sr-only">Smallest bond for this cover, by tier</caption>
-            <thead className="text-left text-xs text-muted">
-              <tr>
-                <th className="pb-1.5 font-medium">Score's tier</th>
-                <th className="pb-1.5 text-right font-medium">Smallest bond</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bondTable(cover).map((r) => (
-                <tr key={r.tiers} className="border-t border-line">
-                  <td className="py-2">
-                    {r.tiers} ({r.minBondPct}% of the cover)
-                  </td>
-                  <td className="py-2 text-right font-mono">{r.bond.toLocaleString("en-US")}</td>
+    <details className="border-t border-line pt-4 text-sm">
+      <summary className="cursor-pointer marker:text-muted">
+        <span className="font-medium">Work out the bond for the cover you want</span>
+        <span className="mt-0.5 block text-xs text-muted">
+          Cover needs a bond that is a share of it, set by the score's tier.
+        </span>
+      </summary>
+      <div className="mt-5 flex flex-col gap-4">
+        <div>
+          <p className="text-muted">
+            Your own stake in the agent. It's lost only if the agent breaks its mandate and someone
+            is paid for it.
+          </p>
+          <details className="mt-2 text-xs text-muted">
+            <summary className="cursor-pointer marker:text-muted">More on the bond</summary>
+            <p className="mt-1.5">{BOND_EXPLAINED}</p>
+          </details>
+        </div>
+        <Input
+          label="Cover you want"
+          hint={
+            wantedCover.trim()
+              ? undefined
+              : "Starts at your deposit: cover pays for what the vault holds."
+          }
+          value={wantedCover}
+          onChange={onWantedCover}
+          placeholder={deposit || "20000"}
+          inputMode="decimal"
+          suffix={<Token symbol="tUSDG" />}
+        />
+        {valid && (
+          <>
+            <table className="w-full text-sm">
+              <caption className="sr-only">Smallest bond for this cover, by tier</caption>
+              <thead className="text-left text-xs text-muted">
+                <tr>
+                  <th className="pb-1.5 font-medium">Score's tier</th>
+                  <th className="pb-1.5 text-right font-medium">Smallest bond</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {rec && (
-            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-              <p className="min-w-0 flex-1 text-muted">
-                Recommended:{" "}
-                <span className="font-mono text-ink">{rec.bond.toLocaleString("en-US")}</span>,
-                because {rec.why}.
-              </p>
-              <Button size="sm" kind="secondary" onClick={() => onUse(rec.bond)}>
-                Use this bond
-              </Button>
-            </div>
-          )}
-        </>
-      )}
-    </div>
+              </thead>
+              <tbody>
+                {bondTable(cover).map((r) => (
+                  <tr key={r.tiers} className="border-t border-line">
+                    <td className="py-2">
+                      {r.tiers} ({r.minBondPct}% of the cover)
+                    </td>
+                    <td className="py-2 text-right font-mono">{r.bond.toLocaleString("en-US")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {rec && (
+              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                <p className="min-w-0 flex-1 text-muted">
+                  Recommended:{" "}
+                  <span className="font-mono text-ink">{rec.bond.toLocaleString("en-US")}</span>,
+                  because {rec.why}.
+                </p>
+                <Button size="sm" kind="secondary" onClick={() => onUse(rec.bond)}>
+                  Use this bond
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </details>
   );
 }
 
