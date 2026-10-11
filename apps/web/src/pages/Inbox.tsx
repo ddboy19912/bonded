@@ -4,7 +4,7 @@ import { NOTIFICATION_TYPES } from "@bondedhq/shared";
 import { Link } from "react-router";
 import { useAccount } from "wagmi";
 import { ago } from "../lib/format";
-import { inboxSeenAt, markInboxSeen, type InboxItem } from "../lib/health";
+import { inboxLines, inboxSeenAt, markInboxSeen, type InboxItem } from "../lib/health";
 import { byoaApi } from "../lib/byoa-api";
 import { messageCode } from "../lib/troubleshooting";
 import { useOwnerSession } from "../lib/owner-session";
@@ -50,29 +50,30 @@ export function MuteSettings({ session }: { session: string }) {
     }
   };
   return (
-    <details className="rounded-2xl border border-line-strong p-4 text-sm">
-      <summary className="cursor-pointer font-semibold">Choose what you're told about</summary>
-      <p className="mt-3 text-xs text-muted">
-        A type you turn off isn't sent by webhook or email and doesn't show here.
-      </p>
-      <ul className="mt-3 flex flex-col gap-2">
+    <Card
+      title="Choose what you're told about"
+      description="A type you turn off isn't sent by webhook or email and doesn't show here."
+    >
+      <ul className="flex flex-col divide-y divide-line text-sm">
         {types.map((t) => (
           <li key={t}>
-            <label className="flex items-start gap-2.5">
+            <label className="flex cursor-pointer items-start gap-3 py-2.5 first:pt-0 last:pb-0">
               <input
                 type="checkbox"
-                className="mt-1"
+                className="mt-0.5 size-4 shrink-0 accent-brand-bright"
                 checked={!muted.has(t)}
                 disabled={busy}
                 onChange={() => void toggle(t)}
               />
-              <span>{NOTIFICATION_TYPES[t as keyof typeof NOTIFICATION_TYPES] ?? t}</span>
+              <span className={muted.has(t) ? "text-muted" : ""}>
+                {NOTIFICATION_TYPES[t as keyof typeof NOTIFICATION_TYPES] ?? t}
+              </span>
             </label>
           </li>
         ))}
       </ul>
       <ErrorText error={error} />
-    </details>
+    </Card>
   );
 }
 
@@ -130,10 +131,55 @@ export function Inbox() {
       setLoadingMore(false);
     }
   };
+  const list = (
+    <Card>
+      <ul className="flex flex-col" aria-label="Notifications">
+        {items.map((i) => {
+          const fresh = i.read !== undefined ? !i.read : Date.parse(i.createdAt) > seenBefore;
+          const { title, detail } = inboxLines(i);
+          return (
+            <li
+              key={i.id}
+              className="grid grid-cols-[0.5rem_minmax(0,1fr)_auto] gap-x-3 border-t border-line py-4 text-sm first:border-0 first:pt-0 last:pb-0"
+            >
+              <span
+                className={`mt-[7px] size-2 rounded-full ${fresh ? "bg-accent" : ""}`}
+                {...(fresh ? { "aria-label": "New" } : { "aria-hidden": true })}
+              />
+              <div className="flex min-w-0 flex-col gap-1">
+                <p className={fresh ? "font-semibold" : "font-medium"}>{title}</p>
+                {detail && <p className="text-soft">{detail}</p>}
+                {(i.agentId || i.code) && (
+                  <p className="flex flex-wrap gap-x-3 pt-0.5 text-xs">
+                    {i.agentId && (
+                      <Link className={linkClass} to={`/agents/${i.agentId}`}>
+                        Agent {i.agentId}
+                      </Link>
+                    )}
+                    <FixLink code={messageCode({ code: i.code ?? null, message: i.message })} />
+                  </p>
+                )}
+              </div>
+              <time dateTime={i.createdAt} className="pt-0.5 text-xs whitespace-nowrap text-muted">
+                {ago(i.createdAt)}
+              </time>
+            </li>
+          );
+        })}
+      </ul>
+      {next && (
+        <div className="mt-4 flex flex-col items-center gap-2 border-t border-line pt-4">
+          <Button size="sm" kind="secondary" loading={loadingMore} onClick={() => void loadMore()}>
+            Load more
+          </Button>
+          <ErrorText error={moreError} />
+        </div>
+      )}
+    </Card>
+  );
   return (
     <Page
       title="Notifications"
-      eyebrow="Yours"
       intro="What needs you about your agents. The same notices go to your webhook or email if you set one on an agent's page."
     >
       {!isConnected ? (
@@ -160,61 +206,20 @@ export function Inbox() {
         </Card>
       ) : inbox.error ? (
         <Unavailable error={inbox.error} onRetry={() => void inbox.refetch()} />
-      ) : !inbox.data?.items.length ? (
-        <EmptyState title="Nothing yet">
-          When something needs you (a score about to expire, the runner offline, a breach or a
-          claim, cover lapsing, low gas), it shows here.
-        </EmptyState>
       ) : (
-        <>
-          <MuteSettings session={owner.session.session} />
-          <Card>
-            <ul className="flex flex-col" aria-label="Notifications">
-              {items.map((i) => {
-                const fresh = i.read !== undefined ? !i.read : Date.parse(i.createdAt) > seenBefore;
-                return (
-                  <li
-                    key={i.id}
-                    className="flex flex-col gap-1 border-t border-white/[0.06] py-3.5 text-sm first:border-0"
-                  >
-                    <p className="flex flex-wrap items-baseline gap-x-2">
-                      {fresh && (
-                        <span
-                          className="size-2 self-center rounded-full bg-accent"
-                          aria-label="New"
-                        />
-                      )}
-                      <span className={fresh ? "font-semibold" : ""}>{i.message}</span>
-                    </p>
-                    {i.action && i.action !== i.message && <p className="text-soft">{i.action}</p>}
-                    <p className="flex flex-wrap gap-x-3 text-xs text-muted">
-                      <span>{ago(i.createdAt)}</span>
-                      {i.agentId && (
-                        <Link className={linkClass} to={`/agents/${i.agentId}`}>
-                          Agent {i.agentId}
-                        </Link>
-                      )}
-                      <FixLink code={messageCode({ code: i.code ?? null, message: i.message })} />
-                    </p>
-                  </li>
-                );
-              })}
-            </ul>
-            {next && (
-              <div className="mt-3 flex flex-col items-center gap-2 border-t border-white/[0.06] pt-4">
-                <Button
-                  size="sm"
-                  kind="secondary"
-                  loading={loadingMore}
-                  onClick={() => void loadMore()}
-                >
-                  Load more
-                </Button>
-                <ErrorText error={moreError} />
-              </div>
-            )}
-          </Card>
-        </>
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+          {!inbox.data?.items.length ? (
+            <EmptyState title="Nothing yet">
+              When something needs you (a score about to expire, the runner offline, a breach or a
+              claim, cover lapsing, low gas), it shows here.
+            </EmptyState>
+          ) : (
+            list
+          )}
+          <div className="lg:sticky lg:top-24">
+            <MuteSettings session={owner.session.session} />
+          </div>
+        </div>
       )}
     </Page>
   );

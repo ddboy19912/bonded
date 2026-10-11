@@ -235,6 +235,29 @@ export interface InboxPage {
   next?: string | null;
 }
 
+/**
+ * The words to show for a notification: a title with a capital, and the "what to do" line under
+ * it, unless that only says the title again. The API reuses an email subject for a rating's title
+ * ("your preview rating finished") next to the full sentence ("Your preview rating finished with
+ * a score of 35 (B)."), so when the sentence starts with the title it becomes the title.
+ */
+export function inboxLines(i: Pick<InboxItem, "message" | "action">): {
+  title: string;
+  detail?: string;
+} {
+  const capital = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+  const bare = (t: string) =>
+    t
+      .trim()
+      .replace(/[.\s]+$/, "")
+      .toLowerCase();
+  const title = capital(i.message.trim());
+  const action = i.action?.trim();
+  if (!action || bare(action) === bare(title)) return { title };
+  if (bare(action).startsWith(bare(title))) return { title: capital(action) };
+  return { title, detail: action };
+}
+
 const SEEN_KEY = "bonded:inbox-seen";
 
 /** When this browser last opened the inbox: what's newer counts as unread. */

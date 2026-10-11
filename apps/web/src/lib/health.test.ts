@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  inboxLines,
   coverTokens,
   gasNotice,
   jobAge,
@@ -133,5 +134,40 @@ describe("health lines", () => {
     ).toEqual({ label: "A job looks stuck", tone: "warn" });
     expect(jobAge(null)).toBe("no job yet");
     expect(jobAge(600)).toBe("10 min ago");
+  });
+});
+
+describe("inboxLines", () => {
+  it("starts the title with a capital", () => {
+    expect(inboxLines({ message: "your preview rating finished", action: null })).toEqual({
+      title: "Your preview rating finished",
+    });
+  });
+
+  it("uses the full sentence as the title when it only extends the title", () => {
+    expect(
+      inboxLines({
+        message: "your preview rating finished",
+        action: "Your preview rating finished with a score of 35 (B).",
+      }),
+    ).toEqual({ title: "Your preview rating finished with a score of 35 (B)." });
+  });
+
+  it("drops a line that only says the title again", () => {
+    expect(
+      inboxLines({
+        message: "The agent key is low on gas.",
+        action: "the agent key is low on gas",
+      }),
+    ).toEqual({ title: "The agent key is low on gas." });
+  });
+
+  it("keeps a different line as the detail", () => {
+    expect(
+      inboxLines({
+        message: "The agent key is low on gas.",
+        action: "Send the agent key some ETH.",
+      }),
+    ).toEqual({ title: "The agent key is low on gas.", detail: "Send the agent key some ETH." });
   });
 });
