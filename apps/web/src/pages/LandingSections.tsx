@@ -1,12 +1,11 @@
-import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { TIER_RULES } from "@bondedhq/shared";
-import { Collapsible } from "../components/collapsible";
+import { Accordion } from "../components/collapsible";
 import { CopyBlock } from "../components/copy";
 import { FrameworkLogo } from "../components/framework-questions";
 import { buttonClass, tierTone } from "../components/ui";
 import { FRAMEWORKS, FRAMEWORK_TEXT } from "../lib/frameworks";
-import { DOCS_BYOA, DOCS_SECURITY, TEST_AGENT } from "../lib/routes";
+import { DOCS_BYOA, DOCS_HOME, DOCS_SECURITY, TEST_AGENT } from "../lib/routes";
 
 /** What Bonded works with, logo only: the frameworks agents are built on, and the chains and accounts it runs on. */
 const INTEGRATIONS = [
@@ -215,59 +214,64 @@ export function BringYourAgent() {
   );
 }
 
-const QUESTIONS: { q: string; a: ReactNode }[] = [
+const QUESTIONS: { id: string; q: string; a: string }[] = [
   {
-    q: "Is this real money?",
-    a: "Not yet. Bonded runs on Robinhood Chain testnet and Arbitrum Sepolia, with test tokens only.",
-  },
-  {
+    id: "paid",
     q: "Who decides whether I get paid?",
     a: "The contracts do. The vault records a breach, the keeper files the claim, and the payout comes from the operator's bond first, then the cover pool. Models help find attacks and flag trades, but they never decide a payout or a pass or fail.",
   },
   {
+    id: "red-team",
     q: "What does the red team actually do?",
     a: "It plants instructions where the agent will read them (news, direct messages, token metadata, tool output, prices) across ten attack classes, while the agent does an ordinary task in a sandbox copy of the chain. The vault's breach log is the verdict.",
   },
   {
+    id: "preview",
     q: "Can I test my agent without a vault or tokens?",
     a: "Yes. A preview rating needs only a wallet sign-in. It is scored the same way as an official rating, but it isn't on chain and can't be insured.",
   },
   {
+    id: "chains",
     q: "Which chains does it use?",
     a: "The contracts are deployed on Robinhood Chain testnet and Arbitrum Sepolia. A signed score can also be posted for Arbitrum, Ethereum and Solana to read.",
   },
-  {
-    q: "Has it been audited?",
-    a: (
-      <>
-        There is an internal audit note covering invariant tests, static analysis and a manual
-        review, with no high-severity issues found. It is an in-house review, not an external audit.{" "}
-        <a href={DOCS_SECURITY} className="text-accent hover:underline">
-          Read the security policy
-        </a>
-        .
-      </>
-    ),
-  },
 ];
 
-/** Plain questions, answered in plain words, folded away until opened. */
+/**
+ * Plain questions in an accordion, one open at a time. The title and the way into the docs sit on
+ * the left; the answers take the rest of the width, and the open one is lifted onto a soft panel.
+ */
 export function Faq() {
   return (
     <section id="faq" className="mx-auto max-w-[1180px] scroll-mt-24 px-4 pb-24 sm:px-6">
-      <h2 className="font-serif text-5xl leading-none sm:text-6xl">Questions</h2>
-      <div className="mt-10 max-w-3xl divide-y divide-line">
-        {QUESTIONS.map(({ q, a }) => (
-          <Collapsible
-            key={q}
-            className="py-5"
-            triggerClassName="text-lg font-semibold"
-            contentClassName="pt-3 pl-5"
-            summary={q}
-          >
-            <p className="max-w-2xl leading-relaxed text-muted">{a}</p>
-          </Collapsible>
-        ))}
+      <div className="grid gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-20">
+        <div className="lg:sticky lg:top-24 lg:self-start">
+          <h2 className="font-serif text-5xl leading-none sm:text-6xl">Questions</h2>
+          <p className="mt-5 max-w-sm text-lg leading-relaxed text-muted">
+            The short answers. The docs go into the rest.
+          </p>
+          <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2">
+            <a href={DOCS_HOME} className="text-accent hover:underline">
+              Read the docs <span aria-hidden>→</span>
+            </a>
+            <a href={DOCS_SECURITY} className="text-accent hover:underline">
+              Security policy <span aria-hidden>→</span>
+            </a>
+          </div>
+        </div>
+        <Accordion
+          defaultOpen="paid"
+          className="flex flex-col gap-2"
+          itemClassName="rounded-2xl px-5 py-5 transition-colors duration-300 hover:bg-white/[0.02] sm:px-6"
+          openItemClassName="bg-white/[0.045] hover:bg-white/[0.045]"
+          triggerClassName="text-xl font-semibold"
+          contentClassName="pt-3 pr-8"
+          items={QUESTIONS.map(({ id, q, a }) => ({
+            id,
+            summary: q,
+            content: <p className="leading-relaxed text-muted">{a}</p>,
+          }))}
+        />
       </div>
     </section>
   );

@@ -17,6 +17,7 @@ export function Collapsible({
   className = "",
   triggerClassName = "text-sm font-semibold",
   contentClassName = "pt-3",
+  indicator = "start",
 }: {
   /** The always-visible line the reader clicks. */
   summary: ReactNode;
@@ -27,6 +28,8 @@ export function Collapsible({
   className?: string;
   triggerClassName?: string;
   contentClassName?: string;
+  /** Which side of the summary the chevron sits on. */
+  indicator?: "start" | "end";
 }) {
   const [own, setOwn] = useState(defaultOpen);
   const open = controlled ?? own;
@@ -51,6 +54,20 @@ export function Collapsible({
     if (controlled === undefined) setOwn(!open);
     onOpenChange?.(!open);
   };
+  const chevron = (
+    <svg
+      viewBox="0 0 12 12"
+      className={`mt-[0.4em] size-3 shrink-0 text-muted transition-transform duration-300 motion-reduce:transition-none ${open ? (indicator === "end" ? "rotate-180" : "rotate-90") : ""}`}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d={indicator === "end" ? "m2 4 4 4 4-4" : "m4 2 4 4-4 4"} />
+    </svg>
+  );
   return (
     <div className={className}>
       <button
@@ -60,19 +77,9 @@ export function Collapsible({
         onClick={toggle}
         className={`flex w-full cursor-pointer items-start gap-2 rounded text-left focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none ${triggerClassName}`}
       >
-        <svg
-          viewBox="0 0 12 12"
-          className={`mt-[0.35em] size-3 shrink-0 text-muted transition-transform duration-300 motion-reduce:transition-none ${open ? "rotate-90" : ""}`}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.75"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden
-        >
-          <path d="m4 2 4 4-4 4" />
-        </svg>
+        {indicator === "start" && chevron}
         <span className="min-w-0 flex-1">{summary}</span>
+        {indicator === "end" && chevron}
       </button>
       <div
         id={id}
@@ -83,6 +90,54 @@ export function Collapsible({
           <div className={contentClassName}>{children}</div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * A list of disclosures of which at most one is open: opening one closes the one that was open,
+ * and the open one can be closed again. `defaultOpen` is the id open at first (none if left out).
+ */
+export function Accordion({
+  items,
+  defaultOpen = null,
+  className = "",
+  itemClassName = "",
+  openItemClassName = "",
+  triggerClassName,
+  contentClassName,
+  indicator = "end",
+}: {
+  items: { id: string; summary: ReactNode; content: ReactNode }[];
+  defaultOpen?: string | null;
+  className?: string;
+  /** Applied to every item, and `openItemClassName` as well to the open one. */
+  itemClassName?: string;
+  openItemClassName?: string;
+  triggerClassName?: string;
+  contentClassName?: string;
+  indicator?: "start" | "end";
+}) {
+  const [openId, setOpenId] = useState<string | null>(defaultOpen);
+  return (
+    <div className={className}>
+      {items.map((item) => {
+        const open = openId === item.id;
+        return (
+          <Collapsible
+            key={item.id}
+            open={open}
+            onOpenChange={(next) => setOpenId(next ? item.id : null)}
+            indicator={indicator}
+            className={`${itemClassName} ${open ? openItemClassName : ""}`}
+            {...(triggerClassName ? { triggerClassName } : {})}
+            {...(contentClassName ? { contentClassName } : {})}
+            summary={item.summary}
+          >
+            {item.content}
+          </Collapsible>
+        );
+      })}
     </div>
   );
 }

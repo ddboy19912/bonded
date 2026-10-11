@@ -79,17 +79,43 @@ describe("bringing an agent", () => {
 });
 
 describe("the questions", () => {
-  it("are closed until opened, and say the money is test money", () => {
+  const open = (name: string) =>
+    screen.getByRole("button", { name }).getAttribute("aria-expanded") === "true";
+
+  it("are an accordion: the first is open, and opening another closes it", () => {
     show(<Faq />);
-    const q = screen.getByRole("button", { name: "Is this real money?" });
-    expect(q.getAttribute("aria-expanded")).toBe("false");
-    fireEvent.click(q);
-    expect(q.getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getByText(/test tokens only/)).toBeTruthy();
+    expect(open("Who decides whether I get paid?")).toBe(true);
+    expect(open("What does the red team actually do?")).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "What does the red team actually do?" }));
+    expect(open("What does the red team actually do?")).toBe(true);
+    expect(open("Who decides whether I get paid?")).toBe(false);
+    // The open one can be closed again, leaving none open.
+    fireEvent.click(screen.getByRole("button", { name: "What does the red team actually do?" }));
+    expect(open("What does the red team actually do?")).toBe(false);
+    expect(
+      screen.getAllByRole("button").filter((b) => b.getAttribute("aria-expanded") === "true"),
+    ).toHaveLength(0);
   });
 
-  it("is honest that the audit is in-house", () => {
+  it("has the four questions, and not the two that were taken out", () => {
     show(<Faq />);
-    expect(screen.getByText(/in-house review, not an external audit/)).toBeTruthy();
+    const questions = screen
+      .getAllByRole("button")
+      .map((b) => b.textContent)
+      .filter(Boolean);
+    expect(questions).toEqual([
+      "Who decides whether I get paid?",
+      "What does the red team actually do?",
+      "Can I test my agent without a vault or tokens?",
+      "Which chains does it use?",
+    ]);
+  });
+
+  it("points at the docs and the security policy", () => {
+    show(<Faq />);
+    expect(screen.getByRole("link", { name: /Read the docs/ }).getAttribute("href")).toBe("/docs/");
+    expect(screen.getByRole("link", { name: /Security policy/ }).getAttribute("href")).toBe(
+      "/docs/security/policy/",
+    );
   });
 });

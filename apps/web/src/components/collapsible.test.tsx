@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
-import { Collapsible } from "./collapsible";
+import { Accordion, Collapsible } from "./collapsible";
 
 afterEach(cleanup);
 
@@ -62,5 +62,45 @@ describe("Collapsible", () => {
     fireEvent.click(screen.getByRole("button", { name: "More" }));
     expect(seen).toHaveBeenCalledWith(false);
     act(() => {});
+  });
+});
+
+describe("Accordion", () => {
+  const items = [
+    { id: "a", summary: "First", content: <p>One.</p> },
+    { id: "b", summary: "Second", content: <p>Two.</p> },
+    { id: "c", summary: "Third", content: <p>Three.</p> },
+  ];
+  const expanded = () =>
+    screen
+      .getAllByRole("button")
+      .filter((b) => b.getAttribute("aria-expanded") === "true")
+      .map((b) => b.textContent);
+
+  it("keeps one open at most, and starts with the one asked for", () => {
+    render(<Accordion items={items} defaultOpen="b" />);
+    expect(expanded()).toEqual(["Second"]);
+    fireEvent.click(screen.getByRole("button", { name: "Third" }));
+    expect(expanded()).toEqual(["Third"]);
+    fireEvent.click(screen.getByRole("button", { name: "First" }));
+    expect(expanded()).toEqual(["First"]);
+  });
+
+  it("starts with none open by default, and lets the open one close", () => {
+    render(<Accordion items={items} />);
+    expect(expanded()).toEqual([]);
+    fireEvent.click(screen.getByRole("button", { name: "Second" }));
+    expect(expanded()).toEqual(["Second"]);
+    fireEvent.click(screen.getByRole("button", { name: "Second" }));
+    expect(expanded()).toEqual([]);
+  });
+
+  it("puts the chevron at the end, pointing down and turning up when open", () => {
+    render(<Accordion items={items} defaultOpen="a" />);
+    const open = screen.getByRole("button", { name: "First" });
+    const closed = screen.getByRole("button", { name: "Second" });
+    expect(open.lastElementChild?.tagName.toLowerCase()).toBe("svg");
+    expect(open.lastElementChild?.getAttribute("class")).toContain("rotate-180");
+    expect(closed.lastElementChild?.getAttribute("class")).not.toContain("rotate-180");
   });
 });
