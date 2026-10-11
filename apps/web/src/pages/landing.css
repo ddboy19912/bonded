@@ -247,3 +247,40 @@
     opacity: 1;
   }
 }
+
+/* The "works with" carousel: two copies of the row, the track moves half its width and starts again.
+   It pauses under the pointer and keyboard focus, and holds still for anyone who asks for less motion. */
+.logo-marquee {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
+}
+.logo-track {
+  display: flex;
+  width: max-content;
+  animation: logo-scroll 48s linear infinite;
+}
+.logo-marquee:hover .logo-track,
+.logo-marquee:focus-within .logo-track {
+  animation-play-state: paused;
+}
+@keyframes logo-scroll {
+  to {
+    transform: translateX(-50%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .logo-marquee {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+  .logo-track {
+    width: auto;
+    flex-wrap: wrap;
+    justify-content: center;
+    animation: none;
+  }
+  .logo-copy[aria-hidden="true"] {
+    display: none;
+  }
+}

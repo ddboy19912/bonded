@@ -29,12 +29,18 @@ import { CopyBlock, Tabs } from "./copy";
  * A framework's logo, drawn in the surrounding text colour: the file's shape is used as a mask, so
  * every logo sits quietly in the page's palette instead of bringing its own colours.
  */
-export function FrameworkLogo({ framework }: { framework: Framework }) {
+export function FrameworkLogo({
+  framework,
+  size = "size-4",
+}: {
+  framework: Framework;
+  size?: string;
+}) {
   const url = `url(${FRAMEWORK_LOGO[framework]})`;
   return (
     <span
       aria-hidden
-      className="inline-block size-4 shrink-0 bg-current"
+      className={`inline-block ${size} shrink-0 bg-current`}
       style={{
         mask: `${url} center / contain no-repeat`,
         WebkitMask: `${url} center / contain no-repeat`,
