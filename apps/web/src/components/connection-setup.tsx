@@ -216,6 +216,7 @@ export function ConnectRunner({
     teeUrl: teeUrl ?? null,
   };
   const connected = isConnected(status, "runner");
+  const initIsPrimary = initLeads(framework) && !input?.teeUrl;
   return (
     <div className="flex flex-col gap-4 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -231,7 +232,7 @@ export function ConnectRunner({
       </div>
       {input ? (
         <>
-          {initLeads(framework) ? (
+          {initLeads(framework) && (
             <InitCommand
               framework={framework}
               connection="runner"
@@ -240,11 +241,19 @@ export function ConnectRunner({
               token={input.token}
               gatewayUrl={input.gatewayUrl}
             />
-          ) : (
+          )}
+          {/* Init leads unless the agent is bound to a TEE (init can't pass the TEE's URL on). Then,
+              and for a framework init can't read, the runner command is the one to use, so it is
+              shown, not folded away. */}
+          {!initIsPrimary && (
             <CopyBlock
-              label="Start the runner with your agent's command"
+              label={
+                input.teeUrl
+                  ? "Start the runner, with your agent's TEE"
+                  : "Start the runner with your agent's command"
+              }
               text={runnerCommand(input)}
-              note={<CommandNote example />}
+              note={<CommandNote example={!initLeads(framework)} />}
             />
           )}
           <Collapsible
@@ -253,7 +262,7 @@ export function ConnectRunner({
             summary="Other ways to start the runner"
           >
             <div className="flex flex-col gap-4">
-              {initLeads(framework) && (
+              {initIsPrimary && (
                 <CopyBlock
                   label="Or start the runner yourself (Node)"
                   text={runnerCommand(input)}

@@ -153,11 +153,25 @@ describe("ConnectAgent", () => {
         await screen.findByText(/TEE-bound agents use the runner command shown below/),
       ).toBeTruthy();
       expect(initText()).toBeNull();
-      expect(
-        getCodeBlock(
-          "BONDED_RUNNER_TOKEN=bonded_rt_secret npx @bondedhq/runner --gateway https://gw.example --mode chain --tee-url https://tee.example -- <your agent command>",
-        ),
-      ).toBeTruthy();
+      const command = getCodeBlock(
+        "BONDED_RUNNER_TOKEN=bonded_rt_secret npx @bondedhq/runner --gateway https://gw.example --mode chain --tee-url https://tee.example -- <your agent command>",
+      );
+      // The explanation points at "the command shown below", so it must be shown: not folded away
+      // under "Other ways to start the runner".
+      expect(command.closest("[inert]")).toBeNull();
+      expect(command.textContent).toContain("--tee-url https://tee.example");
+    });
+
+    it("without a TEE, init leads and the manual command waits under the other ways", async () => {
+      withToken();
+      show();
+      fireEvent.click(await screen.findByRole("button", { name: "Create a runner token" }));
+      await waitFor(() => expect(initText()).toBeTruthy());
+      expect(initText()!.closest("[inert]")).toBeNull();
+      const manual = getCodeBlock(
+        "BONDED_RUNNER_TOKEN=bonded_rt_secret npx @bondedhq/runner --gateway https://gw.example --mode tools -- <your agent command>",
+      );
+      expect(manual.closest("[inert]")).not.toBeNull();
     });
   });
 
