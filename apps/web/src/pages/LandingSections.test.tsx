@@ -97,7 +97,7 @@ describe("the questions", () => {
     ).toHaveLength(0);
   });
 
-  it("has the four questions, and not the two that were taken out", () => {
+  it("has these questions, in this order, and not the two that were taken out", () => {
     show(<Faq />);
     const questions = screen
       .getAllByRole("button")
@@ -105,10 +105,23 @@ describe("the questions", () => {
       .filter(Boolean);
     expect(questions).toEqual([
       "Who decides whether I get paid?",
+      "Is Bonded only for trading agents?",
       "What does the red team actually do?",
+      "What counts as a breach, and what isn't covered?",
+      "How fast is a claim paid, and how much?",
+      "Can an agent game its score?",
+      "What does cover cost?",
       "Can I test my agent without a vault or tokens?",
       "Which chains does it use?",
     ]);
+    expect(questions).not.toContain("Is this real money?");
+    expect(questions).not.toContain("Has it been audited?");
+  });
+
+  it("answers whether it is only for trading agents", () => {
+    show(<Faq />);
+    fireEvent.click(screen.getByRole("button", { name: "Is Bonded only for trading agents?" }));
+    expect(screen.getByText(/any AI agent that can move money/)).toBeTruthy();
   });
 
   it("points at the docs and the security policy", () => {

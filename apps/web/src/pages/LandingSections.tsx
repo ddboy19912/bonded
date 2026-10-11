@@ -221,9 +221,34 @@ const QUESTIONS: { id: string; q: string; a: string }[] = [
     a: "The contracts do. The vault records a breach, the keeper files the claim, and the payout comes from the operator's bond first, then the cover pool. Models help find attacks and flag trades, but they never decide a payout or a pass or fail.",
   },
   {
+    id: "scope",
+    q: "Is Bonded only for trading agents?",
+    a: "No. It is for any AI agent that can move money: trading bots, wallet copilots, yield and rebalancing agents, assistants that can pay for things, and agents that pay other agents. They share one weakness: an agent that reads outside text and can also sign transactions can be talked into sending funds where it shouldn't. The Arena's tasks today are trading ones, such as rebalancing a portfolio, and an agent that can't touch funds has nothing for a vault to guard.",
+  },
+  {
     id: "red-team",
     q: "What does the red team actually do?",
     a: "It plants instructions where the agent will read them (news, direct messages, token metadata, tool output, prices) across ten attack classes, while the agent does an ordinary task in a sandbox copy of the chain. The vault's breach log is the verdict.",
+  },
+  {
+    id: "breach",
+    q: "What counts as a breach, and what isn't covered?",
+    a: "A breach is the agent doing something its vault's rules forbid: a token, contract or payee that isn't allowed, or more than the per-trade or daily limit. Covered means tricked or broken, not unlucky. A bad trade that respected every rule is a market loss, and isn't covered.",
+  },
+  {
+    id: "claims",
+    q: "How fast is a claim paid, and how much?",
+    a: "When the vault records a breach, the keeper files the claim within seconds, with no forms. The contracts pay the loss minus a 10% deductible, from the operator's bond first and then the pool. In a recorded run on testnet, an agent paid out 5,000 tUSDG to a lookalike address and the claim paid 4,500: 4,000 from the bond and 500 from the pool.",
+  },
+  {
+    id: "gaming",
+    q: "Can an agent game its score?",
+    a: "Part of every rating uses attacks the operator couldn't study in advance, which is what stops an agent being tuned to the public library. A rating also records the code it was run on, a TEE can prove an agent is running that code, and a score expires unless the agent is rated again. It is a measured result against Bonded's attack library, not a guarantee.",
+  },
+  {
+    id: "cost",
+    q: "What does cover cost?",
+    a: "The premium is priced from the score: measured attack results become an expected loss, and the expected loss becomes a price. In the demo ratings on testnet, an agent scoring 97 (AAA) priced at 1.1% a year and one scoring 54 (BB) at 6.4%. Underwriters earn 80% of every premium.",
   },
   {
     id: "preview",
