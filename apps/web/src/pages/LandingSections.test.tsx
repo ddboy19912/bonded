@@ -269,6 +269,21 @@ describe("the light behind the page", () => {
       expect(wash(id), id).not.toContain(warm);
   });
 
+  it("fades to nothing at its top and bottom, and is as wide as the screen", () => {
+    const shared = css.slice(css.indexOf("#numbers::before,"), css.indexOf("#numbers::before {"));
+    expect(shared).toContain("width: 100vw");
+    expect(shared).toMatch(/mask-image: linear-gradient\(\s*to bottom,\s*transparent,/);
+    expect(shared).not.toMatch(/width: \d+px/);
+  });
+
+  it("keeps its warm light off the walkthrough's cards", () => {
+    // Each step has its own glow behind its card; a second light on that side would stack on it.
+    const how = wash("how");
+    const positions = [...how.matchAll(/ellipse at (\d+)%/g)].map((m) => Number(m[1]));
+    expect(positions.length).toBeGreaterThan(0);
+    for (const x of positions) expect(x, how).toBeLessThan(25);
+  });
+
   it("sits behind the content and never moves", () => {
     expect(css).toContain("z-index: -1");
     expect(css).toContain("pointer-events: none");

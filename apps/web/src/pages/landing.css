@@ -285,11 +285,13 @@
   }
 }
 
-/* Light behind the page that follows the story. Warm (the red team's orange) sits behind the attack
-   walkthrough and cool (the held and protected blue) behind everything that answers it, so the page
-   reads as problem, then protection. Wide, desaturated washes, still, behind the content, and they
-   never catch a click. The page colour comes from the html element, so the body is transparent on
-   the landing page and lets them show through. */
+/* Light behind the page that follows the story. Warm (the red team's orange) at the edge of the
+   attack walkthrough, turning to cool blue where it resolves, and cool behind everything that answers
+   it. Wide, desaturated washes: still, behind the content, as wide as the screen, and faded to nothing
+   at their top and bottom so there is no edge. They never catch a click. In the walkthrough they sit
+   on the text side only: each step already has its own glow behind its card, and a second light there
+   would stack and wash the card out. The page colour comes from the html element, so the body is
+   transparent on the landing page and lets them show through. */
 body:has(.landing) {
   background: transparent;
 }
@@ -312,54 +314,63 @@ body:has(.landing) {
   content: "";
   position: absolute;
   left: 50%;
-  width: 1700px;
+  width: 100vw;
   transform: translateX(-50%);
   z-index: -1;
   pointer-events: none;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 160px,
+    #000 calc(100% - 160px),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 160px,
+    #000 calc(100% - 160px),
+    transparent
+  );
 }
 #numbers::before {
-  top: -60px;
-  height: 460px;
-  background: radial-gradient(ellipse at 50% 30%, rgb(60 107 255 / 0.1), transparent 62%);
+  top: -140px;
+  height: 640px;
+  background: radial-gradient(ellipse at 50% 45%, rgb(60 107 255 / 0.1), transparent 60%);
 }
-/* The walkthrough is tall: warm where the attack is planted and read, cool where the vault checks it
-   and the claim is paid. */
+/* The walkthrough is tall: warm at the top of the text column, where the attack is planted, and cool at
+   the bottom, where it is checked and paid. Both at the left edge, away from the cards. */
 #how::before {
   top: -240px;
   bottom: -240px;
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 86%, transparent);
-  mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 86%, transparent);
   background:
-    radial-gradient(ellipse at 18% 18%, rgb(255 154 128 / 0.1), transparent 52%),
-    radial-gradient(ellipse at 82% 40%, rgb(255 179 71 / 0.05), transparent 50%),
-    radial-gradient(ellipse at 78% 86%, rgb(60 107 255 / 0.13), transparent 55%);
+    radial-gradient(ellipse at 6% 22%, rgb(255 154 128 / 0.09), transparent 40%),
+    radial-gradient(ellipse at 6% 82%, rgb(60 107 255 / 0.1), transparent 42%);
 }
 #who::before {
-  top: -140px;
-  height: 760px;
+  top: -200px;
+  height: 960px;
   background:
-    radial-gradient(ellipse at 80% 35%, rgb(60 107 255 / 0.17), transparent 60%),
-    radial-gradient(ellipse at 12% 85%, rgb(29 78 216 / 0.09), transparent 55%);
+    radial-gradient(ellipse at 82% 40%, rgb(60 107 255 / 0.15), transparent 58%),
+    radial-gradient(ellipse at 10% 82%, rgb(29 78 216 / 0.08), transparent 52%);
 }
 #score::before {
-  top: -160px;
-  height: 760px;
-  background: radial-gradient(ellipse at 15% 40%, rgb(29 78 216 / 0.15), transparent 58%);
+  top: -220px;
+  height: 960px;
+  background: radial-gradient(ellipse at 14% 45%, rgb(29 78 216 / 0.14), transparent 56%);
 }
 #sentinel::before {
-  top: -100px;
-  bottom: -100px;
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 82%, transparent);
-  mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 82%, transparent);
-  background: radial-gradient(ellipse at 88% 40%, rgb(60 107 255 / 0.11), transparent 58%);
+  top: -200px;
+  bottom: -200px;
+  background: radial-gradient(ellipse at 90% 40%, rgb(60 107 255 / 0.1), transparent 55%);
 }
 #bring::before {
-  top: -140px;
-  height: 760px;
-  background: radial-gradient(ellipse at 84% 45%, rgb(60 107 255 / 0.15), transparent 60%);
+  top: -200px;
+  height: 960px;
+  background: radial-gradient(ellipse at 86% 48%, rgb(60 107 255 / 0.14), transparent 58%);
 }
 #faq::before {
-  top: -120px;
-  height: 720px;
-  background: radial-gradient(ellipse at 14% 35%, rgb(60 107 255 / 0.13), transparent 58%);
+  top: -180px;
+  height: 920px;
+  background: radial-gradient(ellipse at 12% 40%, rgb(60 107 255 / 0.12), transparent 56%);
 }
