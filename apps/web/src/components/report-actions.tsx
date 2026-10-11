@@ -59,7 +59,7 @@ export function TopFixes({ report }: { report: Report | null | undefined }) {
   return (
     <section
       aria-labelledby="top-fixes"
-      className="flex flex-col gap-4 border-t border-line pt-6 text-sm"
+      className="flex flex-col gap-4 border-t border-line pt-5 text-sm"
     >
       <div>
         <h3 id="top-fixes" className="font-semibold">

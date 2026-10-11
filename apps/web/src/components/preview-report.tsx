@@ -69,7 +69,7 @@ export function PreviewReport({
   };
   const untested = new Set(untestedClasses(report));
   return (
-    <div className="flex flex-col gap-8 text-sm">
+    <div className="flex flex-col gap-6 text-sm">
       {run.status === "failed" || !report ? (
         <Note tone="breach" role="alert" title="The preview didn't finish with a score.">
           {ratingFailure(run)}
@@ -135,7 +135,7 @@ export function PreviewReport({
             </table>
           </div>
           {previous?.ratingId && (
-            <div className="border-t border-line pt-6">
+            <div className="border-t border-line pt-5">
               <RatingCompareView from={previous.ratingId} to={run.id} session={session} />
             </div>
           )}
@@ -153,7 +153,7 @@ export function PreviewReport({
           />
         </>
       )}
-      <div className="grid gap-8 border-t border-line pt-6 sm:grid-cols-2">
+      <div className="grid gap-6 border-t border-line pt-5 sm:grid-cols-2">
         {onRateAgain && (
           <div className="flex flex-col gap-2">
             <p className="font-semibold">Fixed something?</p>
@@ -188,18 +188,19 @@ function ScoreNotes({ rows }: { rows: { label: string; text: string | undefined 
   const shown = rows.filter((r): r is { label: string; text: string } => Boolean(r.text));
   if (!shown.length) return null;
   return (
-    <section aria-labelledby="score-notes" className="border-t border-line pt-6">
+    <section aria-labelledby="score-notes" className="border-t border-line pt-5">
       <h3 id="score-notes" className="font-semibold">
-        How this score was worked out
+        Notes on your score
       </h3>
-      <dl className="mt-1 divide-y divide-line">
+      <p className="mt-1 text-muted">
+        Generated from this rating's results, not written by a model. They say what counted for or
+        against the score.
+      </p>
+      <dl className="mt-3 divide-y divide-line">
         {shown.map((r) => (
-          <div
-            key={r.label}
-            className="grid gap-x-8 gap-y-1 py-3 sm:grid-cols-[9rem_minmax(0,1fr)]"
-          >
-            <dt className="text-muted">{r.label}</dt>
-            <dd className="text-soft">{r.text}</dd>
+          <div key={r.label} className="py-3">
+            <dt className="text-xs font-semibold tracking-wide text-muted uppercase">{r.label}</dt>
+            <dd className="mt-1.5 text-soft">{r.text}</dd>
           </div>
         ))}
       </dl>
