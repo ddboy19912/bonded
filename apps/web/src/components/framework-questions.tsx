@@ -51,9 +51,35 @@ export function FrameworkLogo({
   );
 }
 
+/** What differs between the two layouts: classes, and how one framework option is drawn. */
+const LAYOUT = {
+  /** Chips for the framework and a plain list for where it runs, with no box per option. */
+  flat: {
+    root: "gap-7",
+    fieldset: "",
+    frameworkLegend: "mb-3",
+    frameworks: "flex flex-wrap gap-2",
+    hostingHint: "mt-1 text-muted",
+    hostings: "mt-1 divide-y divide-line",
+    advanced: "border-t border-line pt-4",
+  },
+  /** A bordered card for each option. */
+  boxed: {
+    root: "gap-5",
+    fieldset: "flex flex-col gap-2",
+    frameworkLegend: "mb-2",
+    frameworks: "grid gap-2 sm:grid-cols-2",
+    hostingHint: "mb-2 text-xs text-muted",
+    hostings: "grid gap-2 sm:grid-cols-2",
+    advanced: "rounded-2xl border border-line-strong p-4",
+  },
+} as const;
+
 /**
  * The two questions every connect flow starts with: the framework, and where the agent runs.
- * Anything else (mode, code hash, TEE) is under "Advanced", passed in as `advanced`.
+ * Anything else (mode, code hash, TEE) is under "Advanced", passed in as `advanced`. One flow, in
+ * two layouts (`flat`, or boxed): the questions, their copy, the remembered framework, the hosting
+ * hint and the Advanced disclosure are the same in both.
  */
 export function FrameworkQuestions({
   framework,
@@ -74,16 +100,28 @@ export function FrameworkQuestions({
   advanced?: ReactNode;
   advancedOpen?: boolean;
   onAdvancedToggle?: (open: boolean) => void;
-  /** Chips for the framework and a plain list for where it runs, instead of a box per option. */
   flat?: boolean;
 }) {
-  if (flat)
-    return (
-      <div className="flex flex-col gap-7 text-sm">
-        <fieldset>
-          <legend className="mb-3 font-medium">Which framework is your agent built on?</legend>
-          <div className="flex flex-wrap gap-2">
-            {FRAMEWORKS.map((f) => (
+  const L = flat ? LAYOUT.flat : LAYOUT.boxed;
+  const pick = (f: Framework) => {
+    rememberFramework(f);
+    onFramework(f);
+  };
+  const frameworkTitle = (f: Framework) => (
+    <span className={flat ? "flex items-center gap-2.5" : "inline-flex items-center gap-2.5"}>
+      <FrameworkLogo framework={f} />
+      {FRAMEWORK_TEXT[f].title}
+    </span>
+  );
+  return (
+    <div className={`flex flex-col text-sm ${L.root}`}>
+      <fieldset className={L.fieldset}>
+        <legend className={`${L.frameworkLegend} font-medium`}>
+          Which framework is your agent built on?
+        </legend>
+        <div className={L.frameworks}>
+          {FRAMEWORKS.map((f) =>
+            flat ? (
               <label
                 key={f}
                 className={`flex cursor-pointer items-center rounded-full border px-4 py-2 text-sm transition has-focus-visible:ring-2 has-focus-visible:ring-accent ${framework === f ? "border-accent/60 bg-accent-soft text-ink" : "border-line-strong text-muted hover:text-ink"}`}
@@ -93,85 +131,34 @@ export function FrameworkQuestions({
                   name={`${name}-framework`}
                   className="sr-only"
                   checked={framework === f}
-                  onChange={() => {
-                    rememberFramework(f);
-                    onFramework(f);
-                  }}
+                  onChange={() => pick(f)}
                 />
-                <span className="flex items-center gap-2.5">
-                  <FrameworkLogo framework={f} />
-                  {FRAMEWORK_TEXT[f].title}
-                </span>
+                {frameworkTitle(f)}
               </label>
-            ))}
-          </div>
-          {framework && <p className="mt-3 text-muted">{FRAMEWORK_TEXT[framework].line}</p>}
-        </fieldset>
-        <fieldset>
-          <legend className="font-medium">Where do you run it?</legend>
-          <p className="mt-1 text-muted">{HOSTING_HINT}</p>
-          <div className="mt-1 divide-y divide-line">
-            {(["machine", "online"] as const).map((h) => (
+            ) : (
               <Choice
-                key={h}
-                flat
-                name={`${name}-hosting`}
-                checked={hosting === h}
-                onChange={() => onHosting(h)}
-                title={HOSTING_TEXT[h].title}
+                key={f}
+                name={`${name}-framework`}
+                checked={framework === f}
+                onChange={() => pick(f)}
+                title={frameworkTitle(f)}
               >
-                {HOSTING_TEXT[h].line}
+                {FRAMEWORK_TEXT[f].line}
               </Choice>
-            ))}
-          </div>
-        </fieldset>
-        {advanced && (
-          <Collapsible
-            {...(advancedOpen !== undefined ? { open: advancedOpen } : {})}
-            {...(onAdvancedToggle ? { onOpenChange: onAdvancedToggle } : {})}
-            className="border-t border-line pt-4"
-            triggerClassName="text-sm font-medium"
-            contentClassName="pt-4"
-            summary="Advanced (optional)"
-          >
-            <div className="flex flex-col gap-4">{advanced}</div>
-          </Collapsible>
-        )}
-      </div>
-    );
-  return (
-    <div className="flex flex-col gap-5 text-sm">
-      <fieldset className="flex flex-col gap-2">
-        <legend className="mb-2 font-medium">Which framework is your agent built on?</legend>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {FRAMEWORKS.map((f) => (
-            <Choice
-              key={f}
-              name={`${name}-framework`}
-              checked={framework === f}
-              onChange={() => {
-                rememberFramework(f);
-                onFramework(f);
-              }}
-              title={
-                <span className="inline-flex items-center gap-2.5">
-                  <FrameworkLogo framework={f} />
-                  {FRAMEWORK_TEXT[f].title}
-                </span>
-              }
-            >
-              {FRAMEWORK_TEXT[f].line}
-            </Choice>
-          ))}
+            ),
+          )}
         </div>
+        {/* The chips carry no description of their own; the picked one's line sits under them. */}
+        {flat && framework && <p className="mt-3 text-muted">{FRAMEWORK_TEXT[framework].line}</p>}
       </fieldset>
-      <fieldset className="flex flex-col gap-2">
+      <fieldset className={L.fieldset}>
         <legend className="font-medium">Where do you run it?</legend>
-        <p className="mb-2 text-xs text-muted">{HOSTING_HINT}</p>
-        <div className="grid gap-2 sm:grid-cols-2">
+        <p className={L.hostingHint}>{HOSTING_HINT}</p>
+        <div className={L.hostings}>
           {(["machine", "online"] as const).map((h) => (
             <Choice
               key={h}
+              flat={flat}
               name={`${name}-hosting`}
               checked={hosting === h}
               onChange={() => onHosting(h)}
@@ -186,7 +173,7 @@ export function FrameworkQuestions({
         <Collapsible
           {...(advancedOpen !== undefined ? { open: advancedOpen } : {})}
           {...(onAdvancedToggle ? { onOpenChange: onAdvancedToggle } : {})}
-          className="rounded-2xl border border-line-strong p-4"
+          className={L.advanced}
           triggerClassName="text-sm font-medium"
           contentClassName="pt-4"
           summary="Advanced (optional)"
