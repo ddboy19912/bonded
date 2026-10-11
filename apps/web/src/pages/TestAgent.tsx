@@ -43,6 +43,7 @@ import { PREVIEW_LABEL, PreviewReport } from "../components/preview-report";
 import {
   Badge,
   Button,
+  Card,
   EmptyState,
   ErrorText,
   Loading,
@@ -290,11 +291,13 @@ export function TestAgent() {
           then.
         </Note>
       )}
-      <div className="grid items-start gap-x-16 gap-y-12 lg:grid-cols-[minmax(0,1fr)_17rem]">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         {previewId && session && preview.isPending ? (
-          <Loading what="your preview" height="lg" />
+          <Card>
+            <Loading what="your preview" height="lg" />
+          </Card>
         ) : (
-          <ol className="flex min-w-0 flex-col" aria-label="Steps">
+          <ol className="flex min-w-0 flex-col gap-4" aria-label="Steps">
             <FlowStep
               n={1}
               title={STEP_TITLES["sign-in"]}
@@ -555,7 +558,7 @@ export function TestAgent() {
               )}
             </FlowStep>
 
-            <FlowStep n={7} title={STEP_TITLES.report} state={stateOf("report")} wide last>
+            <FlowStep n={7} title={STEP_TITLES.report} state={stateOf("report")}>
               {p && run.data && runFinished ? (
                 <PreviewReport
                   preview={p}
@@ -572,23 +575,22 @@ export function TestAgent() {
           </ol>
         )}
 
-        <aside className="flex min-w-0 flex-col gap-10 border-t border-line pt-10 lg:sticky lg:top-24 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-8">
+        <div className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-24">
           <PreviewProblems
             previewId={previewId}
             signedIn={Boolean(session)}
             preview={preview}
             onReset={() => setParams({})}
           />
-          <section>
-            <h2 className="text-base font-semibold">This is a preview rating</h2>
-            <p className="mt-2 text-sm text-muted">
+          <Card title="This is a preview rating">
+            <p className="text-sm text-muted">
               A shorter version of an official rating, scored the same way by the same judge
               {plan
                 ? `: up to ${plan.episodes} episodes, stopped at ${duration(plan.budgetSeconds)} at the most`
                 : ""}
               .
             </p>
-            <dl className="mt-5 flex flex-col gap-4 text-sm">
+            <dl className="mt-4 flex flex-col gap-3 text-sm">
               <div>
                 <dt className="font-medium">{PREVIEW_LABEL}</dt>
                 <dd className="mt-0.5 text-muted">
@@ -608,7 +610,7 @@ export function TestAgent() {
                 </dd>
               </div>
             </dl>
-            <p className="mt-5 text-sm">
+            <p className="mt-4 text-sm">
               <a className={linkClass} href={DOCS_BYOA}>
                 The guide
               </a>{" "}
@@ -617,17 +619,16 @@ export function TestAgent() {
                 Onboard an agent instead
               </Link>
             </p>
-          </section>
+          </Card>
           {session && (previews.data?.items.length ?? 0) > 0 && (
-            <section>
-              <h2 className="text-base font-semibold">Your previews</h2>
-              <ul className="mt-2 divide-y divide-line text-sm">
+            <Card title="Your previews">
+              <ul className="divide-y divide-line text-sm">
                 {previews.data!.items.map((x) => (
                   <li
                     key={x.id}
-                    className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-3"
+                    className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2.5 first:pt-0 last:pb-0"
                   >
-                    <span className="flex flex-col items-start gap-1">
+                    <span className="flex flex-wrap items-center gap-2">
                       <span className="text-muted">
                         {when(Math.floor(Date.parse(x.createdAt) / 1000))}
                       </span>
@@ -660,9 +661,9 @@ export function TestAgent() {
                   </li>
                 ))}
               </ul>
-            </section>
+            </Card>
           )}
-        </aside>
+        </div>
       </div>
     </Page>
   );
@@ -671,10 +672,10 @@ export function TestAgent() {
 type StepState = "done" | "current" | "later";
 
 /**
- * One step of the flow, on a rail down the page's left edge. The current one is open; done ones
- * show a line of what was done (and can be reopened when that helps, e.g. to copy the runner
- * command again); later ones show only their title, so the whole path is visible from the start.
- * Steps sit directly on the page: the rail and the spacing do the grouping, not a box each.
+ * One step of the flow, a card each. The current one is open; done ones show a line of what was
+ * done (and can be reopened when that helps, e.g. to copy the runner command again); later ones
+ * show only their title, so the whole path is visible from the start. Inside a card there are no
+ * further boxes: the content sits flat, under the title.
  */
 function FlowStep({
   n,
@@ -682,8 +683,6 @@ function FlowStep({
   state,
   summary,
   open,
-  wide = false,
-  last = false,
   children,
 }: {
   n: number;
@@ -692,9 +691,6 @@ function FlowStep({
   summary?: ReactNode;
   /** A done step's content stays reachable behind "Show". */
   open?: boolean;
-  /** The content uses the full width (the report's table) instead of a reading width. */
-  wide?: boolean;
-  last?: boolean;
   children: ReactNode;
 }) {
   const [show, setShow] = useState(false);
@@ -712,57 +708,39 @@ function FlowStep({
   return (
     <li
       aria-current={state === "current" ? "step" : undefined}
-      className="grid min-w-0 grid-cols-[1.75rem_minmax(0,1fr)] gap-x-4"
+      className={`panel min-w-0 p-5 sm:p-6 ${state === "later" ? "opacity-55" : ""}`}
     >
-      <div className="flex flex-col items-center" aria-hidden>
+      <div className="flex items-center gap-3">
         <span
-          className={`flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${state === "done" ? "border border-safe/50 text-safe" : state === "current" ? "btn-brand text-on-brand" : "border border-line-strong text-muted"}`}
+          className={`flex size-7 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${state === "done" ? "bg-safe text-paper" : state === "current" ? "btn-brand text-on-brand" : "bg-white/[0.07] text-muted"}`}
+          aria-hidden
         >
-          {state === "done" ? (
-            <svg viewBox="0 0 16 16" className="size-3.5" fill="none" stroke="currentColor">
-              <path d="m3.5 8.5 3 3 6-7" strokeWidth="1.75" strokeLinecap="round" />
-            </svg>
-          ) : (
-            n
-          )}
+          {state === "done" ? "✓" : n}
         </span>
-        {!last && (
-          <span
-            className={`mt-2 w-px flex-1 ${state === "done" ? "bg-safe/25" : "bg-line-strong"}`}
-          />
-        )}
-      </div>
-      <div className={`min-w-0 ${last ? "" : "pb-9"}`}>
-        <div className="flex min-h-7 items-center justify-between gap-3">
-          <h2
-            ref={heading}
-            tabIndex={-1}
-            className={`min-w-0 leading-snug outline-none ${state === "current" ? "text-xl font-semibold" : state === "done" ? "text-base font-medium text-soft" : "text-base font-medium text-muted"}`}
+        <h2 ref={heading} tabIndex={-1} className="min-w-0 flex-1 text-lg font-bold outline-none">
+          <span className="sr-only">
+            Step {n}
+            {state === "done" ? ", done" : state === "current" ? ", current" : ""}:{" "}
+          </span>
+          {title}
+        </h2>
+        {state === "done" && open && (
+          <button
+            type="button"
+            className={`${linkClass} shrink-0 text-sm`}
+            aria-expanded={show}
+            onClick={() => setShow((v) => !v)}
           >
-            <span className="sr-only">
-              Step {n}
-              {state === "done" ? ", done" : state === "current" ? ", current" : ""}:{" "}
-            </span>
-            {title}
-          </h2>
-          {state === "done" && open && (
-            <button
-              type="button"
-              className={`${linkClass} shrink-0 text-sm`}
-              aria-expanded={show}
-              onClick={() => setShow((v) => !v)}
-            >
-              {show ? "Hide" : "Show"}
-            </button>
-          )}
-        </div>
-        {state === "done" && summary && (
-          <div className="mt-1.5 max-w-2xl text-sm text-muted">{summary}</div>
-        )}
-        {(state === "current" || (state === "done" && open && show)) && (
-          <div className={`mt-5 ${wide ? "" : "max-w-2xl"}`}>{children}</div>
+            {show ? "Hide" : "Show"}
+          </button>
         )}
       </div>
+      {state === "done" && summary && (
+        <div className="mt-2 pl-10 text-sm text-muted">{summary}</div>
+      )}
+      {(state === "current" || (state === "done" && open && show)) && (
+        <div className="mt-5">{children}</div>
+      )}
     </li>
   );
 }
