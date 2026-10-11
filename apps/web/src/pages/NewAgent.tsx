@@ -103,12 +103,13 @@ import { NewAgentConnection } from "../components/connect-agent";
 import { prefillFrom, type OfficialPrefill } from "../components/preview-report";
 import {
   Button,
-  Callout,
   Card,
   Choice,
   ErrorText,
   Input,
+  Note,
   Page,
+  Switch,
   Term,
   TxLink,
   linkClass,
@@ -780,48 +781,54 @@ export function NewAgent() {
   return (
     <Page
       title="Onboard an agent"
-      eyebrow="For operators"
       back={{ to: "/agents", label: "All agents" }}
       intro="Register an agent, give it a vault and a bond, and fund it, all from your wallet. Then get it rated and buy cover from its page."
     >
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-6">
           <StepCard n={1} title="What gets rated">
-            <p className="mb-4 text-sm text-muted">
-              One of Bonded's built-in agent designs, run against your vault and mandate, or your
-              own agent, running where it runs and reached at its URL or through a small runner (
+            <p className="mb-2 text-sm text-muted">
+              Pick one of Bonded's built-in agents, or connect your own (
               <a className={linkClass} href={DOCS_BYOA}>
                 how
               </a>
               ).
             </p>
-            <div className="grid gap-2">
-              {SELF_SERVE_KINDS.map((k) => (
-                <Choice
-                  key={k}
-                  name="kind"
-                  checked={kind === k}
-                  onChange={() => setKind(k)}
-                  title={SELF_SERVE_KIND_LABELS[k]}
-                />
-              ))}
+            <div className="divide-y divide-line">
+              {SELF_SERVE_KINDS.map((k) => {
+                // "Vulnerable: acts on instructions it reads": the name, then what it is.
+                const [name = "", ...rest] = SELF_SERVE_KIND_LABELS[k].split(": ");
+                return (
+                  <Choice
+                    flat
+                    key={k}
+                    name="kind"
+                    checked={kind === k}
+                    onChange={() => setKind(k)}
+                    title={name}
+                  >
+                    {capitalise(rest.join(": "))}
+                  </Choice>
+                );
+              })}
               <Choice
+                flat
                 name="kind"
                 checked={own}
                 onChange={() => setKind(REMOTE_KIND)}
-                title="My own agent: any framework or language, where it already runs"
+                title="My own agent"
               >
-                Connect it at its URL or with a small runner, right after onboarding, and check the
-                connection before its first rating.
+                Any framework or language, where it already runs. You connect it and check the
+                connection right after onboarding, before its first rating.
               </Choice>
             </div>
             {own ? (
               <div className="mt-5 flex flex-col gap-5 text-sm">
                 {prefill ? (
-                  <Callout tone="safe" title="Filled in from your preview">
+                  <Note tone="safe" title="Filled in from your preview">
                     Its mode and connection are set as you tested them. The official rating runs
                     again from scratch, attested on chain; your preview stays linked to it.
-                  </Callout>
+                  </Note>
                 ) : (
                   <p className="text-muted">
                     Not ready to commit a vault and a bond?{" "}
@@ -832,6 +839,7 @@ export function NewAgent() {
                   </p>
                 )}
                 <FrameworkQuestions
+                  flat
                   name="onboard"
                   framework={framework}
                   hosting={hostingFor(connection)}
@@ -855,9 +863,11 @@ export function NewAgent() {
                 <details
                   open={advanced}
                   onToggle={(e) => setAdvanced((e.currentTarget as HTMLDetailsElement).open)}
-                  className="rounded-2xl border border-line-strong p-4"
+                  className="border-t border-line pt-4"
                 >
-                  <summary className="cursor-pointer font-medium">Advanced (optional)</summary>
+                  <summary className="cursor-pointer font-medium marker:text-muted">
+                    Advanced (optional)
+                  </summary>
                   <div className="mt-4 flex flex-col gap-4">
                     <ModeChoice mode={remoteMode} onMode={setRemoteMode} name="onboard-mode" />
                     <Input
@@ -902,35 +912,36 @@ export function NewAgent() {
                     ) : (
                       <p className="text-xs text-muted">
                         A TEE can bind only a chain-mode agent: in tool mode the tool calls come
-                        from outside the TEE, so it would prove nothing about how the agent acts.
+                        from outside it, so it would prove nothing about how the agent acts.
                       </p>
                     )}
                     <p className="text-xs text-muted">
                       Without a TEE the score's binding is declared, and cover is capped lower
-                      (underwriting policy, not the score). With one (chain mode only), every
-                      episode must prove it, the vault's agent key must be the TEE's own key for
-                      cover, and the compose hash is what's bound: the compose file decides what
-                      runs in the TEE, so publish it for review.
+                      (underwriting policy, not the score). With one, every episode must prove it
+                      and the vault's agent key must be the TEE's own key. The compose hash is
+                      what's bound, so publish the compose file for review.
                     </p>
                   </div>
                 </details>
               </div>
             ) : (
-              <div className="mt-4">
-                <Choice
-                  type="checkbox"
+              <div className="mt-2 border-t border-line">
+                <Switch
                   checked={sentinel}
                   onChange={() => setSentinel((v) => !v)}
-                  title="Rate it with Sentinel in front"
-                >
-                  Sentinel checks each trade the agent proposes and stops the ones driven by what it
-                  read. If it breaches less, it scores higher and cover costs less. Your agent
-                  should then ask Sentinel before each trade (
-                  <Link to="/sentinel" className={linkClass}>
-                    how
-                  </Link>
-                  ).
-                </Choice>
+                  label="Rate it with Sentinel in front"
+                  description={
+                    <>
+                      Sentinel checks each trade the agent proposes and stops the ones driven by
+                      what it read, so it breaches less, scores higher and cover costs less. Your
+                      agent should then ask Sentinel before each trade (
+                      <Link to="/sentinel" className={linkClass}>
+                        how
+                      </Link>
+                      ).
+                    </>
+                  }
+                />
               </div>
             )}
           </StepCard>
@@ -961,7 +972,7 @@ export function NewAgent() {
                       ))}
                     </ul>
                   ) : null}
-                  <div className="grid gap-2 sm:grid-cols-3">
+                  <div className="divide-y divide-line">
                     {(["conservative", "active", "custom"] as const)
                       .filter(
                         (id) => id === "custom" || suggested.data!.presets.some((p) => p.id === id),
@@ -970,6 +981,7 @@ export function NewAgent() {
                         const p = suggested.data!.presets.find((x) => x.id === id);
                         return (
                           <Choice
+                            flat
                             key={id}
                             name="preset"
                             checked={preset === id}
@@ -993,8 +1005,9 @@ export function NewAgent() {
                   {onModule ? "Module mode" : "Vault mode"}
                   {editedMark("mode")}
                 </legend>
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="divide-y divide-line">
                   <Choice
+                    flat
                     name="mode"
                     checked={mode === "monitor"}
                     onChange={() => custom("mode", setMode)("monitor")}
@@ -1006,6 +1019,7 @@ export function NewAgent() {
                       : "Breaches go through and are recorded, so they can be claimed."}
                   </Choice>
                   <Choice
+                    flat
                     name="mode"
                     checked={mode === "enforce"}
                     onChange={() => custom("mode", setMode)("enforce")}
@@ -1114,12 +1128,13 @@ export function NewAgent() {
             </div>
           </StepCard>
 
-          <StepCard n={3} title="Where the funds are, agent key and bond">
+          <StepCard n={3} title="Funds, agent key and bond">
             <div className="flex flex-col gap-5 text-sm">
               <fieldset>
                 <legend className="mb-2 font-medium">What protects the funds</legend>
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="divide-y divide-line">
                   <Choice
+                    flat
                     name="protection"
                     checked={!onModule}
                     onChange={() => setProtection("vault")}
@@ -1128,6 +1143,7 @@ export function NewAgent() {
                     A new Mandate Vault holds the funds; depositors put money in it.
                   </Choice>
                   <Choice
+                    flat
                     name="protection"
                     checked={onModule}
                     onChange={() => {
@@ -1144,9 +1160,10 @@ export function NewAgent() {
                 </div>
                 {onModule && (
                   <div className="mt-3 flex flex-col gap-2">
-                    <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="divide-y divide-line">
                       {(["safe7579", "erc7579"] as const).map((t) => (
                         <Choice
+                          flat
                           key={t}
                           name="account-type"
                           checked={accountType === t}
@@ -1193,8 +1210,9 @@ export function NewAgent() {
                     that would let the agent act as the account itself, around the module.
                   </p>
                 )}
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="divide-y divide-line">
                   <Choice
+                    flat
                     name="key"
                     checked={selfAgent}
                     onChange={() => setSelfAgent(true)}
@@ -1205,6 +1223,7 @@ export function NewAgent() {
                       : "For testing: lets you simulate a breach from the vault page."}
                   </Choice>
                   <Choice
+                    flat
                     name="key"
                     checked={!selfAgent}
                     onChange={() => setSelfAgent(false)}
@@ -1279,7 +1298,7 @@ export function NewAgent() {
           <WalletHelp gasNeeded={gas.data ?? undefined} />
           <StepCard n={4} title="Create">
             {unfinished && !busy && (
-              <div className="mb-4 flex flex-col gap-3 rounded-lg border border-warn/30 bg-warn-soft p-4 text-sm">
+              <div className="mb-5 flex flex-col gap-3 border-l-2 border-warn/60 pl-4 text-sm">
                 <p>
                   You have an unfinished onboarding
                   {unfinished.agentId ? ` of agent ${unfinished.agentId}` : ""}
@@ -1361,7 +1380,7 @@ export function NewAgent() {
             )}
             <ErrorText error={error} />
             {install && (
-              <div className="mt-4 flex flex-col gap-3 rounded-lg border border-line-strong p-4 text-sm">
+              <div className="mt-5 flex flex-col gap-3 border-t border-line pt-5 text-sm">
                 <p className="font-medium">Send these from your smart account, in order</p>
                 <p className="text-xs text-muted">
                   The module will be at <span className="font-mono">{install.module}</span>.{" "}
@@ -1383,7 +1402,7 @@ export function NewAgent() {
               </div>
             )}
             {created && (
-              <div className="mt-4 rounded-lg border border-safe/30 bg-safe-soft p-4 text-sm">
+              <div className="mt-5 border-l-2 border-safe/60 pl-4 text-sm">
                 <p className="font-medium">Agent {created.agentId.toString()} is set up.</p>
                 <p className="mt-1">
                   {connectNow ? (
@@ -1434,9 +1453,18 @@ function BondAdvice({
   const valid = Number.isFinite(cover) && cover > 0;
   const rec = valid ? recommendedBond(cover, score) : undefined;
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-line-strong p-4 text-sm">
-      <p className="font-medium">What the bond is for</p>
-      <p className="text-muted">{BOND_EXPLAINED}</p>
+    <div className="flex flex-col gap-4 border-t border-line pt-5 text-sm">
+      <div>
+        <p className="font-medium">What the bond is for</p>
+        <p className="mt-1 text-muted">
+          Your own stake in the agent. It's lost only if the agent breaks its mandate and someone is
+          paid for it.
+        </p>
+        <details className="mt-2 text-xs text-muted">
+          <summary className="cursor-pointer marker:text-muted">More on the bond</summary>
+          <p className="mt-1.5">{BOND_EXPLAINED}</p>
+        </details>
+      </div>
       <Input
         label="Cover you want"
         hint={
@@ -1452,28 +1480,28 @@ function BondAdvice({
       />
       {valid && (
         <>
-          <table className="w-full text-xs">
+          <table className="w-full text-sm">
             <caption className="sr-only">Smallest bond for this cover, by tier</caption>
-            <thead className="text-left text-muted">
+            <thead className="text-left text-xs text-muted">
               <tr>
-                <th className="pb-1 font-medium">Score's tier</th>
-                <th className="pb-1 text-right font-medium">Smallest bond</th>
+                <th className="pb-1.5 font-medium">Score's tier</th>
+                <th className="pb-1.5 text-right font-medium">Smallest bond</th>
               </tr>
             </thead>
             <tbody>
               {bondTable(cover).map((r) => (
-                <tr key={r.tiers} className="border-t border-white/[0.06]">
-                  <td className="py-1.5">
+                <tr key={r.tiers} className="border-t border-line">
+                  <td className="py-2">
                     {r.tiers} ({r.minBondPct}% of the cover)
                   </td>
-                  <td className="py-1.5 text-right font-mono">{r.bond.toLocaleString("en-US")}</td>
+                  <td className="py-2 text-right font-mono">{r.bond.toLocaleString("en-US")}</td>
                 </tr>
               ))}
             </tbody>
           </table>
           {rec && (
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-muted">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+              <p className="min-w-0 flex-1 text-muted">
                 Recommended:{" "}
                 <span className="font-mono text-ink">{rec.bond.toLocaleString("en-US")}</span>,
                 because {rec.why}.
@@ -1485,13 +1513,12 @@ function BondAdvice({
           )}
         </>
       )}
-      <p className="text-xs text-muted">
-        Test <Token symbol="tUSDG" /> for the bond and the deposit is minted from the faucet as part
-        of these steps.
-      </p>
     </div>
   );
 }
+
+/** "acts on instructions it reads" as a sentence; nothing for nothing. */
+const capitalise = (t: string) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : undefined);
 
 /** A numbered section of the onboarding form. */
 function StepCard({ n, title, children }: { n: number; title: ReactNode; children: ReactNode }) {

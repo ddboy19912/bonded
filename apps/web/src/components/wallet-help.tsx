@@ -45,7 +45,10 @@ export function WalletHelp({ gasNeeded }: { gasNeeded: bigint | undefined }) {
         {!isConnected ? (
           <p className="text-muted">Connect a wallet first: it signs every step.</p>
         ) : onChain || added ? (
-          <p className="text-safe">Your wallet is on {networkName}.</p>
+          <p className="flex items-center gap-2 text-safe">
+            <span className="size-2 shrink-0 rounded-full bg-current" aria-hidden />
+            Your wallet is on {networkName}.
+          </p>
         ) : (
           <div className="flex flex-col gap-2">
             <p className="text-muted">
@@ -66,19 +69,23 @@ export function WalletHelp({ gasNeeded }: { gasNeeded: bigint | undefined }) {
           {gas.text}
         </p>
         {!isLocal && faucets.length > 0 && (
-          <p className="text-xs text-muted">
-            Free test ETH:{" "}
-            {faucets.map((url, i) => (
-              <span key={url}>
-                {i > 0 && " · "}
-                <a className={linkClass} href={url} target="_blank" rel="noreferrer">
-                  {new URL(url).hostname}
-                </a>
-              </span>
-            ))}
-            . Test <span className="font-mono">tUSDG</span> for the bond and deposit is minted for
-            you during onboarding.
-          </p>
+          <div className="flex flex-col gap-1.5 border-t border-line pt-3 text-xs text-muted">
+            <p>
+              Free test ETH:{" "}
+              {faucets.map((url, i) => (
+                <span key={url}>
+                  {i > 0 && " · "}
+                  <a className={linkClass} href={url} target="_blank" rel="noreferrer">
+                    {new URL(url).hostname}
+                  </a>
+                </span>
+              ))}
+            </p>
+            <p>
+              Test <span className="font-mono">tUSDG</span> for the bond and deposit is minted for
+              you during onboarding.
+            </p>
+          </div>
         )}
         <ErrorText error={error} />
       </div>
