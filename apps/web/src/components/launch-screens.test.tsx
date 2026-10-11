@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
@@ -36,6 +36,7 @@ const signedIn = () =>
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   sessionStorage.clear();
   localStorage.clear();
 });
@@ -218,6 +219,14 @@ describe("problem links", () => {
 });
 
 describe("status and notifications", () => {
+  // The notifications page offers its settings in a dialog, which asks the screen's width.
+  beforeEach(() => {
+    vi.stubGlobal("matchMedia", () => ({
+      matches: true,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+  });
   it("shows running jobs, and says so when one looks stuck", async () => {
     vi.spyOn(byoaApi, "status").mockResolvedValue(
       status({
@@ -343,17 +352,23 @@ describe("status and notifications", () => {
     expect(await screen.findByText("The agent key is low on gas.")).toBeTruthy();
     expect(screen.getByText("Send the agent key some ETH.")).toBeTruthy();
     await waitFor(() => expect(read).toHaveBeenCalledWith("sess", { ids: ["41"] }));
-    // Each type can be turned off; a muted one shows unticked.
-    fireEvent.click(await screen.findByText("Choose what you're told about"));
-    const boxes = screen.getAllByRole("checkbox") as HTMLInputElement[];
-    expect(boxes.map((b) => b.checked)).toEqual([true, false]);
     expect(screen.getByRole("link", { name: "Agent 12" }).getAttribute("href")).toBe("/agents/12");
     expect(screen.getByRole("link", { name: /How to fix this/ }).getAttribute("href")).toBe(
       "/docs/guides/troubleshooting/#low-gas",
     );
-    expect(screen.getByLabelText("New")).toBeTruthy();
+    // The unread one is marked as new, under the day it falls in.
+    expect(screen.getByText("New")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Today" })).toBeTruthy();
+    expect(screen.getByText("1 new")).toBeTruthy();
     await waitFor(() =>
       expect(Number(localStorage.getItem("bonded:inbox-seen"))).toBeGreaterThan(0),
     );
+    // Each type can be turned off, in the settings; a muted one shows switched off.
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    const switches = (await screen.findAllByRole("switch")) as HTMLInputElement[];
+    expect(switches.map((b) => [b.closest("label")!.textContent, b.checked])).toEqual([
+      ["Low on gasThe agent key is low on gas.", true],
+      ["Claim paidA claim was paid.", false],
+    ]);
   });
 });

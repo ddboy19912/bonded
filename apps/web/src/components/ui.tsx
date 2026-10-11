@@ -373,6 +373,44 @@ export function Choice({
   );
 }
 
+/** An on/off setting: its name (and what it does) on the left, the switch on the right. */
+export function Switch({
+  checked,
+  onChange,
+  label,
+  description,
+  disabled = false,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  label: ReactNode;
+  description?: ReactNode;
+  disabled?: boolean;
+}) {
+  return (
+    <label
+      className={`flex items-center justify-between gap-6 py-3.5 ${disabled ? "cursor-wait" : "cursor-pointer"}`}
+    >
+      <span className="min-w-0">
+        <span className={`block text-sm font-medium ${checked ? "" : "text-muted"}`}>{label}</span>
+        {description && <span className="mt-0.5 block text-sm text-muted">{description}</span>}
+      </span>
+      <input
+        type="checkbox"
+        role="switch"
+        className="peer sr-only"
+        checked={checked}
+        disabled={disabled}
+        onChange={onChange}
+      />
+      <span
+        aria-hidden
+        className="relative h-6 w-10 shrink-0 rounded-full bg-white/[0.14] transition peer-checked:bg-brand-bright peer-focus-visible:ring-2 peer-focus-visible:ring-accent peer-disabled:opacity-60 after:absolute after:top-0.5 after:left-0.5 after:size-5 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-4"
+      />
+    </label>
+  );
+}
+
 export function Skeleton({ className = "h-4 w-full" }: { className?: string }) {
   return (
     <span className={`block animate-pulse rounded-lg bg-white/[0.06] ${className}`} aria-hidden />

@@ -7,18 +7,25 @@ import { ago } from "../lib/format";
 import { inboxLines, inboxSeenAt, markInboxSeen, type InboxItem } from "../lib/health";
 import { byoaApi } from "../lib/byoa-api";
 import { messageCode } from "../lib/troubleshooting";
+import { dayGroups, noticeKind, settingGroups } from "../lib/notification-kinds";
 import { useOwnerSession } from "../lib/owner-session";
 import { useInbox } from "../components/inbox-bell";
+import { InfoPanel } from "../components/overlay";
+import { NoticeIcon } from "../components/notice-icon";
 import { FixLink } from "../components/problem";
 import { ConnectButton } from "../components/wallet";
 import {
+  Badge,
   Button,
   Card,
   EmptyState,
   ErrorText,
   Loading,
   Page,
+  Skeleton,
+  Switch,
   Unavailable,
+  buttonClass,
   linkClass,
 } from "../components/ui";
 
@@ -31,7 +38,15 @@ export function MuteSettings({ session }: { session: string }) {
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  if (!settings.data) return null;
+  if (settings.error) return <ErrorText error={settings.error} />;
+  if (!settings.data)
+    return (
+      <div className="flex flex-col gap-4" aria-label="Loading your settings">
+        <Skeleton className="h-5 w-1/3" />
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+    );
   const types = settings.data.types ?? Object.keys(NOTIFICATION_TYPES);
   const muted = new Set(settings.data.muted ?? []);
   const toggle = async (type: string) => {
@@ -50,30 +65,26 @@ export function MuteSettings({ session }: { session: string }) {
     }
   };
   return (
-    <Card
-      title="Choose what you're told about"
-      description="A type you turn off isn't sent by webhook or email and doesn't show here."
-    >
-      <ul className="flex flex-col divide-y divide-line text-sm">
-        {types.map((t) => (
-          <li key={t}>
-            <label className="flex cursor-pointer items-start gap-3 py-2.5 first:pt-0 last:pb-0">
-              <input
-                type="checkbox"
-                className="mt-0.5 size-4 shrink-0 accent-brand-bright"
-                checked={!muted.has(t)}
+    <div className="flex flex-col gap-6">
+      {settingGroups(types).map((g) => (
+        <section key={g.group} aria-label={g.group}>
+          <h3 className="eyebrow">{g.group}</h3>
+          <div className="mt-1 divide-y divide-line">
+            {g.items.map((i) => (
+              <Switch
+                key={i.type}
+                label={i.title}
+                description={i.description}
+                checked={!muted.has(i.type)}
                 disabled={busy}
-                onChange={() => void toggle(t)}
+                onChange={() => void toggle(i.type)}
               />
-              <span className={muted.has(t) ? "text-muted" : ""}>
-                {NOTIFICATION_TYPES[t as keyof typeof NOTIFICATION_TYPES] ?? t}
-              </span>
-            </label>
-          </li>
-        ))}
-      </ul>
+            ))}
+          </div>
+        </section>
+      ))}
       <ErrorText error={error} />
-    </Card>
+    </div>
   );
 }
 
@@ -131,56 +142,103 @@ export function Inbox() {
       setLoadingMore(false);
     }
   };
-  const list = (
-    <Card>
-      <ul className="flex flex-col" aria-label="Notifications">
-        {items.map((i) => {
-          const fresh = i.read !== undefined ? !i.read : Date.parse(i.createdAt) > seenBefore;
-          const { title, detail } = inboxLines(i);
-          return (
-            <li
-              key={i.id}
-              className="grid grid-cols-[0.5rem_minmax(0,1fr)_auto] gap-x-3 border-t border-line py-4 text-sm first:border-0 first:pt-0 last:pb-0"
-            >
-              <span
-                className={`mt-[7px] size-2 rounded-full ${fresh ? "bg-accent" : ""}`}
-                {...(fresh ? { "aria-label": "New" } : { "aria-hidden": true })}
-              />
-              <div className="flex min-w-0 flex-col gap-1">
-                <p className={fresh ? "font-semibold" : "font-medium"}>{title}</p>
-                {detail && <p className="text-soft">{detail}</p>}
-                {(i.agentId || i.code) && (
-                  <p className="flex flex-wrap gap-x-3 pt-0.5 text-xs">
-                    {i.agentId && (
-                      <Link className={linkClass} to={`/agents/${i.agentId}`}>
-                        Agent {i.agentId}
-                      </Link>
+  const now = Date.now();
+  const fresh = (i: InboxItem) =>
+    i.read !== undefined ? !i.read : Date.parse(i.createdAt) > seenBefore;
+  const freshCount = items.filter(fresh).length;
+  const feed = (
+    <div className="flex max-w-3xl flex-col gap-8">
+      <p className="text-sm text-muted" aria-live="polite">
+        {freshCount > 0 ? (
+          <>
+            <span className="font-semibold text-ink">{freshCount} new</span> since you last looked
+          </>
+        ) : (
+          "You're all caught up."
+        )}
+      </p>
+      {dayGroups(items, now).map((g) => (
+        <section key={g.label} aria-label={g.label}>
+          <h2 className="border-b border-line pb-2 text-xs font-semibold tracking-wide text-muted uppercase">
+            {g.label}
+          </h2>
+          <ul className="flex flex-col" aria-label={`Notifications, ${g.label.toLowerCase()}`}>
+            {g.items.map((i) => {
+              const isNew = fresh(i);
+              const kind = noticeKind(i);
+              const { title, detail } = inboxLines(i);
+              return (
+                <li key={i.id} className="flex gap-4 py-4 text-sm">
+                  <span className="relative">
+                    <NoticeIcon icon={kind?.icon} tone={kind?.tone} />
+                    {isNew && (
+                      <span
+                        className="absolute -top-0.5 -right-0.5 size-3 rounded-full border-2 border-paper bg-accent"
+                        aria-hidden
+                      />
                     )}
-                    <FixLink code={messageCode({ code: i.code ?? null, message: i.message })} />
-                  </p>
-                )}
-              </div>
-              <time dateTime={i.createdAt} className="pt-0.5 text-xs whitespace-nowrap text-muted">
-                {ago(i.createdAt)}
-              </time>
-            </li>
-          );
-        })}
-      </ul>
+                  </span>
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      {kind && <span className="eyebrow">{kind.title}</span>}
+                      {isNew && <Badge tone="brand">New</Badge>}
+                    </div>
+                    <p className={`text-[15px] ${isNew ? "font-semibold" : "font-medium"}`}>
+                      {title}
+                    </p>
+                    {detail && <p className="text-soft">{detail}</p>}
+                    {(i.agentId || i.code) && (
+                      <p className="flex flex-wrap gap-x-4 pt-0.5">
+                        {i.agentId && (
+                          <Link className={linkClass} to={`/agents/${i.agentId}`}>
+                            Agent {i.agentId}
+                          </Link>
+                        )}
+                        <FixLink code={messageCode({ code: i.code ?? null, message: i.message })} />
+                      </p>
+                    )}
+                  </div>
+                  <time
+                    dateTime={i.createdAt}
+                    className="shrink-0 pt-0.5 text-xs whitespace-nowrap text-muted"
+                  >
+                    {ago(i.createdAt)}
+                  </time>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
       {next && (
-        <div className="mt-4 flex flex-col items-center gap-2 border-t border-line pt-4">
+        <div className="flex flex-col items-start gap-2">
           <Button size="sm" kind="secondary" loading={loadingMore} onClick={() => void loadMore()}>
             Load more
           </Button>
           <ErrorText error={moreError} />
         </div>
       )}
-    </Card>
+    </div>
   );
   return (
     <Page
       title="Notifications"
       intro="What needs you about your agents. The same notices go to your webhook or email if you set one on an agent's page."
+      actions={
+        owner.session && (
+          <InfoPanel
+            trigger={
+              <button type="button" className={buttonClass("secondary")}>
+                Settings
+              </button>
+            }
+            title="Notification settings"
+            description="A type you turn off isn't sent by webhook or email and doesn't show here."
+          >
+            <MuteSettings session={owner.session.session} />
+          </InfoPanel>
+        )
+      }
     >
       {!isConnected ? (
         <EmptyState title="Connect your wallet" action={<ConnectButton />}>
@@ -206,20 +264,13 @@ export function Inbox() {
         </Card>
       ) : inbox.error ? (
         <Unavailable error={inbox.error} onRetry={() => void inbox.refetch()} />
+      ) : !inbox.data?.items.length ? (
+        <EmptyState title="Nothing yet">
+          When something needs you (a score about to expire, the runner offline, a breach or a
+          claim, cover lapsing, low gas), it shows here.
+        </EmptyState>
       ) : (
-        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-          {!inbox.data?.items.length ? (
-            <EmptyState title="Nothing yet">
-              When something needs you (a score about to expire, the runner offline, a breach or a
-              claim, cover lapsing, low gas), it shows here.
-            </EmptyState>
-          ) : (
-            list
-          )}
-          <div className="lg:sticky lg:top-24">
-            <MuteSettings session={owner.session.session} />
-          </div>
-        </div>
+        feed
       )}
     </Page>
   );
