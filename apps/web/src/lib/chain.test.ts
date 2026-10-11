@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { agentRows, claimPayee, moduleCoverNote, protectedAccounts, waterfall } from "./chain";
+import {
+  agentRows,
+  claimPayee,
+  moduleCoverNote,
+  protectedAccounts,
+  totalPaid,
+  waterfall,
+} from "./chain";
 
 it("splits the Gate 1 testnet claim like the contract did", () => {
   // ClaimPaid for policy 1 on chain 46630 (docs/progress/DAY-07.md).
@@ -31,6 +38,19 @@ it("nets owed premium out of what reaches the vault", () => {
   });
   expect(w.toVault).toBe(4_300n);
   expect(w.fromBond + w.fromPool).toBe(4_500n);
+});
+
+it("totals what reached vaults, not the gross awards", () => {
+  const claim = (payout: bigint, premiumNetted: bigint) => ({
+    lossBase: 5_000n,
+    payout,
+    fromBond: payout - premiumNetted,
+    fromPool: 0n,
+    premiumNetted,
+  });
+  // The first claim netted 200 of unpaid premium: 4,300 reached the vault, not 4,500.
+  expect(totalPaid([claim(4_500n, 200n), claim(900n, 0n)])).toBe(5_200n);
+  expect(totalPaid([])).toBe(0n);
 });
 
 it("lists agents newest first, with their score and newest vault", () => {

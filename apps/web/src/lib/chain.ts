@@ -41,6 +41,11 @@ export function waterfall(
   };
 }
 
+/** What claims have put into vaults and accounts in all: each award less the premium netted off it. */
+export function totalPaid(claims: readonly Parameters<typeof waterfall>[0][]) {
+  return claims.reduce((sum, c) => sum + waterfall(c).toVault, 0n);
+}
+
 const fromBlock = BigInt(deployment.deployedAtBlock);
 
 /**

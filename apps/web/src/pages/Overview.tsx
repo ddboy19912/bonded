@@ -13,7 +13,7 @@ import {
 } from "@bondedhq/shared";
 import { deployment } from "../config";
 import { api } from "../lib/api";
-import { useAgents, useClaims, useVaults, waterfall, type AgentRow } from "../lib/chain";
+import { totalPaid, useAgents, useClaims, useVaults, waterfall, type AgentRow } from "../lib/chain";
 import { short, usd } from "../lib/format";
 import { Badge, ScoreRing, Skeleton, TierBadge, buttonClass, linkClass } from "../components/ui";
 import { TokenLogo, withTokens } from "../components/token";
@@ -353,7 +353,7 @@ function AcrossBonded() {
     (x) => x.result as bigint | undefined,
   );
   const claims = useClaims();
-  const paid = claims.data?.reduce((s, c) => s + c.payout, 0n);
+  const paid = claims.data && totalPaid(claims.data);
   const agents = useAgents();
   const top = [...(agents.data ?? [])]
     .filter((a) => a.score)

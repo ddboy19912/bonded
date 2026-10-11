@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
-import { claimPayee, useClaims, useModules, waterfall } from "../lib/chain";
+import { claimPayee, totalPaid, useClaims, useModules, waterfall } from "../lib/chain";
 import { short, usd } from "../lib/format";
 import {
   Card,
@@ -42,14 +42,7 @@ export function Claims() {
     >
       {claims.data && all.length > 0 && (
         <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {stat(
-            "Paid out",
-            `$${usd(
-              sum((w) => w.toVault),
-              0,
-            )}`,
-            `${all.length} claims`,
-          )}
+          {stat("Paid out", `$${usd(totalPaid(all), 0)}`, `${all.length} claims`)}
           {stat(
             <Term term="bond">From bonds</Term>,
             `$${usd(

@@ -3,7 +3,7 @@ import { Link } from "react-router";
 import { useReadContracts } from "wagmi";
 import { bondedRegistryAbi, coverPoolAbi, tierForScore } from "@bondedhq/shared";
 import { deployment } from "../config";
-import { useAgents, useClaims, waterfall } from "../lib/chain";
+import { totalPaid, useAgents, useClaims, waterfall } from "../lib/chain";
 import { bps, short, usd } from "../lib/format";
 import { showcaseAgents } from "../lib/showcase";
 import { APP_HOME, TEST_AGENT } from "../lib/routes";
@@ -276,7 +276,7 @@ function Stats() {
   });
   const claims = useClaims();
   const [pool, agents] = reads.data ?? [];
-  const paid = claims.data?.reduce((sum, c) => sum + c.payout, 0n);
+  const paid = claims.data && totalPaid(claims.data);
   const stat = (value: string | undefined, label: string) => (
     <div>
       <p className="font-serif text-[56px] leading-none tabular-nums">{value ?? "…"}</p>
