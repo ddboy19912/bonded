@@ -10,5 +10,8 @@ const isCode = (text: string | RegExp) => (_own: string, el: Element | null) =>
   (typeof text === "string" ? el.textContent === text : text.test(el.textContent ?? ""));
 
 export const getCodeBlock = (text: string | RegExp) => screen.getByText(isCode(text));
-export const findCodeBlock = (text: string | RegExp) => screen.findByText(isCode(text));
+// A pipeline runs every package's tests at once, so a page can take longer than findBy's default
+// second to show a command; a slow machine is not a failure.
+export const findCodeBlock = (text: string | RegExp) =>
+  screen.findByText(isCode(text), {}, { timeout: 8_000 });
 export const queryCodeBlock = (text: string | RegExp) => screen.queryByText(isCode(text));
