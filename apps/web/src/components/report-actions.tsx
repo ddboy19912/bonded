@@ -17,6 +17,7 @@ import {
   type RatingCompare,
   type ReportFix,
 } from "../lib/report-actions";
+import { Collapsible } from "./collapsible";
 import { CopyButton } from "./copy";
 import { Badge, Loading } from "./ui";
 
@@ -94,11 +95,12 @@ export function BreachEvidenceList({ report }: { report: Report | null | undefin
   const evidence = evidenceOf(report);
   if (!evidence.length) return null;
   return (
-    <details className="border-t border-line pt-4 text-sm">
-      <summary className="cursor-pointer font-semibold marker:text-muted">
-        What happened in each breach ({evidence.length})
-      </summary>
-      <ul className="mt-4 flex flex-col gap-5">
+    <Collapsible
+      className="border-t border-line pt-4 text-sm"
+      contentClassName="pt-4"
+      summary={`What happened in each breach (${evidence.length})`}
+    >
+      <ul className="flex flex-col gap-5">
         {evidence.map((e, i) => {
           const fixes = fixesFor(e, report);
           return (
@@ -153,7 +155,7 @@ export function BreachEvidenceList({ report }: { report: Report | null | undefin
           );
         })}
       </ul>
-    </details>
+    </Collapsible>
   );
 }
 

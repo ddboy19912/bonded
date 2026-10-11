@@ -18,6 +18,7 @@ import { when } from "../lib/format";
 import { DOCS_BYOA } from "../lib/routes";
 import { ApiError } from "../lib/api";
 import { Badge, Button, Choice, ErrorText, Input, linkClass } from "./ui";
+import { Collapsible } from "./collapsible";
 import { CopyBlock, SecretOnce, Tabs } from "./copy";
 
 /** The one-line explanations of each choice, shared by every place that offers them. */
@@ -210,11 +211,12 @@ export function ConnectRunner({
             token={input.token}
             gatewayUrl={input.gatewayUrl}
           />
-          <details className="border-t border-line pt-4">
-            <summary className="cursor-pointer text-sm font-semibold marker:text-muted">
-              Other ways to start the runner
-            </summary>
-            <div className="mt-4 flex flex-col gap-4">
+          <Collapsible
+            className="border-t border-line pt-4"
+            contentClassName="pt-4"
+            summary="Other ways to start the runner"
+          >
+            <div className="flex flex-col gap-4">
               <CopyBlock
                 label="Or start the runner yourself (Node)"
                 text={runnerCommand(input)}
@@ -232,7 +234,7 @@ export function ConnectRunner({
                 note="Build your agent into an image FROM the runner's image first (see the guide)."
               />
             </div>
-          </details>
+          </Collapsible>
           <p className="text-xs text-warn">
             The token is in these commands and won't be shown again. Copy them now.
           </p>
@@ -560,13 +562,16 @@ export function Snippets({
   const selected = picked ?? (list.some((s) => s.id === preferred) ? preferred! : list[0]!.id);
   const current = list.find((s) => s.id === selected) ?? list[0]!;
   return (
-    <details className="group border-t border-line pt-4">
-      <summary className="cursor-pointer text-sm font-semibold marker:text-muted">
-        {connection === "url"
+    <Collapsible
+      className="border-t border-line pt-4"
+      contentClassName="pt-4"
+      summary={
+        connection === "url"
           ? "Code for your agent: the handler and frameworks"
-          : "Code for your agent, by framework"}
-      </summary>
-      <div className="mt-4">
+          : "Code for your agent, by framework"
+      }
+    >
+      <div>
         <Tabs
           label="Framework"
           tabs={list.map((s) => ({ id: s.id, label: s.label }))}
@@ -586,7 +591,7 @@ export function Snippets({
           .
         </p>
       </div>
-    </details>
+    </Collapsible>
   );
 }
 

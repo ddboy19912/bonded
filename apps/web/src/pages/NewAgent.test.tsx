@@ -206,8 +206,8 @@ describe("Onboarding your own agent", () => {
     expect(screen.queryByText("Paste your agent's URL.")).toBeNull();
     // No code hash needed: it fills itself in.
     expect(screen.queryByText("Enter your agent's code hash.")).toBeNull();
-    const advanced = screen.getByText("Advanced (optional)").closest("details")!;
-    expect(advanced.open).toBe(false);
+    const advanced = screen.getByRole("button", { name: "Advanced (optional)" });
+    expect(advanced.getAttribute("aria-expanded")).toBe("false");
     expect(screen.getByLabelText("Code hash").getAttribute("placeholder")).toBe(
       "Filled in automatically",
     );
@@ -239,7 +239,9 @@ describe("Onboarding your own agent", () => {
       true,
     );
     expect(screen.getByRole("radio", { name: /^Chain/ })).toHaveProperty("checked", true);
-    expect(screen.getByText("Advanced (optional)").closest("details")!.open).toBe(true);
+    expect(
+      screen.getByRole("button", { name: "Advanced (optional)" }).getAttribute("aria-expanded"),
+    ).toBe("true");
     expect((screen.getByLabelText("Code hash") as HTMLInputElement).value).toBe(
       `0x${"b".repeat(64)}`,
     );

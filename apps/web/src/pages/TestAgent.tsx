@@ -37,6 +37,7 @@ import {
 } from "../components/connection-setup";
 import { FrameworkQuestions, useFramework } from "../components/framework-questions";
 import { FRAMEWORK_TEXT, connectionFor, hostingFor } from "../lib/frameworks";
+import { Collapsible } from "../components/collapsible";
 import { ConnectionCheck } from "../components/connection-check";
 import { Estimate, NotificationSettingsForm, RatingLive } from "../components/rating-live";
 import { PREVIEW_LABEL, PreviewReport } from "../components/preview-report";
@@ -442,13 +443,16 @@ export function TestAgent() {
                       Passed {when(Math.floor(Date.parse(status.lastCheck!.createdAt) / 1000))}
                     </span>
                     {!!status.lastCheck!.warnings?.length && (
-                      <details className="group">
-                        <summary className="cursor-pointer text-warn marker:text-muted">
-                          {status.lastCheck!.warnings.length === 1
+                      <Collapsible
+                        triggerClassName="text-sm font-normal text-warn"
+                        contentClassName="pt-3"
+                        summary={
+                          status.lastCheck!.warnings.length === 1
                             ? "1 thing worth fixing before you start"
-                            : `${status.lastCheck!.warnings.length} things worth fixing before you start`}
-                        </summary>
-                        <ul className="mt-3 flex flex-col gap-3">
+                            : `${status.lastCheck!.warnings.length} things worth fixing before you start`
+                        }
+                      >
+                        <ul className="flex flex-col gap-3">
                           {status.lastCheck!.warnings.map((problem) => (
                             <li key={messageText(problem)}>
                               <ProblemText
@@ -458,7 +462,7 @@ export function TestAgent() {
                             </li>
                           ))}
                         </ul>
-                      </details>
+                      </Collapsible>
                     )}
                   </span>
                 )

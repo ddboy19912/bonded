@@ -6,6 +6,7 @@ import { ratingFailure } from "../lib/byoa";
 import { useRatingRun } from "../lib/rating-run";
 import { ApiError } from "../lib/api";
 import { Badge, Button, ErrorText, Input, Skeleton } from "./ui";
+import { Collapsible } from "./collapsible";
 import { SecretOnce } from "./copy";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -238,11 +239,12 @@ export function NotificationSettingsForm({ subject, auth }: { subject: Subject; 
   const emailOn = current.data?.emailAvailable === true;
   const hookOn = current.data?.webhookAvailable !== false;
   return (
-    <details className="border-t border-line pt-4 text-sm">
-      <summary className="cursor-pointer font-semibold marker:text-muted">
-        Get told when it finishes, by webhook{emailOn ? " or email" : ""}
-      </summary>
-      <div className="mt-4 flex flex-col gap-4">
+    <Collapsible
+      className="border-t border-line pt-4 text-sm"
+      contentClassName="pt-4"
+      summary={`Get told when it finishes, by webhook${emailOn ? " or email" : ""}`}
+    >
+      <div className="flex flex-col gap-4">
         {current.data && (current.data.webhook || current.data.email) ? (
           <p className="text-muted">
             Now:{" "}
@@ -314,6 +316,6 @@ export function NotificationSettingsForm({ subject, auth }: { subject: Subject; 
         )}
         <ErrorText error={error} />
       </div>
-    </details>
+    </Collapsible>
   );
 }

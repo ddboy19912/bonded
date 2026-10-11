@@ -146,10 +146,10 @@ describe("Test your agent", () => {
     expect(within(step).getByRole("radio", { name: /On my computer or server/ })).toBeTruthy();
     expect(within(step).getByText(/Nothing to install/)).toBeTruthy();
     // Tools or chain is for those who need it: under Advanced, closed.
-    const advanced = within(step).getByText("Advanced (optional)").closest("details")!;
-    expect(advanced.open).toBe(false);
-    expect(within(advanced).getByRole("radio", { name: /Tools/ })).toBeTruthy();
-    expect(within(advanced).getByRole("radio", { name: /^Chain/ })).toBeTruthy();
+    const advanced = within(step).getByRole("button", { name: "Advanced (optional)" });
+    expect(advanced.getAttribute("aria-expanded")).toBe("false");
+    expect(within(step).getByRole("radio", { name: /Tools/ })).toBeTruthy();
+    expect(within(step).getByRole("radio", { name: /^Chain/ })).toBeTruthy();
     expect(screen.getByText(/Signed in as/)).toBeTruthy();
   });
 

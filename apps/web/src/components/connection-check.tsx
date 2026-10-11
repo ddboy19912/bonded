@@ -17,6 +17,7 @@ import {
 } from "../lib/connect";
 import { when } from "../lib/format";
 import { messageText, type ApiMessage } from "../lib/troubleshooting";
+import { Collapsible } from "./collapsible";
 import { Button, ErrorText, Spinner } from "./ui";
 import { ProblemText } from "./problem";
 
@@ -195,13 +196,16 @@ export function ConnectionCheck({
             result &&
             !result.passed &&
             (done.stdoutTail || done.stderrTail) && (
-              <details open className="border-t border-line pt-4">
-                <summary className="cursor-pointer text-xs font-semibold">
-                  Its output, as reported (the last 4 KB)
-                </summary>
+              <Collapsible
+                defaultOpen
+                className="border-t border-line pt-4"
+                triggerClassName="text-xs font-semibold"
+                contentClassName="pt-0"
+                summary="Its output, as reported (the last 4 KB)"
+              >
                 {done.stderrTail && <Tail label="stderr" text={done.stderrTail} />}
                 {done.stdoutTail && <Tail label="stdout" text={done.stdoutTail} />}
-              </details>
+              </Collapsible>
             )}
         </section>
       )}

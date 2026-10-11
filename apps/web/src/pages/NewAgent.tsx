@@ -100,6 +100,7 @@ import {
   type PresetChoice,
 } from "../lib/bond-cover";
 import { NewAgentConnection } from "../components/connect-agent";
+import { Collapsible } from "../components/collapsible";
 import { InfoPanel } from "../components/overlay";
 import { prefillFrom, type OfficialPrefill } from "../components/preview-report";
 import {
@@ -873,15 +874,15 @@ export function NewAgent() {
                     Right after onboarding you get the runner's command, with its token filled in.
                   </p>
                 )}
-                <details
+                <Collapsible
                   open={advanced}
-                  onToggle={(e) => setAdvanced((e.currentTarget as HTMLDetailsElement).open)}
+                  onOpenChange={setAdvanced}
                   className="border-t border-line pt-4"
+                  triggerClassName="text-sm font-medium"
+                  contentClassName="pt-4"
+                  summary="Advanced (optional)"
                 >
-                  <summary className="cursor-pointer font-medium marker:text-muted">
-                    Advanced (optional)
-                  </summary>
-                  <div className="mt-4 flex flex-col gap-4">
+                  <div className="flex flex-col gap-4">
                     <ModeChoice mode={remoteMode} onMode={setRemoteMode} name="onboard-mode" />
                     <Input
                       label="Code hash"
@@ -935,7 +936,7 @@ export function NewAgent() {
                       what's bound, so publish the compose file for review.
                     </p>
                   </div>
-                </details>
+                </Collapsible>
               </div>
             ) : (
               <div className="mt-2 border-t border-line">
@@ -1527,10 +1528,14 @@ function BondAdvice({
               Your own stake in the agent. It's lost only if the agent breaks its mandate and
               someone is paid for it.
             </p>
-            <details className="mt-2 text-xs text-muted">
-              <summary className="cursor-pointer marker:text-muted">More on the bond</summary>
-              <p className="mt-1.5">{BOND_EXPLAINED}</p>
-            </details>
+            <Collapsible
+              className="mt-2 text-xs text-muted"
+              triggerClassName="text-xs"
+              contentClassName="pt-1.5"
+              summary="More on the bond"
+            >
+              <p className="italic">{BOND_EXPLAINED}</p>
+            </Collapsible>
           </div>
           <Input
             label="Cover you want"
@@ -1569,21 +1574,23 @@ function BondAdvice({
                 </tbody>
               </table>
               {rec && (
-                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-                  <p className="min-w-0 flex-1 text-muted">
-                    Recommended:{" "}
-                    <span className="font-mono text-ink">{rec.bond.toLocaleString("en-US")}</span>,
-                    because {rec.why}.
+                <div className="flex flex-col gap-3 border-t border-line pt-5">
+                  <p className="eyebrow">Recommended bond</p>
+                  <p className="flex items-center gap-2.5">
+                    <span className="font-mono text-3xl">{rec.bond.toLocaleString("en-US")}</span>
+                    <Token symbol="tUSDG" />
                   </p>
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      onUse(rec.bond);
-                      setOpen(false);
-                    }}
-                  >
-                    Use this bond
-                  </Button>
+                  <p className="text-muted italic">Because {rec.why}.</p>
+                  <div>
+                    <Button
+                      onClick={() => {
+                        onUse(rec.bond);
+                        setOpen(false);
+                      }}
+                    >
+                      Use this bond
+                    </Button>
+                  </div>
                 </div>
               )}
             </>

@@ -22,6 +22,7 @@ import {
 import { DOCS_BYOA } from "../lib/routes";
 import { apiUrl, robinhoodTestnet, rpcUrl } from "../config";
 import { Card, Choice, linkClass } from "./ui";
+import { Collapsible } from "./collapsible";
 import { CopyBlock, Tabs } from "./copy";
 
 /**
@@ -116,16 +117,16 @@ export function FrameworkQuestions({
           </div>
         </fieldset>
         {advanced && (
-          <details
+          <Collapsible
             {...(advancedOpen !== undefined ? { open: advancedOpen } : {})}
-            onToggle={(e) => onAdvancedToggle?.((e.currentTarget as HTMLDetailsElement).open)}
+            {...(onAdvancedToggle ? { onOpenChange: onAdvancedToggle } : {})}
             className="border-t border-line pt-4"
+            triggerClassName="text-sm font-medium"
+            contentClassName="pt-4"
+            summary="Advanced (optional)"
           >
-            <summary className="cursor-pointer font-medium marker:text-muted">
-              Advanced (optional)
-            </summary>
-            <div className="mt-4 flex flex-col gap-4">{advanced}</div>
-          </details>
+            <div className="flex flex-col gap-4">{advanced}</div>
+          </Collapsible>
         )}
       </div>
     );
@@ -172,14 +173,16 @@ export function FrameworkQuestions({
         </div>
       </fieldset>
       {advanced && (
-        <details
+        <Collapsible
           {...(advancedOpen !== undefined ? { open: advancedOpen } : {})}
-          onToggle={(e) => onAdvancedToggle?.((e.currentTarget as HTMLDetailsElement).open)}
+          {...(onAdvancedToggle ? { onOpenChange: onAdvancedToggle } : {})}
           className="rounded-2xl border border-line-strong p-4"
+          triggerClassName="text-sm font-medium"
+          contentClassName="pt-4"
+          summary="Advanced (optional)"
         >
-          <summary className="cursor-pointer font-medium">Advanced (optional)</summary>
-          <div className="mt-4 flex flex-col gap-4">{advanced}</div>
-        </details>
+          <div className="flex flex-col gap-4">{advanced}</div>
+        </Collapsible>
       )}
     </div>
   );
@@ -263,11 +266,12 @@ export function KeepRunning({ gatewayUrl }: { gatewayUrl?: string | null }) {
   const [selected, setSelected] = useState<string>(SERVICE_KINDS[0].id);
   const current = SERVICE_KINDS.find((k) => k.id === selected) ?? SERVICE_KINDS[0];
   return (
-    <details className="border-t border-line pt-4">
-      <summary className="cursor-pointer text-sm font-semibold marker:text-muted">
-        Keep it running
-      </summary>
-      <div className="mt-3 flex flex-col gap-3 text-sm">
+    <Collapsible
+      className="border-t border-line pt-4"
+      contentClassName="pt-3"
+      summary="Keep it running"
+    >
+      <div className="flex flex-col gap-3 text-sm">
         <p className="text-muted">
           Your score is renewed only while the runner is connected, and Bonded tells you when it has
           been offline. Run it as a background service so it comes back after a crash or a reboot.
@@ -285,7 +289,7 @@ export function KeepRunning({ gatewayUrl }: { gatewayUrl?: string | null }) {
           />
         </Tabs>
       </div>
-    </details>
+    </Collapsible>
   );
 }
 

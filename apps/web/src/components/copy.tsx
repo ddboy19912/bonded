@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { Collapsible } from "./collapsible";
 
 /**
  * A copy button that says it worked ("Copied") or didn't ("Select and copy it"), announced to
@@ -62,10 +63,14 @@ export function CopyBlock({
         {text}
       </pre>
       {typeof note === "string" && note.length > LONG_NOTE ? (
-        <details className="text-xs text-muted">
-          <summary className="cursor-pointer marker:text-muted">What this does</summary>
-          <p className="mt-1.5">{note}</p>
-        </details>
+        <Collapsible
+          className="text-xs text-muted"
+          triggerClassName="text-xs"
+          contentClassName="pt-1.5"
+          summary="What this does"
+        >
+          <p className="italic">{note}</p>
+        </Collapsible>
       ) : (
         note && <p className="text-xs text-muted">{note}</p>
       )}
