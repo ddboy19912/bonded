@@ -246,7 +246,9 @@ export function Faq() {
     <section id="faq" className="mx-auto max-w-[1180px] scroll-mt-24 px-4 pb-24 sm:px-6">
       <div className="grid gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-20">
         <div className="lg:sticky lg:top-24 lg:self-start">
-          <h2 className="font-serif text-5xl leading-none sm:text-6xl">Questions</h2>
+          <h2 className="font-serif text-5xl leading-none sm:text-6xl">
+            Frequently asked questions
+          </h2>
           <p className="mt-5 max-w-sm text-lg leading-relaxed text-muted">
             The short answers. The docs go into the rest.
           </p>

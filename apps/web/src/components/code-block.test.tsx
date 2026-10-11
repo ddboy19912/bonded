@@ -38,7 +38,10 @@ describe("CodeBlock", () => {
     );
     const block = screen.getByLabelText("Agent URL handler");
     expect(block.tagName).toBe("PRE");
-    expect(screen.getByText("TypeScript")).toBeTruthy();
+    // Framed as in the docs: a header with the name and a copy button in the corner.
+    expect(block.closest("figure")?.querySelector("figcaption")?.textContent).toBe(
+      "Agent URL handler",
+    );
     expect(screen.getByRole("button", { name: /Copy/ })).toBeTruthy();
     expect(block.textContent).toContain('import { a } from "@bondedhq/sdk";');
     expect(block.textContent).toContain("const b = 1;");
@@ -73,6 +76,23 @@ describe("CodeBlock", () => {
     expect(colour("BONDED_RUNNER_TOKEN")).toBeTruthy();
     // A flag and a command are not the same colour as the plain arguments.
     expect(colour("npx")).not.toBe(colour("node"));
+  });
+
+  it("uses the docs' colours: tan strings, blue commands and flags, green builtins", () => {
+    render(<CodeBlock label="x" code={"git clone --recursive https://example.com/x && cd x"} />);
+    const colour = (text: string) =>
+      [...document.querySelectorAll<HTMLElement>("pre span")].find((s) =>
+        s.textContent?.trim().startsWith(text),
+      )?.style.color;
+    const rgb = (hex: string) => {
+      const n = parseInt(hex.slice(1), 16);
+      return `rgb(${n >> 16}, ${(n >> 8) & 255}, ${n & 255})`;
+    };
+    expect(colour("git")).toBe(rgb("#82aaff"));
+    expect(colour("--recursive")).toBe(rgb("#82aaff"));
+    expect(colour("clone")).toBe(rgb("#ecc48d"));
+    expect(colour("https://example.com/x")).toBe(rgb("#ecc48d"));
+    expect(colour("cd")).toBe(rgb("#addb67"));
   });
 
   it("wraps a shell command but scrolls code sideways", () => {
