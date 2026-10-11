@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Link } from "react-router";
 import { TIER_RULES } from "@bondedhq/shared";
 import { Accordion } from "../components/collapsible";
@@ -296,5 +297,39 @@ export function Faq() {
         />
       </div>
     </section>
+  );
+}
+
+/**
+ * The still night sky behind the landing page (its look and motion are in landing.css). The only
+ * thing it does in script is tell the CSS how far the page can scroll, so each layer knows how far
+ * to be dragged; there is no scroll listener.
+ */
+export function Sky() {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () =>
+      el.style.setProperty(
+        "--sky-range",
+        `${Math.max(0, document.documentElement.scrollHeight - window.innerHeight)}px`,
+      );
+    measure();
+    window.addEventListener("resize", measure);
+    // The page grows as the live numbers and agents arrive.
+    const watch = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(measure);
+    watch?.observe(document.body);
+    return () => {
+      window.removeEventListener("resize", measure);
+      watch?.disconnect();
+    };
+  }, []);
+  return (
+    <div ref={ref} className="sky" aria-hidden>
+      <div className="sky-layer sky-far" />
+      <div className="sky-layer sky-mid" />
+      <div className="sky-layer sky-near" />
+    </div>
   );
 }

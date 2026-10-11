@@ -1,11 +1,11 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { getCodeBlock } from "../test/code";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
-import { BringYourAgent, Faq, Roles, ScoreScale, WorksWith } from "./LandingSections";
+import { BringYourAgent, Faq, Roles, ScoreScale, Sky, WorksWith } from "./LandingSections";
 
 afterEach(cleanup);
 const show = (ui: React.ReactElement) => render(<MemoryRouter>{ui}</MemoryRouter>);
@@ -130,5 +130,33 @@ describe("the questions", () => {
     expect(screen.getByRole("link", { name: /Security policy/ }).getAttribute("href")).toBe(
       "/docs/security/policy/",
     );
+  });
+});
+
+describe("the night sky", () => {
+  it("is decoration only: hidden from assistive technology, three layers of still stars", () => {
+    const { container } = render(<Sky />);
+    const sky = container.querySelector(".sky");
+    expect(sky?.getAttribute("aria-hidden")).toBe("true");
+    expect(container.querySelectorAll(".sky-layer")).toHaveLength(3);
+    expect(sky?.textContent).toBe("");
+  });
+
+  it("tells the CSS how far the page can scroll, and nothing moves on its own", () => {
+    Object.defineProperty(document.documentElement, "scrollHeight", {
+      value: 5000,
+      configurable: true,
+    });
+    const { container } = render(<Sky />);
+    const px = (container.querySelector(".sky") as HTMLElement).style.getPropertyValue(
+      "--sky-range",
+    );
+    expect(px).toBe(`${5000 - window.innerHeight}px`);
+    // No timers or listeners that animate it: the drag is CSS, tied to the scroll position.
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "landing.css"), "utf8");
+    const sky = css.slice(css.indexOf(".sky {"), css.indexOf("Soft light behind sections"));
+    expect(sky).toContain("animation-timeline: scroll(root)");
+    expect(sky).not.toMatch(/infinite|twinkle/);
+    expect(sky).toContain("prefers-reduced-motion: no-preference");
   });
 });
