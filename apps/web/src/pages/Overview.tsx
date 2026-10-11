@@ -255,7 +255,7 @@ function Yours({ address }: { address: Address }) {
           ) : (
             <p className="mt-3.5 text-sm text-muted">You haven't onboarded an agent.</p>
           )}
-          <Link to="/agents/new" className={`${buttonClass("secondary")} mt-5 w-full`}>
+          <Link to="/agents/new" className={`${buttonClass("primary")} mt-5 w-full`}>
             {mine.length ? "Onboard another agent" : "Onboard an agent"}
           </Link>
         </div>
