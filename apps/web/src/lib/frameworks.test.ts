@@ -1,6 +1,10 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   FRAMEWORKS,
+  FRAMEWORK_LOGO,
   SERVICE_KINDS,
   connectionFor,
   hostingFor,
@@ -30,6 +34,15 @@ describe("framework-first answers", () => {
     for (const connection of ["runner", "url"] as const) {
       const ids = snippets(connection, "tools").map((s) => s.id);
       for (const f of FRAMEWORKS) expect(ids).toContain(snippetIdFor(f, connection));
+    }
+  });
+
+  it("has a logo file for every framework, and each is a plain SVG", () => {
+    for (const f of FRAMEWORKS) {
+      const file = join(dirname(fileURLToPath(import.meta.url)), "../../public", FRAMEWORK_LOGO[f]);
+      const svg = readFileSync(file, "utf8");
+      expect(svg.trimStart().startsWith("<svg"), f).toBe(true);
+      expect(svg, f).not.toMatch(/<script|onload=|<image|href=["']http/i);
     }
   });
 

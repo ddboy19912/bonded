@@ -3,6 +3,7 @@ import type { RemoteMode } from "@bondedhq/shared";
 import type { Connection } from "../lib/byoa-api";
 import {
   FRAMEWORKS,
+  FRAMEWORK_LOGO,
   FRAMEWORK_TEXT,
   HOSTING_TEXT,
   INIT_NOTE,
@@ -22,6 +23,24 @@ import { DOCS_BYOA } from "../lib/routes";
 import { apiUrl, robinhoodTestnet, rpcUrl } from "../config";
 import { Card, Choice, linkClass } from "./ui";
 import { CopyBlock, Tabs } from "./copy";
+
+/**
+ * A framework's logo, drawn in the surrounding text colour: the file's shape is used as a mask, so
+ * every logo sits quietly in the page's palette instead of bringing its own colours.
+ */
+export function FrameworkLogo({ framework }: { framework: Framework }) {
+  const url = `url(${FRAMEWORK_LOGO[framework]})`;
+  return (
+    <span
+      aria-hidden
+      className="inline-block size-4 shrink-0 bg-current"
+      style={{
+        mask: `${url} center / contain no-repeat`,
+        WebkitMask: `${url} center / contain no-repeat`,
+      }}
+    />
+  );
+}
 
 /**
  * The two questions every connect flow starts with: the framework, and where the agent runs.
@@ -70,7 +89,10 @@ export function FrameworkQuestions({
                     onFramework(f);
                   }}
                 />
-                {FRAMEWORK_TEXT[f].title}
+                <span className="flex items-center gap-2.5">
+                  <FrameworkLogo framework={f} />
+                  {FRAMEWORK_TEXT[f].title}
+                </span>
               </label>
             ))}
           </div>
@@ -121,7 +143,12 @@ export function FrameworkQuestions({
                 rememberFramework(f);
                 onFramework(f);
               }}
-              title={FRAMEWORK_TEXT[f].title}
+              title={
+                <span className="inline-flex items-center gap-2.5">
+                  <FrameworkLogo framework={f} />
+                  {FRAMEWORK_TEXT[f].title}
+                </span>
+              }
             >
               {FRAMEWORK_TEXT[f].line}
             </Choice>
@@ -293,7 +320,10 @@ export function UseYourVault({ vault }: { vault?: string | null }) {
                     setFramework(f);
                   }}
                 />
-                {FRAMEWORK_TEXT[f].title}
+                <span className="flex items-center gap-2">
+                  <FrameworkLogo framework={f} />
+                  {FRAMEWORK_TEXT[f].title}
+                </span>
               </label>
             ))}
           </div>

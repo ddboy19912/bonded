@@ -22,6 +22,16 @@ export const FRAMEWORK_TEXT: Record<Framework, { title: string; line: string }> 
   python: { title: "Python", line: "Any Python agent: it calls the tools over HTTP." },
 };
 
+/** Each framework's logo, in public/brand/frameworks (sources and licences in its README). */
+export const FRAMEWORK_LOGO: Record<Framework, string> = {
+  eliza: "/brand/frameworks/eliza.svg",
+  agentkit: "/brand/frameworks/agentkit.svg",
+  langchain: "/brand/frameworks/langchain.svg",
+  "ai-sdk": "/brand/frameworks/ai-sdk.svg",
+  mcp: "/brand/frameworks/mcp.svg",
+  python: "/brand/frameworks/python.svg",
+};
+
 /** Where the agent runs, in the owner's words, and the connection each answer means. */
 export type Hosting = "machine" | "online";
 export const HOSTING_TEXT: Record<Hosting, { title: string; line: string }> = {
