@@ -55,6 +55,7 @@ import {
   dailyLimitError,
   descriptionError,
   limitError,
+  mandateFieldProblems,
 } from "../lib/validate";
 import { registerForRatings } from "../lib/self-serve";
 import { AllowanceWarning } from "../components/module-cover";
@@ -278,14 +279,15 @@ export function NewAgent() {
   // The limits and details of the mandate are edited in a dialog; the card shows them in a line,
   // and says so when one is wrong.
   const [limitsOpen, setLimitsOpen] = useState(false);
-  const limitsProblem =
-    limitError(maxTx) ||
-    dailyLimitError(maxDaily, maxTx) ||
-    percentError(drawdown, { min: 0.01 }) ||
-    percentError(slippage, { min: 0 }) ||
-    addressError(refund, true) ||
-    descriptionError(description) ||
-    null;
+  const limitProblems = mandateFieldProblems({
+    maxTx,
+    maxDaily,
+    drawdown,
+    slippage,
+    refund,
+    description,
+  });
+  const limitsProblem = limitProblems[0] ?? null;
   const [steps, setSteps] = useState<Step[]>([]);
   const [error, setError] = useState<unknown>(null);
   const [created, setCreated] = useState<{
@@ -351,14 +353,19 @@ export function NewAgent() {
           : {}),
       }
     : undefined;
+  // The fields as typed come first; what the parsed form says about the same fields is dropped, so
+  // a wrong field is named once.
+  const SAME_FIELD =
+    /^(Per-trade limit|Daily limit|The daily limit|Maximum drawdown|Maximum slippage|Description|The refund address)/;
   const problems = [
+    ...limitProblems,
     ...validateOnboarding(deployment, {
       connected: isConnected,
       form,
       agentKey: key,
       bond,
       deposit,
-    }),
+    }).filter((p) => !(limitProblems.length > 0 && SAME_FIELD.test(p))),
     ...remoteErrors.filter((e): e is string => Boolean(e)),
     ...(protection === "module" && !deployment.moduleFactory
       ? ["Smart-account protection isn't deployed on this chain yet."]
@@ -761,7 +768,9 @@ export function NewAgent() {
     }
   }
 
+  // The button is disabled while there are problems; this keeps a stray call from getting past them.
   const start = () =>
+    problems.length > 0 ||
     run({
       kind,
       ...(sentinel && !own ? { sentinel: true } : {}),

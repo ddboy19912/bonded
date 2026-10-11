@@ -475,6 +475,31 @@ describe("Onboarding, the wallet side", () => {
     ).toBe(true);
   });
 
+  it.each(["Maximum slippage", "Maximum drawdown"])(
+    "stops onboarding when %s is cleared, since a blank percentage must not become 0",
+    (field) => {
+      show();
+      const onboard = () =>
+        screen.getByRole("button", { name: "Onboard the agent" }) as HTMLButtonElement;
+      expect(onboard().disabled).toBe(false);
+      openLimits();
+      fireEvent.change(screen.getByLabelText(new RegExp(`^${field}`)), { target: { value: "" } });
+      closeLimits();
+      expect(
+        screen.getByText(new RegExp(`Needs a fix: ${field}: Enter a percentage`)),
+      ).toBeTruthy();
+      expect(onboard().disabled).toBe(true);
+      // The same problem is listed once beside the button, naming the field.
+      expect(screen.getAllByText(new RegExp(`${field}: Enter a percentage`))).toHaveLength(2);
+      // Fixing it lets the owner go on.
+      openLimits();
+      fireEvent.change(screen.getByLabelText(new RegExp(`^${field}`)), { target: { value: "2" } });
+      closeLimits();
+      expect(screen.queryByText(/Needs a fix:/)).toBeNull();
+      expect(onboard().disabled).toBe(false);
+    },
+  );
+
   it("prefills the mandate from the preview's suggestion, with presets", async () => {
     saveSession(deployment.chainId, {
       session: "sess",

@@ -69,3 +69,27 @@ export function positiveAmountError(
   if (max && v > max.value) return max.message;
   return null;
 }
+
+/**
+ * The mandate fields as typed: each wrong one as "Field: what is wrong". The onboarding gate reads
+ * the parsed form, where an empty percentage is a valid 0, so this is what catches a field that is
+ * blank or malformed before it can become a different number.
+ */
+export function mandateFieldProblems(f: {
+  maxTx: string;
+  maxDaily: string;
+  drawdown: string;
+  slippage: string;
+  refund: string;
+  description: string;
+}): string[] {
+  const rows: [string, string | null][] = [
+    ["Per-trade limit", limitError(f.maxTx)],
+    ["Daily limit", dailyLimitError(f.maxDaily, f.maxTx)],
+    ["Maximum drawdown", percentError(f.drawdown, { min: 0.01 })],
+    ["Maximum slippage", percentError(f.slippage, { min: 0 })],
+    ["Refund address", addressError(f.refund, true)],
+    ["Description", descriptionError(f.description)],
+  ];
+  return rows.flatMap(([name, error]) => (error ? [`${name}: ${error}`] : []));
+}

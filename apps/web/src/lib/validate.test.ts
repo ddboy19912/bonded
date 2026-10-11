@@ -6,6 +6,7 @@ import {
   dailyLimitError,
   descriptionError,
   limitError,
+  mandateFieldProblems,
   positiveAmountError,
 } from "./validate";
 
@@ -54,5 +55,40 @@ describe("field checks", () => {
     const cap = { value: 20_000_000_000n, message: "Capped at 20,000." };
     expect(positiveAmountError("20000", cap)).toBeNull();
     expect(positiveAmountError("20000.01", cap)).toBe("Capped at 20,000.");
+  });
+});
+
+describe("mandateFieldProblems", () => {
+  const ok = {
+    maxTx: "5000",
+    maxDaily: "25000",
+    drawdown: "15",
+    slippage: "3",
+    refund: "",
+    description: "An agent",
+  };
+
+  it("has nothing to say about fields that are fine", () => {
+    expect(mandateFieldProblems(ok)).toEqual([]);
+  });
+
+  it("names each wrong field, so a blank percentage is caught before it becomes 0", () => {
+    expect(mandateFieldProblems({ ...ok, slippage: "" })).toEqual([
+      "Maximum slippage: Enter a percentage.",
+    ]);
+    expect(mandateFieldProblems({ ...ok, drawdown: "  ", maxTx: "abc" })).toEqual([
+      "Per-trade limit: Whole dollars only, no commas or cents.",
+      "Maximum drawdown: Enter a percentage.",
+    ]);
+  });
+
+  it("checks the daily limit against the per-trade one, the refund address and the description", () => {
+    expect(mandateFieldProblems({ ...ok, maxDaily: "100" })).toEqual([
+      "Daily limit: Must be at least the per-trade limit.",
+    ]);
+    expect(mandateFieldProblems({ ...ok, refund: "0x12", description: "" })).toEqual([
+      "Refund address: Not an address: 0x followed by 40 hex characters.",
+      "Description: Write a short description; it's part of the mandate.",
+    ]);
   });
 });
