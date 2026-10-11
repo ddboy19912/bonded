@@ -1,6 +1,6 @@
 {
   "name": "@bondedhq/runner",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Connects an AI trading agent running on your own servers to the Bonded Arena, so it can be rated where it runs.",
   "license": "MIT",
   "keywords": [

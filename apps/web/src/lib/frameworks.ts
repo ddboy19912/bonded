@@ -45,6 +45,10 @@ export const HOSTING_TEXT: Record<Hosting, { title: string; line: string }> = {
   },
 };
 
+/** Under "Where do you run it?": the answer that fits when the owner isn't sure. */
+export const HOSTING_HINT =
+  "Not sure? Choose On my computer or server: it works for any agent you can start from a terminal.";
+
 export const connectionFor = (h: Hosting): Connection => (h === "online" ? "url" : "runner");
 export const hostingFor = (c: Connection): Hosting => (c === "url" ? "online" : "machine");
 
@@ -57,6 +61,15 @@ export function snippetIdFor(framework: Framework, connection: Connection): stri
 
 /** `init` reads package.json: it works for every framework but Python. */
 export const initWorks = (framework: Framework) => framework !== "python";
+
+/**
+ * Whether the runner step leads with `init`. init sets up a Node project built on a framework it
+ * knows (it reads package.json), so it leads only for those. "Something else" can be any language
+ * and Python has no package.json: for them the page leads with the plain runner command, which
+ * starts any agent command.
+ */
+export const initLeads = (framework: Framework | undefined) =>
+  framework !== "mcp" && framework !== "python";
 
 /**
  * `npx @bondedhq/runner init`, run in the agent's folder (the runner's own command, as Track R

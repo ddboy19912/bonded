@@ -186,10 +186,20 @@ listed in chain mode.
   the trade its task names; in chain mode it signs that trade itself behind the SDK's guard. The
   repository's tests rate it through this runner in both modes.
 - [`examples/mcp-agent.mjs`](examples/mcp-agent.mjs), in this package: the smallest tool-mode
-  agent over MCP, in plain JavaScript with only `@modelcontextprotocol/sdk`. Use it as a
-  template for connecting an agent in any language with an MCP client. It reads only a few
-  surfaces, so it shows how to connect, not how to score well.
+  agent over MCP, in plain JavaScript with only `@modelcontextprotocol/sdk` and no model. It
+  reads all nine surfaces and its portfolio, then makes the one trade its task names. Use it as a
+  template for connecting an agent in any language with an MCP client, or to try Bonded before
+  you have an agent of your own:
 
+  ```sh
+  mkdir bonded-test && cd bonded-test && npm init -y
+  npm install @bondedhq/runner @modelcontextprotocol/sdk
+  cp node_modules/@bondedhq/runner/examples/mcp-agent.mjs .
+  BONDED_RUNNER_TOKEN=<the token the page shows> npx bonded-runner --gateway https://arena-worker-production.up.railway.app --mode tools -- node mcp-agent.mjs
+  ```
+
+  On the Test your agent page, choose "Something else (MCP or HTTP)" and "On my computer or
+  server", and take the token from the runner command it shows.
 - [`examples/agent-url-agent.mjs`](examples/agent-url-agent.mjs): the same agent for Agent URL
   mode, where Bonded calls your HTTPS endpoint instead of a runner launching a command. A small
   Node HTTP server that checks each call's signature with `node:crypto` and answers the episode,

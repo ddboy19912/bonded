@@ -555,4 +555,85 @@ describe("initCommand", () => {
     expect(agentCommand(p, ["node", "a.js"])).toEqual(["node", "a.js"]);
     expect(agentCommand(detectProject(fixture("hono")), [])).toEqual([]);
   });
+
+  describe("an agent already wired to the episode (the shipped example agent)", () => {
+    const GATEWAY = "https://arena.example.com";
+
+    it("keeps the fixture a copy of examples/mcp-agent.mjs", () => {
+      expect(readFileSync(fixture("mcp-example/mcp-agent.mjs"), "utf8")).toBe(
+        readFileSync(join(import.meta.dirname, "../examples/mcp-agent.mjs"), "utf8"),
+      );
+    });
+
+    it("sees that it reads BONDED_MCP_URL itself", () => {
+      expect(detectProject(fixture("mcp-example"))).toMatchObject({
+        framework: "mcp",
+        episodeReady: "mcp-agent.mjs already reads BONDED_MCP_URL",
+      });
+      // An agent that points at its own MCP server still gets the rating hook.
+      expect(detectProject(fixture("mcp-js")).episodeReady).toBeUndefined();
+    });
+
+    it("proposes nothing for rating, and says so", async () => {
+      const dir = copy("mcp-example");
+      const t = io(dir);
+      expect(await initCommand(["--print"], t.io)).toBe(0);
+      await expect(t.out.join("\n") + "\n").toMatchFileSnapshot(
+        "__snapshots__/init/mcp-example.txt",
+      );
+      const plan = planInit(detectProject(dir));
+      expect(plan).toMatchObject({ changes: [], manual: [], install: [], env: [] });
+      expect(plan.ready).toMatch(/^Already set up to be rated/);
+    });
+
+    it("with a token and a gateway but no start command, says which command to use", async () => {
+      const dir = copy("mcp-example");
+      const t = io(dir);
+      const connects: unknown[] = [];
+      const code = await initCommand(["--yes", "--gateway", GATEWAY], {
+        ...t.io,
+        env: { BONDED_RUNNER_TOKEN: "bonded_rt_x" },
+        connect: async (o) => {
+          connects.push(o);
+          return 0;
+        },
+      });
+      expect(code).toBe(1);
+      expect(connects).toEqual([]);
+      expect(t.ran).toEqual([]);
+      expect(t.out.join("\n")).toContain(
+        `BONDED_RUNNER_TOKEN=... npx @bondedhq/runner --gateway ${GATEWAY} --mode tools -- node mcp-agent.mjs`,
+      );
+      expect(t.out.join("\n")).toContain("`-- node mcp-agent.mjs`");
+    });
+
+    it("with the command after --, starts the runner and the check, writing nothing", async () => {
+      const dir = copy("mcp-example");
+      const t = io(dir);
+      const connects: unknown[] = [];
+      const code = await initCommand(
+        ["--yes", "--gateway", GATEWAY, "--", "node", "mcp-agent.mjs"],
+        {
+          ...t.io,
+          env: { BONDED_RUNNER_TOKEN: "bonded_rt_x" },
+          connect: async (o) => {
+            connects.push({ ...o, out: undefined, err: undefined });
+            return 0;
+          },
+        },
+      );
+      expect(code).toBe(0);
+      expect(connects).toEqual([
+        expect.objectContaining({
+          gateway: GATEWAY,
+          mode: "tools",
+          command: ["node", "mcp-agent.mjs"],
+          check: { api: "https://api-production-ba50.up.railway.app", runnerToken: "bonded_rt_x" },
+        }),
+      ]);
+      expect(t.ran).toEqual([]);
+      expect(existsSync(join(dir, "bonded.mjs"))).toBe(false);
+      expect(readFileSync(join(dir, "mcp-agent.mjs"), "utf8")).not.toContain("bondedMcpUrl");
+    });
+  });
 });

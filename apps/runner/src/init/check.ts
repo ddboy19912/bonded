@@ -7,6 +7,8 @@
  * session. The API decides pass or fail; this only prints it.
  */
 
+import { isNote, problemCode } from "@bondedhq/shared";
+
 /** The Bonded API the runner talks to when neither --api nor BONDED_API_URL says otherwise. */
 export const DEFAULT_API_URL = "https://api-production-ba50.up.railway.app";
 
@@ -199,13 +201,17 @@ export function eventLine(event: CheckEvent): string {
 /** Where each problem's fix is explained, by its code (the anchor). */
 export const TROUBLESHOOTING_URL = "https://bonded-nu.vercel.app/docs/guides/troubleshooting/";
 
-/** The result as lines: the verdict, then each problem and warning, with its fix's link. */
+/**
+ * The result as lines: the verdict, then each problem and warning, with its fix's link. A warning
+ * that is only a note (NOTE_CODES in @bondedhq/shared, e.g. model usage) prints as a note.
+ */
 export function resultLines(result: CheckResult): string[] {
   const line = (kind: "problem" | "warning", text: string) => {
     const code = result.issues?.find((i) => i.message === text && i.severity === kind)?.code;
+    const label = kind === "warning" && isNote(code ?? problemCode(text)) ? "note" : kind;
     return code && code !== "other" && /^[a-z0-9-]+$/.test(code)
-      ? [`  ${kind}: ${text}`, `    how to fix: ${TROUBLESHOOTING_URL}#${code}`]
-      : [`  ${kind}: ${text}`];
+      ? [`  ${label}: ${text}`, `    how to fix: ${TROUBLESHOOTING_URL}#${code}`]
+      : [`  ${label}: ${text}`];
   };
   return [
     result.passed ? "Connection check passed: a rating will work." : "Connection check failed:",

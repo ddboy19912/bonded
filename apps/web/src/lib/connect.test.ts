@@ -157,7 +157,7 @@ describe("problem advice", () => {
     ],
     ["Your URL answered the check, but not with JSON", "url", /answerAgentUrlVerify/],
     [
-      "It didn't report its model usage at /done, so a cost estimate can give time only",
+      "If your agent uses a model, report its usage at /done: without it, a cost estimate gives time only",
       "url",
       /usage with done/,
     ],

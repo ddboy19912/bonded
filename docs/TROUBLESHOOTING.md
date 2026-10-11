@@ -366,9 +366,9 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 ### usage-not-reported
 
-**Message:** It didn't report its model usage at /done.
+**Message:** If your agent uses a model, report its usage at /done.
 
-**What to do:** Report input and output tokens at /done for a cost estimate (optional).
+**What to do:** A note, not a problem: send usage ({ inputTokens, outputTokens, costUsd }) with done for a cost estimate. An agent with no model can leave it out; the estimate then gives time only.
 
 ### episode-failed
 

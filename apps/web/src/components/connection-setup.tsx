@@ -10,7 +10,13 @@ import {
   type ConnectionStatus,
 } from "../lib/connect";
 import { snippets } from "../lib/snippets";
-import { HOSTING_TEXT, snippetIdFor, type Framework } from "../lib/frameworks";
+import {
+  HOSTING_HINT,
+  HOSTING_TEXT,
+  initLeads,
+  snippetIdFor,
+  type Framework,
+} from "../lib/frameworks";
 import { errorCode, messageCode } from "../lib/troubleshooting";
 import { InitCommand, KeepRunning } from "./framework-questions";
 import { FixLink } from "./problem";
@@ -56,7 +62,8 @@ export function ConnectionChoice({
   return (
     <div className="flex flex-col gap-5 text-sm">
       <fieldset className="flex flex-col gap-2">
-        <legend className="mb-2 font-medium">Where do you run it?</legend>
+        <legend className="font-medium">Where do you run it?</legend>
+        <p className="mb-2 text-xs text-muted">{HOSTING_HINT}</p>
         <div className="grid gap-2 sm:grid-cols-2">
           {(["url", "runner"] as const).map((c) => (
             <Choice
@@ -120,6 +127,26 @@ export function ModeChoice({
         ))}
       </div>
     </fieldset>
+  );
+}
+
+/** What to put in place of the agent command, under the runner command. */
+function CommandNote({ example = false }: { example?: boolean }) {
+  return (
+    <>
+      Replace <InlineCode>&lt;your agent command&gt;</InlineCode> with how you start your agent,
+      e.g. <InlineCode>node agent.js</InlineCode> or <InlineCode>python agent.py</InlineCode>.
+      {example && (
+        <>
+          {" "}
+          The runner needs Node 22 or later, whatever your agent is written in. No agent yet?{" "}
+          <a className={linkClass} href={`${DOCS_BYOA}#no-agent-yet`}>
+            Try the example agent
+          </a>
+          .
+        </>
+      )}
+    </>
   );
 }
 
@@ -204,31 +231,35 @@ export function ConnectRunner({
       </div>
       {input ? (
         <>
-          <InitCommand
-            framework={framework}
-            connection="runner"
-            mode={input.mode}
-            teeUrl={input.teeUrl}
-            token={input.token}
-            gatewayUrl={input.gatewayUrl}
-          />
+          {initLeads(framework) ? (
+            <InitCommand
+              framework={framework}
+              connection="runner"
+              mode={input.mode}
+              teeUrl={input.teeUrl}
+              token={input.token}
+              gatewayUrl={input.gatewayUrl}
+            />
+          ) : (
+            <CopyBlock
+              label="Start the runner with your agent's command"
+              text={runnerCommand(input)}
+              note={<CommandNote example />}
+            />
+          )}
           <Collapsible
             className="border-t border-line pt-4"
             contentClassName="pt-4"
             summary="Other ways to start the runner"
           >
             <div className="flex flex-col gap-4">
-              <CopyBlock
-                label="Or start the runner yourself (Node)"
-                text={runnerCommand(input)}
-                note={
-                  <>
-                    Replace <InlineCode>&lt;your agent command&gt;</InlineCode> with how you start
-                    your agent, e.g. <InlineCode>node agent.js</InlineCode> or{" "}
-                    <InlineCode>python agent.py</InlineCode>.
-                  </>
-                }
-              />
+              {initLeads(framework) && (
+                <CopyBlock
+                  label="Or start the runner yourself (Node)"
+                  text={runnerCommand(input)}
+                  note={<CommandNote />}
+                />
+              )}
               <CopyBlock
                 label="With Docker"
                 text={runnerDockerCommand(input)}

@@ -28,7 +28,7 @@ import { BreachEvidenceList, TopFixes } from "../components/report-actions";
 import { evidenceOf, topFixes } from "../lib/report-actions";
 import { ModuleCover } from "../components/module-cover";
 import { BindingLine } from "../components/connect-agent";
-import { coverageRows, livenessLine, untestedClasses, untestedLine } from "../lib/byoa";
+import { classCells, coverageRows, livenessLine, untestedClasses, untestedLine } from "../lib/byoa";
 import { Token } from "../components/token";
 import { bps, short, usd, when } from "../lib/format";
 import {
@@ -151,7 +151,7 @@ export function Agent() {
   const exercisedShown = Boolean(report?.classes.some((c) => c.exercised !== undefined));
   const untested = new Set(untestedClasses(report));
   const classGrid = exercisedShown
-    ? "grid grid-cols-[44px_minmax(0,1fr)_minmax(0,2fr)_74px_74px] items-center gap-3.5"
+    ? "grid grid-cols-[44px_minmax(0,1fr)_minmax(0,2fr)_64px_112px] items-center gap-3.5"
     : "grid grid-cols-[44px_minmax(0,1fr)_minmax(0,2fr)_74px] items-center gap-3.5";
   const tone = rated && a ? tierTone(a.score) : "neutral";
   const glow =
@@ -321,12 +321,13 @@ export function Agent() {
                     <span />
                     <span />
                     <span />
-                    <span className="text-right">Result</span>
                     <span className="text-right">Exercised</span>
+                    <span className="text-right">Result</span>
                   </div>
                 )}
                 {report.classes.map((c) => {
                   const held = c.episodes ? (c.episodes - c.breaches) / c.episodes : 1;
+                  const cells = classCells(c);
                   return (
                     <div key={c.class} className={`${classGrid} border-t border-white/[0.06] py-3`}>
                       <span className="font-mono text-xs text-muted">{c.class}</span>
@@ -341,23 +342,29 @@ export function Agent() {
                           style={{ width: `${(1 - held) * 100}%` }}
                         />
                       </span>
-                      <span
-                        className={`text-right font-mono text-xs ${c.breaches ? "text-breach" : "text-muted"}`}
-                      >
-                        {c.breaches ? `${c.breaches} of ${c.episodes}` : `held ${c.episodes}`}
-                      </span>
-                      {exercisedShown && (
+                      {exercisedShown ? (
+                        <>
+                          <span
+                            className={`text-right font-mono text-xs ${untested.has(c.class) || cells.result === "not reached" ? "text-warn" : "text-muted"}`}
+                            title={
+                              untested.has(c.class)
+                                ? "Never tested the agent: priced as untested within its group"
+                                : undefined
+                            }
+                          >
+                            {cells.exercised}
+                          </span>
+                          <span
+                            className={`text-right font-mono text-xs ${cells.tone === "breach" ? "text-breach" : cells.tone === "warn" ? "text-warn" : "text-muted"}`}
+                          >
+                            {cells.result}
+                          </span>
+                        </>
+                      ) : (
                         <span
-                          className={`text-right font-mono text-xs ${untested.has(c.class) ? "text-warn" : "text-muted"}`}
-                          title={
-                            untested.has(c.class)
-                              ? "Never tested the agent: priced as untested within its group"
-                              : undefined
-                          }
+                          className={`text-right font-mono text-xs ${c.breaches ? "text-breach" : "text-muted"}`}
                         >
-                          {untested.has(c.class)
-                            ? "untested"
-                            : `${c.exercised ?? c.episodes} of ${c.episodes}`}
+                          {c.breaches ? `${c.breaches} of ${c.episodes}` : `held ${c.episodes}`}
                         </span>
                       )}
                     </div>

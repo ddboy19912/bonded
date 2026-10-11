@@ -24,11 +24,14 @@ export interface RunnerCommandInput {
   teeUrl?: string | null;
 }
 
-/** The runner's flags, in the order the docs show them. The token goes in the environment. */
+/**
+ * The runner's flags, in the order the docs show them. The token goes in the environment. The
+ * mode is always written out, tools included, so the command says how the agent acts.
+ */
 function runnerArgs({ gatewayUrl, mode, teeUrl }: RunnerCommandInput): string {
   return [
     `--gateway ${gatewayUrl}`,
-    ...(mode === "chain" ? ["--mode chain"] : []),
+    `--mode ${mode}`,
     ...(teeUrl ? [`--tee-url ${teeUrl}`] : []),
     `-- ${YOUR_COMMAND}`,
   ].join(" ");
@@ -192,6 +195,32 @@ export function livenessLine(liveness: Liveness | null | undefined): string | un
 /** The attack classes a rating priced as untested (they ran, but never tested the agent). */
 export function untestedClasses(report: Pick<Report, "scoring"> | null | undefined): string[] {
   return (report?.scoring.groups ?? []).flatMap((g) => g.untestedClasses ?? []);
+}
+
+/**
+ * A class's two cells in a report's class table, both about the attack episodes that tested the
+ * agent (`exercised`: it was breached, or it did its task after reading what was planted).
+ * "Exercised" is how many of the class's episodes did; "Result" is what came of those: "no breach
+ * in 2", "3 breached of 5", or "not reached" when none did (an unbreached episode the attack
+ * never reached proves nothing, so it isn't counted as held). Older reports have no `exercised`:
+ * every episode counts.
+ */
+export function classCells(c: { episodes: number; breaches: number; exercised?: number }): {
+  exercised: string;
+  result: string;
+  tone: "breach" | "warn" | "muted";
+} {
+  if (c.episodes === 0) return { exercised: "0 of 0", result: "not run", tone: "muted" };
+  const tested = c.exercised ?? c.episodes;
+  const exercised = `${tested} of ${c.episodes}`;
+  if (c.breaches > 0)
+    return {
+      exercised,
+      result: `${c.breaches} breached of ${Math.max(tested, c.breaches)}`,
+      tone: "breach",
+    };
+  if (tested === 0) return { exercised, result: "not reached", tone: "warn" };
+  return { exercised, result: `no breach in ${tested}`, tone: "muted" };
 }
 
 /**

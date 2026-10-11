@@ -5,6 +5,7 @@ import {
   messageCode,
   messageText,
   troubleshootingUrl,
+  warningsSummary,
   withCodes,
 } from "./troubleshooting";
 
@@ -55,5 +56,29 @@ describe("troubleshooting links", () => {
     ).toBe("needs-check");
     expect(errorCode(new ApiError(409, "no passing check"))).toBeUndefined();
     expect(errorCode(new Error("x"))).toBeUndefined();
+  });
+});
+
+describe("warningsSummary", () => {
+  const fix = { code: "agent-url-unreachable", message: "It read 2 of 9 surfaces" };
+  const note = { code: "usage-not-reported", message: "It didn't report its model usage" };
+
+  it("counts what is worth fixing, in the singular and the plural", () => {
+    expect(warningsSummary([fix])).toEqual({
+      text: "1 thing worth fixing before you start",
+      notesOnly: false,
+    });
+    expect(warningsSummary([fix, { ...fix, message: "another" }]).text).toBe(
+      "2 things worth fixing before you start",
+    );
+  });
+
+  it("counts notes apart from fixes, and is only notes when nothing needs fixing", () => {
+    expect(warningsSummary([fix, note])).toEqual({
+      text: "1 thing worth fixing before you start, 1 note",
+      notesOnly: false,
+    });
+    expect(warningsSummary([note])).toEqual({ text: "1 note", notesOnly: true });
+    expect(warningsSummary([note, { ...note, message: "x" }]).text).toBe("2 notes");
   });
 });

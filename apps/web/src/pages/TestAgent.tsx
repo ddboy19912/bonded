@@ -24,7 +24,12 @@ import {
   type PreviewStep,
 } from "../lib/connect";
 import { useRatingRun } from "../lib/rating-run";
-import { messageText } from "../lib/troubleshooting";
+import {
+  messageText,
+  warningPrefix,
+  warningsSummary,
+  type ApiMessage,
+} from "../lib/troubleshooting";
 import { ProblemText } from "../components/problem";
 import { short, when } from "../lib/format";
 import { DOCS_BYOA } from "../lib/routes";
@@ -443,26 +448,10 @@ export function TestAgent() {
                       Passed {when(Math.floor(Date.parse(status.lastCheck!.createdAt) / 1000))}
                     </span>
                     {!!status.lastCheck!.warnings?.length && (
-                      <Collapsible
-                        triggerClassName="text-sm font-normal text-warn"
-                        contentClassName="pt-3"
-                        summary={
-                          status.lastCheck!.warnings.length === 1
-                            ? "1 thing worth fixing before you start"
-                            : `${status.lastCheck!.warnings.length} things worth fixing before you start`
-                        }
-                      >
-                        <ul className="flex flex-col gap-3">
-                          {status.lastCheck!.warnings.map((problem) => (
-                            <li key={messageText(problem)}>
-                              <ProblemText
-                                message={problem}
-                                advice={problemAdvice(messageText(problem), status.connection)}
-                              />
-                            </li>
-                          ))}
-                        </ul>
-                      </Collapsible>
+                      <CheckWarnings
+                        warnings={status.lastCheck!.warnings}
+                        connection={status.connection}
+                      />
                     )}
                   </span>
                 )
@@ -670,6 +659,36 @@ export function TestAgent() {
         </div>
       </div>
     </Page>
+  );
+}
+
+/** A passed check's warnings, folded behind one line, with "Note:" on the ones that are only notes. */
+function CheckWarnings({
+  warnings,
+  connection,
+}: {
+  warnings: readonly ApiMessage[];
+  connection: Connection;
+}) {
+  const { text, notesOnly } = warningsSummary(warnings);
+  return (
+    <Collapsible
+      triggerClassName={`text-sm font-normal ${notesOnly ? "text-muted" : "text-warn"}`}
+      contentClassName="pt-3"
+      summary={text}
+    >
+      <ul className="flex flex-col gap-3">
+        {warnings.map((problem) => (
+          <li key={messageText(problem)}>
+            <ProblemText
+              prefix={warningPrefix(problem, "")}
+              message={problem}
+              advice={problemAdvice(messageText(problem), connection)}
+            />
+          </li>
+        ))}
+      </ul>
+    </Collapsible>
   );
 }
 

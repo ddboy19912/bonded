@@ -159,6 +159,17 @@ describe("runConnectionCheck", () => {
       "  warning: It read only 2 of 9 surfaces",
       "  3 tool calls, task done, read inbox, news",
     ]);
+    // Model usage is only a note: an agent with no model has none to report.
+    expect(
+      resultLines({
+        ...RESULT,
+        warnings: [
+          "If your agent uses a model, report its usage at /done: without it, a cost estimate gives time only",
+        ],
+      })[1],
+    ).toBe(
+      "  note: If your agent uses a model, report its usage at /done: without it, a cost estimate gives time only",
+    );
     // With the API's codes, each problem links to its fix.
     expect(
       resultLines({

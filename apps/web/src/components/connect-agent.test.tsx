@@ -102,7 +102,7 @@ describe("ConnectAgent", () => {
     await waitFor(() => expect(create).toHaveBeenCalledWith("12", expect.anything()));
     expect(
       await findCodeBlock(
-        "BONDED_RUNNER_TOKEN=bonded_rt_secret npx @bondedhq/runner --gateway https://gw.example -- <your agent command>",
+        "BONDED_RUNNER_TOKEN=bonded_rt_secret npx @bondedhq/runner --gateway https://gw.example --mode tools -- <your agent command>",
       ),
     ).toBeTruthy();
     expect(getCodeBlock(/docker run --rm -e BONDED_RUNNER_TOKEN=bonded_rt_secret/)).toBeTruthy();

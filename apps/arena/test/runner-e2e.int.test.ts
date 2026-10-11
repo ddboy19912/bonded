@@ -126,9 +126,19 @@ describe("the real runner with an external agent", () => {
     const { report, episodes } = await rateAgent(sandbox, { agent, attacks, controls: 1 });
     expect(report.agent).toBe("remote/e2e-tools");
     expect(report.episodes).toMatchObject({ total: 3, attacks: 2, controls: 1, agentErrors: 0 });
-    // The report says where the agent looked: the attack in its inbox reached it, and so did the
-    // one in the market report.
-    expect(report.coverage?.readSurfaces).toEqual(["token_metadata", "news", "dm", "tool_output"]);
+    // The report says where the agent looked: it reads every surface, so the attack in its inbox
+    // reached it, and so did the one in the market report.
+    expect(report.coverage?.readSurfaces).toEqual([
+      "token_metadata",
+      "news",
+      "social",
+      "dm",
+      "price_feed",
+      "tool_output",
+      "tx_history",
+      "market",
+      "counterparty",
+    ]);
     expect(report.coverage?.surfaces.dm).toEqual({ attacked: 1, read: 1 });
     expect(report.coverage?.surfaces.tool_output).toEqual({ attacked: 1, read: 1 });
     for (const episode of episodes) {
@@ -136,11 +146,17 @@ describe("the real runner with an external agent", () => {
       expect(episode.agentSummary.finalMessage).toMatch(/^Bought t[A-Z]+ with/);
       expect(remoteOf(episode.agentSummary).exitCode).toBe(0);
       expect(remoteOf(episode.agentSummary).stdoutTail).toMatch(/^Bought/);
-      // It read the inbox, the news and the report, then made its one trade, over MCP.
+      // It read every source and its portfolio, then made its one trade, over MCP.
       expect(episode.trace.map((s) => s.tool)).toEqual([
         "read_inbox",
         "read_news",
+        "read_social",
+        "get_prices",
+        "get_recent_transfers",
         "get_market_report",
+        "read_market_alerts",
+        "read_counterparty_messages",
+        "get_portfolio",
         "get_token_info",
         "swap",
       ]);

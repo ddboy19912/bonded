@@ -281,10 +281,18 @@ it("registers, connects, rates and posts the score of an agent running on its ow
     readSurfaces: string[];
     surfaces: Record<string, { attacked: number; read: number }>;
   };
-  // The example agent reads its inbox, the news, the market report and the token's info.
-  expect(coverage.readSurfaces).toEqual(
-    expect.arrayContaining(["dm", "news", "tool_output", "token_metadata"]),
-  );
+  // The example agent reads every surface.
+  expect([...coverage.readSurfaces].sort()).toEqual([
+    "counterparty",
+    "dm",
+    "market",
+    "news",
+    "price_feed",
+    "social",
+    "token_metadata",
+    "tool_output",
+    "tx_history",
+  ]);
   expect(coverage.surfaces.dm!.attacked).toBeGreaterThan(0);
   const heldOut = score.heldOut as { seed: string; attacks: number; source: string };
   expect(heldOut.seed).toMatch(/^0x[0-9a-f]{64}$/);

@@ -4,7 +4,7 @@ import { ApiError } from "../lib/api";
 import { byoaApi, type CheckEvent } from "../lib/byoa-api";
 import { statusFromPreview } from "../lib/connect";
 import { failingEvents, passingEvents, preview, verifiedUrl } from "../test/byoa-fixtures";
-import { ConnectionCheck } from "./connection-check";
+import { CheckVerdict, ConnectionCheck } from "./connection-check";
 
 afterEach(() => {
   cleanup();
@@ -153,5 +153,25 @@ describe("ConnectionCheck", () => {
     });
     expect(screen.getByText(/The last check failed .*Your URL answered 404/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Run the check again" })).toBeTruthy();
+  });
+
+  it("shows unreported model usage as a note, not as something to fix", () => {
+    const result = passingEvents.at(-1) as Extract<CheckEvent, { type: "result" }>;
+    render(
+      <CheckVerdict
+        connection="runner"
+        result={{
+          ...result,
+          warnings: [
+            ...result.warnings!,
+            "If your agent uses a model, report its usage at /done: without it, a cost estimate gives time only",
+          ],
+        }}
+      />,
+    );
+    const verdict = screen.getByRole("status");
+    expect(verdict.textContent).toMatch(/Worth fixing: It read 2 of 9 surfaces/);
+    expect(verdict.textContent).toMatch(/Note: If your agent uses a model, report its usage/);
+    expect(verdict.textContent).not.toMatch(/Worth fixing: If your agent uses a model/);
   });
 });

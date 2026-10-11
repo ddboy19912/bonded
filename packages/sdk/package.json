@@ -1,6 +1,6 @@
 {
   "name": "@bondedhq/sdk",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Trade through a Bonded Mandate Vault and get rated by the Bonded Arena from any TypeScript agent: a typed vault client with dry runs, Sentinel checks and a mandate builder; the Arena episode's tools for LangChain, the Vercel AI SDK, ElizaOS and Coinbase AgentKit; and an Agent URL handler.",
   "license": "MIT",
   "keywords": [

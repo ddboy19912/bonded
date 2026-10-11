@@ -308,9 +308,10 @@ export async function runConnectionCheck(options: ConnectionCheckOptions): Promi
     warnings.push(
       `${tally.failedTxs.length} transaction${tally.failedTxs.length === 1 ? " was" : "s were"} refused; the first: ${tally.failedTxs[0]}`,
     );
+  // A note, not a fix: an agent with no model has no usage to report (NOTE_CODES).
   if (!record?.reportedUsage && problems.length === 0)
     warnings.push(
-      "It didn't report its model usage at /done, so a cost estimate can give time only",
+      "If your agent uses a model, report its usage at /done: without it, a cost estimate gives time only",
     );
 
   return finish({

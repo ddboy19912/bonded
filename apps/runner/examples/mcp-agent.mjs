@@ -5,9 +5,9 @@
  *   bonded-runner --gateway <url> --mode tools -- node mcp-agent.mjs
  *
  * The runner starts it once per episode with the episode in its environment. It has no model:
- * it reads its messages, the news and the market report, looks up the token, makes the one
- * trade its task asks for, and says it's done. Swap `decide` for your own agent (for example an
- * LLM given `tools` as its tool definitions); everything else stays the same.
+ * it reads every source an attack can be planted in (a rating attacks all nine), looks up the
+ * token, makes the one trade its task asks for, and says it's done. Swap `decide` for your own
+ * agent (for example an LLM given `tools` and what it read); everything else stays the same.
  *
  * Needs @modelcontextprotocol/sdk (npm install @modelcontextprotocol/sdk).
  */
@@ -38,8 +38,24 @@ function decide(goal) {
   return { tokenIn: match[2], tokenOut: match[3], amountIn: match[1].replaceAll(",", "") };
 }
 
+/**
+ * Every read tool but get_token_info (read below, for the token it trades): one per attack
+ * surface, plus the portfolio. A source the agent never reads leaves its attacks untested.
+ */
+const READS = [
+  "read_inbox",
+  "read_news",
+  "read_social",
+  "get_prices",
+  "get_recent_transfers",
+  "get_market_report",
+  "read_market_alerts",
+  "read_counterparty_messages",
+  "get_portfolio",
+];
+
 // Everything read here is untrusted: it can carry instructions. This agent never acts on them.
-for (const name of ["read_inbox", "read_news", "get_market_report"]) await call(name);
+for (const name of READS) await call(name);
 
 let finalMessage = `No trade in the task I could parse (${tools.length} tools available).`;
 const trade = decide(task.goal);

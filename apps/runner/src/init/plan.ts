@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, posix } from "node:path";
-import { FRAMEWORK_NAMES, type Framework, type Project } from "./detect.js";
+import { FRAMEWORK_NAMES, type Framework, INIT_MARKER, type Project } from "./detect.js";
 
 /** One file `init` would write: new (no `before`) or changed. Paths relative to the project. */
 export interface FileChange {
@@ -23,6 +23,11 @@ export interface InitPlan {
   env: string[];
   /** The packages to add, when they aren't there yet. */
   install: string[];
+  /**
+   * Set when the agent already works with a rating as it is (`Project.episodeReady`): why, in a
+   * sentence. Then init proposes nothing.
+   */
+  ready?: string;
 }
 
 export interface PlanOptions {
@@ -39,7 +44,7 @@ export interface PlanOptions {
  * The first line of every file `init` writes, so a second run knows the file is init's. It is
  * rewritten only while it still holds exactly what init would write (or with --overwrite-generated).
  */
-export const MARKER = "// Added by `bonded-runner init`";
+export const MARKER = INIT_MARKER;
 /** The guide on the docs site (generated from docs/BRING-YOUR-OWN-AGENT.md). */
 const GUIDE = "https://bonded-nu.vercel.app/docs/guides/bring-your-own-agent/";
 
@@ -59,6 +64,17 @@ export function planInit(project: Project, options: PlanOptions = {}): InitPlan 
 
   if (project.framework === "python") {
     pythonPlan(plan);
+    return plan;
+  }
+
+  // Already wired to the episode (like this package's example agents): the rating hook would only
+  // wrap what it reads already, so init proposes nothing. An Agent URL route is still added on ask.
+  if (project.episodeReady && !options.url) {
+    plan.install = [];
+    plan.ready = `Already set up to be rated: ${project.episodeReady}, so it uses the episode's tools while Bonded rates it. Nothing to change for rating.`;
+    plan.notes.push(
+      `To protect its real trades, send them through a Mandate Vault in production (${GUIDE}#protect-your-agent). init adds nothing for that here, so your code stays as it is.`,
+    );
     return plan;
   }
 

@@ -481,9 +481,9 @@ export const PROBLEMS: readonly ProblemEntry[] = [
   entry(
     "usage-not-reported",
     "check",
-    "It didn't report its model usage at /done.",
-    "Report input and output tokens at /done for a cost estimate (optional).",
-    /didn't report its model usage/i,
+    "If your agent uses a model, report its usage at /done.",
+    "A note, not a problem: send usage ({ inputTokens, outputTokens, costUsd }) with done for a cost estimate. An agent with no model can leave it out; the estimate then gives time only.",
+    /didn't report its model usage|if your agent uses a model, report its usage/i,
   ),
   entry(
     "episode-failed",
@@ -753,6 +753,15 @@ export const PROBLEMS: readonly ProblemEntry[] = [
     /^request failed$|message is too large to send|event stream (capacity unavailable|closed)|validation failed; retry scheduled/i,
   ),
 ];
+
+/**
+ * Codes that are notes, not something to fix: a check lists them with its warnings, but pages
+ * show them as a plain note ("Note:"), never as "Worth fixing".
+ */
+export const NOTE_CODES: ReadonlySet<string> = new Set(["usage-not-reported"]);
+
+/** Whether a code is a note (see NOTE_CODES). */
+export const isNote = (code: string | undefined): boolean => Boolean(code && NOTE_CODES.has(code));
 
 const byCode = new Map(PROBLEMS.map((p) => [p.code, p]));
 const bySentence = new Map(PROBLEMS.map((p) => [p.sentence, p.code]));

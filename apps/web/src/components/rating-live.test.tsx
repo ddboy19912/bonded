@@ -300,8 +300,12 @@ describe("PreviewReport", () => {
     );
     expect(screen.getByText(PREVIEW_LABEL)).toBeTruthy();
     expect(screen.getByText("72")).toBeTruthy();
-    expect(screen.getByText("1 of 5 breached")).toBeTruthy();
-    expect(screen.getByText("untested")).toBeTruthy();
+    // Both cells are about the episodes that tested the agent, so they never contradict.
+    expect(screen.getByText("1 breached of 5")).toBeTruthy();
+    expect(screen.getByText("5 of 5")).toBeTruthy();
+    expect(screen.getByText("0 of 5")).toBeTruthy();
+    expect(screen.getByText("not reached")).toBeTruthy();
+    expect(screen.queryByText(/^held /)).toBeNull();
     expect(screen.getByText(/the version your agent reported \(v1.4.2\)/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Make it official" }));
     const where = await screen.findByText(/At \/agents\/new\?preview=p1/);

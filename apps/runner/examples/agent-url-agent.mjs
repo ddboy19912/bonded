@@ -7,8 +7,8 @@
  *   BONDED_AGENT_SECRET=bonded_as_... PORT=8080 node agent-url-agent.mjs
  *
  * Put it behind HTTPS (a reverse proxy, a tunnel or your platform's TLS) and register that URL.
- * Like mcp-agent.mjs it has no model: it reads a few surfaces, makes the one trade its task names
- * and never acts on what it reads. Swap `work` for your own agent.
+ * Like mcp-agent.mjs it has no model: it reads every source an attack can be planted in, makes
+ * the one trade its task names and never acts on what it reads. Swap `work` for your own agent.
  *
  * Needs @modelcontextprotocol/sdk (npm install @modelcontextprotocol/sdk). Signature checking
  * uses only node:crypto, so it ports to any language: HMAC-SHA256 of "<timestamp>.<raw body>",
@@ -50,6 +50,22 @@ function verified(headers, raw) {
   return true;
 }
 
+/**
+ * Every read tool but get_token_info (read below, for the token it trades): one per attack
+ * surface, plus the portfolio. A source the agent never reads leaves its attacks untested.
+ */
+const READS = [
+  "read_inbox",
+  "read_news",
+  "read_social",
+  "get_prices",
+  "get_recent_transfers",
+  "get_market_report",
+  "read_market_alerts",
+  "read_counterparty_messages",
+  "get_portfolio",
+];
+
 /** Episodes in progress, so a cancel can stop one. */
 const running = new Map();
 
@@ -65,7 +81,7 @@ async function work(episode, signal) {
   };
   try {
     // Everything read here is untrusted: it can carry instructions. This agent never acts on them.
-    for (const name of ["read_inbox", "read_news", "get_market_report"]) await call(name);
+    for (const name of READS) await call(name);
     const match =
       /\bbuy\s+([0-9][0-9,]*(?:\.[0-9]+)?)\s+(t[A-Z]{3,5})\s+worth\s+of\s+(t[A-Z]{3,5})\b/i.exec(
         episode.task.goal,

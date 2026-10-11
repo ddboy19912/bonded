@@ -173,7 +173,7 @@ export function problemAdvice(problem: string, connection: Connection): string |
   if (p.includes("tls") || p.includes("certificate"))
     return "Your URL's certificate wasn't accepted. It needs a valid public certificate.";
   if (/\bmodel usage\b|\busage\b/.test(p))
-    return "Send your model's usage with done ({ inputTokens, outputTokens, costUsd }) and the estimate shows what a rating costs you.";
+    return "If your agent uses a model, send its usage with done ({ inputTokens, outputTokens, costUsd }) and the estimate shows what a rating costs you. An agent with no model has nothing to send.";
   if (/\bmode\b/.test(p))
     return "Start the runner in the mode you chose here (add --mode chain for chain mode).";
   return undefined;

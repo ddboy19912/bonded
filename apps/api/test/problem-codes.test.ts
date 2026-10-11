@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { UNKNOWN_PROBLEM, problemCode } from "@bondedhq/shared";
 
 /**
@@ -8,12 +9,12 @@ import { UNKNOWN_PROBLEM, problemCode } from "@bondedhq/shared";
  * the troubleshooting page: the literal sentences in the source are read and each must map to an
  * entry (`PROBLEMS` in @bondedhq/shared). Template values are filled with a number.
  */
+// fileURLToPath, not URL.pathname: a checkout whose path has a space ("Fortune Stuff") gets %20.
+const src = fileURLToPath(new URL("../src", import.meta.url));
 const files = [
-  ...readdirSync(new URL("../src", import.meta.url)).map((f) =>
-    join(new URL("../src", import.meta.url).pathname, f),
-  ),
-  new URL("../../arena/src/check.ts", import.meta.url).pathname,
-  new URL("../../arena/src/gateway/agent-url.ts", import.meta.url).pathname,
+  ...readdirSync(src).map((f) => join(src, f)),
+  fileURLToPath(new URL("../../arena/src/check.ts", import.meta.url)),
+  fileURLToPath(new URL("../../arena/src/gateway/agent-url.ts", import.meta.url)),
 ].filter((f) => f.endsWith(".ts"));
 
 const PATTERNS = [

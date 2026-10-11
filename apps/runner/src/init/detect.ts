@@ -23,6 +23,12 @@ export const FRAMEWORK_NAMES: Record<Framework, string> = {
   unknown: "an unrecognised framework",
 };
 
+/**
+ * The first line of every file `init` writes, so a second run knows the file is init's (`MARKER`
+ * in plan.ts). Defined here so detection can skip init's own files.
+ */
+export const INIT_MARKER = "// Added by `bonded-runner init`";
+
 /** Web frameworks `init --url` can add an Agent URL route to. */
 export type WebFramework = "next-app" | "next-pages" | "express" | "hono" | "node-http";
 
@@ -52,6 +58,12 @@ export interface Project {
   nextAppDir?: string;
   nextMajor?: number;
   hasSdk: boolean;
+  /**
+   * Why the agent already works with a rating as it is, when it does: its own code (not a file
+   * init wrote) reads the episode's tool addresses (BONDED_MCP_URL or BONDED_TOOLS_URL) or the
+   * whole episode (`fromBondedEnv` from @bondedhq/sdk). Like the example agents in this package.
+   */
+  episodeReady?: string;
 }
 
 const SKIP = new Set([
@@ -133,7 +145,30 @@ export function detectProject(root: string, override?: Framework): Project {
     ...(nextAppDir && has("next") ? { nextAppDir } : {}),
     ...(nextMajor ? { nextMajor } : {}),
     hasSdk: has("@bondedhq/sdk"),
+    ...episodeReady(root, sources),
   };
+}
+
+/** Reading the episode's tools from the environment, or the episode itself, in the agent's code. */
+const EPISODE_READ =
+  /process\.env\.(BONDED_MCP_URL|BONDED_TOOLS_URL)\b|process\.env\[\s*["'`](BONDED_MCP_URL|BONDED_TOOLS_URL)["'`]\s*\]|\b(fromBondedEnv)\s*\(/;
+
+/** The first of the agent's own files that already reads the episode (see `episodeReady`). */
+function episodeReady(root: string, sources: string[]): { episodeReady?: string } {
+  for (const file of sources) {
+    let text: string;
+    try {
+      text = readFileSync(join(root, file), "utf8");
+    } catch {
+      continue;
+    }
+    if (text.startsWith(INIT_MARKER)) continue;
+    const match = EPISODE_READ.exec(text);
+    if (!match) continue;
+    const what = match[1] ?? match[2] ?? `${match[3]}()`;
+    return { episodeReady: `${file} already reads ${what}` };
+  }
+  return {};
 }
 
 function detectFramework(

@@ -190,7 +190,7 @@ export async function initCommand(argv: string[], io: InitIO): Promise<number> {
   const gateway = values.gateway ?? io.env.BONDED_GATEWAY_URL;
   if (!token || !gateway) {
     io.out(
-      `\nNext: start the runner with your runner token (from your agent's page):\n  BONDED_RUNNER_TOKEN=... npx @bondedhq/runner --gateway <gateway url>${mode.data === "chain" ? " --mode chain" : ""} -- ${agentCommand(project, command).join(" ") || "<your agent command>"}\nthen run a connection check on the page. Or run init again with BONDED_RUNNER_TOKEN and --gateway: it starts the runner and runs the check here.`,
+      `\nNext: start the runner with your runner token (from your agent's page):\n  ${runnerLine("<gateway url>", mode.data, agentCommand(project, command).join(" ") || "<your agent command>")}\nthen run a connection check on the page. Or run init again with BONDED_RUNNER_TOKEN and --gateway: it starts the runner and runs the check here.`,
     );
     return 0;
   }
@@ -201,8 +201,9 @@ export async function initCommand(argv: string[], io: InitIO): Promise<number> {
   }
   const agent = agentCommand(project, command);
   if (!agent.length) {
+    const example = guessedCommand(project) ?? "node agent.js";
     io.err(
-      "No agent command: put it after -- (e.g. -- node agent.js), or add a start script to package.json.",
+      `No agent command: init can't tell how your agent starts (there's no start script in package.json). Put it after --, e.g. \`-- ${example}\`, or start the runner yourself:\n  ${runnerLine(gateway, mode.data, guessedCommand(project) ?? "<your agent command>")}`,
     );
     return 1;
   }
@@ -253,6 +254,20 @@ export function apiUrlProblem(api: string): string | undefined {
   return "--api must be https (plain http only on localhost)";
 }
 
+/** The runner's own command line, with the token left for the owner to fill in. */
+function runnerLine(gateway: string, mode: AgentMode, command: string): string {
+  return `BONDED_RUNNER_TOKEN=... npx @bondedhq/runner --gateway ${gateway} --mode ${mode} -- ${command}`;
+}
+
+/**
+ * A likely start command, only to show as an example (never run): `node <file>` when the folder
+ * has a single JavaScript file at its top level, like a copied example agent.
+ */
+function guessedCommand(project: Project): string | undefined {
+  const top = project.sources.filter((f) => !f.includes("/") && /\.(m?js)$/.test(f));
+  return top.length === 1 ? `node ${top[0]}` : undefined;
+}
+
 /** The agent's command: what came after --, else the package.json start script. */
 export function agentCommand(project: Project, given: string[]): string[] {
   if (given.length) return given;
@@ -270,7 +285,7 @@ function printPlan(project: Project, plan: InitPlan, out: (line: string) => void
       out(unifiedDiff(c.path, c.before, c.after).trimEnd());
       out("");
     }
-  } else out("\nNo file changes needed.");
+  } else out(plan.ready ? `\n${plan.ready}` : "\nNo file changes needed.");
   if (plan.install.length) out(`Adds: ${plan.install.join(" ")}`);
   if (plan.manual.length) {
     out("\nBy hand (init didn't change these, to be safe):");

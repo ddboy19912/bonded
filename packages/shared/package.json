@@ -1,6 +1,6 @@
 {
   "name": "@bondedhq/shared",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Bonded's shared schemas, ABIs, chain configs, signing types and the agent and runner protocols.",
   "license": "MIT",
   "keywords": [

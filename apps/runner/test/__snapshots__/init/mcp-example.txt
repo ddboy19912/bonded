@@ -1,0 +1,7 @@
+Framework: an MCP client (package.json depends on @modelcontextprotocol/sdk)
+Package manager: npm
+
+Already set up to be rated: mcp-agent.mjs already reads BONDED_MCP_URL, so it uses the episode's tools while Bonded rates it. Nothing to change for rating.
+
+Good to know:
+  - To protect its real trades, send them through a Mandate Vault in production (https://bonded-nu.vercel.app/docs/guides/bring-your-own-agent/#protect-your-agent). init adds nothing for that here, so your code stays as it is.

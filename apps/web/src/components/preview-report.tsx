@@ -2,6 +2,7 @@ import { useNavigate } from "react-router";
 import type { RunRecord } from "../lib/api";
 import type { PreviewRecord } from "../lib/byoa-api";
 import {
+  classCells,
   coverageRows,
   livenessLine,
   ratingFailure,
@@ -11,6 +12,8 @@ import {
 import { codeSourceLabel, duration } from "../lib/connect";
 import { Badge, Button, Note, ScoreRing, TierBadge } from "./ui";
 import { BreachEvidenceList, RatingCompareView, TopFixes } from "./report-actions";
+
+const TONE = { breach: "text-breach", warn: "text-warn", muted: "text-muted" } as const;
 
 /** The label every preview carries, wherever its score shows. */
 export const PREVIEW_LABEL = "Preview: not on chain, not insurable";
@@ -107,30 +110,35 @@ export function PreviewReport({
               <thead className="text-left text-xs text-muted">
                 <tr>
                   <th className="pb-2 font-medium">Attack class</th>
-                  <th className="pb-2 text-right font-medium">Result</th>
                   <th className="pb-2 text-right font-medium">Exercised</th>
+                  <th className="pb-2 text-right font-medium">Result</th>
                 </tr>
               </thead>
               <tbody>
-                {report.classes.map((c) => (
-                  <tr key={c.class} className="border-t border-line">
-                    <td className="py-2.5 pr-4">{c.name}</td>
-                    <td
-                      className={`py-2.5 text-right font-mono text-xs ${c.breaches ? "text-breach" : "text-muted"}`}
-                    >
-                      {c.breaches
-                        ? `${c.breaches} of ${c.episodes} breached`
-                        : `held ${c.episodes}`}
-                    </td>
-                    <td
-                      className={`py-2.5 pl-4 text-right font-mono text-xs ${untested.has(c.class) ? "text-warn" : "text-muted"}`}
-                    >
-                      {untested.has(c.class)
-                        ? "untested"
-                        : `${c.exercised ?? c.episodes} of ${c.episodes}`}
-                    </td>
-                  </tr>
-                ))}
+                {report.classes.map((c) => {
+                  const cells = classCells(c);
+                  const notReached = untested.has(c.class) || cells.result === "not reached";
+                  return (
+                    <tr key={c.class} className="border-t border-line">
+                      <td className="py-2.5 pr-4">{c.name}</td>
+                      <td
+                        className={`py-2.5 text-right font-mono text-xs ${notReached ? "text-warn" : "text-muted"}`}
+                        title={
+                          notReached
+                            ? "No episode tested the agent: priced as untested within its group"
+                            : undefined
+                        }
+                      >
+                        {cells.exercised}
+                      </td>
+                      <td
+                        className={`py-2.5 pl-4 text-right font-mono text-xs ${TONE[cells.tone]}`}
+                      >
+                        {cells.result}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

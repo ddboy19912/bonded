@@ -151,7 +151,7 @@ describe("a connection check", () => {
     expect(result.toolsCalled).toBeGreaterThan(2);
     expect(result.surfacesRead.length).toBeGreaterThan(0);
     expect(result.warnings).toContain(
-      "It didn't report its model usage at /done, so a cost estimate can give time only",
+      "If your agent uses a model, report its usage at /done: without it, a cost estimate gives time only",
     );
     expect(
       result.warnings.some((w) => /surfaces; unread ones are scored as untested/.test(w)),
@@ -387,6 +387,8 @@ describe("the Agent URL example", () => {
       taskCompleted: true,
       code: { source: "url", version: "example-9" },
     });
-    expect(result.surfacesRead).toEqual(expect.arrayContaining(["dm", "news"]));
+    // The example reads every surface, so the check has no unread-surfaces warning for it.
+    expect(result.surfacesRead).toHaveLength(9);
+    expect(result.warnings.some((w) => /surfaces; unread ones/.test(w))).toBe(false);
   });
 });
