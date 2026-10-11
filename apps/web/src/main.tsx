@@ -58,7 +58,7 @@ const router = createBrowserRouter([
   },
 ]);
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 10_000 } } });
-// The wallet button and modal in the Aurora style: brand blue, Manrope, the app's dark surfaces.
+// The wallet button and modal in the Aurora style: brand blue, Geist, the app's dark surfaces.
 const base = darkTheme({
   accentColor: "#1d4ed8",
   accentColorForeground: "#ffffff",
@@ -66,7 +66,7 @@ const base = darkTheme({
 });
 const walletTheme = {
   ...base,
-  fonts: { body: '"Manrope Variable", "Manrope", ui-sans-serif, system-ui, sans-serif' },
+  fonts: { body: '"Geist Variable", "Geist", ui-sans-serif, system-ui, sans-serif' },
   colors: {
     ...base.colors,
     modalBackground: "#0e1320",

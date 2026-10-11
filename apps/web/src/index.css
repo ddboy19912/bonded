@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import "@fontsource-variable/manrope/index.css";
+@import "@fontsource-variable/geist/index.css";
 @import "@fontsource/instrument-serif/400.css";
 @import "@fontsource/instrument-serif/400-italic.css";
 @import "@fontsource-variable/jetbrains-mono/index.css";
@@ -11,11 +11,11 @@
  * than Times New Roman, which is what made the big headings shift.
  */
 @font-face {
-  font-family: "Manrope Fallback";
+  font-family: "Geist Fallback";
   src: local("Arial"), local("ArialMT"), local("Helvetica");
-  size-adjust: 102.14%;
-  ascent-override: 104.76%;
-  descent-override: 29.37%;
+  size-adjust: 101.73%;
+  ascent-override: 98.79%;
+  descent-override: 29%;
   line-gap-override: 0%;
 }
 @font-face {
@@ -70,8 +70,7 @@
   --color-warn: #ffb347;
   --color-warn-soft: rgb(255 179 71 / 0.14);
 
-  --font-sans:
-    "Manrope Variable", "Manrope", "Manrope Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Geist Variable", "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Instrument Serif", "Instrument Serif Fallback", Georgia, serif;
   --font-mono:
     "JetBrains Mono Variable", "JetBrains Mono", "JetBrains Mono Fallback", ui-monospace, monospace;

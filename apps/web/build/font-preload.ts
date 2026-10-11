@@ -6,7 +6,7 @@ import type { Plugin } from "vite";
  * fetching them after the JavaScript has run, and the page redraws when they land.
  */
 export const PRELOAD_FONTS = [
-  /manrope-latin-wght-normal-[\w-]+\.woff2$/,
+  /geist-latin-wght-normal-[\w-]+\.woff2$/,
   /instrument-serif-latin-400-normal-[\w-]+\.woff2$/,
   /jetbrains-mono-latin-wght-normal-[\w-]+\.woff2$/,
 ];
