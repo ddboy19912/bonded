@@ -43,6 +43,27 @@ describe("the works-with carousel", () => {
   });
 });
 
+describe("the carousel without motion", () => {
+  const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "landing.css"), "utf8");
+  // The media block that stops the marquee: it must make the row of logos itself wrap, since the
+  // track is clipped. (Checked in a browser at 375px too: 11 of 11 logos visible, was 4.)
+  const still = css.slice(css.lastIndexOf("@media (prefers-reduced-motion: reduce)"));
+
+  it("wraps the list that holds the logos, not only the track around it", () => {
+    const copy = still.slice(
+      still.indexOf(".logo-copy {"),
+      still.indexOf("}", still.indexOf(".logo-copy {")),
+    );
+    expect(copy).toContain("flex-wrap: wrap");
+    expect(copy).toContain("width: 100%");
+    expect(still).toContain("animation: none");
+  });
+
+  it("hides the duplicate row, which only exists to loop the animation", () => {
+    expect(still).toMatch(/\.logo-copy\[aria-hidden="true"\]\s*\{\s*display: none/);
+  });
+});
+
 describe("who it is for", () => {
   it("sends each reader to the right place", () => {
     show(<Roles />);
@@ -151,18 +172,22 @@ vi.mock("../lib/chain", async (original) => ({
   useClaims: () => chain.claims,
 }));
 
-const agent = (id: number, score?: number) => ({
+const nowSeconds = () => Math.floor(Date.now() / 1000);
+const current = () => BigInt(nowSeconds() + 7 * 86_400);
+const lapsed = () => BigInt(nowSeconds() - 86_400);
+const agent = (id: number, score?: number, expiresAt = current()) => ({
   agentId: BigInt(id),
   owner: "0x0000000000000000000000000000000000000001",
-  ...(score === undefined ? {} : { score: { score, expectedLossBps: 150, expiresAt: 0n } }),
+  ...(score === undefined ? {} : { score: { score, expectedLossBps: 150, expiresAt } }),
 });
 const usd6 = (n: number) => BigInt(n) * 1_000_000n;
-const claim = (payout: number, fromBond: number, fromPool: number, loss = payout) => ({
+/** `payout` is the award; `netted` of it went to unpaid premium, and the bond and pool paid the rest. */
+const claim = (payout: number, fromBond: number, fromPool: number, loss = payout, netted = 0) => ({
   lossBase: usd6(loss),
   payout: usd6(payout),
   fromBond: usd6(fromBond),
   fromPool: usd6(fromPool),
-  premiumNetted: 0n,
+  premiumNetted: usd6(netted),
 });
 
 describe("claimSources", () => {
@@ -220,6 +245,47 @@ describe("the live agents band", () => {
     expect(screen.getByRole("link", { name: /See every claim/ }).getAttribute("href")).toBe(
       "/claims",
     );
+  });
+
+  it("says what reached the vault, not the gross award, and explains unpaid premium netted off", () => {
+    // A $4,500 award with $500 of premium netted: the bond paid $4,000 and the pool nothing.
+    chain.agents.data = [agent(1, 81)];
+    chain.claims.data = [claim(4500, 4000, 0, 5000, 500)];
+    show(<LiveAgents />);
+    expect(
+      screen.getByText(/\$4,000 of a \$5,000 loss, all of it from the operator's bond\./),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/The award was \$4,500; \$500 of unpaid premium was netted off it\./),
+    ).toBeTruthy();
+    expect(screen.queryByText(/\$4,500 of a/)).toBeNull();
+  });
+
+  it("picks the biggest claim by what reached the vault, so the figure shown is the one sorted on", () => {
+    chain.agents.data = [agent(1, 81)];
+    // The larger award is mostly netted premium; the smaller one paid more into the vault.
+    chain.claims.data = [claim(4500, 500, 0, 5000, 4000), claim(3000, 3000, 0)];
+    show(<LiveAgents />);
+    expect(screen.getByText(/Biggest claim paid, automatically:/)).toBeTruthy();
+    expect(
+      screen.getByText(/\$3,000 of a \$3,000 loss, all of it from the operator's bond/),
+    ).toBeTruthy();
+  });
+
+  it("shows only scores that are still current, and hides when none is", () => {
+    chain.agents.data = [agent(1, 99, lapsed()), agent(2, 81), agent(3, 54, lapsed())];
+    const { container, rerender } = show(<LiveAgents />);
+    expect(screen.getAllByRole("link").map((l) => /Agent (\d+)/.exec(l.textContent!)?.[1])).toEqual(
+      ["2"],
+    );
+    expect(screen.queryByText(/Agent 1\b/)).toBeNull();
+    chain.agents.data = [agent(1, 99, lapsed())];
+    rerender(
+      <MemoryRouter>
+        <LiveAgents />
+      </MemoryRouter>,
+    );
+    expect(container.querySelector("section")).toBeNull();
   });
 
   it("calls a lone claim just a claim, not the biggest", () => {

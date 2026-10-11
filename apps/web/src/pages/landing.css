@@ -274,11 +274,21 @@
     -webkit-mask-image: none;
     mask-image: none;
   }
+  /* Still, the logos have to fit the screen: the row of logos itself wraps (it is the list, not the
+     track around it, that holds them), and the spacing between them is tighter. */
   .logo-track {
-    width: auto;
+    display: block;
+    width: 100%;
+    animation: none;
+  }
+  .logo-copy {
     flex-wrap: wrap;
     justify-content: center;
-    animation: none;
+    row-gap: 1.75rem;
+    width: 100%;
+  }
+  .logo-copy > li {
+    margin-inline: 1.25rem;
   }
   .logo-copy[aria-hidden="true"] {
     display: none;

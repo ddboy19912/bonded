@@ -313,18 +313,23 @@ export function claimSources(fromBond: bigint, fromPool: bigint): string {
 
 /**
  * The agents behind the scores, and the biggest claim paid so far: real numbers from the chain,
- * the same source as the hero and the stats. It waits for the data and hides if no agent is rated.
+ * the same source as the hero and the stats. It shows only scores that are still current (the
+ * registry keeps the last one after it lapses, and the Agents page marks those expired), waits for
+ * the data, and hides if no agent has a current score. A claim's size is what reached the vault:
+ * the award less any unpaid premium netted off it, which is what the bond and the pool paid.
  */
 export function LiveAgents() {
   const agents = useAgents();
   const claims = useClaims();
+  const now = BigInt(Math.floor(Date.now() / 1000));
   const rated = (agents.data ?? [])
-    .filter((a) => a.score)
+    .filter((a) => a.score && a.score.expiresAt > now)
     .sort((a, b) => b.score!.score - a.score!.score)
     .slice(0, 4);
   if (agents.data && rated.length === 0) return null;
+  const reached = (c: Parameters<typeof waterfall>[0]) => waterfall(c).toVault;
   const biggest = [...(claims.data ?? [])].sort((a, b) =>
-    a.payout === b.payout ? 0 : a.payout > b.payout ? -1 : 1,
+    reached(a) === reached(b) ? 0 : reached(a) > reached(b) ? -1 : 1,
   )[0];
   const w = biggest ? waterfall(biggest) : undefined;
   const sources = w ? claimSources(w.fromBond, w.fromPool) : "";
@@ -368,7 +373,9 @@ export function LiveAgents() {
           <span className="text-ink">
             {(claims.data?.length ?? 0) > 1 ? "Biggest claim paid" : "Claim paid"}, automatically:
           </span>{" "}
-          ${usd(biggest.payout, 0)} of a ${usd(w.loss, 0)} loss, {sources}.{" "}
+          ${usd(w.toVault, 0)} of a ${usd(w.loss, 0)} loss, {sources}.
+          {w.premiumNetted > 0n &&
+            ` The award was $${usd(biggest.payout, 0)}; $${usd(w.premiumNetted, 0)} of unpaid premium was netted off it.`}{" "}
           <Link to="/claims" className="whitespace-nowrap text-accent hover:underline">
             See every claim <span aria-hidden>→</span>
           </Link>
