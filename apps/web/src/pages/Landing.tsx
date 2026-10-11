@@ -11,7 +11,7 @@ import { MANDATE_TOKENS } from "../lib/onboarding";
 import { ScoreRing, buttonClass, tierTone } from "../components/ui";
 import { Token, TokenChip, withTokens } from "../components/token";
 import { LandingSentinel } from "./LandingSentinel";
-import { BringYourAgent, Faq, Roles, ScoreScale, Sky, WorksWith } from "./LandingSections";
+import { BringYourAgent, Faq, LiveAgents, Roles, ScoreScale, WorksWith } from "./LandingSections";
 import "./landing.css";
 
 /** Example attacks for the hero feed: the kinds of text the red team plants, by class. */
@@ -28,11 +28,11 @@ const EXAMPLE_ATTACKS = [
 
 export function Landing() {
   return (
-    <>
-      <Sky />
+    <div className="landing">
       <Hero />
       <WorksWith />
       <Stats />
+      <LiveAgents />
       <Walkthrough />
       <Roles />
       <ScoreScale />
@@ -40,7 +40,7 @@ export function Landing() {
       <BringYourAgent />
       <Faq />
       <FinalCta />
-    </>
+    </div>
   );
 }
 

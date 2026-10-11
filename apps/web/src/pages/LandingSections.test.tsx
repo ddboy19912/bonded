@@ -2,10 +2,18 @@ import { existsSync, readFileSync } from "node:fs";
 import { getCodeBlock } from "../test/code";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
-import { BringYourAgent, Faq, Roles, ScoreScale, Sky, WorksWith } from "./LandingSections";
+import {
+  BringYourAgent,
+  Faq,
+  LiveAgents,
+  Roles,
+  ScoreScale,
+  WorksWith,
+  claimSources,
+} from "./LandingSections";
 
 afterEach(cleanup);
 const show = (ui: React.ReactElement) => render(<MemoryRouter>{ui}</MemoryRouter>);
@@ -133,30 +141,142 @@ describe("the questions", () => {
   });
 });
 
-describe("the night sky", () => {
-  it("is decoration only: hidden from assistive technology, three layers of still stars", () => {
-    const { container } = render(<Sky />);
-    const sky = container.querySelector(".sky");
-    expect(sky?.getAttribute("aria-hidden")).toBe("true");
-    expect(container.querySelectorAll(".sky-layer")).toHaveLength(3);
-    expect(sky?.textContent).toBe("");
+const chain = vi.hoisted(() => ({
+  agents: { data: undefined as unknown },
+  claims: { data: undefined as unknown },
+}));
+vi.mock("../lib/chain", async (original) => ({
+  ...(await original<typeof import("../lib/chain")>()),
+  useAgents: () => chain.agents,
+  useClaims: () => chain.claims,
+}));
+
+const agent = (id: number, score?: number) => ({
+  agentId: BigInt(id),
+  owner: "0x0000000000000000000000000000000000000001",
+  ...(score === undefined ? {} : { score: { score, expectedLossBps: 150, expiresAt: 0n } }),
+});
+const usd6 = (n: number) => BigInt(n) * 1_000_000n;
+const claim = (payout: number, fromBond: number, fromPool: number, loss = payout) => ({
+  lossBase: usd6(loss),
+  payout: usd6(payout),
+  fromBond: usd6(fromBond),
+  fromPool: usd6(fromPool),
+  premiumNetted: 0n,
+});
+
+describe("claimSources", () => {
+  it("says where the money came from, and leaves out a source that paid nothing", () => {
+    expect(claimSources(usd6(4000), usd6(500))).toBe(
+      "$4,000 from the operator's bond and $500 from the pool",
+    );
+    expect(claimSources(usd6(900), 0n)).toBe("all of it from the operator's bond");
+    expect(claimSources(0n, usd6(300))).toBe("all of it from the pool");
+    expect(claimSources(0n, 0n)).toBe("");
+  });
+});
+
+describe("the live agents band", () => {
+  afterEach(() => {
+    chain.agents.data = undefined;
+    chain.claims.data = undefined;
   });
 
-  it("tells the CSS how far the page can scroll, and nothing moves on its own", () => {
-    Object.defineProperty(document.documentElement, "scrollHeight", {
-      value: 5000,
-      configurable: true,
-    });
-    const { container } = render(<Sky />);
-    const px = (container.querySelector(".sky") as HTMLElement).style.getPropertyValue(
-      "--sky-range",
+  it("shows the four best rated agents, best first, and skips unrated ones", () => {
+    chain.agents.data = [
+      agent(1, 54),
+      agent(2, 97),
+      agent(3),
+      agent(4, 81),
+      agent(5, 70),
+      agent(6, 12),
+    ];
+    show(<LiveAgents />);
+    const names = screen.getAllByRole("link").map((l) => l.textContent);
+    expect(names.map((n) => /Agent (\d+)/.exec(n!)?.[0])).toEqual([
+      "Agent 2",
+      "Agent 4",
+      "Agent 5",
+      "Agent 1",
+    ]);
+    expect(screen.getAllByText(/Expected loss/)).toHaveLength(4);
+    expect(screen.getByRole("link", { name: /Agent 2/ }).getAttribute("href")).toBe("/agents/2");
+  });
+
+  it("names the biggest claim paid, with where the money came from", () => {
+    chain.agents.data = [agent(1, 81)];
+    chain.claims.data = [
+      claim(900, 900, 0, 1000),
+      claim(4500, 4000, 500, 5000),
+      claim(600, 600, 0),
+    ];
+    show(<LiveAgents />);
+    expect(screen.getByText(/Biggest claim paid, automatically:/)).toBeTruthy();
+    expect(
+      screen.getByText(
+        /\$4,500 of a \$5,000 loss, \$4,000 from the operator's bond and \$500 from the pool/,
+      ),
+    ).toBeTruthy();
+    expect(screen.getByRole("link", { name: /See every claim/ }).getAttribute("href")).toBe(
+      "/claims",
     );
-    expect(px).toBe(`${5000 - window.innerHeight}px`);
-    // No timers or listeners that animate it: the drag is CSS, tied to the scroll position.
-    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "landing.css"), "utf8");
-    const sky = css.slice(css.indexOf(".sky {"), css.indexOf("Soft light behind sections"));
-    expect(sky).toContain("animation-timeline: scroll(root)");
-    expect(sky).not.toMatch(/infinite|twinkle/);
-    expect(sky).toContain("prefers-reduced-motion: no-preference");
+  });
+
+  it("calls a lone claim just a claim, not the biggest", () => {
+    chain.agents.data = [agent(1, 81)];
+    chain.claims.data = [claim(900, 900, 0, 1000)];
+    show(<LiveAgents />);
+    expect(screen.getByText(/Claim paid, automatically:/)).toBeTruthy();
+    expect(screen.queryByText(/Biggest claim/)).toBeNull();
+    expect(
+      screen.getByText(/\$900 of a \$1,000 loss, all of it from the operator's bond/),
+    ).toBeTruthy();
+  });
+
+  it("shows no claim line when there are no claims, and nothing at all when nothing is rated", () => {
+    chain.agents.data = [agent(1, 81)];
+    chain.claims.data = [];
+    const { container, rerender } = show(<LiveAgents />);
+    expect(screen.queryByText(/claim paid/i)).toBeNull();
+    chain.agents.data = [agent(1)];
+    rerender(
+      <MemoryRouter>
+        <LiveAgents />
+      </MemoryRouter>,
+    );
+    expect(container.querySelector("section")).toBeNull();
+  });
+
+  it("waits for the data without claiming anything", () => {
+    show(<LiveAgents />);
+    expect(screen.queryAllByRole("link")).toHaveLength(0);
+    expect(screen.getByRole("heading", { name: /Scores you can check/ })).toBeTruthy();
+  });
+});
+
+describe("the light behind the page", () => {
+  const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "landing.css"), "utf8");
+  const wash = (id: string) => {
+    const start = css.indexOf(`#${id}::before {\n  top`);
+    return css.slice(start, css.indexOf("\n}", start));
+  };
+
+  it("is warm behind the attack walkthrough and cool behind what answers it", () => {
+    const warm = "rgb(255 154 128";
+    expect(wash("how")).toContain(warm);
+    expect(wash("how")).toContain("rgb(60 107 255");
+    for (const id of ["who", "score", "sentinel", "bring", "faq"])
+      expect(wash(id), id).not.toContain(warm);
+  });
+
+  it("sits behind the content and never moves", () => {
+    expect(css).toContain("z-index: -1");
+    expect(css).toContain("pointer-events: none");
+    expect(css).not.toContain("night sky");
+    expect(css).not.toContain("animation-timeline");
+  });
+
+  it("lets the body show it through on the landing page only", () => {
+    expect(css).toContain("body:has(.landing)");
   });
 });

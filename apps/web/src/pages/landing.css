@@ -285,92 +285,28 @@
   }
 }
 
-/* The night sky behind the page: three layers of still stars, nearest in front. The stars never
-   move on their own. Where the browser has scroll-driven animations, each layer is dragged behind
-   the scroll at its own rate (the far one least) and the sky thins out as the page goes down, so
-   the stars sit around the hero and fade before the long text. Elsewhere, and for anyone who asks
-   for less motion, the sky is simply still. The tiles are generated (a fixed random seed, so the
-   scatter is uneven but always the same): 48, 26 and 10 stars in 700, 1100 and 1700 px tiles. */
-/* The page colour comes from the html element, so the body can let the sky and the soft light
-   (which sit behind the content) show through it. */
-body:has(.sky) {
+/* Light behind the page that follows the story. Warm (the red team's orange) sits behind the attack
+   walkthrough and cool (the held and protected blue) behind everything that answers it, so the page
+   reads as problem, then protection. Wide, desaturated washes, still, behind the content, and they
+   never catch a click. The page colour comes from the html element, so the body is transparent on
+   the landing page and lets them show through. */
+body:has(.landing) {
   background: transparent;
 }
-.sky {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  overflow: hidden;
-  pointer-events: none;
-  opacity: 0.5;
-  --sky-range: 0px;
-}
-.sky-layer {
-  position: absolute;
-  inset: 0;
-  background-repeat: repeat;
-}
-.sky-far {
-  background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='700'%20height='700'%20viewBox='0%200%20700%20700'%3E%3Ccircle%20cx='317'%20cy='392'%20r='0.97'%20fill='%23ffffff'%20fill-opacity='0.33'/%3E%3Ccircle%20cx='411'%20cy='129'%20r='0.80'%20fill='%23ffffff'%20fill-opacity='0.36'/%3E%3Ccircle%20cx='66'%20cy='212'%20r='0.64'%20fill='%23ffffff'%20fill-opacity='0.41'/%3E%3Ccircle%20cx='29'%20cy='688'%20r='0.99'%20fill='%23ffffff'%20fill-opacity='0.37'/%3E%3Ccircle%20cx='110'%20cy='11'%20r='0.81'%20fill='%23bcd0ff'%20fill-opacity='0.23'/%3E%3Ccircle%20cx='169'%20cy='21'%20r='0.79'%20fill='%23ffffff'%20fill-opacity='0.32'/%3E%3Ccircle%20cx='363'%20cy='448'%20r='0.80'%20fill='%23ffffff'%20fill-opacity='0.37'/%3E%3Ccircle%20cx='195'%20cy='698'%20r='1.00'%20fill='%23ffffff'%20fill-opacity='0.41'/%3E%3Ccircle%20cx='221'%20cy='161'%20r='0.72'%20fill='%23ffffff'%20fill-opacity='0.24'/%3E%3Ccircle%20cx='280'%20cy='593'%20r='0.75'%20fill='%23ffffff'%20fill-opacity='0.44'/%3E%3Ccircle%20cx='0'%20cy='147'%20r='0.96'%20fill='%23ffffff'%20fill-opacity='0.33'/%3E%3Ccircle%20cx='278'%20cy='51'%20r='0.85'%20fill='%23bcd0ff'%20fill-opacity='0.40'/%3E%3Ccircle%20cx='61'%20cy='233'%20r='0.99'%20fill='%23bcd0ff'%20fill-opacity='0.39'/%3E%3Ccircle%20cx='172'%20cy='71'%20r='0.62'%20fill='%23bcd0ff'%20fill-opacity='0.40'/%3E%3Ccircle%20cx='392'%20cy='313'%20r='0.68'%20fill='%23bcd0ff'%20fill-opacity='0.39'/%3E%3Ccircle%20cx='451'%20cy='82'%20r='0.77'%20fill='%23bcd0ff'%20fill-opacity='0.27'/%3E%3Ccircle%20cx='680'%20cy='562'%20r='0.72'%20fill='%23bcd0ff'%20fill-opacity='0.42'/%3E%3Ccircle%20cx='276'%20cy='598'%20r='0.86'%20fill='%23ffffff'%20fill-opacity='0.24'/%3E%3Ccircle%20cx='149'%20cy='181'%20r='0.91'%20fill='%23bcd0ff'%20fill-opacity='0.30'/%3E%3Ccircle%20cx='51'%20cy='63'%20r='0.83'%20fill='%23ffffff'%20fill-opacity='0.28'/%3E%3Ccircle%20cx='260'%20cy='317'%20r='0.98'%20fill='%23ffffff'%20fill-opacity='0.33'/%3E%3Ccircle%20cx='607'%20cy='128'%20r='0.66'%20fill='%23ffffff'%20fill-opacity='0.43'/%3E%3Ccircle%20cx='175'%20cy='133'%20r='0.90'%20fill='%23bcd0ff'%20fill-opacity='0.44'/%3E%3Ccircle%20cx='665'%20cy='618'%20r='0.84'%20fill='%23bcd0ff'%20fill-opacity='0.32'/%3E%3Ccircle%20cx='27'%20cy='674'%20r='0.70'%20fill='%23bcd0ff'%20fill-opacity='0.38'/%3E%3Ccircle%20cx='577'%20cy='418'%20r='0.72'%20fill='%23ffffff'%20fill-opacity='0.26'/%3E%3Ccircle%20cx='48'%20cy='160'%20r='0.82'%20fill='%23ffffff'%20fill-opacity='0.42'/%3E%3Ccircle%20cx='196'%20cy='642'%20r='0.68'%20fill='%23bcd0ff'%20fill-opacity='0.22'/%3E%3Ccircle%20cx='312'%20cy='42'%20r='0.67'%20fill='%23ffffff'%20fill-opacity='0.30'/%3E%3Ccircle%20cx='92'%20cy='254'%20r='0.96'%20fill='%23ffffff'%20fill-opacity='0.45'/%3E%3Ccircle%20cx='484'%20cy='409'%20r='0.66'%20fill='%23bcd0ff'%20fill-opacity='0.23'/%3E%3Ccircle%20cx='637'%20cy='491'%20r='0.99'%20fill='%23ffffff'%20fill-opacity='0.22'/%3E%3Ccircle%20cx='338'%20cy='511'%20r='0.73'%20fill='%23bcd0ff'%20fill-opacity='0.45'/%3E%3Ccircle%20cx='382'%20cy='516'%20r='0.96'%20fill='%23ffffff'%20fill-opacity='0.39'/%3E%3Ccircle%20cx='555'%20cy='641'%20r='0.74'%20fill='%23ffffff'%20fill-opacity='0.38'/%3E%3Ccircle%20cx='610'%20cy='292'%20r='0.92'%20fill='%23ffffff'%20fill-opacity='0.42'/%3E%3Ccircle%20cx='437'%20cy='268'%20r='0.83'%20fill='%23bcd0ff'%20fill-opacity='0.36'/%3E%3Ccircle%20cx='448'%20cy='695'%20r='0.95'%20fill='%23ffffff'%20fill-opacity='0.39'/%3E%3Ccircle%20cx='515'%20cy='407'%20r='0.78'%20fill='%23bcd0ff'%20fill-opacity='0.41'/%3E%3Ccircle%20cx='525'%20cy='21'%20r='0.84'%20fill='%23bcd0ff'%20fill-opacity='0.33'/%3E%3Ccircle%20cx='489'%20cy='348'%20r='0.85'%20fill='%23bcd0ff'%20fill-opacity='0.43'/%3E%3Ccircle%20cx='8'%20cy='211'%20r='0.87'%20fill='%23bcd0ff'%20fill-opacity='0.27'/%3E%3Ccircle%20cx='634'%20cy='462'%20r='0.78'%20fill='%23ffffff'%20fill-opacity='0.43'/%3E%3Ccircle%20cx='466'%20cy='139'%20r='0.77'%20fill='%23ffffff'%20fill-opacity='0.41'/%3E%3Ccircle%20cx='616'%20cy='269'%20r='0.83'%20fill='%23bcd0ff'%20fill-opacity='0.29'/%3E%3Ccircle%20cx='348'%20cy='586'%20r='0.94'%20fill='%23ffffff'%20fill-opacity='0.38'/%3E%3Ccircle%20cx='194'%20cy='118'%20r='0.78'%20fill='%23bcd0ff'%20fill-opacity='0.28'/%3E%3Ccircle%20cx='290'%20cy='438'%20r='0.80'%20fill='%23ffffff'%20fill-opacity='0.29'/%3E%3C/svg%3E");
-  background-size: 700px 700px;
-}
-.sky-mid {
-  background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='1100'%20height='1100'%20viewBox='0%200%201100%201100'%3E%3Ccircle%20cx='1017'%20cy='1043'%20r='1.35'%20fill='%23ffffff'%20fill-opacity='0.32'/%3E%3Ccircle%20cx='466'%20cy='583'%20r='0.97'%20fill='%23ffffff'%20fill-opacity='0.35'/%3E%3Ccircle%20cx='243'%20cy='501'%20r='0.91'%20fill='%23ffffff'%20fill-opacity='0.32'/%3E%3Ccircle%20cx='463'%20cy='564'%20r='1.27'%20fill='%23bcd0ff'%20fill-opacity='0.39'/%3E%3Ccircle%20cx='861'%20cy='648'%20r='1.23'%20fill='%23ffffff'%20fill-opacity='0.46'/%3E%3Ccircle%20cx='399'%20cy='836'%20r='1.08'%20fill='%23ffffff'%20fill-opacity='0.44'/%3E%3Ccircle%20cx='346'%20cy='94'%20r='1.14'%20fill='%23ffffff'%20fill-opacity='0.48'/%3E%3Ccircle%20cx='492'%20cy='707'%20r='0.99'%20fill='%23bcd0ff'%20fill-opacity='0.34'/%3E%3Ccircle%20cx='897'%20cy='215'%20r='0.96'%20fill='%23ffe3c4'%20fill-opacity='0.32'/%3E%3Ccircle%20cx='303'%20cy='630'%20r='1.31'%20fill='%23ffffff'%20fill-opacity='0.38'/%3E%3Ccircle%20cx='317'%20cy='335'%20r='1.29'%20fill='%23bcd0ff'%20fill-opacity='0.44'/%3E%3Ccircle%20cx='118'%20cy='862'%20r='1.25'%20fill='%23bcd0ff'%20fill-opacity='0.51'/%3E%3Ccircle%20cx='600'%20cy='1011'%20r='1.20'%20fill='%23bcd0ff'%20fill-opacity='0.54'/%3E%3Ccircle%20cx='1073'%20cy='62'%20r='1.11'%20fill='%23ffffff'%20fill-opacity='0.31'/%3E%3Ccircle%20cx='756'%20cy='1071'%20r='1.30'%20fill='%23ffffff'%20fill-opacity='0.54'/%3E%3Ccircle%20cx='1087'%20cy='824'%20r='1.07'%20fill='%23ffffff'%20fill-opacity='0.54'/%3E%3Ccircle%20cx='213'%20cy='83'%20r='1.13'%20fill='%23ffffff'%20fill-opacity='0.35'/%3E%3Ccircle%20cx='1045'%20cy='238'%20r='0.95'%20fill='%23bcd0ff'%20fill-opacity='0.43'/%3E%3Ccircle%20cx='598'%20cy='894'%20r='1.03'%20fill='%23ffffff'%20fill-opacity='0.41'/%3E%3Ccircle%20cx='489'%20cy='377'%20r='1.35'%20fill='%23ffffff'%20fill-opacity='0.50'/%3E%3Ccircle%20cx='757'%20cy='454'%20r='1.25'%20fill='%23ffffff'%20fill-opacity='0.51'/%3E%3Ccircle%20cx='262'%20cy='325'%20r='1.10'%20fill='%23ffffff'%20fill-opacity='0.49'/%3E%3Ccircle%20cx='605'%20cy='909'%20r='0.95'%20fill='%23bcd0ff'%20fill-opacity='0.46'/%3E%3Ccircle%20cx='615'%20cy='919'%20r='1.02'%20fill='%23bcd0ff'%20fill-opacity='0.54'/%3E%3Ccircle%20cx='618'%20cy='596'%20r='1.02'%20fill='%23ffffff'%20fill-opacity='0.44'/%3E%3Ccircle%20cx='495'%20cy='790'%20r='0.90'%20fill='%23ffffff'%20fill-opacity='0.39'/%3E%3C/svg%3E");
-  background-size: 1100px 1100px;
-}
-.sky-near {
-  background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='1700'%20height='1700'%20viewBox='0%200%201700%201700'%3E%3Ccircle%20cx='1159'%20cy='156'%20r='1.63'%20fill='%23ffffff'%20fill-opacity='0.65'/%3E%3Ccircle%20cx='876'%20cy='1073'%20r='1.46'%20fill='%23ffe3c4'%20fill-opacity='0.56'/%3E%3Ccircle%20cx='1161'%20cy='1021'%20r='1.40'%20fill='%23ffffff'%20fill-opacity='0.51'/%3E%3Ccircle%20cx='755'%20cy='1631'%20r='1.88'%20fill='%23ffe3c4'%20fill-opacity='0.65'/%3E%3Ccircle%20cx='128'%20cy='491'%20r='1.45'%20fill='%23ffffff'%20fill-opacity='0.61'/%3E%3Ccircle%20cx='956'%20cy='1087'%20r='1.60'%20fill='%23bcd0ff'%20fill-opacity='0.41'/%3E%3Ccircle%20cx='363'%20cy='709'%20r='1.21'%20fill='%23ffffff'%20fill-opacity='0.60'/%3E%3Ccircle%20cx='117'%20cy='986'%20r='1.22'%20fill='%23ffe3c4'%20fill-opacity='0.51'/%3E%3Ccircle%20cx='1463'%20cy='1238'%20r='1.83'%20fill='%23ffffff'%20fill-opacity='0.47'/%3E%3Ccircle%20cx='1189'%20cy='868'%20r='1.84'%20fill='%23bcd0ff'%20fill-opacity='0.59'/%3E%3C/svg%3E");
-  background-size: 1700px 1700px;
-}
-@supports (animation-timeline: scroll()) {
-  @media (prefers-reduced-motion: no-preference) {
-    .sky {
-      opacity: 0.8;
-      animation: sky-fade linear both;
-      animation-timeline: scroll(root);
-      animation-range: 0% 55%;
-    }
-    .sky-layer {
-      animation: sky-drag linear both;
-      animation-timeline: scroll(root);
-    }
-    .sky-far {
-      --drag: 0.12;
-    }
-    .sky-mid {
-      --drag: 0.28;
-    }
-    .sky-near {
-      --drag: 0.5;
-    }
-  }
-}
-@keyframes sky-drag {
-  to {
-    background-position-y: calc(var(--sky-range) * var(--drag) * -1);
-  }
-}
-@keyframes sky-fade {
-  from {
-    opacity: 0.8;
-  }
-  to {
-    opacity: 0.1;
-  }
-}
-
-/* Soft light behind sections: wide, desaturated blue washes, a different one in each section, that
-   fade out well inside the page. They sit behind the content and never catch a click. */
 #numbers,
+#how,
 #who,
 #score,
+#sentinel,
 #bring,
 #faq {
   position: relative;
 }
 #numbers::before,
+#how::before,
 #who::before,
 #score::before,
+#sentinel::before,
 #bring::before,
 #faq::before {
   content: "";
@@ -386,6 +322,18 @@ body:has(.sky) {
   height: 460px;
   background: radial-gradient(ellipse at 50% 30%, rgb(60 107 255 / 0.1), transparent 62%);
 }
+/* The walkthrough is tall: warm where the attack is planted and read, cool where the vault checks it
+   and the claim is paid. */
+#how::before {
+  top: -240px;
+  bottom: -240px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 86%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 86%, transparent);
+  background:
+    radial-gradient(ellipse at 18% 18%, rgb(255 154 128 / 0.1), transparent 52%),
+    radial-gradient(ellipse at 82% 40%, rgb(255 179 71 / 0.05), transparent 50%),
+    radial-gradient(ellipse at 78% 86%, rgb(60 107 255 / 0.13), transparent 55%);
+}
 #who::before {
   top: -140px;
   height: 760px;
@@ -396,9 +344,14 @@ body:has(.sky) {
 #score::before {
   top: -160px;
   height: 760px;
-  background:
-    radial-gradient(ellipse at 15% 40%, rgb(29 78 216 / 0.15), transparent 58%),
-    radial-gradient(ellipse at 88% 70%, rgb(255 154 128 / 0.05), transparent 52%);
+  background: radial-gradient(ellipse at 15% 40%, rgb(29 78 216 / 0.15), transparent 58%);
+}
+#sentinel::before {
+  top: -100px;
+  bottom: -100px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 82%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 82%, transparent);
+  background: radial-gradient(ellipse at 88% 40%, rgb(60 107 255 / 0.11), transparent 58%);
 }
 #bring::before {
   top: -140px;

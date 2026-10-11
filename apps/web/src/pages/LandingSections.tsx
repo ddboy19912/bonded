@@ -1,11 +1,12 @@
-import { useEffect, useRef } from "react";
 import { Link } from "react-router";
 import { TIER_RULES } from "@bondedhq/shared";
 import { Accordion } from "../components/collapsible";
 import { CopyBlock } from "../components/copy";
 import { FrameworkLogo } from "../components/framework-questions";
-import { buttonClass, tierTone } from "../components/ui";
+import { ScoreRing, Skeleton, TierBadge, buttonClass, tierTone } from "../components/ui";
+import { useAgents, useClaims, waterfall } from "../lib/chain";
 import { FRAMEWORKS, FRAMEWORK_TEXT } from "../lib/frameworks";
+import { bps, usd } from "../lib/format";
 import { DOCS_BYOA, DOCS_HOME, DOCS_SECURITY, TEST_AGENT } from "../lib/routes";
 
 /** What Bonded works with, logo only: the frameworks agents are built on, and the chains and accounts it runs on. */
@@ -300,36 +301,79 @@ export function Faq() {
   );
 }
 
+/** Where a claim's money came from, in words, leaving out a source that paid nothing. */
+export function claimSources(fromBond: bigint, fromPool: bigint): string {
+  const bond = fromBond > 0n ? `$${usd(fromBond, 0)} from the operator's bond` : "";
+  const pool = fromPool > 0n ? `$${usd(fromPool, 0)} from the pool` : "";
+  if (bond && pool) return `${bond} and ${pool}`;
+  if (bond) return `all of it from the operator's bond`;
+  if (pool) return `all of it from the pool`;
+  return "";
+}
+
 /**
- * The still night sky behind the landing page (its look and motion are in landing.css). The only
- * thing it does in script is tell the CSS how far the page can scroll, so each layer knows how far
- * to be dragged; there is no scroll listener.
+ * The agents behind the scores, and the biggest claim paid so far: real numbers from the chain,
+ * the same source as the hero and the stats. It waits for the data and hides if no agent is rated.
  */
-export function Sky() {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const measure = () =>
-      el.style.setProperty(
-        "--sky-range",
-        `${Math.max(0, document.documentElement.scrollHeight - window.innerHeight)}px`,
-      );
-    measure();
-    window.addEventListener("resize", measure);
-    // The page grows as the live numbers and agents arrive.
-    const watch = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(measure);
-    watch?.observe(document.body);
-    return () => {
-      window.removeEventListener("resize", measure);
-      watch?.disconnect();
-    };
-  }, []);
+export function LiveAgents() {
+  const agents = useAgents();
+  const claims = useClaims();
+  const rated = (agents.data ?? [])
+    .filter((a) => a.score)
+    .sort((a, b) => b.score!.score - a.score!.score)
+    .slice(0, 4);
+  if (agents.data && rated.length === 0) return null;
+  const biggest = [...(claims.data ?? [])].sort((a, b) =>
+    a.payout === b.payout ? 0 : a.payout > b.payout ? -1 : 1,
+  )[0];
+  const w = biggest ? waterfall(biggest) : undefined;
+  const sources = w ? claimSources(w.fromBond, w.fromPool) : "";
   return (
-    <div ref={ref} className="sky" aria-hidden>
-      <div className="sky-layer sky-far" />
-      <div className="sky-layer sky-mid" />
-      <div className="sky-layer sky-near" />
-    </div>
+    <section id="agents" className="mx-auto max-w-[1180px] scroll-mt-24 px-4 pt-12 pb-8 sm:px-6">
+      <h2 className="max-w-2xl font-serif text-5xl leading-none sm:text-6xl">
+        Scores you can check, straight from the chain.
+      </h2>
+      <ul className="mt-12 grid grid-cols-2 gap-x-6 gap-y-10 lg:grid-cols-4">
+        {agents.data
+          ? rated.map((a) => (
+              <li key={String(a.agentId)}>
+                <Link to={`/agents/${a.agentId}`} className="group flex items-center gap-4">
+                  <ScoreRing score={a.score!.score} size={76} />
+                  <span className="flex flex-col gap-1.5">
+                    <span className="font-semibold group-hover:underline">
+                      Agent {String(a.agentId)}
+                    </span>
+                    <span>
+                      <TierBadge score={a.score!.score} />
+                    </span>
+                    <span className="text-xs text-muted">
+                      Expected loss {bps(a.score!.expectedLossBps)}
+                    </span>
+                  </span>
+                </Link>
+              </li>
+            ))
+          : [0, 1, 2, 3].map((i) => (
+              <li key={i} className="flex items-center gap-4" aria-hidden>
+                <Skeleton className="size-[76px] rounded-full" />
+                <span className="flex flex-col gap-2">
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-3 w-12" />
+                </span>
+              </li>
+            ))}
+      </ul>
+      {w && biggest && sources && (
+        <p className="mt-12 max-w-3xl text-lg leading-relaxed text-muted">
+          <span className="text-ink">
+            {(claims.data?.length ?? 0) > 1 ? "Biggest claim paid" : "Claim paid"}, automatically:
+          </span>{" "}
+          ${usd(biggest.payout, 0)} of a ${usd(w.loss, 0)} loss, {sources}.{" "}
+          <Link to="/claims" className="whitespace-nowrap text-accent hover:underline">
+            See every claim <span aria-hidden>→</span>
+          </Link>
+        </p>
+      )}
+    </section>
   );
 }
