@@ -18,6 +18,7 @@ import { when } from "../lib/format";
 import { DOCS_BYOA } from "../lib/routes";
 import { ApiError } from "../lib/api";
 import { Badge, Button, Choice, ErrorText, Input, linkClass } from "./ui";
+import { InlineCode } from "./code-block";
 import { Collapsible } from "./collapsible";
 import { CopyBlock, SecretOnce, Tabs } from "./copy";
 
@@ -222,9 +223,9 @@ export function ConnectRunner({
                 text={runnerCommand(input)}
                 note={
                   <>
-                    Replace <code className="font-mono">&lt;your agent command&gt;</code> with how
-                    you start your agent, e.g. <code className="font-mono">node agent.js</code> or{" "}
-                    <code className="font-mono">python agent.py</code>.
+                    Replace <InlineCode>&lt;your agent command&gt;</InlineCode> with how you start
+                    your agent, e.g. <InlineCode>node agent.js</InlineCode> or{" "}
+                    <InlineCode>python agent.py</InlineCode>.
                   </>
                 }
               />
@@ -453,9 +454,9 @@ export function ConnectUrl({
             <>
               <p className="font-semibold">1. Add this secret to your agent</p>
               <SecretOnce label="Your agent secret" value={secret}>
-                Set it as <code className="font-mono">BONDED_AGENT_SECRET</code> where your agent
-                runs (the handler below reads it from there), then restart or redeploy it. It checks
-                that each call really comes from Bonded.
+                Set it as <InlineCode>BONDED_AGENT_SECRET</InlineCode> where your agent runs (the
+                handler below reads it from there), then restart or redeploy it. It checks that each
+                call really comes from Bonded.
               </SecretOnce>
               <p className="font-semibold">2. Verify</p>
             </>
@@ -466,12 +467,11 @@ export function ConnectUrl({
             </p>
           )}
           <p className="text-xs text-soft">
-            Bonded sends{" "}
-            <code className="font-mono">{'{ "type": "verify", "challenge": "…" }'}</code>, signed
+            Bonded sends <InlineCode>{'{ "type": "verify", "challenge": "…" }'}</InlineCode>, signed
             with the secret; within 10 seconds your agent answers 200 with the challenge and its{" "}
-            <code className="font-mono">proof</code> (HMAC-SHA256 of{" "}
-            <code className="font-mono">"verify." + challenge</code>, keyed with the secret). The
-            handler below does both.
+            <InlineCode>proof</InlineCode> (HMAC-SHA256 of{" "}
+            <InlineCode>"verify." + challenge</InlineCode>, keyed with the secret). The handler
+            below does both.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" loading={busy === "verify"} onClick={() => void verify()}>
@@ -580,7 +580,12 @@ export function Snippets({
         >
           <div className="flex flex-col gap-3">
             {current.install && <CopyBlock label="Install" text={current.install} />}
-            <CopyBlock label={current.label} text={current.code} note={current.note} />
+            <CopyBlock
+              label={current.label}
+              text={current.code}
+              note={current.note}
+              language={current.language}
+            />
           </div>
         </Tabs>
         <p className="mt-3 text-xs text-muted">

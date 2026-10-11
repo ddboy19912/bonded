@@ -6,6 +6,7 @@ import { ratingFailure } from "../lib/byoa";
 import { useRatingRun } from "../lib/rating-run";
 import { ApiError } from "../lib/api";
 import { Badge, Button, ErrorText, Input, Skeleton } from "./ui";
+import { InlineCode } from "./code-block";
 import { Collapsible } from "./collapsible";
 import { SecretOnce } from "./copy";
 
@@ -311,7 +312,7 @@ export function NotificationSettingsForm({ subject, auth }: { subject: Subject; 
         )}
         {saved?.secret && (
           <SecretOnce label="Your webhook secret" value={saved.secret}>
-            Check the bonded-signature header of each webhook call with it.
+            Check the <InlineCode>bonded-signature</InlineCode> header of each webhook call with it.
           </SecretOnce>
         )}
         <ErrorText error={error} />

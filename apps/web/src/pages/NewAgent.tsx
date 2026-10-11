@@ -888,8 +888,8 @@ export function NewAgent() {
                       label="Code hash"
                       hint={
                         connection === "url"
-                          ? "Leave it empty: it fills itself in from the version your Agent URL reports. Enter one (an image digest sha256:… or a commit, as 0x and 64 hex digits) only to pin a build."
-                          : "Leave it empty: the runner fills it in from your agent's git commit or Docker image. Enter one (sha256:… or 0x and 64 hex digits) only to pin a build."
+                          ? "Leave it empty: it fills itself in from the version your Agent URL reports. Enter one (an image digest `sha256:…` or a commit, as `0x` and 64 hex digits) only to pin a build."
+                          : "Leave it empty: the runner fills it in from your agent's git commit or Docker image. Enter one (`sha256:…` or `0x` and 64 hex digits) only to pin a build."
                       }
                       value={codeHash}
                       onChange={setCodeHash}
@@ -1534,7 +1534,7 @@ function BondAdvice({
               contentClassName="pt-1.5"
               summary="More on the bond"
             >
-              <p className="italic">{BOND_EXPLAINED}</p>
+              <p className="leading-relaxed">{BOND_EXPLAINED}</p>
             </Collapsible>
           </div>
           <Input
@@ -1580,7 +1580,7 @@ function BondAdvice({
                     <span className="font-mono text-3xl">{rec.bond.toLocaleString("en-US")}</span>
                     <Token symbol="tUSDG" />
                   </p>
-                  <p className="text-muted italic">Because {rec.why}.</p>
+                  <p className="text-muted">Because {rec.why}.</p>
                   <div>
                     <Button
                       onClick={() => {

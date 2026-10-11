@@ -1,67 +1,31 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useId, useRef, type KeyboardEvent, type ReactNode } from "react";
+import { CodeBlock, Rich, type CodeLanguage } from "./code-block";
 import { Collapsible } from "./collapsible";
-
-/**
- * A copy button that says it worked ("Copied") or didn't ("Select and copy it"), announced to
- * screen readers. Its width doesn't change between states, so nothing around it moves.
- */
-export function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
-  const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => () => clearTimeout(timer.current), []);
-  const copy = async () => {
-    clearTimeout(timer.current);
-    try {
-      if (!navigator.clipboard) throw new Error("no clipboard");
-      await navigator.clipboard.writeText(text);
-      setState("copied");
-    } catch {
-      setState("failed");
-    }
-    timer.current = setTimeout(() => setState("idle"), 2000);
-  };
-  return (
-    <button
-      type="button"
-      onClick={() => void copy()}
-      className="inline-flex min-w-[5.5rem] items-center justify-center rounded-full border border-line-strong px-3 py-1 text-xs font-semibold text-accent hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
-    >
-      <span aria-live="polite">
-        {state === "copied" ? "Copied" : state === "failed" ? "Select it" : label}
-      </span>
-    </button>
-  );
-}
+import { CopyButton } from "./copy-button";
+export { CopyButton };
 
 /** A note longer than this waits behind "What this does", so a command isn't buried in prose. */
 const LONG_NOTE = 140;
 
-/** A labelled block of text to copy: a command, a config or a snippet. */
+/**
+ * A labelled block of code to copy: a command, a config or a snippet, highlighted, with a note
+ * under it. A note that is a long string waits behind "What this does". Notes may put code in
+ * backticks.
+ */
 export function CopyBlock({
   label,
   text,
   note,
+  language = "bash",
 }: {
   label: ReactNode;
   text: string;
   note?: ReactNode;
+  language?: CodeLanguage;
 }) {
-  const id = useId();
   return (
-    <div className="flex min-w-0 flex-col gap-1.5">
-      <div className="flex items-center justify-between gap-3">
-        <span id={id} className="text-xs font-semibold text-soft">
-          {label}
-        </span>
-        <CopyButton text={text} />
-      </div>
-      <pre
-        aria-labelledby={id}
-        tabIndex={0}
-        className="overflow-x-auto rounded-xl bg-black/40 p-3.5 font-mono text-xs break-all whitespace-pre-wrap text-soft focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
-      >
-        {text}
-      </pre>
+    <div className="flex min-w-0 flex-col gap-2">
+      <CodeBlock label={label} code={text} language={language} />
       {typeof note === "string" && note.length > LONG_NOTE ? (
         <Collapsible
           className="text-xs text-muted"
@@ -69,10 +33,16 @@ export function CopyBlock({
           contentClassName="pt-1.5"
           summary="What this does"
         >
-          <p className="italic">{note}</p>
+          <p className="leading-relaxed">
+            <Rich>{note}</Rich>
+          </p>
         </Collapsible>
+      ) : typeof note === "string" ? (
+        <p className="text-xs leading-relaxed text-muted">
+          <Rich>{note}</Rich>
+        </p>
       ) : (
-        note && <p className="text-xs text-muted">{note}</p>
+        note && <p className="text-xs leading-relaxed text-muted">{note}</p>
       )}
     </div>
   );

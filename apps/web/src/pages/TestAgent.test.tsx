@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { findCodeBlock, getCodeBlock } from "../test/code";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
@@ -175,13 +176,11 @@ describe("Test your agent", () => {
       expect(token).toHaveBeenCalledWith({ kind: "preview", id: "p7" }, { session: "sess" }),
     );
     expect(
-      await screen.findByText(
+      await findCodeBlock(
         "BONDED_RUNNER_TOKEN=bonded_rt_preview npx @bondedhq/runner --gateway https://gw.example --mode chain -- <your agent command>",
       ),
     ).toBeTruthy();
-    expect(
-      screen.getByText(/docker run --rm -e BONDED_RUNNER_TOKEN=bonded_rt_preview/),
-    ).toBeTruthy();
+    expect(getCodeBlock(/docker run --rm -e BONDED_RUNNER_TOKEN=bonded_rt_preview/)).toBeTruthy();
     expect(screen.getByText(/Waiting for the runner to connect/)).toBeTruthy();
     expect(screen.getByText("Runner waiting")).toBeTruthy();
     // Python has no init: the page says so and points at the Python code.
@@ -195,7 +194,7 @@ describe("Test your agent", () => {
     // Keeping it running, for the renewals.
     fireEvent.click(screen.getByText("Keep it running"));
     expect(
-      screen.getByText(
+      getCodeBlock(
         "npx @bondedhq/runner service --print systemd --gateway https://gw.example -- <your agent command>",
       ),
     ).toBeTruthy();

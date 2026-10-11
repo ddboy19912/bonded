@@ -22,6 +22,7 @@ import {
 import { DOCS_BYOA } from "../lib/routes";
 import { apiUrl, robinhoodTestnet, rpcUrl } from "../config";
 import { Card, Choice, linkClass } from "./ui";
+import { InlineCode } from "./code-block";
 import { Collapsible } from "./collapsible";
 import { CopyBlock, Tabs } from "./copy";
 
@@ -225,11 +226,11 @@ export function InitCommand({
       <p className="text-xs text-muted">
         Your agent is bound to a TEE ({teeUrl}). init can't pass the TEE's URL to the runner, so
         TEE-bound agents use the runner command shown below: it carries{" "}
-        <code className="font-mono">--tee-url</code>
+        <InlineCode>--tee-url</InlineCode>
         {mode === "chain" ? (
           <>
             {" "}
-            and <code className="font-mono">--mode chain</code>
+            and <InlineCode>--mode chain</InlineCode>
           </>
         ) : null}
         .
@@ -344,13 +345,14 @@ export function UseYourVault({ vault }: { vault?: string | null }) {
               <CopyBlock
                 label="Easiest: let init make the change"
                 text={initCommand({ connection: "runner" })}
-                note="In your agent's folder. It writes src/bonded.ts (the rating hook and the vault in one file), adds the import and changes the one line below, showing the diff and asking before writing."
+                note="In your agent's folder. It writes `src/bonded.ts` (the rating hook and the vault in one file), adds the import and changes the one line below, showing the diff and asking before writing."
               />
             ) : null}
             <CopyBlock
               label={change.importLine ? "The change init makes" : "By hand"}
               text={change.importLine ? `${change.importLine}\n\n${change.code}` : change.code}
               note={change.note}
+              language={change.framework === "python" ? "python" : "ts"}
             />
             <CopyBlock
               label="Then set these where your agent runs"

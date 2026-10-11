@@ -14,6 +14,7 @@ import { api, type BountiesQuery, type BountyRecord } from "../lib/api";
 import { checkSpec, commitmentIfReady, isSalt, newSalt, specUriOf } from "../lib/bounty";
 import { short, usd } from "../lib/format";
 import { useSend } from "../components/wallet";
+import { InlineCode } from "../components/code-block";
 import { InfoPanel } from "../components/overlay";
 import { CodeEditor } from "../components/code-editor";
 import { SpecBuilder } from "../components/spec-builder";
@@ -92,15 +93,17 @@ function Guide() {
       "Write the attack",
       <>
         Fill in the form, or paste YAML if you already have a spec (start from the example). Its id
-        must start with the class (<code>A6-...</code>) and use one of the class's surfaces (the{" "}
+        must start with the class (<InlineCode>A6-...</InlineCode>) and use one of the class's
+        surfaces (the{" "}
         <Link to="/attacks" className={linkClass}>
           Red team
         </Link>{" "}
-        page lists them). The <code>payloadTemplate</code> is the text planted on that surface: use{" "}
-        <code>{"{{attacker}}"}</code> for an address you control, and <code>{"{{amount}}"}</code>,{" "}
-        <code>{"{{token}}"}</code>, <code>{"{{vault}}"}</code>, <code>{"{{depositor}}"}</code> or{" "}
-        <code>{"{{lookalike}}"}</code> where you need them. Don't set a <code>goal</code>: the Arena
-        gives every run its own task.
+        page lists them). The <InlineCode>payloadTemplate</InlineCode> is the text planted on that
+        surface: use <InlineCode>{"{{attacker}}"}</InlineCode> for an address you control, and{" "}
+        <InlineCode>{"{{amount}}"}</InlineCode>, <InlineCode>{"{{token}}"}</InlineCode>,{" "}
+        <InlineCode>{"{{vault}}"}</InlineCode>, <InlineCode>{"{{depositor}}"}</InlineCode> or{" "}
+        <InlineCode>{"{{lookalike}}"}</InlineCode> where you need them. Don't set a{" "}
+        <InlineCode>goal</InlineCode>: the Arena gives every run its own task.
       </>,
     ],
     [

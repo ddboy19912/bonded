@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { getCodeBlock } from "../test/code";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
@@ -71,7 +72,7 @@ describe("the score scale", () => {
 describe("bringing an agent", () => {
   it("gives the one command and lists every framework", () => {
     show(<BringYourAgent />);
-    expect(screen.getByText("npx @bondedhq/runner init")).toBeTruthy();
+    expect(getCodeBlock("npx @bondedhq/runner init")).toBeTruthy();
     for (const name of ["ElizaOS", "Coinbase AgentKit", "LangChain or LangGraph", "Python"])
       expect(screen.getByText(name)).toBeTruthy();
   });

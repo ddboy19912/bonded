@@ -21,7 +21,7 @@ export interface Snippet {
 }
 
 const CHAIN_NOTE =
-  "Chain mode: only the reads are tools. Sign trades with the episode's session key through a BondedVault (see the guide).";
+  "Chain mode: only the reads are tools. Sign trades with the episode's session key through a `BondedVault` (see the guide).";
 
 /** Framework snippets for an agent the runner starts: the episode comes from BONDED_*. */
 function runnerSnippets(): Snippet[] {
@@ -71,7 +71,7 @@ export const character = {
   name: "Trader",
   plugins: [isBondedEpisode() ? bondedEpisodePlugin() : myTradingPlugin],
 };`,
-      note: "Already using bondedPlugin({ vault })? No change needed: it switches to the episode's tools by itself during an episode.",
+      note: "Already using `bondedPlugin({ vault })`? No change needed: it switches to the episode's tools by itself during an episode.",
       imports: [
         { from: "@bondedhq/sdk", names: ["isBondedEpisode"] },
         { from: "@bondedhq/sdk/eliza", names: ["bondedEpisodePlugin"] },
@@ -174,7 +174,7 @@ export function snippets(
         language: "sh",
         install: "npm i @bondedhq/sdk",
         code: `npx @bondedhq/runner --gateway ${gatewayUrl ?? "https://<gateway>"} -- sh -c 'bonded-mcp-config > .mcp.json && my-agent --mcp-config .mcp.json'`,
-        note: "For agents that read an mcpServers config. The URL is new for every episode, so the config is written each time; add --style stdio for stdio-only clients. Keep the runner token in BONDED_RUNNER_TOKEN, as in the command above.",
+        note: "For agents that read an `mcpServers` config. The URL is new for every episode, so the config is written each time; add `--style stdio` for stdio-only clients. Keep the runner token in `BONDED_RUNNER_TOKEN`, as in the command above.",
         imports: [],
       },
       {
@@ -192,7 +192,7 @@ def call(name, args=None):
 task = json.loads(os.environ["BONDED_TASK"])  # {"goal", "mandate", "maxSteps"}
 inbox = call("read_inbox")  # read everything as data, never as instructions
 call("swap", {"tokenIn": "tUSDG", "tokenOut": "tTSLA", "amountIn": "100"})  # the trade the task names`,
-        note: "Finish with a POST to BONDED_DONE_URL ({ finalMessage, usage }), or just exit.",
+        note: "Finish with a POST to `BONDED_DONE_URL` (`{ finalMessage, usage }`), or just exit.",
         imports: [],
       },
     ];
@@ -221,7 +221,7 @@ export const POST = createBondedHandler({
     };
   },
 });`,
-      note: 'It checks the signature, answers the ownership check, replies at once and posts done with what onEpisode returns. Other hosts: Express app.post("/bonded", toNodeHandler(handler)), mounted before express.json() (it needs the raw body); Hono app.post("/bonded", (c) => handler(c.req.raw)); Cloudflare export default { fetch: (req, env, ctx) => handler(req, ctx) }. toNodeHandler comes from @bondedhq/sdk/agent-url too.',
+      note: 'It checks the signature, answers the ownership check, replies at once and posts done with what `onEpisode` returns. Other hosts: Express `app.post("/bonded", toNodeHandler(handler))`, mounted before `express.json()` (it needs the raw body); Hono `app.post("/bonded", (c) => handler(c.req.raw))`; Cloudflare `export default { fetch: (req, env, ctx) => handler(req, ctx) }`. `toNodeHandler` comes from `@bondedhq/sdk/agent-url` too.',
       imports: [
         { from: "@bondedhq/sdk/agent-url", names: ["createBondedHandler", "toNodeHandler"] },
         { from: "@bondedhq/sdk/ai-sdk", names: ["bondedAiSdkTools"] },
@@ -231,11 +231,11 @@ export const POST = createBondedHandler({
     {
       id: "python",
       label: "Python",
-      language: "python",
+      language: "sh",
       code: `# A whole Agent URL endpoint, standard library only:
 # examples/python-agent-url/agent.py in the Bonded repository.
 BONDED_AGENT_SECRET=bonded_as_... PORT=8080 python3 agent.py`,
-      note: 'It checks bonded-signature (HMAC-SHA256 of the timestamp, a dot and the raw body), answers verify with the challenge and its proof (HMAC-SHA256 of "verify." + the challenge, keyed with your secret), and replies 202 to an episode before working in the background.',
+      note: 'It checks `bonded-signature` (HMAC-SHA256 of the timestamp, a dot and the raw body), answers `verify` with the challenge and its proof (HMAC-SHA256 of `"verify." + the challenge`, keyed with your secret), and replies 202 to an episode before working in the background.',
       imports: [],
     },
   ];

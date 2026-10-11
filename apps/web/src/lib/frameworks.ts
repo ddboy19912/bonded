@@ -93,11 +93,11 @@ export const RUNNER_DEFAULT_API = "https://api-production-ba50.up.railway.app";
 
 /** What init does, in a sentence, for the page to say next to the command. */
 export const INIT_NOTE =
-  "Run it in your agent's folder. It finds your framework, writes src/bonded.ts and changes one line, showing the exact diff and asking before writing anything (--print only shows it, --yes applies it). Add -- <your agent command> if it doesn't start with your package manager's start script. It never touches your .env values.";
+  "Run it in your agent's folder. It finds your framework, writes `src/bonded.ts` and changes one line, showing the exact diff and asking before writing anything (`--print` only shows it, `--yes` applies it). Add `-- <your agent command>` if it doesn't start with your package manager's start script. It never touches your `.env` values.";
 
 /** What init's `--url` route is, per web framework. */
 export const INIT_URL_NOTE =
-  'It adds the route for your web framework: app/api/bonded/route.ts for Next.js, app.post("/bonded", bondedNodeHandler) for Express, app.post("/bonded", (c) => bondedHandler(c.req.raw)) for Hono, or a small node:http server on BONDED_AGENT_PORT (8787). The handler reads BONDED_AGENT_SECRET.';
+  'It adds the route for your web framework: `app/api/bonded/route.ts` for Next.js, `app.post("/bonded", bondedNodeHandler)` for Express, `app.post("/bonded", (c) => bondedHandler(c.req.raw))` for Hono, or a small `node:http` server on `BONDED_AGENT_PORT` (8787). The handler reads `BONDED_AGENT_SECRET`.';
 
 /**
  * Keeping the runner up between ratings: the score is renewed only while it is connected. The
@@ -107,17 +107,17 @@ export const SERVICE_KINDS = [
   {
     id: "systemd",
     label: "systemd (Linux)",
-    note: "Prints a unit file. Put the runner token in bonded-runner.env (one line, BONDED_RUNNER_TOKEN=..., chmod 600): the unit reads it from there, never from the file itself. Save the unit under /etc/systemd/system/, then sudo systemctl enable --now bonded-runner.",
+    note: "Prints a unit file. Put the runner token in `bonded-runner.env` (one line, `BONDED_RUNNER_TOKEN=...`, `chmod 600`): the unit reads it from there, never from the file itself. Save the unit under `/etc/systemd/system/`, then run `sudo systemctl enable --now bonded-runner`.",
   },
   {
     id: "pm2",
     label: "pm2",
-    note: "Prints a pm2 ecosystem file. Start it with the runner token in your shell (BONDED_RUNNER_TOKEN=... pm2 start ecosystem.config.cjs), then pm2 save && pm2 startup so it comes back after a reboot.",
+    note: "Prints a pm2 ecosystem file. Start it with the runner token in your shell (`BONDED_RUNNER_TOKEN=... pm2 start ecosystem.config.cjs`), then run `pm2 save && pm2 startup` so it comes back after a reboot.",
   },
   {
     id: "docker",
     label: "Docker",
-    note: "Prints a Dockerfile on top of the runner's image (build that first, see the guide) and a docker run line with --restart unless-stopped, so Docker starts it again after a crash or a reboot. The token goes in bonded-runner.env.",
+    note: "Prints a Dockerfile on top of the runner's image (build that first, see the guide) and a `docker run` line with `--restart unless-stopped`, so Docker starts it again after a crash or a reboot. The token goes in `bonded-runner.env`.",
   },
 ] as const;
 export type ServiceKind = (typeof SERVICE_KINDS)[number]["id"];
@@ -146,7 +146,7 @@ export function vaultChange(framework: Framework): VaultChange {
         framework,
         importLine: 'import { bondedAgentKit } from "./bonded";',
         code: "const agentKit = await bondedAgentKit({ walletProvider, actionProviders });",
-        note: "It replaces AgentKit.from. With BONDED_VAULT_ADDRESS set, your wallet provider signs as the vault's agent key and every transaction becomes vault.execute, dry-run first. During a rating the episode's tools are its only actions.",
+        note: "It replaces `AgentKit.from`. With `BONDED_VAULT_ADDRESS` set, your wallet provider signs as the vault's agent key and every transaction becomes `vault.execute`, dry-run first. During a rating the episode's tools are its only actions.",
       };
     case "eliza":
       return {
@@ -160,14 +160,14 @@ export function vaultChange(framework: Framework): VaultChange {
         framework,
         importLine: 'import { bondedTools } from "./bonded";',
         code: "const tools = await bondedTools(productionTools);",
-        note: "With BONDED_VAULT_ADDRESS set, the vault's swap, transfer, approve and status tools trade through the mandate, dry-run first. During a rating you get the episode's tools instead.",
+        note: "With `BONDED_VAULT_ADDRESS` set, the vault's swap, transfer, approve and status tools trade through the mandate, dry-run first. During a rating you get the episode's tools instead.",
       };
     case "ai-sdk":
       return {
         framework,
         importLine: 'import { bondedTools } from "./bonded";',
         code: "const tools = await bondedTools(productionTools);",
-        note: "Your tool set object in, the same shape out. With BONDED_VAULT_ADDRESS set, the vault's trading tools go through the mandate, dry-run first. During a rating you get the episode's tools instead.",
+        note: "Your tool set object in, the same shape out. With `BONDED_VAULT_ADDRESS` set, the vault's trading tools go through the mandate, dry-run first. During a rating you get the episode's tools instead.",
       };
     case "mcp":
       return {
@@ -176,14 +176,14 @@ export function vaultChange(framework: Framework): VaultChange {
         code: `new StreamableHTTPClientTransport(new URL(bondedMcpUrl(yourServerUrl)))
 // and every production trade through the vault:
 await bondedVault.swap({ tokenIn, tokenOut, amountIn });`,
-        note: "During a rating the MCP URL becomes the episode's; otherwise it stays yours. Make your agent's trades through bondedVault, which dry-runs each one against the mandate.",
+        note: "During a rating the MCP URL becomes the episode's; otherwise it stays yours. Make your agent's trades through `bondedVault`, which dry-runs each one against the mandate.",
       };
     case "python":
       return {
         framework,
         code: `# Send every trade as the vault's execute(target, data), signed by the agent key:
 vault.functions.execute(router, swap_calldata).transact({"from": agent_key})`,
-        note: "init prints instructions for Python: there's no Python SDK yet. Encode each trade's call as usual, then send it through the vault's execute from the agent key, never straight to the exchange.",
+        note: "`init` prints instructions for Python: there's no Python SDK yet. Encode each trade's call as usual, then send it through the vault's `execute` from the agent key, never straight to the exchange.",
       };
   }
 }

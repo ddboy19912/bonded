@@ -17,6 +17,7 @@ import {
   type RatingCompare,
   type ReportFix,
 } from "../lib/report-actions";
+import { InlineCode } from "./code-block";
 import { Collapsible } from "./collapsible";
 import { CopyButton } from "./copy";
 import { Badge, Loading } from "./ui";
@@ -38,7 +39,7 @@ function Fix({ fix, showCount = true }: { fix: ReportFix; showCount?: boolean })
       {fix.detail && <p className="text-soft">{fix.detail}</p>}
       {fix.setting && (
         <p className="text-xs text-muted">
-          Mandate setting: <code className="font-mono">{fix.setting}</code>
+          Mandate setting: <InlineCode>{fix.setting}</InlineCode>
         </p>
       )}
       {copy && (

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { findCodeBlock, getCodeBlock, queryCodeBlock } from "../test/code";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
@@ -100,13 +101,11 @@ describe("ConnectAgent", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Create a runner token" }));
     await waitFor(() => expect(create).toHaveBeenCalledWith("12", expect.anything()));
     expect(
-      await screen.findByText(
+      await findCodeBlock(
         "BONDED_RUNNER_TOKEN=bonded_rt_secret npx @bondedhq/runner --gateway https://gw.example -- <your agent command>",
       ),
     ).toBeTruthy();
-    expect(
-      screen.getByText(/docker run --rm -e BONDED_RUNNER_TOKEN=bonded_rt_secret/),
-    ).toBeTruthy();
+    expect(getCodeBlock(/docker run --rm -e BONDED_RUNNER_TOKEN=bonded_rt_secret/)).toBeTruthy();
     expect(await screen.findByText("Runner waiting")).toBeTruthy();
     expect(screen.getByText(/capped|Cover limit/)).toBeTruthy();
   });
@@ -122,7 +121,7 @@ describe("ConnectAgent", () => {
       });
     };
     const initText = () =>
-      screen.queryByText(/^BONDED_RUNNER_TOKEN=bonded_rt_secret npx @bondedhq\/runner init/);
+      queryCodeBlock(/^BONDED_RUNNER_TOKEN=bonded_rt_secret npx @bondedhq\/runner init/);
 
     it("tools mode: init without a mode flag", async () => {
       withToken();
@@ -155,7 +154,7 @@ describe("ConnectAgent", () => {
       ).toBeTruthy();
       expect(initText()).toBeNull();
       expect(
-        screen.getByText(
+        getCodeBlock(
           "BONDED_RUNNER_TOKEN=bonded_rt_secret npx @bondedhq/runner --gateway https://gw.example --mode chain --tee-url https://tee.example -- <your agent command>",
         ),
       ).toBeTruthy();
@@ -431,12 +430,12 @@ describe("ConnectAgent", () => {
       const show13 = mount("12");
       fireEvent.click(await screen.findByRole("button", { name: "Create a runner token" }));
       expect(
-        await screen.findByText(
+        await findCodeBlock(
           /BONDED_RUNNER_TOKEN=bonded_rt_secret_12 npx @bondedhq\/runner --gateway/,
         ),
       ).toBeTruthy();
       show13("13");
-      await waitFor(() => expect(screen.queryByText(/bonded_rt_secret_12/)).toBeNull());
+      await waitFor(() => expect(queryCodeBlock(/bonded_rt_secret_12/)).toBeNull());
       expect(await screen.findByText(/The command needs a runner token/)).toBeTruthy();
     });
 
@@ -453,7 +452,7 @@ describe("ConnectAgent", () => {
       resolve(tokenFor(12));
       // Give the late result time to land, then check it didn't.
       await new Promise((r) => setTimeout(r, 50));
-      expect(screen.queryByText(/bonded_rt_secret_12/)).toBeNull();
+      expect(queryCodeBlock(/bonded_rt_secret_12/)).toBeNull();
       expect(await screen.findByRole("button", { name: "Create a runner token" })).toHaveProperty(
         "disabled",
         false,

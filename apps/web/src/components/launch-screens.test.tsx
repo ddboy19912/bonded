@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { getCodeBlock, queryCodeBlock } from "../test/code";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
@@ -192,12 +193,12 @@ describe("use your vault", () => {
     expect(screen.getByText("Pick a framework to see the change.")).toBeTruthy();
     fireEvent.click(screen.getByRole("radio", { name: "Coinbase AgentKit" }));
     expect(
-      screen.getByText(/await bondedAgentKit\(\{ walletProvider, actionProviders \}\)/),
+      getCodeBlock(/await bondedAgentKit\(\{ walletProvider, actionProviders \}\)/),
     ).toBeTruthy();
-    expect(screen.getByText(new RegExp(`BONDED_VAULT_ADDRESS=${vault}`))).toBeTruthy();
-    expect(screen.getByText("npx @bondedhq/runner init")).toBeTruthy();
+    expect(getCodeBlock(new RegExp(`BONDED_VAULT_ADDRESS=${vault}`))).toBeTruthy();
+    expect(getCodeBlock("npx @bondedhq/runner init")).toBeTruthy();
     fireEvent.click(screen.getByRole("radio", { name: "Python" }));
-    expect(screen.queryByText("npx @bondedhq/runner init")).toBeNull();
+    expect(queryCodeBlock("npx @bondedhq/runner init")).toBeNull();
     expect(screen.getByText(/no Python SDK yet/)).toBeTruthy();
   });
 });

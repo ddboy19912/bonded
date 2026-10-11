@@ -1,3 +1,4 @@
+import { Rich } from "./code-block";
 import { useId, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router";
@@ -77,7 +78,11 @@ export function Stat({
       >
         {value}
       </div>
-      {hint && <div className="mt-1 text-xs text-muted">{hint}</div>}
+      {hint && (
+        <div className="mt-1 text-xs text-muted">
+          {typeof hint === "string" ? <Rich>{hint}</Rich> : hint}
+        </div>
+      )}
     </div>
   );
 }
@@ -324,7 +329,7 @@ export function Input(props: {
       </div>
       {(props.error || props.hint) && (
         <span id={`${id}-note`} className={`text-xs ${props.error ? "text-breach" : "text-muted"}`}>
-          {props.error || props.hint}
+          {props.error || (typeof props.hint === "string" ? <Rich>{props.hint}</Rich> : props.hint)}
         </span>
       )}
     </div>
