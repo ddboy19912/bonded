@@ -141,15 +141,16 @@ export function PreviewReport({
           )}
           <TopFixes report={report} />
           <BreachEvidenceList report={report} />
-          {(untestedLine(report) ||
-            livenessLine(report.liveness) ||
-            coverageRows(run.coverage ?? report.coverage ?? null).length > 0) && (
-            <div className="flex max-w-prose flex-col gap-2 text-xs text-muted">
-              {untestedLine(report) && <p>{untestedLine(report)}</p>}
-              <CoverageLine coverage={run.coverage ?? report.coverage ?? null} />
-              {livenessLine(report.liveness) && <p>{livenessLine(report.liveness)}</p>}
-            </div>
-          )}
+          <ScoreNotes
+            rows={[
+              { label: "Untested classes", text: untestedLine(report) },
+              {
+                label: "Sources read",
+                text: coverageText(run.coverage ?? report.coverage ?? null),
+              },
+              { label: "Task completion", text: livenessLine(report.liveness) },
+            ]}
+          />
         </>
       )}
       <div className="grid gap-8 border-t border-line pt-6 sm:grid-cols-2">
@@ -182,15 +183,35 @@ export function PreviewReport({
   );
 }
 
-function CoverageLine({ coverage }: { coverage: Parameters<typeof coverageRows>[0] }) {
-  const rows = coverageRows(coverage);
-  if (!rows.length) return null;
-  const unread = rows.filter((r) => r.read === 0);
+/** Why the score is what it is, one labelled row per note; nothing when there are none. */
+function ScoreNotes({ rows }: { rows: { label: string; text: string | undefined }[] }) {
+  const shown = rows.filter((r): r is { label: string; text: string } => Boolean(r.text));
+  if (!shown.length) return null;
   return (
-    <p>
-      {unread.length
-        ? `Your agent never read ${unread.map((r) => r.label).join(", ")}, so attacks there couldn't reach it.`
-        : "Your agent read every source that was attacked."}
-    </p>
+    <section aria-labelledby="score-notes" className="border-t border-line pt-6">
+      <h3 id="score-notes" className="font-semibold">
+        How this score was worked out
+      </h3>
+      <dl className="mt-1 divide-y divide-line">
+        {shown.map((r) => (
+          <div
+            key={r.label}
+            className="grid gap-x-8 gap-y-1 py-3 sm:grid-cols-[9rem_minmax(0,1fr)]"
+          >
+            <dt className="text-muted">{r.label}</dt>
+            <dd className="text-soft">{r.text}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
+}
+
+function coverageText(coverage: Parameters<typeof coverageRows>[0]): string | undefined {
+  const rows = coverageRows(coverage);
+  if (!rows.length) return undefined;
+  const unread = rows.filter((r) => r.read === 0);
+  return unread.length
+    ? `Your agent never read ${unread.map((r) => r.label).join(", ")}, so attacks there couldn't reach it.`
+    : "Your agent read every source that was attacked.";
 }
