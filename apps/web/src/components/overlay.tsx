@@ -27,16 +27,22 @@ export function InfoPanel({
   title,
   description,
   children,
+  open,
+  onOpenChange,
 }: {
   trigger: ReactNode;
   title: ReactNode;
   description?: ReactNode;
   children: ReactNode;
+  /** Set both to control it, e.g. so its own button can close it. Left out, it opens by itself. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const wide = useMediaQuery("(min-width: 768px)");
+  const control = open === undefined ? {} : { open, onOpenChange };
   if (wide)
     return (
-      <Dialog.Root>
+      <Dialog.Root {...control}>
         <Dialog.Trigger asChild>{trigger}</Dialog.Trigger>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm [animation:fade_.2s_ease_both]" />
@@ -75,7 +81,7 @@ export function InfoPanel({
       </Dialog.Root>
     );
   return (
-    <Drawer.Root>
+    <Drawer.Root {...control}>
       <Drawer.Trigger asChild>{trigger}</Drawer.Trigger>
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 z-50 bg-black/70" />

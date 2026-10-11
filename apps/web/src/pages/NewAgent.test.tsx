@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
@@ -139,6 +139,19 @@ const stored = () =>
     batch?: { id: string; calls: string[] };
   } | null;
 
+// The limits and the bond help are edited in dialogs, which ask the screen's width.
+beforeEach(() => {
+  vi.stubGlobal("matchMedia", () => ({
+    matches: true,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+});
+/** The mandate's limits and details open in a dialog; "Done" closes it again. */
+const openLimits = () =>
+  fireEvent.click(screen.getByRole("button", { name: "Edit limits and details" }));
+const closeLimits = () => fireEvent.click(screen.getByRole("button", { name: "Done" }));
+
 function show(prefill?: OfficialPrefill) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
@@ -157,6 +170,7 @@ function show(prefill?: OfficialPrefill) {
 }
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
   localStorage.clear();
   sessionStorage.clear();
   vi.restoreAllMocks();
@@ -435,12 +449,28 @@ describe("Onboarding, the wallet side", () => {
 
   it("explains the bond and recommends one for the cover wanted", () => {
     show();
+    // The help is a dialog, opened from the funds step, and gives its answer back to the bond field.
+    fireEvent.click(screen.getByRole("button", { name: "Help me size the bond" }));
     expect(screen.getByText(/the bond pays first, then the cover pool/)).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Cover you want"), { target: { value: "20000" } });
     expect(screen.getByText("BBB to AAA (10% of the cover)")).toBeTruthy();
     expect(screen.getByText(/without a score yet/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Use this bond" }));
+    expect(screen.queryByText("BBB to AAA (10% of the cover)")).toBeNull();
     expect((screen.getByLabelText(/Operator bond/) as HTMLInputElement).value).toBe("6000");
+  });
+
+  it("says on the card when a limit in the dialog is wrong, and stops onboarding", () => {
+    show();
+    expect(screen.queryByText(/Needs a fix:/)).toBeNull();
+    openLimits();
+    fireEvent.change(screen.getByLabelText("Per-trade limit"), { target: { value: "abc" } });
+    closeLimits();
+    // The dialog is closed, so the problem has to show on the page itself.
+    expect(screen.getByText(/Needs a fix:/)).toBeTruthy();
+    expect(
+      (screen.getByRole("button", { name: "Onboard the agent" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
   });
 
   it("prefills the mandate from the preview's suggestion, with presets", async () => {
@@ -498,10 +528,16 @@ describe("Onboarding, the wallet side", () => {
     expect(screen.getByText(/Add your refund address/)).toBeTruthy();
     // The API's recommended preset is picked first.
     expect(screen.getByRole("radio", { name: /^Active trader/ })).toHaveProperty("checked", true);
+    // The card says the limits in a line; the fields are in the dialog.
+    expect(screen.getByText(/3000 USD a trade · 15000 USD a day/)).toBeTruthy();
+    openLimits();
     expect((screen.getByLabelText("Daily limit") as HTMLInputElement).value).toBe("15000");
+    closeLimits();
     fireEvent.click(screen.getByRole("radio", { name: /^Conservative trader/ }));
+    openLimits();
     expect((screen.getByLabelText("Per-trade limit") as HTMLInputElement).value).toBe("1200");
     fireEvent.change(screen.getByLabelText("Per-trade limit"), { target: { value: "2000" } });
+    closeLimits();
     expect(screen.getByRole("radio", { name: /^Custom/ })).toHaveProperty("checked", true);
   });
 });
@@ -575,6 +611,7 @@ describe("a mandate preset is the mandate that is submitted", () => {
 
   it("Conservative: its destinations, slippage and drawdown, not the form's defaults", async () => {
     const params = await onboardFromPreset();
+    openLimits();
     expect((screen.getByLabelText(/^Maximum slippage/) as HTMLInputElement).value).toBe("1");
     expect((screen.getByLabelText(/^Maximum drawdown/) as HTMLInputElement).value).toBe("10");
     expect(params.destinations).toEqual([]);
@@ -592,9 +629,11 @@ describe("a mandate preset is the mandate that is submitted", () => {
 
   it("an edit makes it Custom, marks the field, and changes only that rule", async () => {
     const params = await onboardFromPreset(() => {
+      openLimits();
       fireEvent.change(screen.getByLabelText(/^Maximum slippage/), { target: { value: "2" } });
-      expect(screen.getByRole("radio", { name: /^Custom/ })).toHaveProperty("checked", true);
       expect(screen.getByLabelText("Maximum slippage(edited)")).toBeTruthy();
+      closeLimits();
+      expect(screen.getByRole("radio", { name: /^Custom/ })).toHaveProperty("checked", true);
       expect(screen.getByText("Conservative trader, edited: maximum slippage.")).toBeTruthy();
     });
     expect(params.maxSlippageBps).toBe(200);
