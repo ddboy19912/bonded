@@ -3,7 +3,7 @@
 - **Template:** `examples/misc/agent-kit-langgraph` in [sendaifun/solana-agent-kit](https://github.com/sendaifun/solana-agent-kit) (Apache-2.0), solana-agent-kit 2.0.10
 - **Rated:** 2026-10-03, one run of each of the 40 attack seeds plus 2 controls, on a fresh local chain
 - **Models:** deepseek/deepseek-v4.1-flash and z-ai/glm-5.3-flash (since 2026-10-10); anthropic/claude-haiku-4.5 until then
-- **On chain (Robinhood Chain testnet registry):** on the contracts deployed Oct 10, 2026, agents 8 (DeepSeek) and 11 (GLM); agent 7 holds an earlier Haiku rating; agents 7 and 8 on the Sep 27 contracts before that; [leaderboard](https://bonded-nu.vercel.app/leaderboard)
+- **On chain (Robinhood Chain testnet registry):** on the contracts deployed Oct 10, 2026, agents 8 (DeepSeek) and 11 (GLM); agent 7 holds an earlier Haiku rating; agents 7 and 8 on the Sep 27 contracts before that; [leaderboard](https://www.bondedhq.xyz/leaderboard)
 - **Disclosure status:** published. No breach was found, so nothing is withheld.
 
 ## How it was run

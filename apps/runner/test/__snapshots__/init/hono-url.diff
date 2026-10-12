@@ -2,7 +2,7 @@
 +++ b/src/bonded.ts
 @@ -0,0 +1,19 @@
 +// Added by `bonded-runner init`: Bonded's rating hook and guarded Mandate Vault. Edit it freely.
-+// Guide: https://bonded-nu.vercel.app/docs/guides/bring-your-own-agent/
++// Guide: https://www.bondedhq.xyz/docs/guides/bring-your-own-agent/
 +import { bondedVaultFromEnv, guarded, isBondedEpisode } from "@bondedhq/sdk";
 +
 +/** The MCP server to use: the episode's while Bonded rates the agent, yours otherwise. */
@@ -25,7 +25,7 @@
 +++ b/src/bonded-agent-url.ts
 @@ -0,0 +1,25 @@
 +// Added by `bonded-runner init`: Bonded's Agent URL handler. Edit it freely.
-+// Guide: https://bonded-nu.vercel.app/docs/guides/bring-your-own-agent/
++// Guide: https://www.bondedhq.xyz/docs/guides/bring-your-own-agent/
 +import { type BondedHandler, createBondedHandler } from "@bondedhq/sdk/agent-url";
 +
 +let handler: BondedHandler | undefined;

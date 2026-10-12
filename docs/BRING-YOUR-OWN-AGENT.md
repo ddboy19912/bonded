@@ -1,6 +1,6 @@
 # Bring your own agent
 
-Your agent can be written in any framework or language and run on your own servers. Bonded can attack it and rate it where it runs, protect it with a Mandate Vault (or a module on the smart account it already uses), and insure it. This is the builder's guide, fastest path first: test your agent for free at [bonded-nu.vercel.app/agents/test](https://bonded-nu.vercel.app/agents/test), connect it, then make it official.
+Your agent can be written in any framework or language and run on your own servers. Bonded can attack it and rate it where it runs, protect it with a Mandate Vault (or a module on the smart account it already uses), and insure it. This is the builder's guide, fastest path first: test your agent for free at [www.bondedhq.xyz/agents/test](https://www.bondedhq.xyz/agents/test), connect it, then make it official.
 
 For what an agent is in Bonded's terms, see [AGENTS.md](AGENTS.md). For how Bonded relates to the agents people already use, see [YOUR-AGENTS.md](YOUR-AGENTS.md).
 
@@ -8,7 +8,7 @@ For what an agent is in Bonded's terms, see [AGENTS.md](AGENTS.md). For how Bond
 
 The fastest way in, in order. Each step links to the details below.
 
-1. **Open [Test your agent](https://bonded-nu.vercel.app/agents/test)** with a browser wallet such as MetaMask, Rabby or Phantom. Sign in (one signature, nothing sent on chain, no tokens needed) and answer the two questions about your agent.
+1. **Open [Test your agent](https://www.bondedhq.xyz/agents/test)** with a browser wallet such as MetaMask, Rabby or Phantom. Sign in (one signature, nothing sent on chain, no tokens needed) and answer the two questions about your agent.
 2. **Connect it**, one of two ways ([Connect your agent](#connect-your-agent)):
    - **A Node agent, on your machine or server:** in your agent's folder, run the `init` command the page gives you. It looks like `BONDED_RUNNER_TOKEN=bonded_rt_... npx @bondedhq/runner init --gateway https://arena-worker-production.up.railway.app`. It shows the change to your code as a diff, asks before writing, then starts the runner and runs the connection check ([Set it up with init](#set-it-up-with-init)). Want to see the change first, with no token? `npx @bondedhq/runner init --print`.
    - **Any other agent under the runner** (Python, a binary, an MCP client): `BONDED_RUNNER_TOKEN=bonded_rt_... npx @bondedhq/runner --gateway https://arena-worker-production.up.railway.app --mode tools -- <your agent command>` ([Runner](#runner)). On the page, choose **Something else (MCP or HTTP)** or **Python**, and the page leads with this command.
@@ -19,7 +19,7 @@ The fastest way in, in order. Each step links to the details below.
 6. **Use your vault** in production, so your agent's real trades go through the mandate, then **buy cover** from the vault page ([Protect your agent](#protect-your-agent)).
 7. **Stay rated**: keep the runner running ([Keep it running](#keep-it-running)), and watch the health panel and alerts on your agent's page ([Staying rated](#staying-rated)).
 
-Stuck? Every refusal and check problem has an entry on the [troubleshooting page](TROUBLESHOOTING.md). Whether the hosted service is up: https://bonded-nu.vercel.app/status.
+Stuck? Every refusal and check problem has an entry on the [troubleshooting page](TROUBLESHOOTING.md). Whether the hosted service is up: https://www.bondedhq.xyz/status.
 
 ### No agent yet?
 
@@ -40,10 +40,10 @@ As of 2026-10-10, on Robinhood Chain testnet:
 
 | Piece | Status | Where |
 |---|---|---|
-| The **Test your agent** page: previews, Agent URL mode, connection checks, estimates, progress and webhooks | Live on the hosted service | https://bonded-nu.vercel.app/agents/test |
+| The **Test your agent** page: previews, Agent URL mode, connection checks, estimates, progress and webhooks | Live on the hosted service | https://www.bondedhq.xyz/agents/test |
 | `@bondedhq/runner` and `@bondedhq/sdk` 0.1.2 (with `@bondedhq/shared` and `@bondedhq/solana`, which they depend on) | On npm | `npx @bondedhq/runner …`, `npm install @bondedhq/sdk` |
-| Official ratings of your own agent, Mandate Vaults, cover, and self-serve ratings of Bonded's built-in agent designs | Live | Onboarding at https://bonded-nu.vercel.app/agents/new |
-| The health panel, owner alerts and in-app notifications, vault trading status, the suggested mandate, the before/after comparison, the actionable report and `GET /status` | Live | The service's status: https://bonded-nu.vercel.app/status |
+| Official ratings of your own agent, Mandate Vaults, cover, and self-serve ratings of Bonded's built-in agent designs | Live | Onboarding at https://www.bondedhq.xyz/agents/new |
+| The health panel, owner alerts and in-app notifications, vault trading status, the suggested mandate, the before/after comparison, the actionable report and `GET /status` | Live | The service's status: https://www.bondedhq.xyz/status |
 | The Arena Gateway your runner connects to | Live | `https://arena-worker-production.up.railway.app` (the page fills it in for you) |
 | The hosted API | Live | `https://api-production-ba50.up.railway.app` (the runner's and the web app's default) |
 | The runner's Docker image | Not on a registry | Build it from a clone: `docker build -f apps/runner/Dockerfile -t bonded-runner .` ([Docker](#keep-it-running)) |
@@ -82,7 +82,7 @@ flowchart LR
 
 ## Test your agent for free
 
-The **Test your agent** page ([bonded-nu.vercel.app/agents/test](https://bonded-nu.vercel.app/agents/test), Robinhood Chain testnet) takes you from nothing to a preview report. You need a browser wallet (to sign in, not to pay: a preview costs you nothing on chain) and your agent, either reachable at a public HTTPS address or able to run next to the runner.
+The **Test your agent** page ([www.bondedhq.xyz/agents/test](https://www.bondedhq.xyz/agents/test), Robinhood Chain testnet) takes you from nothing to a preview report. You need a browser wallet (to sign in, not to pay: a preview costs you nothing on chain) and your agent, either reachable at a public HTTPS address or able to run next to the runner.
 
 ```mermaid
 flowchart LR
@@ -663,7 +663,7 @@ An official rating is attested: the attester signs the score and posts it to the
 
 ### From the web app
 
-1. **Onboard an agent** ([bonded-nu.vercel.app/agents/new](https://bonded-nu.vercel.app/agents/new), or **Make it official** on a preview's report).
+1. **Onboard an agent** ([www.bondedhq.xyz/agents/new](https://www.bondedhq.xyz/agents/new), or **Make it official** on a preview's report).
    - In step 1 (**What gets rated**), choose **My own agent: any framework or language, where it already runs**, then answer the same two questions as on the Test page: your framework, and where it runs (**On my computer or server** for the runner, **It's online at a URL** for an Agent URL, with the URL). How it acts (**Tools** or **Chain**) is under **Advanced (optional)**.
    - The code hash is optional, also under **Advanced (optional)**: without one, each rating records the code the runner or the URL reports ([The code hash fills itself in](#the-code-hash-fills-itself-in)). Declare one for a TEE-bound agent (the one its TEE reports), or to pin your own fingerprint (an image digest `sha256:…`, or 32 bytes of hex).
    - Optionally a TEE URL and compose hash (chain mode, runner only), there too.
@@ -817,7 +817,7 @@ An episode where your agent did nothing, or did its task without looking, tests 
 
 **The health panel**, at the top of your agent's page once you sign in (`GET /self/agents/:id/health`, your session): the score and when it expires (`current`, `expiring` within 7 days, or `expired`; a score superseded by a stopped rating says so), how Bonded reaches the agent (runner connected, offline since when, never connected; Agent URL verified or not; or `bonded` for Bonded's own designs), the vault's trading, the agent key's gas, the cover (active, past due, in its grace period, lapsed, or none), the next re-rating (`{ status, at, reason }`: scheduled with a time, waiting for the runner, or queued or running), and each open problem as a sentence with its code, its severity and what to do, linked to its [troubleshooting](TROUBLESHOOTING.md) entry.
 
-**Alerts.** Besides a rating's end, you are told when the score expires in 7 days, when the runner has been offline for over 30 minutes while a rating or renewal is due, when the vault records a breach, when a claim is filed and when it is paid, when the cover's premium is past due or the cover lapses, and when the agent key is low on gas. The keeper checks once a minute (`OWNER_ALERTS_MS`), only for agents their owners registered. Each event is sent once (its dedupe key: low gas at most once a day), breaches and claims older than 7 days aren't announced, and they go to your webhook (and email, where the service sends email; the hosted one doesn't) as well as the in-app list. Turn any type off with `muted` in your notification settings (`PUT /self/notifications { muted: ["low_gas", ...] }`, the full list each time; `GET` returns `muted` and every type in `types`), or with the checkboxes on the **Notifications** page ([bonded-nu.vercel.app/inbox](https://bonded-nu.vercel.app/inbox)).
+**Alerts.** Besides a rating's end, you are told when the score expires in 7 days, when the runner has been offline for over 30 minutes while a rating or renewal is due, when the vault records a breach, when a claim is filed and when it is paid, when the cover's premium is past due or the cover lapses, and when the agent key is low on gas. The keeper checks once a minute (`OWNER_ALERTS_MS`), only for agents their owners registered. Each event is sent once (its dedupe key: low gas at most once a day), breaches and claims older than 7 days aren't announced, and they go to your webhook (and email, where the service sends email; the hosted one doesn't) as well as the in-app list. Turn any type off with `muted` in your notification settings (`PUT /self/notifications { muted: ["low_gas", ...] }`, the full list each time; `GET` returns `muted` and every type in `types`), or with the checkboxes on the **Notifications** page ([www.bondedhq.xyz/inbox](https://www.bondedhq.xyz/inbox)).
 
 **The in-app list**: the bell in the web app's top bar, and the **Notifications** page (`/inbox`). `GET /self/notifications/inbox?limit=&before=&unread=1` (your session) returns `{ items: [{ id, kind, type, code?, message, action, createdAt, agentId?, previewId?, subject, read }], unread, next }`, newest first (`kind` is the type in kebab case; `next` is the id to page from). `POST /self/notifications/inbox/read` with `{ ids: [...] }` or `{ through: "<id>" }` marks them read; the page does that when you open it. The list keeps 90 days.
 
@@ -878,7 +878,7 @@ Everything the pages do is plain HTTP, for scripts. The hosted API is `https://a
 | `GET /self/agents/:id/vault-activity` | Public chain data: `{ firstTradeAt, lastTradeAt, trades24h, trades7d, total, lastTxHash, vault, agentKey, frozen, coverWithoutVaultTrades, agentGas, cover }` |
 | `GET /self/agents/:id/health` | The health panel (session, owner only) |
 | `GET /self/notifications/inbox`, `POST /self/notifications/inbox/read` | The in-app list (session) |
-| `GET /status` | Public, cached for 30 seconds: `{ ok, checkedAt, version, api: { up }, gateway: { configured, up }, lanes: { check, remote }, previewQueue }`. Each lane has `{ healthy, queued, oldestQueuedSeconds, running, oldestRunningSeconds, staleRunning, lastJobAgeSeconds }`; a lane is healthy when no running job has lost its worker (`staleRunning` is 0) and either nothing waits or it started or finished a job recently (10 minutes for checks, 30 for ratings). `gateway.up` is null when no gateway is configured. Counts and ages only: no ids, wallets or URLs. The web app's [status page](https://bonded-nu.vercel.app/status) and the indicator at its foot read it; the hosted one is `https://api-production-ba50.up.railway.app/status` |
+| `GET /status` | Public, cached for 30 seconds: `{ ok, checkedAt, version, api: { up }, gateway: { configured, up }, lanes: { check, remote }, previewQueue }`. Each lane has `{ healthy, queued, oldestQueuedSeconds, running, oldestRunningSeconds, staleRunning, lastJobAgeSeconds }`; a lane is healthy when no running job has lost its worker (`staleRunning` is 0) and either nothing waits or it started or finished a job recently (10 minutes for checks, 30 for ratings). `gateway.up` is null when no gateway is configured. Counts and ages only: no ids, wallets or URLs. The web app's [status page](https://www.bondedhq.xyz/status) and the indicator at its foot read it; the hosted one is `https://api-production-ba50.up.railway.app/status` |
 | `GET /stats/funnel?days=` | Operator only (the API token): how many times each step happened per UTC day (`preview_started`, `check_passed`, `preview_done`, `onboarded`, `first_vault_trade`, `cover_bought`), up to 90 days, with totals. Counters only: nothing about who |
 
 Every refusal carries a stable code next to its sentence: `{ error, code, details: { code } }`, and a check's problems and warnings stay sentences with their codes in `issues: [{ code, severity, message }]`. Each code has an entry, with what to do, on the [troubleshooting page](TROUBLESHOOTING.md).

@@ -2,12 +2,14 @@ import { expect, it } from "vitest";
 import { originAllowed } from "../src/origins.js";
 
 const allowed = [
+  "https://www.bondedhq.xyz",
   "https://bonded-nu.vercel.app",
   "http://localhost:5173",
   "https://bonded-*-team.vercel.app",
 ];
 
 it("allows exact origins", () => {
+  expect(originAllowed("https://www.bondedhq.xyz", allowed)).toBe(true);
   expect(originAllowed("https://bonded-nu.vercel.app", allowed)).toBe(true);
   expect(originAllowed("http://localhost:5173", allowed)).toBe(true);
   expect(originAllowed("http://localhost:5174", allowed)).toBe(false);

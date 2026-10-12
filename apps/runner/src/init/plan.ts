@@ -46,7 +46,7 @@ export interface PlanOptions {
  */
 export const MARKER = INIT_MARKER;
 /** The guide on the docs site (generated from docs/BRING-YOUR-OWN-AGENT.md). */
-const GUIDE = "https://bonded-nu.vercel.app/docs/guides/bring-your-own-agent/";
+const GUIDE = "https://www.bondedhq.xyz/docs/guides/bring-your-own-agent/";
 
 /** The production vault's variables (`bondedVaultFromEnv` in @bondedhq/sdk). */
 export const VAULT_ENV = ["BONDED_VAULT_ADDRESS", "BONDED_AGENT_KEY", "BONDED_ROUTER_ADDRESS"];

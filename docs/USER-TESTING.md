@@ -20,7 +20,7 @@ They need a browser wallet. Testnet only: no real money.
 
 Give them only this, and say as little as possible after it:
 
-> "On bonded-nu.vercel.app, find out how safe your agent is. Then, if you'd use it for real, set it up so its money is protected and insured."
+> "On www.bondedhq.xyz, find out how safe your agent is. Then, if you'd use it for real, set it up so its money is protected and insured."
 
 Watch, don't help. If they're stuck for more than 3 minutes, give the smallest hint you can and note exactly where and why.
 

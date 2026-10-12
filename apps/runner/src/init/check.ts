@@ -199,7 +199,7 @@ export function eventLine(event: CheckEvent): string {
 }
 
 /** Where each problem's fix is explained, by its code (the anchor). */
-export const TROUBLESHOOTING_URL = "https://bonded-nu.vercel.app/docs/guides/troubleshooting/";
+export const TROUBLESHOOTING_URL = "https://www.bondedhq.xyz/docs/guides/troubleshooting/";
 
 /**
  * The result as lines: the verdict, then each problem and warning, with its fix's link. A warning

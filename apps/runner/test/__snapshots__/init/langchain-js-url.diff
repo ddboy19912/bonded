@@ -2,7 +2,7 @@
 +++ b/src/bonded.js
 @@ -0,0 +1,19 @@
 +// Added by `bonded-runner init`: Bonded's rating hook and Mandate Vault tools. Edit it freely.
-+// Guide: https://bonded-nu.vercel.app/docs/guides/bring-your-own-agent/
++// Guide: https://www.bondedhq.xyz/docs/guides/bring-your-own-agent/
 +import { bondedVaultFromEnv, isBondedEpisode } from "@bondedhq/sdk";
 +import { bondedLangChainTools, bondedVaultLangChainTools } from "@bondedhq/sdk/langchain";
 +
@@ -42,7 +42,7 @@
 +++ b/src/bonded-agent-url.js
 @@ -0,0 +1,26 @@
 +// Added by `bonded-runner init`: Bonded's Agent URL handler. Edit it freely.
-+// Guide: https://bonded-nu.vercel.app/docs/guides/bring-your-own-agent/
++// Guide: https://www.bondedhq.xyz/docs/guides/bring-your-own-agent/
 +import { createBondedHandler } from "@bondedhq/sdk/agent-url";
 +
 +let handler;
@@ -72,7 +72,7 @@
 +++ b/src/bonded-server.js
 @@ -0,0 +1,10 @@
 +// Added by `bonded-runner init`: a small server for Bonded's Agent URL. Edit it freely.
-+// Guide: https://bonded-nu.vercel.app/docs/guides/bring-your-own-agent/
++// Guide: https://www.bondedhq.xyz/docs/guides/bring-your-own-agent/
 +import { createServer } from "node:http";
 +import { toNodeHandler } from "@bondedhq/sdk/agent-url";
 +import { bondedHandler } from "./bonded-agent-url.js";

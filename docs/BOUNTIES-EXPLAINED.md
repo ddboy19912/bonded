@@ -94,6 +94,6 @@ The attack's text stays private. The public list shows its title, type, surfaces
 
 ## On testnet today
 
-- The Bounties page is at https://bonded-nu.vercel.app/bounties. Connect a wallet on Robinhood Chain testnet to submit.
+- The Bounties page is at https://www.bondedhq.xyz/bounties. Connect a wallet on Robinhood Chain testnet to submit.
 - The pool holds test tUSDG, which has no value.
 - The first submission was a live end-to-end test made by the Bonded team from a separate test wallet. It is not an outside hunter.

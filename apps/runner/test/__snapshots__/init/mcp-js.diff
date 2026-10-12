@@ -2,7 +2,7 @@
 +++ b/bonded.js
 @@ -0,0 +1,19 @@
 +// Added by `bonded-runner init`: Bonded's rating hook and guarded Mandate Vault. Edit it freely.
-+// Guide: https://bonded-nu.vercel.app/docs/guides/bring-your-own-agent/
++// Guide: https://www.bondedhq.xyz/docs/guides/bring-your-own-agent/
 +import { bondedVaultFromEnv, guarded, isBondedEpisode } from "@bondedhq/sdk";
 +
 +/** The MCP server to use: the episode's while Bonded rates the agent, yours otherwise. */

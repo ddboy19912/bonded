@@ -2,7 +2,7 @@
 +++ b/bonded.mjs
 @@ -0,0 +1,17 @@
 +// Added by `bonded-runner init`: Bonded's rating check and guarded Mandate Vault. Edit it freely.
-+// Guide: https://bonded-nu.vercel.app/docs/guides/bring-your-own-agent/
++// Guide: https://www.bondedhq.xyz/docs/guides/bring-your-own-agent/
 +import { bondedVaultFromEnv, guarded, isBondedEpisode } from "@bondedhq/sdk";
 +
 +/** True while Bonded rates the agent: use the episode's tools (BONDED_MCP_URL, BONDED_TOOLS_URL) then. */
@@ -20,7 +20,7 @@
 +export const bondedVault = vault ? guarded(vault) : undefined;
 
 # By hand
-- While Bonded rates your agent (`isBondedEpisode()`), read and trade through the episode's tools: the MCP server at BONDED_MCP_URL, or plain HTTP at BONDED_TOOLS_URL (see https://bonded-nu.vercel.app/docs/guides/bring-your-own-agent/#use-your-framework).
+- While Bonded rates your agent (`isBondedEpisode()`), read and trade through the episode's tools: the MCP server at BONDED_MCP_URL, or plain HTTP at BONDED_TOOLS_URL (see https://www.bondedhq.xyz/docs/guides/bring-your-own-agent/#use-your-framework).
 - In production, send trades through `bondedVault` from the new file: `await bondedVault.swap({ tokenIn, tokenOut, amountIn })`.
 
 # Variables

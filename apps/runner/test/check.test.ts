@@ -189,7 +189,7 @@ describe("runConnectionCheck", () => {
     ).toEqual([
       "Connection check failed:",
       "  problem: Your agent never called a tool",
-      "    how to fix: https://bonded-nu.vercel.app/docs/guides/troubleshooting/#never-called-a-tool",
+      "    how to fix: https://www.bondedhq.xyz/docs/guides/troubleshooting/#never-called-a-tool",
       "  problem: Something new",
     ]);
   });

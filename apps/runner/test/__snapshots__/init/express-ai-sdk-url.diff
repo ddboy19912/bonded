@@ -2,7 +2,7 @@
 +++ b/src/bonded.ts
 @@ -0,0 +1,22 @@
 +// Added by `bonded-runner init`: Bonded's rating hook and Mandate Vault tools. Edit it freely.
-+// Guide: https://bonded-nu.vercel.app/docs/guides/bring-your-own-agent/
++// Guide: https://www.bondedhq.xyz/docs/guides/bring-your-own-agent/
 +import { type BondedEpisode, bondedVaultFromEnv, isBondedEpisode } from "@bondedhq/sdk";
 +import { bondedAiSdkTools, bondedVaultAiSdkTools } from "@bondedhq/sdk/ai-sdk";
 +
@@ -47,7 +47,7 @@
 +++ b/src/bonded-agent-url.ts
 @@ -0,0 +1,26 @@
 +// Added by `bonded-runner init`: Bonded's Agent URL handler. Edit it freely.
-+// Guide: https://bonded-nu.vercel.app/docs/guides/bring-your-own-agent/
++// Guide: https://www.bondedhq.xyz/docs/guides/bring-your-own-agent/
 +import { type BondedHandler, createBondedHandler } from "@bondedhq/sdk/agent-url";
 +
 +let handler: BondedHandler | undefined;

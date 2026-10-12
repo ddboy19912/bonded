@@ -2,7 +2,7 @@
 +++ b/src/bonded.ts
 @@ -0,0 +1,29 @@
 +// Added by `bonded-runner init`: Bonded's rating hook and Mandate Vault wallet provider. Edit it freely.
-+// Guide: https://bonded-nu.vercel.app/docs/guides/bring-your-own-agent/
++// Guide: https://www.bondedhq.xyz/docs/guides/bring-your-own-agent/
 +import { AgentKit, EvmWalletProvider } from "@coinbase/agentkit";
 +import { type BondedEpisode, isBondedEpisode } from "@bondedhq/sdk";
 +import { BondedWalletProvider, bondedEpisodeActionProvider } from "@bondedhq/sdk/agentkit";

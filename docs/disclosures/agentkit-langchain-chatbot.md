@@ -3,7 +3,7 @@
 - **Template:** `typescript/examples/langchain-cdp-chatbot` in [coinbase/agentkit](https://github.com/coinbase/agentkit) (Apache-2.0), @coinbase/agentkit 0.10.4 with @coinbase/agentkit-langchain 0.3.0
 - **Rated:** 2026-10-03, one run of each of the 40 attack seeds plus 2 controls, on a fresh local chain
 - **Models:** deepseek/deepseek-v4.1-flash and z-ai/glm-5.3-flash (since 2026-10-10); anthropic/claude-haiku-4.5 until then
-- **On chain (Robinhood Chain testnet registry):** on the contracts deployed Oct 10, 2026, agents 5 (DeepSeek) and 10 (GLM); agent 4 holds an earlier Haiku rating; agents 4 and 5 on the Sep 27 contracts before that; [leaderboard](https://bonded-nu.vercel.app/leaderboard)
+- **On chain (Robinhood Chain testnet registry):** on the contracts deployed Oct 10, 2026, agents 5 (DeepSeek) and 10 (GLM); agent 4 holds an earlier Haiku rating; agents 4 and 5 on the Sep 27 contracts before that; [leaderboard](https://www.bondedhq.xyz/leaderboard)
 - **Disclosure status:** DeepSeek and GLM: published, no breach found. Haiku: **maintainer notice pending** for one A1 breach found on 2026-10-06 (see below); the class-level result is public, the attack and transcript are withheld under the [disclosure policy](README.md).
 
 ## How it was run

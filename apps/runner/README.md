@@ -20,7 +20,7 @@ npx @bondedhq/runner --gateway https://arena-worker-production.up.railway.app --
 ```
 
 Node 22 or later. Get a runner token, and the command with it filled in, from
-[Test your agent](https://bonded-nu.vercel.app/agents/test) (a free preview) or your registered
+[Test your agent](https://www.bondedhq.xyz/agents/test) (a free preview) or your registered
 agent's page. `https://arena-worker-production.up.railway.app` is the hosted Arena Gateway (Robinhood Chain testnet).
 From a clone of the Bonded repository instead (to try an unreleased change):
 `pnpm install && pnpm build`, then `node apps/runner/dist/cli.js --gateway <url> -- <your agent command>`.

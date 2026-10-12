@@ -103,10 +103,10 @@ export default defineRailway(() => {
     env: {
       ...shared,
       ROLE: "api",
-      // Browser origins allowed by CORS (comma-separated): the hosted web app on Vercel, its
+      // Browser origins allowed by CORS (comma-separated): the hosted web app (bondedhq.xyz, and its old Vercel address), its
       // preview deployments (one `*`, see apps/api/src/origins.ts), and local dev.
       WEB_ORIGINS:
-        "https://bonded-nu.vercel.app,https://bonded-*-ddboy19912s-projects.vercel.app,http://localhost:5173",
+        "https://www.bondedhq.xyz,https://bondedhq.xyz,https://bonded-nu.vercel.app,https://bonded-*-ddboy19912s-projects.vercel.app,http://localhost:5173",
       ...sentinelClient,
       ...gateway,
       API_TOKEN: preserve(),

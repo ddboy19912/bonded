@@ -121,6 +121,8 @@ describe("which URLs an agent may register", () => {
   it("can't be one of Bonded's own hosts or the gateway itself", async () => {
     for (const url of [
       "https://bonded-nu.vercel.app/api",
+      "https://www.bondedhq.xyz/api",
+      "https://BONDEDHQ.xyz./",
       "https://api-production-ba50.up.railway.app/x",
       "https://x.arena-worker-production.up.railway.app/",
       "https://BONDED-NU.vercel.app./",

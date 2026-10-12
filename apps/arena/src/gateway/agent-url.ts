@@ -41,6 +41,7 @@ import { addressGroup } from "./address.js";
 
 /** Bonded's own deployed hosts: never an agent URL (subdomains included). */
 export const BONDED_OWN_HOSTS: readonly string[] = [
+  "bondedhq.xyz",
   "bonded-nu.vercel.app",
   "api-production-ba50.up.railway.app",
   "arena-worker-production.up.railway.app",

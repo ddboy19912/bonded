@@ -30,7 +30,7 @@ function rehypeWrapTables() {
 
 // Served at /docs on the same domain as the web app (see apps/web/build/include-docs.mjs).
 export default defineConfig({
-  site: "https://bonded-nu.vercel.app",
+  site: "https://www.bondedhq.xyz",
   base: "/docs",
   trailingSlash: "always",
   markdown: { rehypePlugins: [rehypeWrapTables] },
@@ -95,7 +95,7 @@ export default defineConfig({
         },
         {
           tag: "meta",
-          attrs: { property: "og:image", content: "https://bonded-nu.vercel.app/brand/og.png" },
+          attrs: { property: "og:image", content: "https://www.bondedhq.xyz/brand/og.png" },
         },
       ],
       social: [{ icon: "rocket", label: "Open the app", href: "/" }],

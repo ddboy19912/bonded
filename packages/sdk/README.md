@@ -11,7 +11,7 @@ npm install @bondedhq/sdk viem
 
 ESM only, Node 22 or later. Inside the Bonded repository, depend on it with
 `"@bondedhq/sdk": "workspace:*"`. To get your own agent rated, start at
-[Test your agent](https://bonded-nu.vercel.app/agents/test).
+[Test your agent](https://www.bondedhq.xyz/agents/test).
 
 | Entry point | What it is | Peer dependency |
 |---|---|---|
