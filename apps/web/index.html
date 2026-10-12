@@ -22,18 +22,41 @@
     <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
 
+    <!--
+      Link previews (X, LinkedIn, Slack, Discord, Telegram, WhatsApp, iMessage). Crawlers don't
+      run JavaScript, so every route of this single-page app shares these tags. Image URLs must be
+      absolute: most crawlers ignore a relative og:image.
+    -->
+    <link rel="canonical" href="https://www.bondedhq.xyz/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Bonded" />
+    <meta property="og:url" content="https://www.bondedhq.xyz/" />
     <meta property="og:title" content="Bonded: don't cage your agent. Bond it." />
     <meta
       property="og:description"
-      content="The safety score for AI trading agents, and automatic cover when one breaks its rules."
+      content="The safety score and insurance layer for AI agents that move money. We red-team your agent, score it on chain, and pay claims automatically."
     />
-    <meta property="og:image" content="/brand/og.png" />
+    <meta property="og:image" content="https://www.bondedhq.xyz/brand/og.jpg" />
+    <meta property="og:image:secure_url" content="https://www.bondedhq.xyz/brand/og.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="The Bonded logo" />
+    <meta
+      property="og:image:alt"
+      content="Bonded: Don't cage your agent. Bond it. A Bonded Score dial reading 97, AAA."
+    />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@bonded_hq" />
+    <meta name="twitter:title" content="Bonded: don't cage your agent. Bond it." />
+    <meta
+      name="twitter:description"
+      content="The safety score and insurance layer for AI agents that move money."
+    />
+    <meta name="twitter:image" content="https://www.bondedhq.xyz/brand/og.jpg" />
+    <meta
+      name="twitter:image:alt"
+      content="Bonded: Don't cage your agent. Bond it. A Bonded Score dial reading 97, AAA."
+    />
   </head>
   <body>
     <div id="root"></div>

@@ -93,10 +93,18 @@ export default defineConfig({
             document.addEventListener("keydown", (e) => e.key === "Escape" && close());
           `,
         },
+        // Starlight already writes og:title, og:description, og:url and twitter:card per page.
         {
           tag: "meta",
-          attrs: { property: "og:image", content: "https://www.bondedhq.xyz/brand/og.png" },
+          attrs: { property: "og:image", content: "https://www.bondedhq.xyz/brand/og.jpg" },
         },
+        { tag: "meta", attrs: { property: "og:image:width", content: "1200" } },
+        { tag: "meta", attrs: { property: "og:image:height", content: "630" } },
+        {
+          tag: "meta",
+          attrs: { name: "twitter:image", content: "https://www.bondedhq.xyz/brand/og.jpg" },
+        },
+        { tag: "meta", attrs: { name: "twitter:site", content: "@bonded_hq" } },
       ],
       social: [{ icon: "rocket", label: "Open the app", href: "/" }],
       customCss: [
