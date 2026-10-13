@@ -1,29 +1,31 @@
 ---
+import PostCard from "../components/PostCard.astro";
 import Base from "../layouts/Base.astro";
-import { formatDate, publishedPosts } from "../posts";
+import { indexPosts } from "../posts";
 
-const posts = await publishedPosts();
-const base = import.meta.env.BASE_URL;
+const [featured, ...rest] = await indexPosts();
 ---
 
 <Base
-  title="Bonded blog"
+  title="Blog | Bonded"
   description="Notes from Bonded on red-teaming AI agents, safety scores, and paying people back when an agent breaks its rules."
 >
-  <div class="eyebrow">Blog</div>
-  <h1>Notes from the red team</h1>
-  <p class="lede">How AI agents get fooled, how we measure it, and who pays when one breaks its rules.</p>
-  <ul class="posts">
+  <section class="hero">
+    <p class="badge"><span class="dot" aria-hidden="true"></span>The Bonded blog</p>
+    <h1>Notes from the <em>red team.</em></h1>
+    <p class="lede">How AI agents get fooled, how we measure it, and who pays when one breaks its rules.</p>
+  </section>
+
+  <section class="list">
+    {featured && <PostCard post={featured} featured />}
     {
-      posts.map((p) => (
-        <li>
-          <a href={`${base}${p.id}/`}>
-            <div class="eyebrow">{formatDate(p.data.date)}</div>
-            <h2>{p.data.title}</h2>
-            <p>{p.data.description}</p>
-          </a>
-        </li>
-      ))
+      rest.length > 0 && (
+        <div class="grid">
+          {rest.map((post) => (
+            <PostCard post={post} />
+          ))}
+        </div>
+      )
     }
-  </ul>
+  </section>
 </Base>

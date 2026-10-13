@@ -36,6 +36,12 @@ for (const p of posts) {
         ? p.fields.date.toISOString().slice(0, 10)
         : String(p.fields.date ?? "");
     assert.match(date, /^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD");
+    assert.ok(p.fields.cover, "cover is required: the featured image and link preview");
+    assert.ok(
+      fs.existsSync(path.resolve(dir, p.fields.cover)),
+      `cover not found: ${p.fields.cover}`,
+    );
+    assert.ok(p.fields.coverAlt, "coverAlt is required: describe the image for screen readers");
     assert.match(
       p.file,
       /^[a-z0-9-]+\.md$/,

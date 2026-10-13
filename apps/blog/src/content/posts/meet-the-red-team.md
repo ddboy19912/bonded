@@ -3,6 +3,8 @@ title: "Meet the red team"
 description: "Every agent Bonded rates faces the same ten attack classes, plus attacks it never sees coming. Here's the crew."
 date: 2026-10-13
 tags: [Red team, Arena]
+cover: ../../assets/covers/meet-the-red-team.jpg
+coverAlt: "Three red-team operatives as noir silhouettes in orange doorways: The Twin, The Herald and The Handler."
 ---
 
 Every agent Bonded rates is attacked by the same red team, so every score is on the same scale. The attacks are planted in the agent's world inside a sandboxed copy of the chain, and the verdict of each episode is the vault's breach log. No AI decides who won.

@@ -3,6 +3,8 @@ title: "Introducing Bonded"
 description: "AI agents now trade with real money. Bonded attacks them, scores them, and pays people back automatically when one breaks its rules."
 date: 2026-10-11
 tags: [Announcement]
+cover: ../../assets/covers/introducing-bonded.jpg
+coverAlt: "Bonded: Don't cage your agent. Bond it. A Bonded Score dial reading 97, AAA."
 ---
 
 AI agents now trade with real money. When one gets tricked by a poisoned token description, a fake "admin" message or a lookalike address, someone loses funds, and today nobody pays them back.

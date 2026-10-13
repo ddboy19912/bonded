@@ -10,7 +10,7 @@ import { explorerUrl, networkName } from "./config";
 import { useAgents, useClaims } from "./lib/chain";
 import { searchTarget } from "./lib/search";
 import { isNavActive } from "./lib/nav";
-import { APP_HOME, DOCS_HOME, DOCS_SECURITY } from "./lib/routes";
+import { APP_HOME, BLOG_HOME, DOCS_HOME, DOCS_SECURITY } from "./lib/routes";
 
 /** Stroke icons for the sidebar, drawn on a 24-unit grid. */
 const ICONS = {
@@ -299,6 +299,9 @@ export function SiteLayout() {
             <a href="#sentinel" className="hover:text-ink">
               Sentinel
             </a>
+            <a href={BLOG_HOME} className="hover:text-ink">
+              Blog
+            </a>
           </nav>
           <Link to={APP_HOME} className={`${buttonClass("light")} ml-auto md:ml-0`}>
             Launch app <span aria-hidden>→</span>
@@ -322,6 +325,9 @@ export function SiteLayout() {
             </a>
             <a className="hover:text-ink" href={DOCS_SECURITY}>
               Security
+            </a>
+            <a className="hover:text-ink" href={BLOG_HOME}>
+              Blog
             </a>
           </div>
         </div>

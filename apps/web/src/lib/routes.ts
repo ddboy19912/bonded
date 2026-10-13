@@ -8,6 +8,8 @@ export const APP_HOME = "/overview";
  * plain links, not router links: the router doesn't own those pages.
  */
 export const DOCS_HOME = "/docs/";
+/** The blog (apps/blog), built into this app's output under /blog the same way. */
+export const BLOG_HOME = "/blog/";
 export const DOCS_SECURITY = "/docs/security/policy/";
 export const DOCS_BOUNTY_GUIDE = "/docs/guides/bounties/#try-it-locally-first";
 export const DOCS_DISCLOSURES = "/docs/security/disclosures/";

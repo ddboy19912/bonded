@@ -11,13 +11,31 @@ interface Props {
   /** "article" for a post, "website" for the index. */
   type?: "website" | "article";
   published?: Date;
+  /** Absolute URL of the link-preview image. Defaults to the site's card. */
+  ogImage?: string;
+  ogImageAlt?: string;
 }
 
-const { title, description, type = "website", published } = Astro.props;
+const {
+  title,
+  description,
+  type = "website",
+  published,
+  ogImage = "https://www.bondedhq.xyz/brand/og.jpg",
+  ogImageAlt = "Bonded: Don't cage your agent. Bond it.",
+} = Astro.props;
+const base = import.meta.env.BASE_URL;
 const url = new URL(Astro.url.pathname, Astro.site).href;
-// Crawlers ignore relative image URLs, so this one is absolute.
-const image = "https://www.bondedhq.xyz/brand/og.jpg";
-const rss = new URL("rss.xml", new URL(import.meta.env.BASE_URL, Astro.site)).href;
+const rss = new URL("rss.xml", new URL(base, Astro.site)).href;
+// The blog is served under the web app's domain, so these are the app's own routes.
+const site = {
+  home: "/",
+  how: "/#how",
+  numbers: "/#numbers",
+  docs: "/docs/",
+  security: "/docs/security/policy/",
+  app: "/overview",
+};
 ---
 
 <!doctype html>
@@ -38,39 +56,54 @@ const rss = new URL("rss.xml", new URL(import.meta.env.BASE_URL, Astro.site)).hr
     <meta property="og:url" content={url} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
-    <meta property="og:image" content={image} />
+    <meta property="og:image" content={ogImage} />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={ogImageAlt} />
     {published && <meta property="article:published_time" content={published.toISOString()} />}
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@bonded_hq" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
-    <meta name="twitter:image" content={image} />
+    <meta name="twitter:image" content={ogImage} />
+    <meta name="twitter:image:alt" content={ogImageAlt} />
   </head>
   <body>
+    <div class="glow" aria-hidden="true"></div>
+    <!-- The same floating pill nav as the landing page (apps/web SiteLayout). -->
     <header class="site-header">
-      <a class="brand" href="/" aria-label="Bonded home">
-        <svg viewBox="0 0 224 224" width="28" height="28" aria-hidden="true">
-          <g fill="currentColor" transform="translate(12 6)">
-            <path d="M7 0H130C159 0 182 23 182 51C182 75 170 90 149 101L112 121Q101 127 101 114V75Q101 49 73 61L7 90Q0 94 0 86V7Q0 0 7 0Z" />
-            <path d="M0 130Q0 122 8 118L58 92Q77 82 77 101V137Q77 159 97 149L169 113Q175 110 180 117C193 129 200 143 200 158C200 190 172 212 136 212H6Q0 212 0 206Z" />
-          </g>
-        </svg>
-        <span>Bonded</span>
-      </a>
-      <nav>
-        <a href={import.meta.env.BASE_URL}>Blog</a>
-        <a href="/docs/">Docs</a>
-        <a class="cta" href="/agents/test">Test your agent</a>
-      </nav>
+      <div class="pill">
+        <a href={site.home} aria-label="Bonded home" class="logo">
+          <img src={`${base}bonded-lockup.svg`} alt="Bonded" height="26" />
+        </a>
+        <nav aria-label="Site">
+          <a href={site.numbers}>Live numbers</a>
+          <a href={site.how}>How it works</a>
+          <a href={site.docs}>Docs</a>
+          <a href={base} aria-current={Astro.url.pathname.startsWith(base) ? "page" : undefined}>Blog</a>
+        </nav>
+        <a class="btn btn-light" href={site.app}>Launch app <span aria-hidden="true">→</span></a>
+      </div>
     </header>
+
     <main>
       <slot />
     </main>
+
     <footer class="site-footer">
-      <span>Robinhood Chain testnet. Test tokens only; nothing here has real value.</span>
-      <span><a href={rss}>RSS</a> · <a href="https://x.com/bonded_hq">@bonded_hq</a></span>
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <img src={`${base}bonded-lockup.svg`} alt="Bonded" height="36" />
+          <p>Don't cage your agent. Bond it. Running on Robinhood Chain testnet, with test tokens only.</p>
+        </div>
+        <div class="footer-links">
+          <a href={site.docs}>Docs</a>
+          <a href={site.security}>Security</a>
+          <a href={base}>Blog</a>
+          <a href={rss}>RSS</a>
+          <a href="https://x.com/bonded_hq">X</a>
+        </div>
+      </div>
     </footer>
   </body>
 </html>

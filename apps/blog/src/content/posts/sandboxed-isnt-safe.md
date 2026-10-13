@@ -3,6 +3,9 @@ title: "Sandboxed isn't safe"
 description: "Locking an agent's keys stops it from stealing. It doesn't stop it from being fooled. Here's the difference, and what we do about it."
 date: 2026-10-13
 tags: [Agent safety, Red team]
+cover: ../../assets/covers/sandboxed-isnt-safe.jpg
+featured: true
+coverAlt: "The Herald, a noir silhouette with a megaphone and a fake headline, in an orange doorway."
 ---
 
 More and more agent platforms make the same promise: the agent runs in a sandbox, its code is attested, and it can't withdraw your money. That's real progress, and it solves a real problem: an agent, or whoever controls it, walking off with the funds.
