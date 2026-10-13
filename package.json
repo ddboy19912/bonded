@@ -23,6 +23,7 @@
     "demo:local": "contracts/evm/script/local-demo.sh",
     "arena": "turbo run build --filter=@bonded/arena --output-logs=errors-only && pnpm --filter @bonded/arena arena",
     "services": "pnpm build && node apps/api/dist/main.js",
+    "ops": "node --env-file-if-exists=.env apps/ops/server.mjs",
     "db:migrate": "pnpm build && ROLE=migrate node apps/api/dist/main.js",
     "test:services": "pnpm build && pnpm --filter @bonded/api test",
     "tee:seed": "pnpm build && node apps/api/scripts/seed-tee-agent.mjs",

@@ -1,0 +1,14 @@
+{
+  "name": "@bonded/ops",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local dashboard for the balances and services Bonded needs to stay up. Never deployed.",
+  "scripts": {
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "viem": "^2.56.9"
+  }
+}

@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bonded Ops</title>
+    <style>
+      :root {
+        --bg: #f7f7f5;
+        --card: #ffffff;
+        --text: #18181b;
+        --muted: #71717a;
+        --line: #e4e4e7;
+        --ok: #15803d;
+        --ok-bg: #dcfce7;
+        --low: #b45309;
+        --low-bg: #fef3c7;
+        --down: #b91c1c;
+        --down-bg: #fee2e2;
+        --manual: #52525b;
+        --manual-bg: #f4f4f5;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0c0c0e;
+          --card: #17171a;
+          --text: #f4f4f5;
+          --muted: #a1a1aa;
+          --line: #27272a;
+          --ok: #4ade80;
+          --ok-bg: #052e16;
+          --low: #fbbf24;
+          --low-bg: #422006;
+          --down: #f87171;
+          --down-bg: #450a0a;
+          --manual: #d4d4d8;
+          --manual-bg: #27272a;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          14px/1.45 ui-sans-serif,
+          system-ui,
+          -apple-system,
+          sans-serif;
+      }
+      main {
+        max-width: 860px;
+        margin: 0 auto;
+        padding: 32px 16px 64px;
+      }
+      header {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: baseline;
+        justify-content: space-between;
+        margin-bottom: 20px;
+      }
+      h1 {
+        font-size: 20px;
+        margin: 0;
+      }
+      .summary {
+        font-size: 15px;
+        font-weight: 600;
+      }
+      .meta {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      button {
+        font: inherit;
+        padding: 6px 12px;
+        border-radius: 6px;
+        border: 1px solid var(--line);
+        background: var(--card);
+        color: var(--text);
+        cursor: pointer;
+      }
+      h2 {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin: 28px 0 8px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 72px 1fr auto;
+        gap: 12px;
+        align-items: center;
+        padding: 12px 14px;
+        border-top: 1px solid var(--line);
+      }
+      .row:first-child {
+        border-top: 0;
+      }
+      .name {
+        font-weight: 600;
+      }
+      .detail {
+        color: var(--muted);
+        font-size: 12.5px;
+        word-break: break-word;
+      }
+      .value {
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+        white-space: nowrap;
+      }
+      .value a {
+        display: block;
+        font-size: 12.5px;
+      }
+      a {
+        color: inherit;
+      }
+      .pill {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        text-align: center;
+        padding: 3px 0;
+        border-radius: 999px;
+      }
+      .ok {
+        color: var(--ok);
+        background: var(--ok-bg);
+      }
+      .low {
+        color: var(--low);
+        background: var(--low-bg);
+      }
+      .down {
+        color: var(--down);
+        background: var(--down-bg);
+      }
+      .manual {
+        color: var(--manual);
+        background: var(--manual-bg);
+      }
+      @media (max-width: 520px) {
+        .row {
+          grid-template-columns: 60px 1fr;
+        }
+        .value {
+          grid-column: 2;
+          text-align: left;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>Bonded Ops</h1>
+          <div class="meta" id="meta">Checking…</div>
+        </div>
+        <div style="display: flex; gap: 12px; align-items: center">
+          <span class="summary" id="summary"></span>
+          <button id="refresh">Refresh</button>
+        </div>
+      </header>
+      <div id="groups"></div>
+    </main>
+    <script>
+      const LABEL = { ok: "OK", low: "Low", down: "Down", manual: "Check" };
+      const esc = (s) =>
+        String(s ?? "").replace(
+          /[&<>"]/g,
+          (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c],
+        );
+
+      function render({ checkedAt, results }) {
+        const groups = {};
+        for (const r of results) (groups[r.group] ??= []).push(r);
+        document.getElementById("groups").innerHTML = Object.entries(groups)
+          .map(
+            ([group, rows]) => `
+            <h2>${esc(group)}</h2>
+            <div class="card">${rows
+              .map(
+                (r) => `
+                <div class="row">
+                  <span class="pill ${r.status}">${LABEL[r.status]}</span>
+                  <div>
+                    <div class="name">${r.link ? `<a href="${esc(r.link)}" target="_blank" rel="noreferrer">${esc(r.name)}</a>` : esc(r.name)}</div>
+                    <div class="detail">${esc(r.detail)}</div>
+                  </div>
+                  <div class="value">${esc(r.value)}${
+                    r.status === "low" && r.faucet
+                      ? `<a href="${esc(r.faucet)}" target="_blank" rel="noreferrer">Faucet</a>`
+                      : ""
+                  }</div>
+                </div>`,
+              )
+              .join("")}</div>`,
+          )
+          .join("");
+
+        const bad = results.filter((r) => r.status === "low" || r.status === "down").length;
+        const summary = document.getElementById("summary");
+        summary.textContent = bad ? `${bad} need attention` : "All good";
+        summary.style.color = bad ? "var(--down)" : "var(--ok)";
+        document.title = bad ? `(${bad}) Bonded Ops` : "Bonded Ops";
+        document.getElementById("meta").textContent =
+          `Checked ${new Date(checkedAt).toLocaleString()} · refreshes every 5 minutes`;
+      }
+
+      async function load() {
+        document.getElementById("meta").textContent = "Checking…";
+        try {
+          render(await (await fetch("/api/status")).json());
+        } catch (error) {
+          document.getElementById("meta").textContent = `Could not run checks: ${error.message}`;
+        }
+      }
+
+      document.getElementById("refresh").onclick = load;
+      load();
+      setInterval(load, 5 * 60 * 1000);
+    </script>
+  </body>
+</html>
