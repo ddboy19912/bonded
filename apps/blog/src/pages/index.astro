@@ -1,7 +1,7 @@
 ---
 import PostCard from "../components/PostCard.astro";
 import Base from "../layouts/Base.astro";
-import { indexPosts } from "../posts";
+import { indexPosts } from "../lib/sanity";
 
 const [featured, ...rest] = await indexPosts();
 ---

@@ -1,56 +1,46 @@
 ---
-import { getImage, Image } from "astro:assets";
-import { render } from "astro:content";
+import Body from "../components/Body.astro";
+import Cover from "../components/Cover.astro";
 import PostCard from "../components/PostCard.astro";
 import Base from "../layouts/Base.astro";
-import { formatDate, publishedPosts, readingTime, type Post } from "../posts";
+import { formatDate, ogImageUrl, publishedPosts, readingTime, type Post } from "../lib/sanity";
 
 export async function getStaticPaths() {
   const posts = await publishedPosts();
-  return posts.map((post) => ({ params: { slug: post.id }, props: { post } }));
+  return posts.map((post) => ({ params: { slug: post.slug }, props: { post } }));
 }
 
 const { post } = Astro.props as { post: Post };
-const all = await publishedPosts();
-const { Content } = await render(post);
 const base = import.meta.env.BASE_URL;
-// Covers are 1600x840, so 1200 wide is exactly the 1200x630 link-preview size.
-const og = await getImage({ src: post.data.cover, width: 1200, format: "jpg" });
-const ogImage = new URL(og.src, Astro.site).href;
-const more = all.filter((p) => p.id !== post.id).slice(0, 2);
+const ogImage = ogImageUrl(post.cover);
+const more = (await publishedPosts()).filter((p) => p.slug !== post.slug).slice(0, 2);
 ---
 
 <Base
-  title={`${post.data.title} | Bonded`}
-  description={post.data.description}
+  title={`${post.title} | Bonded`}
+  description={post.description}
   type="article"
-  published={post.data.date}
+  published={new Date(`${post.publishedAt}T00:00:00Z`)}
   ogImage={ogImage}
-  ogImageAlt={post.data.coverAlt}
+  ogImageAlt={post.cover.alt}
 >
   <article class="post">
     <header class="post-header">
       <a class="back" href={base}><span aria-hidden="true">←</span> All posts</a>
-      <div class="tags">{post.data.tags.map((t) => <span class="tag">{t}</span>)}</div>
-      <h1>{post.data.title}</h1>
-      <p class="lede">{post.data.description}</p>
+      <div class="tags">{post.tags.map((t) => <span class="tag">{t}</span>)}</div>
+      <h1>{post.title}</h1>
+      <p class="lede">{post.description}</p>
       <p class="byline">
-        {post.data.author} · {formatDate(post.data.date)} · {readingTime(post.body)} min read
+        {post.author} · {formatDate(post.publishedAt)} · {readingTime(post)} min read
       </p>
     </header>
 
     <figure class="cover">
-      <Image
-        src={post.data.cover}
-        alt={post.data.coverAlt}
-        widths={[800, 1200, 1600]}
-        sizes="(max-width: 1000px) 100vw, 960px"
-        loading="eager"
-      />
+      <Cover image={post.cover} widths={[800, 1200, 1600]} sizes="(max-width: 1000px) 100vw, 960px" eager />
     </figure>
 
     <div class="prose">
-      <Content />
+      <Body value={post.body} />
     </div>
 
     <aside class="cta">

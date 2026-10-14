@@ -1,5 +1,5 @@
 import rss from "@astrojs/rss";
-import { publishedPosts } from "../posts";
+import { publishedPosts } from "../lib/sanity";
 
 export async function GET(context) {
   const posts = await publishedPosts();
@@ -10,10 +10,10 @@ export async function GET(context) {
       "Red-teaming AI agents, safety scores, and automatic payouts when an agent breaks its rules.",
     site: base.href,
     items: posts.map((p) => ({
-      title: p.data.title,
-      description: p.data.description,
-      pubDate: p.data.date,
-      link: new URL(`${p.id}/`, base).href,
+      title: p.title,
+      description: p.description,
+      pubDate: new Date(`${p.publishedAt}T00:00:00Z`),
+      link: new URL(`${p.slug}/`, base).href,
     })),
   });
 }

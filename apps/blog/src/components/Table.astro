@@ -1,0 +1,20 @@
+---
+// A table block from Sanity: the first row is the header.
+const { node } = Astro.props as { node: { rows?: { _key: string; cells?: string[] }[] } };
+const [head, ...rows] = node.rows ?? [];
+---
+
+{
+  head && (
+    <table>
+      <thead>
+        <tr>{(head.cells ?? []).map((c) => <th>{c}</th>)}</tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr>{(r.cells ?? []).map((c) => <td>{c}</td>)}</tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}

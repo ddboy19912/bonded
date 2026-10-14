@@ -1,0 +1,23 @@
+---
+import { urlFor, type SanityImage } from "../lib/sanity";
+
+// An image placed inside a post's body.
+const { node } = Astro.props as { node: SanityImage };
+const widths = [720, 1080, 1440];
+---
+
+{
+  node.asset && (
+    <figure class="body-image">
+      <img
+        src={urlFor(node).width(1080).url()}
+        srcset={widths.map((w) => `${urlFor(node).width(w).url()} ${w}w`).join(", ")}
+        sizes="(max-width: 760px) 100vw, 720px"
+        alt={node.alt ?? ""}
+        loading="lazy"
+        decoding="async"
+      />
+      {node.caption && <figcaption>{node.caption}</figcaption>}
+    </figure>
+  )
+}

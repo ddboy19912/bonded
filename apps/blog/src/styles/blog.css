@@ -426,6 +426,14 @@ h1 em {
 .prose a:hover {
   color: var(--ink);
 }
+/* Pull quotes. Sanity renders the text straight inside <blockquote>, with no <p>. */
+.prose blockquote,
+.prose blockquote p {
+  font-family: var(--serif);
+  font-size: 30px;
+  line-height: 1.25;
+  color: var(--ink);
+}
 .prose blockquote {
   margin: 40px 0;
   padding: 0 0 0 24px;
@@ -433,10 +441,6 @@ h1 em {
 }
 .prose blockquote p {
   margin: 0;
-  font-family: var(--serif);
-  font-size: 30px;
-  line-height: 1.25;
-  color: var(--ink);
 }
 .prose code {
   padding: 1px 6px;
@@ -535,4 +539,20 @@ h1 em {
   .hero {
     padding-top: 56px;
   }
+}
+
+/* An image inside a post's body */
+.body-image {
+  margin: 36px 0;
+}
+.body-image img {
+  width: 100%;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+}
+.body-image figcaption {
+  margin-top: 10px;
+  font-size: 14px;
+  color: var(--muted);
+  text-align: center;
 }

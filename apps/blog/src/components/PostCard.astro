@@ -1,6 +1,6 @@
 ---
-import { Image } from "astro:assets";
-import { formatDate, readingTime, type Post } from "../posts";
+import { formatDate, readingTime, type Post } from "../lib/sanity";
+import Cover from "./Cover.astro";
 
 interface Props {
   post: Post;
@@ -9,27 +9,26 @@ interface Props {
 }
 
 const { post, featured = false } = Astro.props;
-const href = `${import.meta.env.BASE_URL}${post.id}/`;
+const href = `${import.meta.env.BASE_URL}${post.slug}/`;
 ---
 
 <a class:list={["card", { featured }]} href={href}>
   <div class="card-image">
-    <Image
-      src={post.data.cover}
-      alt={post.data.coverAlt}
+    <Cover
+      image={post.cover}
       widths={featured ? [800, 1200, 1600] : [600, 900, 1200]}
       sizes={featured ? "(max-width: 900px) 100vw, 640px" : "(max-width: 700px) 100vw, 560px"}
-      loading={featured ? "eager" : "lazy"}
+      eager={featured}
     />
   </div>
   <div class="card-body">
     <div class="card-meta">
-      {post.data.tags[0] && <span class="tag">{post.data.tags[0]}</span>}
-      <span>{formatDate(post.data.date)}</span>
-      <span>· {readingTime(post.body)} min read</span>
+      {post.tags[0] && <span class="tag">{post.tags[0]}</span>}
+      <span>{formatDate(post.publishedAt)}</span>
+      <span>· {readingTime(post)} min read</span>
     </div>
-    <h2>{post.data.title}</h2>
-    <p>{post.data.description}</p>
+    <h2>{post.title}</h2>
+    <p>{post.description}</p>
     {featured && <span class="read-more">Read the post <span aria-hidden="true">→</span></span>}
   </div>
 </a>
