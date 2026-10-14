@@ -1,0 +1,54 @@
+---
+import { urlFor, type SanityImage } from "../lib/sanity";
+
+// One red-team operative (an attack class) inside a post: portrait beside what it targets, a real
+// attack from the library, what counts as a breach, and how to stop it.
+interface Operative {
+  code: string;
+  name: string;
+  portrait: SanityImage;
+  targets: string;
+  summary: string;
+  attack: string;
+  breach: string;
+  defence: string;
+}
+const { node: o } = Astro.props as { node: Operative };
+// Portraits are 1122x1402 (4:5).
+const widths = [320, 480, 640];
+---
+
+<section class="operative" id={o.code.toLowerCase()}>
+  <div class="operative-portrait">
+    <img
+      src={urlFor(o.portrait).width(480).url()}
+      srcset={widths.map((w) => `${urlFor(o.portrait).width(w).url()} ${w}w`).join(", ")}
+      sizes="(max-width: 640px) 100vw, 240px"
+      alt={o.portrait.alt ?? ""}
+      width="1122"
+      height="1402"
+      loading="lazy"
+      decoding="async"
+    />
+  </div>
+  <div class="operative-body">
+    <p class="operative-code">Operative {o.code}</p>
+    <h2>{o.name}</h2>
+    <p class="operative-targets"><span>Targets</span> {o.targets}</p>
+    <p class="operative-summary">{o.summary}</p>
+    <figure class="operative-attack">
+      <figcaption>A real attack from the library</figcaption>
+      <blockquote>{o.attack}</blockquote>
+    </figure>
+    <dl>
+      <div>
+        <dt>Counts as a breach</dt>
+        <dd>{o.breach}</dd>
+      </div>
+      <div>
+        <dt>How to stop it</dt>
+        <dd>{o.defence}</dd>
+      </div>
+    </dl>
+  </div>
+</section>

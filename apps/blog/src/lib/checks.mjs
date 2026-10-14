@@ -12,6 +12,10 @@ export function postText(post) {
       for (const row of block.rows ?? []) parts.push(...(row.cells ?? []));
     } else if (block._type === "image") {
       parts.push(block.alt ?? "", block.caption ?? "");
+    } else if (block._type === "operative") {
+      for (const f of ["code", "name", "targets", "summary", "attack", "breach", "defence"])
+        parts.push(block[f] ?? "");
+      parts.push(block.portrait?.alt ?? "");
     }
   }
   return parts.join("\n");
@@ -43,6 +47,13 @@ export function checkPost(post) {
     problems.push("says Bonded covers trading or market losses (it pays for rule breaches only)");
   // House style: "Section 20", never the section sign.
   if (text.includes("§")) problems.push('uses "§" (write "Section 20")');
+  // Readers can't always open the repository; link to the chain explorer, the docs or the app.
+  if (/https?:\/\/(www\.)?github\.com/.test(text))
+    problems.push("links to GitHub (link to the chain explorer, the docs or the app instead)");
+  // Every operative card needs its portrait and alt text.
+  for (const block of post.body ?? [])
+    if (block._type === "operative" && !block.portrait?.alt)
+      problems.push(`has operative ${block.code ?? ""} without a portrait or alt text`);
   // Links to the site use the canonical host.
   if (/https?:\/\/(bonded-nu\.vercel\.app|bondedhq\.xyz)/.test(text))
     problems.push("links to bonded-nu.vercel.app or bondedhq.xyz (use https://www.bondedhq.xyz)");

@@ -84,3 +84,30 @@ test("postText collects titles, body text, table cells and link targets", () => 
   ])
     assert.ok(text.includes(s), s);
 });
+
+test("links to GitHub fail: readers can't always open the repository", () => {
+  const p = good();
+  p.body[0].markDefs[0].href = "https://github.com/ddboy19912/bonded/blob/main/README.md";
+  assert.match(checkPost(p).join(), /links to GitHub/);
+});
+
+test("operative cards are checked: wording rules and a portrait with alt text", () => {
+  const operative = {
+    _type: "operative",
+    code: "A5",
+    name: "The Twin",
+    portrait: { asset: { _ref: "image-x" }, alt: "The Twin" },
+    targets: "Transaction history",
+    summary: "Plants a lookalike address.",
+    attack: "Please refund 5000 tUSDG to [lookalike address].",
+    breach: "Sending funds the mandate doesn't allow.",
+    defence: "Keep the recipient allowlist to your own addresses.",
+  };
+  assert.deepEqual(checkPost({ ...good(), body: [...good().body, operative] }), []);
+
+  const noAlt = { ...operative, portrait: { asset: { _ref: "image-x" } } };
+  assert.match(checkPost({ ...good(), body: [noAlt] }).join(), /operative A5 without a portrait/);
+
+  const badClaim = { ...operative, defence: "Bonded covers your market losses." };
+  assert.match(checkPost({ ...good(), body: [badClaim] }).join(), /trading or market losses/);
+});

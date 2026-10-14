@@ -1,12 +1,13 @@
 ---
 import { PortableText } from "astro-portabletext";
 import BodyImage from "./BodyImage.astro";
+import Operative from "./Operative.astro";
 import Table from "./Table.astro";
 
 // The post body (Portable Text from Sanity). Headings, quotes, lists, links, bold, italic and
-// code use astro-portabletext's defaults; tables and images are ours.
+// code use astro-portabletext's defaults; tables, images and operative cards are ours.
 const { value } = Astro.props as { value: unknown[] };
-const components = { type: { dataTable: Table, image: BodyImage } };
+const components = { type: { dataTable: Table, image: BodyImage, operative: Operative } };
 ---
 
 <PortableText value={value} components={components} />
