@@ -116,6 +116,23 @@
         font-size: 12.5px;
         word-break: break-word;
       }
+      .copy {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        padding: 1px 6px;
+        border-radius: 4px;
+        color: var(--muted);
+      }
+      .copy span {
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        font-size: 11px;
+        font-weight: 600;
+        margin-left: 4px;
+      }
+      .copy:hover,
+      .copy.copied {
+        color: var(--text);
+      }
       .value {
         font-variant-numeric: tabular-nums;
         text-align: right;
@@ -199,7 +216,11 @@
                   <span class="pill ${r.status}">${LABEL[r.status]}</span>
                   <div>
                     <div class="name">${r.link ? `<a href="${esc(r.link)}" target="_blank" rel="noreferrer">${esc(r.name)}</a>` : esc(r.name)}</div>
-                    <div class="detail">${esc(r.detail)}</div>
+                    <div class="detail">${
+                      r.address
+                        ? `<button class="copy" data-copy="${esc(r.address)}" title="Copy full address">${esc(`${r.address.slice(0, 6)}…${r.address.slice(-4)}`)} <span>Copy</span></button> · `
+                        : ""
+                    }${esc(r.detail)}</div>
                   </div>
                   <div class="value">${esc(r.value)}${
                     r.status === "low" && r.faucet
@@ -229,6 +250,37 @@
           document.getElementById("meta").textContent = `Could not run checks: ${error.message}`;
         }
       }
+
+      // Some embedded browsers block the async clipboard API, so fall back to a hidden textarea.
+      async function copyText(text) {
+        try {
+          await navigator.clipboard.writeText(text);
+          return true;
+        } catch {
+          const area = document.createElement("textarea");
+          area.value = text;
+          area.style.position = "fixed";
+          area.style.opacity = "0";
+          document.body.append(area);
+          area.select();
+          const ok = document.execCommand("copy");
+          area.remove();
+          return ok;
+        }
+      }
+
+      document.getElementById("groups").addEventListener("click", async (event) => {
+        const button = event.target.closest("[data-copy]");
+        if (!button) return;
+        const label = button.querySelector("span");
+        const copied = await copyText(button.dataset.copy);
+        label.textContent = copied ? "Copied" : "Failed";
+        button.classList.toggle("copied", copied);
+        setTimeout(() => {
+          label.textContent = "Copy";
+          button.classList.remove("copied");
+        }, 1500);
+      });
 
       document.getElementById("refresh").onclick = load;
       load();

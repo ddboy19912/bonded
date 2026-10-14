@@ -184,6 +184,7 @@ async function checkWallets(cfg, env) {
         group: "Gas wallets (Robinhood testnet)",
         name: roles.join(", "),
         link: `${DEFAULTS.explorer}${address}`,
+        address,
       };
       try {
         const eth = Number(formatEther(await client.getBalance({ address })));
@@ -191,7 +192,7 @@ async function checkWallets(cfg, env) {
           ...base,
           status: grade(eth, cfg.minEth),
           value: `${eth.toFixed(4)} ETH`,
-          detail: `${address.slice(0, 6)}…${address.slice(-4)} · alert below ${cfg.minEth} ETH`,
+          detail: `Alert below ${cfg.minEth} ETH`,
           faucet: DEFAULTS.faucet,
         };
       } catch (error) {
