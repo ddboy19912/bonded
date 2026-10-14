@@ -43,7 +43,9 @@ export interface Post {
   body: any[];
 }
 
-const POSTS_QUERY = /* groq */ `*[_type == "post" && defined(slug.current)] | order(publishedAt desc, _createdAt desc) {
+// Every published post, even one missing its slug: checkPost rejects it, so it stops the build
+// instead of silently not appearing on the blog.
+const POSTS_QUERY = /* groq */ `*[_type == "post"] | order(publishedAt desc, _createdAt desc) {
   title,
   "slug": slug.current,
   description,

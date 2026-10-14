@@ -1,7 +1,7 @@
 // The rules a post must pass before the blog builds (src/lib/checks.mjs).
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { checkPost, postText } from "../src/lib/checks.mjs";
+import { checkPost, isCalendarDate, lossClaims, postText } from "../src/lib/checks.mjs";
 
 const span = (text, marks = []) => ({ _type: "span", text, marks });
 const good = () => ({
@@ -106,8 +106,95 @@ test("operative cards are checked: wording rules and a portrait with alt text", 
   assert.deepEqual(checkPost({ ...good(), body: [...good().body, operative] }), []);
 
   const noAlt = { ...operative, portrait: { asset: { _ref: "image-x" } } };
-  assert.match(checkPost({ ...good(), body: [noAlt] }).join(), /operative A5 without a portrait/);
+  assert.match(
+    checkPost({ ...good(), body: [noAlt] }).join(),
+    /operative A5 with a portrait but no alt/,
+  );
+
+  const noPortrait = { ...operative, portrait: { alt: "The Twin" } };
+  assert.match(
+    checkPost({ ...good(), body: [noPortrait] }).join(),
+    /operative A5 without a portrait/,
+  );
+
+  const noCode = { ...operative, code: undefined };
+  assert.match(checkPost({ ...good(), body: [noCode] }).join(), /without an attack class/);
+  const noName = { ...operative, name: "" };
+  assert.match(checkPost({ ...good(), body: [noName] }).join(), /without a codename/);
 
   const badClaim = { ...operative, defence: "Bonded covers your market losses." };
   assert.match(checkPost({ ...good(), body: [badClaim] }).join(), /trading or market losses/);
+});
+
+test("the publish date must be a real calendar date", () => {
+  assert.ok(isCalendarDate("2026-10-13"));
+  assert.ok(isCalendarDate("2028-02-29"));
+  for (const bad of ["2026-02-30", "2026-02-29", "2026-13-01", "2026-1-5", "13/10/2026", ""])
+    assert.ok(!isCalendarDate(bad), bad);
+  assert.match(checkPost({ ...good(), publishedAt: "2026-02-31" }).join(), /isn't a real date/);
+});
+
+test("claims that Bonded pays, reimburses or refunds market losses fail", () => {
+  for (const claim of [
+    "Bonded pays for market losses.",
+    "We reimburse your trading losses.",
+    "The pool pays you back for market losses.",
+    "Depositors get refunded trading losses.",
+    "Bonded covers trading losses.",
+  ])
+    assert.equal(lossClaims(claim).length, 1, claim);
+});
+
+test("explicit denials of loss coverage pass", () => {
+  for (const denial of [
+    "Bonded does not cover trading losses.",
+    "Bonded doesn't pay for market losses.",
+    "We never reimburse market losses: only rule breaches.",
+    "We cover rule breaches, not market losses.",
+  ])
+    assert.deepEqual(lossClaims(denial), [], denial);
+  const p = good();
+  p.body[0].children.push(span(" Bonded does not cover trading losses."));
+  assert.deepEqual(checkPost(p), []);
+});
+
+test("GitHub links fail whatever the hostname's case", () => {
+  for (const href of [
+    "https://GitHub.com/ddboy19912/bonded",
+    "http://www.GITHUB.com/x",
+    "https://gist.github.com/x",
+  ]) {
+    const p = good();
+    p.body[0].markDefs[0].href = href;
+    assert.match(checkPost(p).join(), /links to GitHub/, href);
+  }
+});
+
+test("links to the site must be https://www.bondedhq.xyz", () => {
+  for (const href of [
+    "http://www.bondedhq.xyz/claims",
+    "https://bondedhq.xyz/claims",
+    "https://BONDED-NU.vercel.app/",
+  ]) {
+    const p = good();
+    p.body[0].markDefs[0].href = href;
+    assert.match(checkPost(p).join(), /use https:\/\/www\.bondedhq\.xyz/, href);
+  }
+  // Other sites, like the chain explorer, are fine.
+  const p = good();
+  p.body[0].markDefs[0].href = "https://explorer.testnet.chain.robinhood.com/tx/0xabc";
+  assert.deepEqual(checkPost(p), []);
+});
+
+test("an image block needs an image and alt text", () => {
+  const noAsset = { _type: "image", alt: "A chart" };
+  assert.match(
+    checkPost({ ...good(), body: [...good().body, noAsset] }).join(),
+    /image block with no image/,
+  );
+  const noAlt = { _type: "image", asset: { _ref: "image-x" } };
+  assert.match(
+    checkPost({ ...good(), body: [...good().body, noAlt] }).join(),
+    /image without alt text/,
+  );
 });

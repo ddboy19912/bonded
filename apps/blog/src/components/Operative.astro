@@ -18,7 +18,7 @@ const { node: o } = Astro.props as { node: Operative };
 const widths = [320, 480, 640];
 ---
 
-<section class="operative" id={o.code.toLowerCase()}>
+<section class="operative" id={o.code?.toLowerCase()}>
   <div class="operative-portrait">
     <img
       src={urlFor(o.portrait).width(480).url()}
