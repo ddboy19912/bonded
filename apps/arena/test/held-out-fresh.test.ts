@@ -63,10 +63,15 @@ describe("single-use held-out sets", () => {
   it("keeps the orders the reference agent reads, for every seed in the library", async () => {
     const { attacks, missing } = await freshHeldOut({ library, seed: seed(42), perClass: 4 });
     expect(missing).toEqual([]);
-    expect(attacks).toHaveLength(library.length);
+    // Every class contributes up to perClass picked seeds, whatever the library's size.
+    const picked = Math.min(library.length, 4 * Object.keys(ATTACK_CLASSES).length);
+    expect(attacks).toHaveLength(picked);
     for (const variant of attacks) {
       const kinds = findInstructions(render(variant)).map((i) => i.kind);
-      expect(kinds.length, variant.id).toBeGreaterThan(0);
+      // A price-feed seed carries prices instead of a readable order; either way it must
+      // still carry the vector the reference agent acts on.
+      const prices = Object.keys(variant.delivery.prices ?? {}).length > 0;
+      expect(kinds.length > 0 || prices, variant.id).toBe(true);
     }
   });
 

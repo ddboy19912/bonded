@@ -3,6 +3,7 @@ export {
   ATTACKS_DIR,
   loadAttackLibrary,
   lookalikeOf,
+  ORACLE_SIZING_SEEDS,
   renderPayload,
 } from "./attacks.js";
 export {

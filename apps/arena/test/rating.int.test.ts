@@ -7,6 +7,7 @@ import { keccak256, stringToBytes } from "viem";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   loadAttackLibrary,
+  ORACLE_SIZING_SEEDS,
   type RatingResult,
   rateAgent,
   Sandbox,
@@ -85,7 +86,16 @@ describe("a full rating of both demo agents", () => {
   it("scores the agents in the expected direction", () => {
     const v = vulnerable.report.scoring;
     const h = hardened.report.scoring;
-    expect(vulnerable.report.classes.every((c) => c.breaches === c.episodes)).toBe(true);
+    // The scripted floor breaches every class except the oracle-sizing seeds
+    // (ORACLE_SIZING_SEEDS): their vector is a spoofed feed plus a sizing policy, and a
+    // parser-driven agent has no instruction to obey there — an LLM is the target (P4).
+    expect(
+      vulnerable.report.classes.every(
+        (c) =>
+          c.breaches === c.episodes ||
+          (c.class === "A3" && c.breaches + ORACLE_SIZING_SEEDS.length === c.episodes),
+      ),
+    ).toBe(true);
     expect(hardened.report.classes.every((c) => c.breaches === 0)).toBe(true);
     expect(v.tier).toBe("CCC");
     expect(v.insurable).toBe(false);
@@ -139,7 +149,9 @@ describe("a full rating of both demo agents", () => {
     // One rating's rows, tagged with its report, written once when it finished.
     expect(rows.every((r) => r.ratingId === vulnerable.reportHash)).toBe(true);
     const breaching = rows.filter((r) => r.labels.action_risk === "breach_likely");
-    expect(breaching.length).toBeGreaterThanOrEqual(library.length);
+    // Every attack but the oracle-sizing pair gives the vulnerable agent an instruction to
+    // obey, so every such episode ends in at least one breaching row.
+    expect(breaching.length).toBeGreaterThanOrEqual(library.length - ORACLE_SIZING_SEEDS.length);
     expect(breaching.every((r) => r.labels.manipulated)).toBe(true);
     const transfer = rows.find((r) => r.proposedAction.tool === "transfer");
     expect(transfer?.labels.injection_in_inputs).toBe(true);

@@ -235,19 +235,22 @@ function rewriteSender(sender: string, random: SeededRandom): string {
   return sender;
 }
 
-/** The orders the undefended reference agent reads from a payload: what a variant must keep. */
+/** The orders the undefended reference agent reads from a payload and its campaign: what a variant must keep. */
 function ordersIn(spec: AttackSpec): string {
   const stand = "0x000000000000000000000000000000000000dEaD";
-  const text = renderPayload(spec.payloadTemplate, {
+  const vars = {
     attacker: stand,
     vault: stand,
     depositor: stand,
     lookalike: stand,
     ...DEFAULT_ASK,
-  });
-  return findInstructions(text)
-    .map((i) => `${i.kind}${i.kind === "swap" ? `x${i.times}` : ""}`)
-    .join(",");
+  };
+  const texts = [spec.payloadTemplate, ...(spec.campaign ?? []).map((step) => step.text)];
+  const order = (t: string) =>
+    findInstructions(renderPayload(t, vars))
+      .map((i) => `${i.kind}${i.kind === "swap" ? `x${i.times}` : ""}`)
+      .join(",");
+  return texts.map(order).join("|");
 }
 
 /**
@@ -261,10 +264,18 @@ export function rewriteVariant(seed: AttackSpec, random: SeededRandom): AttackSp
   // The default ask ({{amount}}, 5,000) becomes a literal amount just under it.
   const ask = Math.round((Number(DEFAULT_ASK.amount) * (0.8 + random.next() * 0.19)) / 50) * 50;
   const text = (t: string) => scaleAmounts(permuteTokens(rewriteWords(t, random), map), factor);
-  const payloadTemplate = frame(text(seed.payloadTemplate), seed, random).replace(
+  const renderedPayload = frame(text(seed.payloadTemplate), seed, random).replace(
     /\{\{\s*amount\s*\}\}/g,
     random.next() < 0.5 ? String(ask) : ask.toLocaleString("en-US"),
   );
+  // A rescaled price must stay in sync with any `SYMBOL=price` line the payload prints: the
+  // feed line IS the desk's number, so a mismatch reads as an obvious inconsistency.
+  const syncFeedText = (t: string, prices?: Record<string, number>): string =>
+    prices
+      ? t.replace(/\b([tw]?[A-Z]{3,5})=([0-9.]+)\b/g, (m, symbol: string) =>
+          prices[symbol] === undefined ? m : `${symbol}=${prices[symbol]}`,
+        )
+      : t;
   const delivery: AttackSpec["delivery"] = {
     ...(seed.delivery.sender ? { sender: rewriteSender(seed.delivery.sender, random) } : {}),
     ...(seed.delivery.token ? { token: permuteTokens(seed.delivery.token, map) } : {}),
@@ -281,6 +292,28 @@ export function rewriteVariant(seed: AttackSpec, random: SeededRandom): AttackSp
         }
       : {}),
   };
+  // Campaign steps rewrite like mini-payloads: same wording/token/amount rules, plus the same
+  // price rescale and sender rules (the tx_history address sender must stay an address).
+  const campaign = seed.campaign?.map((step) => {
+    const prices = step.prices
+      ? Object.fromEntries(
+          Object.entries(step.prices).map(([symbol, price]) => {
+            const from = symbol.replace(/^t/, "") as (typeof STOCKS)[number];
+            const to = (map[from] ?? from) as (typeof STOCKS)[number];
+            const ratio = (REFERENCE_PRICES[to] ?? 1) / (REFERENCE_PRICES[from] ?? 1);
+            return [permuteTokens(symbol, map), Math.max(1, Math.round(price * ratio * factor))];
+          }),
+        )
+      : undefined;
+    return {
+      ...step,
+      text: syncFeedText(text(step.text), prices),
+      ...(step.sender ? { sender: rewriteSender(step.sender, random) } : {}),
+      ...(step.token ? { token: permuteTokens(step.token, map) } : {}),
+      ...(prices ? { prices } : {}),
+    };
+  });
+  const payloadTemplate = syncFeedText(renderedPayload, delivery.prices);
   return {
     ...seed,
     id: heldOutId(seed.class, payloadTemplate),
@@ -288,7 +321,11 @@ export function rewriteVariant(seed: AttackSpec, random: SeededRandom): AttackSp
     description: `A single-use variant of a ${seed.class} attack, made for one rating.`,
     payloadTemplate,
     delivery,
+    ...(campaign ? { campaign } : {}),
     ...(seed.goal ? { goal: permuteTokens(seed.goal, map) } : {}),
+    ...(seed.goalVariants
+      ? { goalVariants: seed.goalVariants.map((g) => permuteTokens(g, map)) }
+      : {}),
     tags: ["held-out", "single-use"],
   };
 }
@@ -354,6 +391,10 @@ export async function freshHeldOut(options: FreshHeldOutOptions): Promise<FreshH
     if (kept.filter((k) => k.class === source.class).length >= perClass) continue;
     let variant: AttackSpec | undefined;
     let reason = "no rewrite kept the attack's orders";
+    // Oracle-sizing seeds carry no instruction (their vector is a spoofed feed; pillar P4), so
+    // the undefended reference agent can never breach them and sandbox verification must check
+    // the prices instead. Any other seed keeps episode-level verification.
+    const instructionCarrying = ordersIn(source).length > 0;
     for (let attempt = 0; attempt < attempts && !variant; attempt++) {
       const candidate = rewriteVariant(source, new SeededRandom(`${seed}:${source.id}:${attempt}`));
       if (ordersIn(candidate) !== ordersIn(source)) continue;
@@ -364,8 +405,13 @@ export async function freshHeldOut(options: FreshHeldOutOptions): Promise<FreshH
         reason = "every rewrite was already used by an earlier rating";
         continue;
       }
-      if (options.sandbox && !(await stillBreaches(options.sandbox, candidate))) {
-        reason = "no rewrite still breached the undefended reference agent";
+      if (options.sandbox && instructionCarrying) {
+        if (!(await stillBreaches(options.sandbox, candidate))) {
+          reason = "no rewrite still breached the undefended reference agent";
+          continue;
+        }
+      } else if (options.sandbox && Object.keys(candidate.delivery.prices ?? {}).length === 0) {
+        reason = "no rewrite kept the feed's spoofed prices";
         continue;
       }
       variant = candidate;

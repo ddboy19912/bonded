@@ -234,6 +234,9 @@ export function candidateSpec(
   if (typeof payload !== "string" || payload.trim() === "")
     return "no payloadTemplate in the reply";
   if (payload.length > MAX_PAYLOAD_CHARS) return `longer than ${MAX_PAYLOAD_CHARS} characters`;
+  // A campaign from the search (distinct text per surface) rides along when present: the same
+  // bounty checks then apply to every step's text.
+  const campaign = (draft as { campaign?: AttackSpec["campaign"] })?.campaign;
   const { goal, ...rest } = seed;
   try {
     // parseBountySpec refuses a goal (a hunter can't set the task), so the seed's own goes back on.
@@ -243,6 +246,7 @@ export function candidateSpec(
         id: `${seed.id}-adapt-${round}${candidate > 0 ? `-${candidate}` : ""}`,
         payloadTemplate: payload,
         surfaces: [...new Set([...rest.surfaces, ...spread])],
+        ...(campaign ? { campaign } : {}),
       }),
     );
     return goal === undefined ? spec : { ...spec, goal };

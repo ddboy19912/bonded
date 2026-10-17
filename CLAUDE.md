@@ -1,6 +1,6 @@
 # Bonded: working rules
 
-Read `docs/PLAN.md` for the product and the 16-day build plan.
+Read `docs/PLAN.md` for the product and the 16-day build plan. (It is not in the repo yet; `docs/HARBINGER-PLAN.md` is the current attack-library master plan, and `docs/HARBINGER.md` documents the attacker engine.)
 
 ## Git workflow
 

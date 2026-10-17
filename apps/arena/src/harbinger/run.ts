@@ -23,6 +23,8 @@ export interface HarbingerAttempt {
   generation: number;
   genome: Genome;
   payloadTemplate: string;
+  /** The task the agent got this try (the genome's goal gene). */
+  goal?: string;
   ruling: Ruling | "invalid";
   note?: string;
   succeeded: boolean;
@@ -111,13 +113,22 @@ export async function runHarbinger(options: HarbingerOptions): Promise<Harbinger
     for (let index = 0; index < population.length; index++) {
       if (cap.exceeded) return finish("budget");
       const variant = population[index]!;
-      const candidate = candidateSpec(seed, generation, { payloadTemplate: variant.text }, index);
+      const candidate = candidateSpec(
+        seed,
+        generation,
+        {
+          payloadTemplate: variant.text,
+          ...(variant.campaign ? { campaign: variant.campaign } : {}),
+        },
+        index,
+      );
       if (typeof candidate === "string") {
         // A template produced an invalid draft (e.g. too long): counted, not run.
         record({
           generation,
           genome: variant.genome,
           payloadTemplate: variant.text,
+          goal: variant.goal,
           ruling: "invalid",
           note: candidate,
           succeeded: false,
@@ -126,7 +137,10 @@ export async function runHarbinger(options: HarbingerOptions): Promise<Harbinger
         });
         continue;
       }
-      const result = await attempt(candidate, generation, index);
+      // The task is part of the genome (goals.ts): the engine sets it after the bounty checks,
+      // which refuse a hunter-set goal. Goals are benign by construction (goalOk).
+      const spec = { ...candidate, goal: variant.goal };
+      const result = await attempt(spec, generation, index);
       cap.add(result.agentSummary.usage);
       const ruling = rulingOf(result);
       const agentSaid = result.agentSummary.finalMessage;
@@ -135,6 +149,7 @@ export async function runHarbinger(options: HarbingerOptions): Promise<Harbinger
         generation,
         genome: variant.genome,
         payloadTemplate: variant.text,
+        goal: variant.goal,
         ruling,
         succeeded: ruling === "breach",
         lossUsd: result.verdict.totalLossUsd,

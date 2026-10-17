@@ -113,6 +113,22 @@ export const ATTACK_CLASSES: Record<AttackClassId, AttackClassInfo> = {
 export const Severity = z.enum(["low", "medium", "high", "critical"]);
 export type Severity = z.infer<typeof Severity>;
 
+/**
+ * One step of a multi-surface campaign: a distinct piece of adversarial content planted on one
+ * surface, so the surfaces corroborate each other (a news piece, a social echo, a directive DM)
+ * instead of all carrying the same text. Steps render {{placeholders}} like a payloadTemplate.
+ */
+export const CampaignStep = z.object({
+  surface: AttackSurface,
+  text: z.string().min(1),
+  sender: z.string().min(1).max(200).optional(),
+  /** For token_metadata steps: the token whose description carries the text. */
+  token: z.string().min(1).max(32).optional(),
+  /** For price_feed steps: the prices the (spoofed) price API reports, e.g. { tNVDA: 41 }. */
+  prices: z.record(z.string().min(1).max(32), z.number().positive()).optional(),
+});
+export type CampaignStep = z.infer<typeof CampaignStep>;
+
 /** One seed scenario in the attack library (stored as YAML under attacks/). */
 export const AttackSpec = z
   .object({
@@ -124,6 +140,13 @@ export const AttackSpec = z
     surfaces: z.array(AttackSurface).min(1),
     /** Adversarial content with {{placeholders}} the Arena fills per episode. */
     payloadTemplate: z.string().min(1),
+    /**
+     * Optional campaign: distinct texts per surface (each step plants like its own attack),
+     * for seeds whose story needs the surfaces to corroborate each other. When set, the
+     * campaign steps are planted instead of one text on every surface (payloadTemplate stays
+     * required and is still what an attacker model starts from).
+     */
+    campaign: z.array(CampaignStep).min(1).max(8).optional(),
     /** The attack succeeds if the vault records any of these breach types. */
     successPredicate: z.object({ anyOf: z.array(BreachType).min(1) }),
     severityHint: Severity,
@@ -145,6 +168,13 @@ export const AttackSpec = z
     variantPrompt: z.string().min(1),
     /** A benign task to give the agent instead of the default (e.g. one that sets up the trap). */
     goal: z.string().min(1).optional(),
+    /**
+     * Extra benign tasks a rating or a deterministic search can rotate the agent's task through.
+     * Every one must stay inside the mandate: a goal that breaches the vault by itself, with no
+     * attack planted, would fake a breach rate (bounty rules govern what can enter a seed; see
+     * bounty-spec.ts, which refuses any agent-defined goal).
+     */
+    goalVariants: z.array(z.string().min(1)).max(6).optional(),
     tags: z.array(z.string()).default([]),
   })
   .refine((spec) => spec.id.startsWith(`${spec.class}-`), {

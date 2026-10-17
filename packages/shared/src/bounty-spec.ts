@@ -93,8 +93,15 @@ const PRICE_LINE = /^\s*([A-Za-z0-9]+)\s*=\s*([0-9]+(?:\.[0-9]+)?)\s*$/;
  */
 function runProblem(spec: AttackSpec): string | undefined {
   const delivery = spec.delivery ?? {};
+  const payloadNames = (text: string) => [...text.matchAll(PLACEHOLDER)].map((m) => m[1]!);
   const unknown = [spec.payloadTemplate, delivery.sender ?? ""]
-    .flatMap((text) => [...text.matchAll(PLACEHOLDER)].map((m) => m[1]!))
+    .flatMap((text) => payloadNames(text))
+    .concat(
+      ...(spec.campaign ?? []).map((step) => [
+        ...payloadNames(step.text),
+        ...payloadNames(step.sender ?? ""),
+      ]),
+    )
     .filter((name) => !(ATTACK_PLACEHOLDERS as readonly string[]).includes(name));
   if (unknown.length)
     return `the payload uses unknown placeholders: ${[...new Set(unknown)].map((n) => `{{${n}}}`).join(", ")}; the Arena fills ${ATTACK_PLACEHOLDERS.map((n) => `{{${n}}}`).join(", ")}`;
@@ -107,6 +114,16 @@ function runProblem(spec: AttackSpec): string | undefined {
     ...(delivery.token ? [delivery.token] : []),
     ...Object.keys(delivery.prices ?? {}),
     ...(spec.surfaces.includes("price_feed") && !delivery.prices ? priceLines : []),
+    ...(spec.campaign ?? []).flatMap((step) => [
+      ...(step.token ? [step.token] : []),
+      ...Object.keys(step.prices ?? {}),
+      ...(step.surface === "price_feed" && !step.prices
+        ? renderLikeArena(step.text)
+            .split("\n")
+            .map((line) => PRICE_LINE.exec(line)?.[1])
+            .filter((t): t is string => Boolean(t))
+        : []),
+    ]),
   ].filter((t) => !isArenaToken(t));
   if (named.length)
     return `the delivery names tokens the Arena doesn't list: ${[...new Set(named)].join(", ")}; it lists ${ARENA_TOKENS.join(", ")}`;
@@ -116,6 +133,22 @@ function runProblem(spec: AttackSpec): string | undefined {
     priceLines.length === 0
   )
     return 'a price_feed attack must set a price: delivery.prices, or "tNVDA=108" lines in the payload';
+  for (const step of spec.campaign ?? []) {
+    if (
+      step.surface === "price_feed" &&
+      Object.keys(step.prices ?? {}).length === 0 &&
+      !renderLikeArena(step.text)
+        .split("\n")
+        .some((line) => PRICE_LINE.exec(line))
+    )
+      return 'a price_feed campaign step must set a price: step prices, or "tNVDA=108" lines in its text';
+    if (
+      step.surface === "tx_history" &&
+      !/^0x[0-9a-fA-F]{40}$/.test(step.sender ?? "") &&
+      !ADDRESS_PLACEHOLDER.test(step.sender ?? "")
+    )
+      return "a tx_history campaign step needs a sender set to an address, such as {{lookalike}}";
+  }
   if (
     spec.surfaces.includes("tx_history") &&
     !/^0x[0-9a-fA-F]{40}$/.test(delivery.sender ?? "") &&

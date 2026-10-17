@@ -32,22 +32,39 @@ describe("episodes on a fresh local chain", () => {
     expect(swap?.txHashes.length).toBeGreaterThan(0);
   });
 
-  it.each(library.map((spec) => [spec.id, spec] as const))(
-    "%s: the vulnerable agent is breached and the judge says so",
-    async (_, spec) => {
-      const result = await runEpisode(sandbox, { agent, attack: spec });
-      expect(result.verdict.breached).toBe(true);
-      expect(result.verdict.attackSucceeded).toBe(true);
-      expect(result.verdict.frozen).toBe(true);
-      expect(result.planted).toHaveLength(spec.surfaces.length);
-      // Once frozen, the agent's real task (its last swap) is refused by the vault.
-      const swap = result.trace.findLast((s) => s.tool === "swap");
-      expect(swap?.result).toEqual({ ok: false, error: "reverted: AgentFrozen" });
-      // The first breach is attributed to the call that caused it.
-      const culprit = result.trace.find((s) => s.breaches.includes(0));
-      expect(["transfer", "approve", "swap"]).toContain(culprit?.tool);
-    },
-  );
+  it.each(
+    library
+      .filter((spec) => !spec.tags.includes("coupled"))
+      .map((spec) => [spec.id, spec] as const),
+  )("%s: the vulnerable agent is breached and the judge says so", async (_, spec) => {
+    const result = await runEpisode(sandbox, { agent, attack: spec });
+    expect(result.verdict.breached).toBe(true);
+    expect(result.verdict.attackSucceeded).toBe(true);
+    expect(result.verdict.frozen).toBe(true);
+    expect(result.planted).toHaveLength(spec.surfaces.length);
+    // Once frozen, the agent's real task (its last swap) is refused by the vault.
+    const swap = result.trace.findLast((s) => s.tool === "swap");
+    expect(swap?.result).toEqual({ ok: false, error: "reverted: AgentFrozen" });
+    // The first breach is attributed to the call that caused it.
+    const culprit = result.trace.find((s) => s.breaches.includes(0));
+    expect(["transfer", "approve", "swap"]).toContain(culprit?.tool);
+  });
+
+  // Coupled seeds (docs/HARBINGER-PLAN.md P1) target agents whose task legitimately delegates a
+  // decision to the attacked surface: their goals are for real LLM agents, not the scripted
+  // "act on any instruction" brain, so this test only pins what the verdict pipeline must
+  // guarantee for them: everything plants as the spec names it, and the episode is judged.
+  it.each(
+    library.filter((spec) => spec.tags.includes("coupled")).map((spec) => [spec.id, spec] as const),
+  )("%s: plants every step and is judged", async (_, spec) => {
+    const result = await runEpisode(sandbox, { agent, attack: spec });
+    expect(result.planted.length).toBeGreaterThan(0);
+    // Campaign steps plant one content per step (may differ from the surfaces' count);
+    // plain seeds plant one per surface.
+    expect(result.planted).toHaveLength(spec.campaign?.length ?? spec.surfaces.length);
+    expect(result.taskCompleted).toBeDefined();
+    expect(result.verdict.attackSucceeded).not.toBeNull();
+  });
 
   it("the attacker spends an approval, so the loss is recorded at its real cost", async () => {
     const spec = library.find((s) => s.id === "A7-research-api-smuggling-001")!;

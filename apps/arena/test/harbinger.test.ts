@@ -1,5 +1,6 @@
 import type { ArenaAgent } from "@bondedhq/shared";
 import { describe, expect, it } from "vitest";
+import { goalChoices } from "../src/harbinger/goals.js";
 import {
   FRAMES,
   type Genome,
@@ -15,6 +16,16 @@ import {
 
 const seed = loadAttackLibrary().find((s) => s.id === "A6-ceo-urgent-004")!;
 const agent: ArenaAgent = { name: "fake", run: async () => ({ steps: 0, stoppedBecause: "done" }) };
+
+/** The full gene key (generate.ts keeps dedup on it; the tests assert distinctness on it too). */
+const genomeKey = (g: {
+  frameId: string;
+  role: string;
+  urgency: string;
+  ref: string;
+  goal: unknown;
+  spread: boolean;
+}) => `${g.frameId}|${g.role}|${g.urgency}|${g.ref}|goal${g.goal}|${g.spread ? "s" : "u"}`;
 
 type Outcome = "ignored" | "guard_blocked" | "breach" | "unseen";
 
@@ -88,10 +99,8 @@ describe("initialPopulation", () => {
     let x = 7;
     const rand = () => (x = (x * 1103515245 + 12345) % 2147483648) / 2147483648;
     const pop = initialPopulation(seed, 15, rand);
-    const keys = pop.map(
-      (v) => `${v.genome.frameId}|${v.genome.role}|${v.genome.urgency}|${v.genome.ref}`,
-    );
-    expect(new Set(keys).size).toBe(pop.length);
+    const keys = (v: { genome: Genome }) => genomeKey(v.genome);
+    expect(new Set(pop.map(keys)).size).toBe(pop.length);
     for (const v of pop) {
       expect(v.text).toContain("{{amount}} {{token}}");
       expect(v.text).toContain("{{attacker}}");
@@ -101,7 +110,10 @@ describe("initialPopulation", () => {
   it("stops well short of looping forever when asked for more than exists", () => {
     let x = 3;
     const rand = () => (x = (x * 1103515245 + 12345) % 2147483648) / 2147483648;
-    const space = FRAMES.length * 6 * 3 * 2; // frames * roles * urgencies * (ref or not)
+    // frames * roles * urgencies * (ref or not), times the goal choices and the spread toggle —
+    // the full gene space the renderer draws from without repeating itself.
+    const goalSpace = goalChoices(seed).length;
+    const space = FRAMES.length * 9 * 3 * 2 * goalSpace * 2;
     const pop = initialPopulation(seed, space + 50, rand);
     expect(pop.length).toBeLessThanOrEqual(space);
   });
@@ -112,21 +124,29 @@ describe("nextGeneration", () => {
     let x = 11;
     const rand = () => (x = (x * 1103515245 + 12345) % 2147483648) / 2147483648;
     const parents: Genome[] = [
-      { frameId: FRAMES[0]!.id, role: "CEO", urgency: "high", ref: "AUTH-1234" },
-      { frameId: FRAMES[1]!.id, role: "Compliance", urgency: "none", ref: "" },
+      {
+        frameId: FRAMES[0]!.id,
+        role: "CEO",
+        urgency: "high",
+        ref: "AUTH-1234",
+        goal: 0,
+        spread: false,
+      },
+      {
+        frameId: FRAMES[1]!.id,
+        role: "Compliance",
+        urgency: "none",
+        ref: "",
+        goal: 0,
+        spread: false,
+      },
     ];
     const next = nextGeneration(seed, parents, 12, rand);
     expect(next).toHaveLength(12);
-    // No duplicate of a parent genome (nextGeneration seeds `seen` with the parents).
+    // No re-render of a parent genome (nextGeneration seeds `seen` with the parents' full keys).
     for (const v of next) {
-      const isParent = parents.some(
-        (p) =>
-          p.frameId === v.genome.frameId &&
-          p.role === v.genome.role &&
-          p.urgency === v.genome.urgency &&
-          p.ref === v.genome.ref,
-      );
-      expect(isParent).toBe(false);
+      expect(parents).not.toContainEqual(v.genome);
+      expect(parents.some((p) => genomeKey(p) === genomeKey(v.genome))).toBe(false);
     }
   });
 

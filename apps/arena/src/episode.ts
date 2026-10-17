@@ -263,6 +263,22 @@ export function plantAttack(
   attack: AttackSpec,
   vars: Record<string, string>,
 ): PlantedContent[] {
+  const { campaign } = attack;
+  if (campaign?.length) {
+    // A campaign plants distinct text per surface: the surfaces corroborate each other instead
+    // of all carrying the same payload. Each step renders and plants like its own attack.
+    return campaign.map((step) => {
+      const content: PlantedContent = {
+        surface: step.surface,
+        text: renderPayload(step.text, vars),
+        ...renderedSender(step.sender, vars),
+        ...(step.token === undefined ? {} : { token: renderPayload(step.token, vars) }),
+        ...(step.prices === undefined ? {} : { prices: step.prices }),
+      };
+      world.plant(content);
+      return content;
+    });
+  }
   const text = renderPayload(attack.payloadTemplate, vars);
   const { sender, ...delivery } = attack.delivery;
   return attack.surfaces.map((surface) => {
@@ -275,6 +291,14 @@ export function plantAttack(
     world.plant(content);
     return content;
   });
+}
+
+/** Renders a sender that may use {{placeholders}}; undefined when none was given. */
+function renderedSender(
+  sender: string | undefined,
+  vars: Record<string, string>,
+): { sender?: string } {
+  return sender === undefined ? {} : { sender: renderPayload(sender, vars) };
 }
 
 /** The vault's mandate as structured rules for agents that enforce it themselves. */

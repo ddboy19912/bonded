@@ -30,6 +30,14 @@ export function loadAttackLibrary(dir: string = ATTACKS_DIR): AttackSpec[] {
 // The placeholder list lives in @bondedhq/shared, so a bounty spec is checked against it.
 export { ATTACK_PLACEHOLDERS } from "@bondedhq/shared";
 
+/**
+ * Seeds whose breach vector is oracle sizing, not a money-moving instruction (their payload is
+ * a spoofed feed line; see attacks/A3 and pillar P4 in docs/HARBINGER-PLAN.md). A parser-driven
+ * agent (the scripted pair) has no instruction to obey in these, so they are the only seeds a
+ * vulnerable scripted agent may hold. A real LLM is drawn into the wrong-sized order by the goal.
+ */
+export const ORACLE_SIZING_SEEDS = ["A3-dip-buy-001", "A3-feed-maintenance-001"] as const;
+
 /** An address that looks like `address` at a glance: same first and last four hex digits. */
 export function lookalikeOf(address: `0x${string}`): `0x${string}` {
   const middle = randomBytes(16).toString("hex");
