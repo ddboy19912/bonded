@@ -6,6 +6,7 @@ import { type Ruling, rulingOf } from "../report.js";
 import type { Sandbox } from "../sandbox.js";
 import { seededRandom } from "../world-content.js";
 import { type Genome, initialPopulation, nextGeneration } from "./generate.js";
+import { type Frame, FRAMES } from "./techniques.js";
 
 /**
  * Harbinger: a self-generating attacker. Every attack text comes from the deterministic template
@@ -61,6 +62,8 @@ export interface HarbingerOptions {
   maxUsd: number;
   /** Changes the random population without changing anything else; default is the seed's own id. */
   randomSeed?: string;
+  /** The frame set to search (techniques.ts); default is all frames. */
+  frames?: readonly Frame[];
   episode?: Pick<EpisodeOptions, "vault" | "goal" | "maxSteps" | "timeoutMs">;
   /** Runs one attempt; replaceable so the loop can be tested without a chain. */
   runAttempt?: (spec: AttackSpec, generation: number, index: number) => Promise<EpisodeResult>;
@@ -70,6 +73,7 @@ export interface HarbingerOptions {
 export async function runHarbinger(options: HarbingerOptions): Promise<HarbingerResult> {
   const { seed } = options;
   const popSize = Math.max(2, options.population);
+  const frames = options.frames ?? FRAMES;
   const cap = new SpendingCap({ maxUsd: options.maxUsd });
   const rand = seededRandom(`harbinger-${options.randomSeed ?? seed.id}`);
   const attempts: HarbingerAttempt[] = [];
@@ -107,8 +111,8 @@ export async function runHarbinger(options: HarbingerOptions): Promise<Harbinger
   for (let generation = 0; generation <= options.generations; generation++) {
     const population =
       generation === 0
-        ? initialPopulation(seed, popSize, rand)
-        : nextGeneration(seed, parents, popSize, rand);
+        ? initialPopulation(seed, popSize, rand, frames)
+        : nextGeneration(seed, parents, popSize, rand, frames);
     const scored: { genome: Genome; score: number }[] = [];
     for (let index = 0; index < population.length; index++) {
       if (cap.exceeded) return finish("budget");

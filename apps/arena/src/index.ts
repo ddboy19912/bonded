@@ -170,7 +170,10 @@ export {
   FRAMES,
   type Frame,
   type FrameContext,
+  type FrameFamily,
+  framesByFamily,
   HARBINGER_CLAUSE_TYPES,
+  recordFor,
   referenceCode,
   ROLES,
   URGENCIES,
@@ -180,6 +183,7 @@ export {
   initialPopulation,
   nextGeneration,
   seedClause,
+  seedRecord,
   type Variant,
 } from "./harbinger/generate.js";
 export {

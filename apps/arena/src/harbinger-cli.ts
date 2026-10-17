@@ -7,7 +7,7 @@ import type { EvmMandateInput } from "@bondedhq/shared";
 import { BENIGN_GOALS } from "./episode.js";
 import { loadAttackLibrary } from "./attacks.js";
 import { loadDotEnv } from "./env.js";
-import { FRAMES } from "./harbinger/techniques.js";
+import { type FrameFamily, framesByFamily } from "./harbinger/techniques.js";
 import { type HarbingerResult, runHarbinger } from "./harbinger/run.js";
 import { runMemoryAttempt } from "./memory-attempt.js";
 import { Sandbox } from "./sandbox.js";
@@ -38,6 +38,10 @@ multi-surface campaign (campaign.ts). Stops at the first breach, the generation 
   --generations <n>      generations after the first (default: 4)
   --random-seed <s>      a different value gives a different population for the same seed; default
                          is the seed's own id, so a run is reproducible
+  --frame-family <f>     instruction | document | all (default: all). "document" runs only the
+                         instruction-free record frames (invoice/ledger/queue rows, the AutoDojo
+                         pattern): they carry no command, so they only breach an agent whose task
+                         is action-open (goals.ts). The sharp test of the vault's action-allowlist.
   --enforce              run the vault in Enforce mode
   --refunds              the mandate allows refunds to the depositor (for goals that have the
                          agent work a refund queue, so a refund to the true depositor isn't a
@@ -76,6 +80,7 @@ async function main(): Promise<number> {
       population: { type: "string", default: "12" },
       generations: { type: "string", default: "4" },
       "random-seed": { type: "string" },
+      "frame-family": { type: "string", default: "all" },
       enforce: { type: "boolean", default: false },
       refunds: { type: "boolean", default: false },
       out: { type: "string" },
@@ -100,6 +105,11 @@ async function main(): Promise<number> {
     values["goal-index"] === undefined ? undefined : BENIGN_GOALS[Number(values["goal-index"])];
   if (values["goal-index"] !== undefined && goal === undefined)
     throw new Error(`--goal-index must be 0 to ${BENIGN_GOALS.length - 1}`);
+
+  const frameFamily = values["frame-family"] as FrameFamily | "all";
+  if (!["instruction", "document", "all"].includes(frameFamily))
+    throw new Error("--frame-family must be instruction, document or all");
+  const frames = framesByFamily(frameFamily);
 
   loadDotEnv();
   const agent = buildTarget(values.agent, values.brain, values.model, !values["hide-mandate"]);
@@ -148,7 +158,7 @@ async function main(): Promise<number> {
     };
     const estimate = population * (generations + 1);
     console.log(
-      `Agent ${agent.name}, ${FRAMES.length} frames x ${population} population x ${generations + 1} ` +
+      `Agent ${agent.name}, ${frames.length} ${frameFamily} frames x ${population} population x ${generations + 1} ` +
         `generations (up to ~${estimate} episodes per seed), up to $${maxUsd} per seed\n`,
     );
     const results: HarbingerResult[] = [];
@@ -160,6 +170,7 @@ async function main(): Promise<number> {
         population,
         generations,
         maxUsd,
+        frames,
         episode: episodeOptions,
         ...(isMemoryAgent(agent)
           ? {

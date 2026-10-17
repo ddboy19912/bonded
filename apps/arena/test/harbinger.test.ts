@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { goalChoices } from "../src/harbinger/goals.js";
 import {
   FRAMES,
+  framesByFamily,
   type Genome,
   HARBINGER_CLAUSE_TYPES,
   initialPopulation,
@@ -11,6 +12,7 @@ import {
   type EpisodeResult,
   runHarbinger,
   seedClause,
+  seedRecord,
   type Sandbox,
 } from "../src/index.js";
 
@@ -304,5 +306,58 @@ describe("runHarbinger", () => {
       );
     }
     expect(texts[0]).not.toEqual(texts[1]);
+  });
+});
+
+describe("document-family frames (AutoDojo instruction-free pattern)", () => {
+  it("framesByFamily splits instruction and document frames and they partition the whole set", () => {
+    const all = framesByFamily("all");
+    const instruction = framesByFamily("instruction");
+    const document = framesByFamily("document");
+    expect(all.length).toBe(FRAMES.length);
+    expect(instruction.length + document.length).toBe(all.length);
+    expect(document.length).toBeGreaterThanOrEqual(5);
+    // Nothing is in both; everything is in one.
+    const docIds = new Set(document.map((f) => f.id));
+    expect(instruction.every((f) => !docIds.has(f.id))).toBe(true);
+  });
+
+  it("document frames carry the record fields but no imperative verb aimed at the agent", () => {
+    const record = seedRecord(seed); // A6 transfer -> "Beneficiary on file: {{attacker}} ..."
+    for (const frame of framesByFamily("document")) {
+      const text = frame.render({
+        clause: seedClause(seed),
+        record,
+        role: "Settlement desk",
+        ref: "REF-1234",
+        urgency: "none",
+      });
+      // The payee/amount data is present...
+      expect(text).toContain("{{attacker}}");
+      expect(text).toContain("{{amount}} {{token}}");
+      // ...and the imperative clause is NOT (no "transfer X to Y" command text).
+      expect(text).not.toContain(seedClause(seed));
+      // No second-person command verb directed at the agent.
+      expect(text.toLowerCase()).not.toMatch(/\byou must\b|\bexecute:?\b|\btransfer \{\{amount/);
+    }
+  });
+
+  it("runs a document-only search when handed that frame set", async () => {
+    const docFrames = framesByFamily("document");
+    const seen = new Set<string>();
+    await runHarbinger({
+      sandbox: {} as Sandbox,
+      agent,
+      seed,
+      population: 4,
+      generations: 1,
+      maxUsd: 10,
+      frames: docFrames,
+      onAttempt: (a) => seen.add(a.genome.frameId),
+      runAttempt: async () => episode("ignored"),
+    });
+    const docIds = new Set(docFrames.map((f) => f.id));
+    // Every frame the search used is from the document family.
+    expect([...seen].every((id) => docIds.has(id))).toBe(true);
   });
 });
