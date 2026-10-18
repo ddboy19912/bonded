@@ -375,11 +375,14 @@ describe("the latest blog posts", () => {
   };
   const withClient = (ui: React.ReactElement) => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    return render(
-      <QueryClientProvider client={client}>
-        <MemoryRouter>{ui}</MemoryRouter>
-      </QueryClientProvider>,
-    );
+    return {
+      client,
+      ...render(
+        <QueryClientProvider client={client}>
+          <MemoryRouter>{ui}</MemoryRouter>
+        </QueryClientProvider>,
+      ),
+    };
   };
   afterEach(() => vi.unstubAllGlobals());
 
@@ -397,8 +400,13 @@ describe("the latest blog posts", () => {
   it("renders nothing when the request fails", async () => {
     const fetchMock = vi.fn(async () => new Response("nope", { status: 500 }));
     vi.stubGlobal("fetch", fetchMock);
-    const { container } = withClient(<LatestPosts />);
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const { container, client } = withClient(<LatestPosts />);
+    // The section is also absent while loading, so wait for the query to fail first. The hook
+    // retries once (after a second), which its own options set, not this client's defaults.
+    await vi.waitFor(() => expect(client.getQueryState(["blog", "latest"])?.status).toBe("error"), {
+      timeout: 4000,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(container.querySelector("#blog")).toBeNull();
   });
 });
