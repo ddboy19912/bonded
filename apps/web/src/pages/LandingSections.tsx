@@ -56,7 +56,7 @@ function Logo({ name, src, size }: { name: string; src: string; size: string }) 
  */
 export function WorksWith() {
   return (
-    <section aria-label="Works with" className="px-4 pt-20 sm:px-6">
+    <section aria-label="Works with" className="px-4 pt-24 sm:px-6">
       <p className="mx-auto max-w-xl text-center text-sm text-muted">
         Works with the frameworks agents are built on, and the chains they trade on.
       </p>
@@ -82,7 +82,7 @@ export function WorksWith() {
 /** Who Bonded is for: the operator gets the large panel, depositors and underwriters share the rest. */
 export function Roles() {
   return (
-    <section id="who" className="mx-auto max-w-[1180px] scroll-mt-24 px-4 py-24 sm:px-6">
+    <section id="who" className="mx-auto max-w-[1180px] scroll-mt-24 px-4 py-24 sm:px-6 sm:pb-32">
       <h2 className="max-w-2xl font-serif text-5xl leading-none sm:text-6xl">
         Pick your side of the loop.
       </h2>
@@ -135,7 +135,7 @@ export function Roles() {
 /** The tiers, from the contracts' own rules, across the page as one scale. */
 export function ScoreScale() {
   return (
-    <section id="score" className="mx-auto max-w-[1180px] scroll-mt-24 px-4 pb-24 sm:px-6">
+    <section id="score" className="mx-auto max-w-[1180px] scroll-mt-24 px-4 pb-24 sm:pb-32 sm:px-6">
       <h2 className="max-w-3xl font-serif text-5xl leading-none sm:text-6xl">
         One score, the same scale for every agent.
       </h2>
@@ -176,7 +176,7 @@ export function ScoreScale() {
 /** Bring any agent: the one command, and the frameworks it wires in. */
 export function BringYourAgent() {
   return (
-    <section id="bring" className="mx-auto max-w-[1180px] scroll-mt-24 px-4 pb-24 sm:px-6">
+    <section id="bring" className="mx-auto max-w-[1180px] scroll-mt-24 px-4 pb-24 sm:pb-32 sm:px-6">
       <div className="grid items-start gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div>
           <h2 className="font-serif text-5xl leading-none sm:text-6xl">
@@ -269,7 +269,7 @@ export function LatestPosts() {
   const posts = useLatestPosts();
   if (!posts.data?.length) return null;
   return (
-    <section id="blog" className="mx-auto max-w-[1180px] scroll-mt-24 px-4 pb-24 sm:px-6">
+    <section id="blog" className="mx-auto max-w-[1180px] scroll-mt-24 px-4 pb-24 sm:pb-32 sm:px-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <h2 className="max-w-2xl font-serif text-5xl leading-none sm:text-6xl">
           Notes from the red team.
@@ -307,7 +307,7 @@ export function LatestPosts() {
  */
 export function Faq() {
   return (
-    <section id="faq" className="mx-auto max-w-[1180px] scroll-mt-24 px-4 pb-24 sm:px-6">
+    <section id="faq" className="mx-auto max-w-[1180px] scroll-mt-24 px-4 pb-24 sm:pb-32 sm:px-6">
       <div className="grid gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-20">
         <div className="lg:sticky lg:top-24 lg:self-start">
           <h2 className="font-serif text-5xl leading-none sm:text-6xl">
@@ -376,7 +376,10 @@ export function LiveAgents() {
   const w = biggest ? waterfall(biggest) : undefined;
   const sources = w ? claimSources(w.fromBond, w.fromPool) : "";
   return (
-    <section id="agents" className="mx-auto max-w-[1180px] scroll-mt-24 px-4 pt-12 pb-8 sm:px-6">
+    <section
+      id="agents"
+      className="mx-auto max-w-[1180px] scroll-mt-24 px-4 pb-24 sm:px-6 sm:pb-32"
+    >
       <h2 className="max-w-2xl font-serif text-5xl leading-none sm:text-6xl">
         Scores you can check, straight from the chain.
       </h2>
