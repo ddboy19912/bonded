@@ -261,7 +261,7 @@ export function LandingSentinel() {
   return (
     <section
       id="sentinel"
-      className="mx-auto max-w-[1180px] scroll-mt-24 px-4 pb-24 sm:pb-32 sm:px-6"
+      className="mx-auto max-w-[1180px] scroll-mt-24 px-4 sm:px-6 py-24 sm:min-h-svh sm:justify-center sm:py-28 sm:flex sm:flex-col"
     >
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
         <div>

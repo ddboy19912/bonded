@@ -82,7 +82,10 @@ export function WorksWith() {
 /** Who Bonded is for: the operator gets the large panel, depositors and underwriters share the rest. */
 export function Roles() {
   return (
-    <section id="who" className="mx-auto max-w-[1180px] scroll-mt-24 px-4 py-24 sm:px-6 sm:pb-32">
+    <section
+      id="who"
+      className="mx-auto max-w-[1180px] scroll-mt-24 px-4 sm:px-6 py-24 sm:min-h-svh sm:justify-center sm:py-28 sm:flex sm:flex-col"
+    >
       <h2 className="max-w-2xl font-serif text-5xl leading-none sm:text-6xl">
         Pick your side of the loop.
       </h2>
@@ -135,7 +138,10 @@ export function Roles() {
 /** The tiers, from the contracts' own rules, across the page as one scale. */
 export function ScoreScale() {
   return (
-    <section id="score" className="mx-auto max-w-[1180px] scroll-mt-24 px-4 pb-24 sm:pb-32 sm:px-6">
+    <section
+      id="score"
+      className="mx-auto max-w-[1180px] scroll-mt-24 px-4 sm:px-6 py-24 sm:min-h-svh sm:justify-center sm:py-28 sm:flex sm:flex-col"
+    >
       <h2 className="max-w-3xl font-serif text-5xl leading-none sm:text-6xl">
         One score, the same scale for every agent.
       </h2>
@@ -176,7 +182,10 @@ export function ScoreScale() {
 /** Bring any agent: the one command, and the frameworks it wires in. */
 export function BringYourAgent() {
   return (
-    <section id="bring" className="mx-auto max-w-[1180px] scroll-mt-24 px-4 pb-24 sm:pb-32 sm:px-6">
+    <section
+      id="bring"
+      className="mx-auto max-w-[1180px] scroll-mt-24 px-4 sm:px-6 py-24 sm:min-h-svh sm:justify-center sm:py-28 sm:flex sm:flex-col"
+    >
       <div className="grid items-start gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div>
           <h2 className="font-serif text-5xl leading-none sm:text-6xl">
@@ -269,7 +278,10 @@ export function LatestPosts() {
   const posts = useLatestPosts();
   if (!posts.data?.length) return null;
   return (
-    <section id="blog" className="mx-auto max-w-[1180px] scroll-mt-24 px-4 pb-24 sm:pb-32 sm:px-6">
+    <section
+      id="blog"
+      className="mx-auto max-w-[1180px] scroll-mt-24 px-4 sm:px-6 py-24 sm:min-h-svh sm:justify-center sm:py-28 sm:flex sm:flex-col"
+    >
       <div className="flex flex-wrap items-end justify-between gap-4">
         <h2 className="max-w-2xl font-serif text-5xl leading-none sm:text-6xl">
           Notes from the red team.
@@ -307,7 +319,10 @@ export function LatestPosts() {
  */
 export function Faq() {
   return (
-    <section id="faq" className="mx-auto max-w-[1180px] scroll-mt-24 px-4 pb-24 sm:pb-32 sm:px-6">
+    <section
+      id="faq"
+      className="mx-auto max-w-[1180px] scroll-mt-24 px-4 sm:px-6 py-24 sm:min-h-svh sm:justify-center sm:py-28 sm:flex sm:flex-col"
+    >
       <div className="grid gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-20">
         <div className="lg:sticky lg:top-24 lg:self-start">
           <h2 className="font-serif text-5xl leading-none sm:text-6xl">
@@ -378,7 +393,7 @@ export function LiveAgents() {
   return (
     <section
       id="agents"
-      className="mx-auto max-w-[1180px] scroll-mt-24 px-4 pb-24 sm:px-6 sm:pb-32"
+      className="mx-auto max-w-[1180px] scroll-mt-24 px-4 sm:px-6 py-24 sm:min-h-svh sm:justify-center sm:py-28 sm:flex sm:flex-col"
     >
       <h2 className="max-w-2xl font-serif text-5xl leading-none sm:text-6xl">
         Scores you can check, straight from the chain.

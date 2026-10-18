@@ -294,7 +294,7 @@ function Stats() {
   );
   return (
     <section id="numbers" className="scroll-mt-24 px-4 sm:px-6">
-      <div className="relative mx-auto mt-24 max-w-[1180px] border-t border-[rgb(175_196_255/.14)] pt-10 pb-24">
+      <div className="relative mx-auto mt-24 max-w-[1180px] border-t border-[rgb(175_196_255/.14)] pt-10 sm:mt-32">
         <div
           className="absolute -top-px left-1/2 h-px w-[480px] max-w-full -translate-x-1/2 bg-gradient-to-r from-transparent via-held to-transparent"
           aria-hidden
