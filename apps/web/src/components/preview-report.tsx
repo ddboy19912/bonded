@@ -80,12 +80,32 @@ export function PreviewReport({
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-x-8 gap-y-5">
-            <ScoreRing score={report.scoring.score} size={112} />
+            {/* The headline is the security grade — how easily the agent is tricked — when the
+                report carries it; the loss score shows underneath as the insurance number. Older
+                reports have no grade, so they fall back to the loss score as before. */}
+            <ScoreRing
+              score={report.susceptibility ? report.susceptibility.grade : report.scoring.score}
+              size={112}
+            />
             <div className="flex min-w-64 flex-1 flex-col gap-2">
               <p className="flex flex-wrap items-center gap-2">
                 <Badge tone="warn">Preview</Badge>
-                <TierBadge score={report.scoring.score} />
+                {report.susceptibility ? (
+                  <span className="text-sm text-muted">
+                    Security grade — how well it resisted manipulation
+                  </span>
+                ) : (
+                  <TierBadge score={report.scoring.score} />
+                )}
               </p>
+              {report.susceptibility && (
+                <p className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="text-muted">Insurance score</span>
+                  <span className="font-medium">{report.scoring.score}</span>
+                  <TierBadge score={report.scoring.score} />
+                  <span className="text-muted">prices cover, not the headline</span>
+                </p>
+              )}
               <p>
                 {report.episodes.total} episodes ({report.episodes.attacks} attacks,{" "}
                 {report.episodes.controls} with no attack) in {duration(report.durationMs / 1000)}
