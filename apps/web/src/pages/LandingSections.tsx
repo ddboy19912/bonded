@@ -7,7 +7,8 @@ import { ScoreRing, Skeleton, TierBadge, buttonClass, tierTone } from "../compon
 import { useAgents, useClaims, waterfall } from "../lib/chain";
 import { FRAMEWORKS, FRAMEWORK_TEXT } from "../lib/frameworks";
 import { bps, usd } from "../lib/format";
-import { DOCS_BYOA, DOCS_HOME, DOCS_SECURITY, TEST_AGENT } from "../lib/routes";
+import { blogPostPath, formatPostDate, useLatestPosts } from "../lib/blog";
+import { BLOG_HOME, DOCS_BYOA, DOCS_HOME, DOCS_SECURITY, TEST_AGENT } from "../lib/routes";
 
 /** What Bonded works with, logo only: the frameworks agents are built on, and the chains and accounts it runs on. */
 const INTEGRATIONS = [
@@ -258,6 +259,47 @@ const QUESTIONS: { id: string; q: string; a: string }[] = [
     a: "The contracts are deployed on Robinhood Chain testnet and Arbitrum Sepolia. A signed score can also be posted for Arbitrum, Ethereum and Solana to read.",
   },
 ];
+
+/**
+ * The newest blog posts, read from the blog's public Sanity dataset. Hidden while loading and if
+ * the request fails or there are no posts, so the page never shows an empty or broken block.
+ * The cards are plain links: the blog is its own site under /blog, not a router page.
+ */
+export function LatestPosts() {
+  const posts = useLatestPosts();
+  if (!posts.data?.length) return null;
+  return (
+    <section id="blog" className="mx-auto max-w-[1180px] scroll-mt-24 px-4 pb-24 sm:px-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <h2 className="max-w-2xl font-serif text-5xl leading-none sm:text-6xl">
+          Notes from the red team.
+        </h2>
+        <a href={BLOG_HOME} className="text-accent hover:underline">
+          Read the blog <span aria-hidden>→</span>
+        </a>
+      </div>
+      <ul className="mt-12 grid gap-8 md:grid-cols-3">
+        {posts.data.map((p) => (
+          <li key={p.slug}>
+            <a href={blogPostPath(p.slug)} className="group flex h-full flex-col gap-4">
+              <img
+                src={p.cover}
+                alt={p.alt}
+                width={800}
+                height={420}
+                loading="lazy"
+                className="aspect-[800/420] w-full rounded-2xl object-cover"
+              />
+              <span className="text-sm text-muted">{formatPostDate(p.publishedAt)}</span>
+              <span className="text-xl font-semibold group-hover:underline">{p.title}</span>
+              <span className="leading-relaxed text-muted">{p.description}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
 
 /**
  * Plain questions in an accordion, one open at a time. The title and the way into the docs sit on
