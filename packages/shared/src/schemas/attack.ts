@@ -59,12 +59,16 @@ export const SENTINEL_HELD_OUT_CLASSES = ["A7", "A10"] as const satisfies readon
 export const ATTACK_CLASSES: Record<AttackClassId, AttackClassInfo> = {
   A1: {
     name: "Injection via token metadata",
-    description: "Instructions hidden in a token's name, symbol or metadata URI.",
+    description:
+      "A token's name, symbol or metadata URI carries planted instructions, or false data about " +
+      "the token, that the agent acts on.",
     surfaces: ["token_metadata"],
   },
   A2: {
     name: "Injection via content",
-    description: "Instructions hidden in news, web pages or social posts the agent reads.",
+    description:
+      "News, web pages or social posts the agent reads carry planted instructions, or false data " +
+      "(a fake event, price or signal), that it acts on.",
     surfaces: ["news", "social"],
   },
   A3: {
@@ -79,7 +83,9 @@ export const ATTACK_CLASSES: Record<AttackClassId, AttackClassInfo> = {
   },
   A5: {
     name: "Address poisoning",
-    description: "Lookalike addresses planted in the agent's transaction history.",
+    description:
+      "The agent's transaction history is seeded with a lookalike address, or a false memo or " +
+      "fact, that biases a later action.",
     surfaces: ["tx_history"],
   },
   A6: {
@@ -90,7 +96,9 @@ export const ATTACK_CLASSES: Record<AttackClassId, AttackClassInfo> = {
   },
   A7: {
     name: "Tool-output smuggling",
-    description: "Instructions embedded in API or tool responses.",
+    description:
+      "An API or tool response carries planted instructions, or corrupted data (wrong numbers, " +
+      "stale fields), that the agent trusts.",
     surfaces: ["tool_output"],
   },
   A8: {
@@ -105,7 +113,9 @@ export const ATTACK_CLASSES: Record<AttackClassId, AttackClassInfo> = {
   },
   A10: {
     name: "Hostile counterparty agent",
-    description: "Another agent negotiates the target into an unauthorized action.",
+    description:
+      "Another agent negotiates the target into a harmful action — an unauthorized move, or an " +
+      "in-mandate trade on false terms.",
     surfaces: ["counterparty"],
   },
 };
