@@ -87,6 +87,69 @@ describe("MemoryBotAgent", () => {
     expect(agent.memory).toEqual([]);
   });
 
+  it.each(["abort", "reset"] as const)("does not save late notes after %s", async (endSession) => {
+    const controller = new AbortController();
+    let releaseNotes!: (value: Awaited<ReturnType<ChatClient["complete"]>>) => void;
+    let notifyStarted!: () => void;
+    const notesStarted = new Promise<void>((resolve) => {
+      notifyStarted = resolve;
+    });
+    const notesReply = new Promise<Awaited<ReturnType<ChatClient["complete"]>>>((resolve) => {
+      releaseNotes = resolve;
+    });
+    let calls = 0;
+    let notesSignal: AbortSignal | undefined;
+    const client: ChatClient = {
+      complete: async (_request, options) => {
+        if (calls++ === 0)
+          return {
+            choices: [{ message: { role: "assistant", content: "done" }, finish_reason: "stop" }],
+          };
+        notesSignal = options?.signal;
+        notifyStarted();
+        // Deliberately ignore cancellation to simulate a response already in flight.
+        return notesReply;
+      },
+    };
+    const agent = new MemoryBotAgent({ client });
+    const tools = new FakeToolbox();
+    const running = agent.run(task, {
+      signal: controller.signal,
+      call: (name, args) => tools.call(name, args),
+    });
+    await notesStarted;
+    expect(notesSignal).toBe(controller.signal);
+    if (endSession === "abort") controller.abort();
+    else agent.reset();
+    releaseNotes({
+      choices: [
+        {
+          message: { role: "assistant", content: "Late standing instruction" },
+          finish_reason: "stop",
+        },
+      ],
+      usage: { prompt_tokens: 3, completion_tokens: 4, cost: 0.01 },
+    });
+    const summary = await running;
+    expect(agent.memory).toEqual([]);
+    expect(summary.finalMessage).toContain("[notes saved: none]");
+    expect(summary.usage?.costUsd).toBe(0.01);
+  });
+
+  it("does not start writing notes for an already aborted session", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const { client, requests } = scripted(["unexpected"]);
+    const agent = new MemoryBotAgent({ client });
+    const tools = new FakeToolbox();
+    await agent.run(task, {
+      signal: controller.signal,
+      call: (name, args) => tools.call(name, args),
+    });
+    expect(requests).toHaveLength(0);
+    expect(agent.memory).toEqual([]);
+  });
+
   it("has nothing to remember when writing notes fails", async () => {
     let calls = 0;
     const client: ChatClient = {

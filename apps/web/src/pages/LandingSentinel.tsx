@@ -259,7 +259,10 @@ export function LandingSentinel() {
     `per check on a GPU: one pass of a small model. About ${SENTINEL_MODEL.speed.cpu} on today's CPU server.`,
   ]);
   return (
-    <section id="sentinel" className="mx-auto max-w-[1180px] scroll-mt-24 px-4 py-20 sm:px-6">
+    <section
+      id="sentinel"
+      className="mx-auto max-w-[1180px] scroll-mt-24 px-4 sm:px-6 py-24 sm:min-h-svh sm:justify-center sm:py-28 sm:flex sm:flex-col"
+    >
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
         <div>
           <p className="eyebrow !text-accent">Sentinel · Bonded's own guard</p>
