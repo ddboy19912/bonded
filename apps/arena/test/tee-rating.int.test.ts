@@ -1,6 +1,6 @@
 import { ScriptedHardenedAgent } from "@bonded/demo-agents";
 import { bondedRegistryAbi, type Scoring, teeMeasurement } from "@bondedhq/shared";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, assert, beforeAll, describe, expect, it } from "vitest";
 import { loadAttackLibrary, rateAgent, Sandbox, type VerifiedTee } from "../src/index.js";
 
 const hash = (n: number) => `0x${n.toString(16).padStart(64, "0")}` as const;
@@ -45,6 +45,7 @@ describe("rating an agent that runs in a TEE", () => {
       codeHash: CODE,
       tee,
     });
+    assert(result.attestation);
     expect(result.attestation.attestation.teeMeasurement).toBe(tee.measurement);
     expect(result.attestation.attestation.codeHash).toBe(CODE);
     expect(result.report.tee).toMatchObject({
@@ -72,6 +73,7 @@ describe("rating an agent that runs in a TEE", () => {
       attacks: attacks,
       controls: 1,
     });
+    assert(result.attestation);
     expect(result.attestation.attestation.teeMeasurement).toBe(`0x${"0".repeat(64)}`);
     expect(result.report.tee).toBeNull();
     const custody = result.report.scoring.groups.find((g) => g.id === "custody");

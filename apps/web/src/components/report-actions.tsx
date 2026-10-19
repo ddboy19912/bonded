@@ -194,6 +194,7 @@ export function RatingCompareView({
         Before and after
       </h3>
       <p className="flex flex-wrap items-baseline gap-3">
+        <span className="text-muted">Insurance score</span>
         <span
           className={`font-serif text-4xl leading-none ${up > 0 ? "text-safe" : up < 0 ? "text-breach" : ""}`}
         >

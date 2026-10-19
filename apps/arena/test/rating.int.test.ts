@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { ScriptedHardenedAgent, ScriptedVulnerableAgent } from "@bonded/demo-agents";
 import { bondedRegistryAbi } from "@bondedhq/shared";
 import { keccak256, stringToBytes } from "viem";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, assert, beforeAll, describe, expect, it } from "vitest";
 import {
   loadAttackLibrary,
   ORACLE_SIZING_SEEDS,
@@ -126,6 +126,7 @@ describe("a full rating of both demo agents", () => {
 
   it("signs a valid attestation and the registry accepts it", async () => {
     for (const r of [vulnerable, hardened]) {
+      assert(r.attestation);
       expect(await verifyAttestation(r.attestation, [r.attestation.signer])).toBe(true);
       // A valid signature from a signer nobody trusts is rejected.
       expect(

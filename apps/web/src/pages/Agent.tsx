@@ -220,7 +220,7 @@ export function Agent() {
               <p className="mt-1 text-sm text-muted">
                 how well the agent resisted manipulation — any trick it fell for pulls this down
               </p>
-              <p className="mt-2 leading-relaxed text-soft">{tierMeaning(tier!)}</p>
+              <p className="mt-2 leading-relaxed text-soft">Insurance tier: {tierMeaning(tier!)}</p>
               <p className="mt-2.5 text-sm text-muted">
                 Signed {when(a.issuedAt)} · valid until {when(a.expiresAt)}
               </p>

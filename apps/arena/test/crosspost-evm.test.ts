@@ -67,6 +67,28 @@ it("does not call a newer different rating already-current", async () => {
   expect(rpc.writeContract).not.toHaveBeenCalled();
 });
 
+it("does not reuse a rating with a different signed security grade", async () => {
+  rpc.readContract.mockResolvedValue(score({ securityScore: home.securityScore - 1 }));
+  await expect(crosspostEvm(options)).rejects.toThrow(/different/);
+  expect(rpc.getLogs).not.toHaveBeenCalled();
+  expect(rpc.writeContract).not.toHaveBeenCalled();
+});
+
+it("checks the security grade after a successful post", async () => {
+  let reads = 0;
+  rpc.readContract.mockImplementation(async ({ functionName }) =>
+    functionName === "scoreOf"
+      ? score(
+          ++reads === 1
+            ? { issuedAt: home.issuedAt - 1 }
+            : { securityScore: home.securityScore - 1 },
+        )
+      : true,
+  );
+  rpc.waitForTransactionReceipt.mockResolvedValue({ status: "success" });
+  await expect(crosspostEvm(options)).rejects.toThrow(/match/);
+});
+
 it("refuses a reverted post even when an older score remains valid", async () => {
   rpc.readContract.mockImplementation(async ({ functionName }) =>
     functionName === "scoreOf" ? score({ issuedAt: home.issuedAt - 1 }) : true,

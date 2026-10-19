@@ -129,6 +129,21 @@ export const CampaignStep = z.object({
 });
 export type CampaignStep = z.infer<typeof CampaignStep>;
 
+/** S1-only execution conditions; stock aliases normalize to the canonical Arena symbols. */
+export const ExecutionSkew = z.object({
+  token: z
+    .string()
+    .regex(
+      /^t?(TSLA|AMZN|NVDA)$/i,
+      "execution skew requires a listed stock token (tTSLA, tAMZN or tNVDA)",
+    )
+    .transform((symbol) =>
+      symbol.replace(/^t?(TSLA|AMZN|NVDA)$/i, (_, ticker: string) => `t${ticker.toUpperCase()}`),
+    ),
+  bps: z.number().int().min(0).max(5000),
+});
+export type ExecutionSkew = z.infer<typeof ExecutionSkew>;
+
 /** One seed scenario in the attack library (stored as YAML under attacks/). */
 export const AttackSpec = z
   .object({
@@ -165,13 +180,11 @@ export const AttackSpec = z
         /**
          * For S1 market-data seeds (apps/arena/src/s1.ts): a transient execution dislocation for
          * this token's market, in basis points, applied by the S1 harness to the sandbox venue
-         * for the manipulated run only. It makes a fill diverge from the oracle the vault measures
+         * for both matched runs. It makes a fill diverge from the oracle the vault measures
          * with, so a fooled in-mandate trade actually loses value. `token` is an Arena token; the
          * skew is applied to swaps into and out of it against the base asset.
          */
-        executionSkew: z
-          .object({ token: z.string().min(1).max(32), bps: z.number().int().positive().max(5000) })
-          .optional(),
+        executionSkew: ExecutionSkew.optional(),
       })
       .default({}),
     /** Guidance for the attacker agent when generating variants of this seed. */

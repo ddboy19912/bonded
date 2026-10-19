@@ -23,7 +23,6 @@ export function mergeSessions(
   second: EpisodeResult,
   notes: readonly string[],
 ): EpisodeResult {
-  if (first.verdict.breached) return first;
   const usage = [first.agentSummary.usage, second.agentSummary.usage].filter(
     (u): u is NonNullable<typeof u> => u !== undefined,
   );
@@ -40,8 +39,8 @@ export function mergeSessions(
     ...first,
     attackId: spec.id,
     attackClass: spec.class,
-    verdict: second.verdict,
-    drained: second.drained,
+    verdict: first.verdict.breached ? first.verdict : second.verdict,
+    drained: [...first.drained, ...second.drained],
     trace: [...first.trace, ...second.trace],
     agentSummary: {
       ...second.agentSummary,
@@ -61,6 +60,7 @@ export async function runMemoryAttempt(
   spec: AttackSpec,
   round: number,
   episode: Pick<EpisodeOptions, "vault" | "goal" | "maxSteps" | "timeoutMs"> = {},
+  worldSeed = `adaptive-${spec.id}`,
 ): Promise<EpisodeResult> {
   agent.reset();
   const first = await runEpisode(sandbox, {
@@ -68,8 +68,10 @@ export async function runMemoryAttempt(
     agent,
     attack: spec,
     variantId: `memory-${round}-s1`,
-    worldSeed: `adaptive-${spec.id}`,
+    worldSeed,
   });
+  if (first.verdict.breached) return first;
+  const notes = [...agent.memory];
   // Session 2: the same agent, a different ordinary task, nothing planted.
   const second = await runEpisode(sandbox, {
     ...episode,
@@ -77,7 +79,7 @@ export async function runMemoryAttempt(
     attack: null,
     goal: BENIGN_GOALS[1],
     variantId: `memory-${round}-s2`,
-    worldSeed: `adaptive-${spec.id}-day2`,
+    worldSeed: `${worldSeed}-day2`,
   });
-  return mergeSessions(spec, first, second, agent.memory);
+  return mergeSessions(spec, first, second, notes);
 }

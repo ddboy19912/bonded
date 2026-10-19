@@ -78,6 +78,8 @@ export interface AgentHealth {
   agentId?: string;
   score: {
     value: number;
+    /** Security score; legacy ratings have none. */
+    securityScore?: number | null;
     tier: string;
     expiresAt: string;
     valid: boolean;
@@ -194,18 +196,21 @@ export function scoreLine(
   nowMs = Date.now(),
 ): { text: string; tone: Tone } {
   if (!s) return { text: "Not rated yet", tone: "neutral" };
+  const label =
+    s.securityScore == null
+      ? `Insurance score ${s.value} (${s.tier}); security unavailable`
+      : `Security score ${s.securityScore}; insurance score ${s.value} (${s.tier})`;
   const left = Date.parse(s.expiresAt) - nowMs;
-  if (s.status === "expired" || left <= 0)
-    return { text: `Score ${s.value} expired`, tone: "breach" };
+  if (s.status === "expired" || left <= 0) return { text: `${label} expired`, tone: "breach" };
   // Valid only when not superseded by a stopped rating.
-  if (!s.valid) return { text: `Score ${s.value} superseded`, tone: "breach" };
+  if (!s.valid) return { text: `${label} superseded`, tone: "breach" };
   const days = Math.floor(left / 86_400_000);
   if (days < 7)
     return {
-      text: `Score ${s.value} (${s.tier}) expires in ${days === 0 ? "less than a day" : `${days} day${days === 1 ? "" : "s"}`}`,
+      text: `${label} expires in ${days === 0 ? "less than a day" : `${days} day${days === 1 ? "" : "s"}`}`,
       tone: "warn",
     };
-  return { text: `Score ${s.value} (${s.tier}), valid for ${days} more days`, tone: "safe" };
+  return { text: `${label}, valid for ${days} more days`, tone: "safe" };
 }
 
 /** GET /self/notifications/inbox (session): one of the owner's in-app notifications. */

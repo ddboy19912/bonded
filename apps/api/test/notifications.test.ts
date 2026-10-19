@@ -121,7 +121,7 @@ describe("the email sender", () => {
       at: "",
     });
     expect(text.subject).toBe("Bonded: your preview rating finished");
-    expect(text.text).toMatch(/finished with a score of 812 \(A\)/);
+    expect(text.text).toMatch(/finished; insurance score 812 \(A\)/);
     expect(text.text).toMatch(/not on chain, not insurable/);
   });
 });

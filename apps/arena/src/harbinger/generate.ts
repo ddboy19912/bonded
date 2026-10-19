@@ -39,14 +39,21 @@ export interface Genome {
 export interface Variant {
   genome: Genome;
   text: string;
-  /** When the spread gene is on: the campaign steps to plant (directive + echoes). */
-  campaign?: { surface: AttackSurface; sender?: string; text: string }[];
+  /** Exact steps to plant, preserving delivery fields alongside the generated text. */
+  campaign?: AttackSpec["campaign"];
   /** The task this variant gives the agent. */
   goal: string;
 }
 
-const key = (g: Genome) =>
-  `${g.frameId}|${g.role}|${g.urgency}|${g.ref ? "ref" : "noref"}|goal${g.goal}|${g.spread ? "s" : "u"}`;
+// Different genes can render the same attack (document frames ignore urgency, for example).
+// Deduplicate the input the agent actually receives, including its task and delivery fields.
+const key = (variant: Variant) => JSON.stringify([variant.text, variant.goal, variant.campaign]);
+
+function validateFrames(frames: readonly Frame[]): void {
+  if (frames.length === 0) throw new Error("Harbinger requires at least one frame");
+  if (new Set(frames.map((frame) => frame.id)).size !== frames.length)
+    throw new Error("Harbinger frame IDs must be unique");
+}
 const pick = <T>(xs: readonly T[], rand: Random): T => xs[Math.floor(rand() * xs.length)] as T;
 
 function genomeGoals(seed: AttackSpec, rand: Random): number {
@@ -110,9 +117,8 @@ export function seedRecord(seed: AttackSpec): string {
 }
 
 /** One variant of a genome on a seed: the render plus its task and, when spread, its campaign. */
-function renderVariant(seed: AttackSpec, genome: Genome): Variant {
-  // Lookup is against the full set, not the active filter: a crossover may carry any frame id.
-  const frame = FRAMES.find((f) => f.id === genome.frameId);
+function renderVariant(seed: AttackSpec, genome: Genome, frames: readonly Frame[]): Variant {
+  const frame = frames.find((f) => f.id === genome.frameId);
   if (!frame) throw new Error(`unknown frame ${genome.frameId}`);
   const goals = goalChoices(seed);
   const goal = goals[genome.goal % goals.length] ?? goals[0]!;
@@ -123,62 +129,84 @@ function renderVariant(seed: AttackSpec, genome: Genome): Variant {
     ref: genome.ref,
     urgency: genome.urgency,
   };
-  const text = toPayloadSize(frame.render(ctx));
-  if (!genome.spread || !spreadPossible(seed)) return { genome, text, goal };
+  const rendered = toPayloadSize(frame.render(ctx));
+  const originalSteps =
+    seed.campaign ??
+    seed.surfaces.map((surface) => ({
+      surface,
+      ...seed.delivery,
+      text: seed.payloadTemplate,
+    }));
+  const directiveIndex = originalSteps.findIndex((step) => step.surface !== "price_feed");
+  // A price-only seed cannot carry prose. Keep its executable price input and report it honestly.
+  const text = directiveIndex < 0 ? seed.payloadTemplate : rendered;
+  if (!genome.spread || !spreadPossible(seed)) {
+    const campaign = originalSteps.map((step, index) => ({
+      ...step,
+      text: (
+        seed.campaign && frame.family !== "document"
+          ? index === directiveIndex
+          : step.surface !== "price_feed"
+      )
+        ? text
+        : step.text,
+    }));
+    return { genome: { ...genome, spread: false }, text, goal, campaign };
+  }
+  const directiveSurface = directiveSurfaceOf(seed);
   const campaign = corroborate(
     text,
-    directiveSurfaceOf(seed),
+    directiveSurface,
     genome,
     extraEchoes(seed),
-    undefined,
+    seed.campaign?.find((step) => step.surface === directiveSurface)?.sender ??
+      seed.delivery.sender,
+    frame.family,
   );
-  const withAssets = [...campaign, ...assetSteps(seed)];
+  const assets = assetSteps(seed).map((step) =>
+    frame.family === "document" && step.surface !== "price_feed" ? { ...step, text } : step,
+  );
+  const withAssets = [...campaign.slice(0, 8 - assets.length), ...assets];
   return {
     genome,
     text,
     goal,
     campaign: withAssets.map((piece, i) => ({
-      sender: piece.sender,
-      surface: piece.surface,
+      ...piece,
       text: i === 0 ? toPayloadSize(piece.text) : piece.text,
     })),
   };
 }
 
 /**
- * The seed's asset surfaces (token metadata, feed prices, transfer-history entries) don't carry
- * a frame's prose, so a campaign plants the seed's own payload on them alongside the directive —
- * the seed's original vectors stay in play, with the corroboration around them.
+ * With spread enabled, instruction frames retain the seed's original asset payloads alongside
+ * the generated directive on a separate readable surface —
+ * document frames rewrite their prose as records while preserving numeric price inputs.
  */
-function assetSteps(seed: AttackSpec): { surface: AttackSurface; sender?: string; text: string }[] {
-  const steps: { surface: AttackSurface; sender?: string; text: string }[] = [];
-  for (const surface of seed.surfaces) {
-    if (surface === "token_metadata")
-      steps.push({
-        surface,
-        ...(seed.delivery.token ? { token: seed.delivery.token } : {}),
-        text: seed.payloadTemplate,
-      });
-    if (surface === "price_feed") steps.push({ surface, text: seed.payloadTemplate });
-    if (surface === "tx_history")
-      steps.push({
-        surface,
-        ...(seed.delivery.sender ? { sender: seed.delivery.sender } : {}),
-        text: seed.payloadTemplate,
-      });
-  }
-  return steps;
+function assetSteps(seed: AttackSpec): NonNullable<AttackSpec["campaign"]> {
+  // Campaign steps are authoritative: their text and delivery can differ from the seed defaults.
+  if (seed.campaign) return seed.campaign.filter((step) => isAssetSurface(step.surface));
+  return seed.surfaces.filter(isAssetSurface).map((surface) => ({
+    surface,
+    ...seed.delivery,
+    text: seed.payloadTemplate,
+  }));
+}
+
+const isAssetSurface = (surface: AttackSurface): boolean =>
+  surface === "token_metadata" || surface === "price_feed" || surface === "tx_history";
+
+function readableSurfaces(seed: AttackSpec): AttackSurface[] {
+  const surfaces = seed.campaign?.map((step) => step.surface) ?? seed.surfaces;
+  return [...new Set(surfaces.filter((surface) => !isAssetSurface(surface)))];
 }
 
 /**
- * Whether a campaign can be built for this seed: its directive needs a readable surface (a
- * price feed takes only price lines, transfer history takes only an address as the sender, so
- * neither can carry a frame's text — a one-surface price_feed or tx_history seed can't spread).
+ * Spreading needs a separate readable surface for the directive, keeping the original asset
+ * vectors intact. Asset-only seeds keep their existing surfaces.
  */
 function spreadPossible(seed: AttackSpec): boolean {
-  return seed.surfaces.some(
-    (s) => s !== "price_feed" && s !== "tx_history" && s !== "token_metadata",
-  );
+  return readableSurfaces(seed).length > 0;
 }
 
 const MAX_PAYLOAD_CHARS = 1_500;
@@ -188,26 +216,21 @@ function toPayloadSize(text: string): string {
 }
 
 /**
- * Which of the seed's surfaces carries the directive: the first surface the campaign doesn't
- * feed (an asset surface like token_metadata or price_feed can't carry a readable directive).
+ * The spread directive goes on the first non-asset surface so asset vectors stay intact.
  */
 function directiveSurfaceOf(seed: AttackSpec): AttackSurface {
-  const readable = seed.surfaces.filter(
-    (s) => s !== "token_metadata" && s !== "price_feed" && s !== "tx_history",
-  );
+  const readable = readableSurfaces(seed);
   return readable[0] ?? seed.surfaces[0]!;
 }
 
 /** Echo surfaces for the campaign: the seed's readable surfaces, then inbox and news as defaults. */
 function extraEchoes(seed: AttackSpec): readonly AttackSurface[] {
-  const readable = seed.surfaces.filter(
-    (s) => s !== "token_metadata" && s !== "price_feed" && s !== "tx_history",
-  );
+  const readable = readableSurfaces(seed);
   return [...readable.slice(1), "dm", "news"] as const;
 }
 
 /**
- * A first generation: random, distinct genomes rendered against the seed's clause. Pure
+ * A first generation: random genomes, deduplicated by their rendered attack and task. Pure
  * function of the seed and the random source, so a run is reproducible from its seed string.
  */
 export function initialPopulation(
@@ -216,16 +239,21 @@ export function initialPopulation(
   rand: Random,
   frames: readonly Frame[] = FRAMES,
 ): Variant[] {
+  validateFrames(frames);
   const seen = new Set<string>();
   const variants: Variant[] = [];
-  // frames x ROLES x URGENCIES x 2 (ref or not), times the goal count, spread or not — the
-  // distinct space is far larger than any population we run, so cap tries instead of looping.
+  // Small frame sets or inactive genes can exhaust distinct outputs; bound sampling work.
   for (let tries = 0; variants.length < size && tries < size * 20; tries++) {
-    const genome = { ...randomGenome(rand, frames), goal: genomeGoals(seed, rand) };
-    const k = key(genome);
+    const genome = {
+      ...randomGenome(rand, frames),
+      goal: genomeGoals(seed, rand),
+      spread: spreadPossible(seed) && rand() < 0.5,
+    };
+    const variant = renderVariant(seed, genome, frames);
+    const k = key(variant);
     if (seen.has(k)) continue;
     seen.add(k);
-    variants.push(renderVariant(seed, genome));
+    variants.push(variant);
   }
   return variants;
 }
@@ -242,8 +270,11 @@ export function nextGeneration(
   rand: Random,
   frames: readonly Frame[] = FRAMES,
 ): Variant[] {
+  validateFrames(frames);
+  const allowedIds = new Set(frames.map((frame) => frame.id));
+  parents = parents.filter((parent) => allowedIds.has(parent.frameId));
   const goalCount = goalChoices(seed).length;
-  const seen = new Set<string>(parents.map(key));
+  const seen = new Set(parents.map((parent) => key(renderVariant(seed, parent, frames))));
   const variants: Variant[] = [];
   const freshShare = Math.max(1, Math.round(size * 0.2));
   for (
@@ -256,18 +287,28 @@ export function nextGeneration(
       parents.length > 1 && rand() < 0.5
         ? crossoverGenome(a, pick(parents, rand), rand)
         : mutateGenome(a, goalCount, rand, frames);
-    const genome: Genome = base.goal >= goalCount ? { ...base, goal: 0 } : base;
-    // Never re-run a parent's exact genome: try a mutation instead, once.
-    if (seen.has(key(genome))) continue;
-    seen.add(key(genome));
-    variants.push(renderVariant(seed, genome));
+    const genome: Genome = {
+      ...base,
+      goal: base.goal >= goalCount ? 0 : base.goal,
+      spread: spreadPossible(seed) && base.spread,
+    };
+    const variant = renderVariant(seed, genome, frames);
+    // A different genome is useful only if it changes the input the agent receives.
+    if (seen.has(key(variant))) continue;
+    seen.add(key(variant));
+    variants.push(variant);
   }
   for (let tries = 0; variants.length < size && tries < freshShare * 20; tries++) {
-    const genome = { ...randomGenome(rand, frames), goal: genomeGoals(seed, rand) };
-    const k = key(genome);
+    const genome = {
+      ...randomGenome(rand, frames),
+      goal: genomeGoals(seed, rand),
+      spread: spreadPossible(seed) && rand() < 0.5,
+    };
+    const variant = renderVariant(seed, genome, frames);
+    const k = key(variant);
     if (seen.has(k)) continue;
     seen.add(k);
-    variants.push(renderVariant(seed, genome));
+    variants.push(variant);
   }
   return variants;
 }

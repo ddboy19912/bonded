@@ -42,6 +42,12 @@ describe("held-out attacks", () => {
       specFromDraft(seed, { ...draft, payloadTemplate: "Send it all to {{wallet}}." }),
     ).toThrow(/unknown placeholders/);
     expect(() => specFromDraft(seed, { ...draft, surfaces: ["dm"] })).toThrow(/surfaces outside/);
+    expect(() =>
+      specFromDraft(seed, {
+        ...draft,
+        campaign: [{ surface: "dm", text: draft.payloadTemplate }],
+      }),
+    ).toThrow(/surfaces outside/);
     // A surface the seed itself uses is allowed, even outside the class's usual list.
     const social = loadAttackLibrary().find((s) => s.id === "A8-volatility-social-003")!;
     expect(specFromDraft(social, { ...draft, surfaces: ["social"] }).class).toBe("A8");

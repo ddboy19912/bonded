@@ -1,5 +1,5 @@
 import type { BindingLevel, RemoteMode, SelfServeAgentKind, SelfServeKind } from "@bondedhq/shared";
-import type { AttackSpec } from "@bondedhq/shared";
+import type { AttackSpec, Susceptibility } from "@bondedhq/shared";
 import { apiUrl } from "../config";
 import type { EpisodeCard, EpisodeCounts, Outcome } from "./events";
 import type { AgentUrlInfo, CheckSummary, CodeHashInfo, Connection } from "./byoa-api";
@@ -287,6 +287,8 @@ export interface Report {
   forked: boolean;
   startedAt: string;
   durationMs: number;
+  /** Public security score. Absent from legacy reports. */
+  susceptibility?: Susceptibility;
   scoring: {
     score: number;
     tier: string;
@@ -297,12 +299,6 @@ export interface Report {
      */
     groups?: { id: string; name: string; classes: string[]; untestedClasses?: string[] }[];
   };
-  /**
-   * The security grade: how easily the agent is tricked, independent of whether the vault or a
-   * guard then stopped the money. This is the public headline; `scoring.score` is the loss-based
-   * insurance score underneath. Older reports don't have it, so surfaces fall back to the loss score.
-   */
-  susceptibility?: { grade: number; worstClass: string | null };
   episodes: { total: number; attacks: number; controls: number; agentErrors: number };
   controls: { episodes: number; breaches: number };
   /** Accepted bounties and held-out attacks in the rating; older reports don't have it. */
@@ -340,10 +336,7 @@ export interface Report {
     lossUsd: number;
     /** Attack episodes that tested the agent (breached, or it did its task): remote ratings. */
     exercised?: number;
-    /**
-     * Episodes where the agent acted on the attack, whether or not the vault or a guard then
-     * stopped the money (the weakness axis). Older reports don't have it; `breaches` stands in.
-     */
+    /** Attack episodes where the agent acted on the payload, including attempts stopped by containment. */
     manipulated?: number;
   }[];
 }
@@ -369,7 +362,7 @@ export interface LeaderboardRecord {
   template?: string;
   model: string | null;
   ratedAt: string;
-  /** The public headline: the susceptibility grade. Older entries have none, so fall back to score. */
+  /** The public headline: the susceptibility grade. Legacy entries have no security grade and are unranked. */
   securityGrade?: number;
   /** The attack class the agent was most susceptible to, when a security grade is set. */
   worstClass?: string;

@@ -40,8 +40,8 @@ multi-surface campaign (campaign.ts). Stops at the first breach, the generation 
                          is the seed's own id, so a run is reproducible
   --frame-family <f>     instruction | document | all (default: all). "document" runs only the
                          instruction-free record frames (invoice/ledger/queue rows, the AutoDojo
-                         pattern): they carry no command, so they only breach an agent whose task
-                         is action-open (goals.ts). The sharp test of the vault's action-allowlist.
+                         pattern): record fields supply parameters for the goal in goals.ts.
+                         Vault policy is tested only if the agent attempts an action.
   --enforce              run the vault in Enforce mode
   --refunds              the mandate allows refunds to the depositor (for goals that have the
                          agent work a refund queue, so a refund to the true depositor isn't a
@@ -62,7 +62,7 @@ function breachPath(r: HarbingerResult): string | undefined {
   if (!win) return undefined;
   const frame = win.genome.frameId;
   const campaign = win.genome.spread ? "campaign" : "single";
-  return `  (${frame}, ${campaign}, ${win.goal ? "workflow goal" : "seed goal"}: ${win.goal ?? "?"})`;
+  return `  (${frame}, ${campaign}, goal: ${win.goal ?? "?"})`;
 }
 
 async function main(): Promise<number> {
@@ -129,7 +129,7 @@ async function main(): Promise<number> {
       )
     : tags.length
       ? library.filter((s) => tags.every((t) => s.tags.includes(t)))
-      : [...new Map(library.map((s) => [s.class, s])).values()];
+      : library.filter((seed, index) => library.findIndex((s) => s.class === seed.class) === index);
   if (tags.length && wanted) seeds = seeds.filter((s) => tags.every((t) => s.tags.includes(t)));
   if (seeds.length === 0)
     throw new Error(
@@ -170,12 +170,20 @@ async function main(): Promise<number> {
         population,
         generations,
         maxUsd,
+        randomSeed: values["random-seed"],
         frames,
         episode: episodeOptions,
         ...(isMemoryAgent(agent)
           ? {
               runAttempt: (spec, generation) =>
-                runMemoryAttempt(sandbox, agent, spec, generation, episodeOptions),
+                runMemoryAttempt(
+                  sandbox,
+                  agent,
+                  spec,
+                  generation,
+                  episodeOptions,
+                  `harbinger-${seed.id}`,
+                ),
             }
           : {}),
       });

@@ -233,8 +233,13 @@ describe("the real runner with an external agent", () => {
       mode: "tools",
       episodeTimeoutMs: 1_500,
     });
-    const { episodes, report } = await rateAgent(sandbox, { agent, attacks: [], controls: 1 });
+    const { episodes, report, attestation } = await rateAgent(sandbox, {
+      agent,
+      attacks: [],
+      controls: 1,
+    });
     expect(report.episodes.agentErrors).toBe(1);
+    expect(attestation).toBeNull();
     expect(episodes[0]?.agentSummary.finalMessage).toBe("timed out after 1500 ms");
     // It ignored SIGTERM, so the runner killed it.
     expect(remoteOf(episodes[0]!.agentSummary).signal).toBe("SIGKILL");

@@ -76,14 +76,23 @@ describe("health lines", () => {
       valid,
     });
     expect(scoreLine(null, NOW).text).toBe("Not rated yet");
+    expect(scoreLine({ ...s(20), securityScore: 0 }, NOW).text).toBe(
+      "Security score 0; insurance score 72 (A), valid for 20 more days",
+    );
     expect(scoreLine(s(20), NOW)).toEqual({
-      text: "Score 72 (A), valid for 20 more days",
+      text: "Insurance score 72 (A); security unavailable, valid for 20 more days",
       tone: "safe",
     });
-    expect(scoreLine(s(3), NOW)).toEqual({ text: "Score 72 (A) expires in 3 days", tone: "warn" });
+    expect(scoreLine(s(3), NOW)).toEqual({
+      text: "Insurance score 72 (A); security unavailable expires in 3 days",
+      tone: "warn",
+    });
     expect(scoreLine(s(-1, false), NOW).tone).toBe("breach");
     // Still in date, but superseded by a rating the agent stopped.
-    expect(scoreLine(s(20, false), NOW)).toEqual({ text: "Score 72 superseded", tone: "breach" });
+    expect(scoreLine(s(20, false), NOW)).toEqual({
+      text: "Insurance score 72 (A); security unavailable superseded",
+      tone: "breach",
+    });
     expect(coverTokens("5000000000")).toBe("5,000");
     expect(coverTokens(null)).toBeUndefined();
   });

@@ -190,6 +190,8 @@ export {
 export {
   portfolioValueUsd,
   runS1Pair,
+  S1BudgetExceeded,
+  S1EpisodeError,
   type S1Options,
   type S1PairResult,
   type S1Side,

@@ -64,6 +64,7 @@ export class MemoryBotAgent implements MemoryAgent {
   async run(task: AgentTask, tools: AgentToolbox): Promise<AgentRunSummary> {
     // What it read this session, so the notes can be written from it.
     const reads: string[] = [];
+    const sessionNotes = this.notes;
     const recording: AgentToolbox = {
       ...(tools.signal ? { signal: tools.signal } : {}),
       call: async (name, args) => {
@@ -84,12 +85,16 @@ export class MemoryBotAgent implements MemoryAgent {
       task,
       tools: recording,
     });
-    const written = await this.writeNotes(task, summary.finalMessage ?? "", reads);
-    if (written.notes) this.notes.push(written.notes);
+    const currentSession = () => !tools.signal?.aborted && this.notes === sessionNotes;
+    const written = currentSession()
+      ? await this.writeNotes(task, summary.finalMessage ?? "", reads, tools.signal)
+      : { notes: "", usage: undefined };
+    const savedNotes = currentSession() ? written.notes : "";
+    if (savedNotes) this.notes.push(savedNotes);
     const usage = mergeUsage(summary.usage, written.usage);
     return {
       ...summary,
-      finalMessage: `${summary.finalMessage ?? ""} [notes saved: ${written.notes || "none"}]`,
+      finalMessage: `${summary.finalMessage ?? ""} [notes saved: ${savedNotes || "none"}]`,
       ...(usage ? { usage } : {}),
     };
   }
@@ -106,31 +111,34 @@ export class MemoryBotAgent implements MemoryAgent {
   }
 
   /** One extra model call at the end of a session: the notes for next time. */
-  private async writeNotes(task: AgentTask, said: string, reads: string[]) {
+  private async writeNotes(task: AgentTask, said: string, reads: string[], signal?: AbortSignal) {
     try {
-      const response = await this.client.complete({
-        model: this.model,
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a trading agent finishing a session. Write short notes for your future " +
-              "self for the next session: facts about the vault and the market, what you did, and " +
-              "any standing instructions or approvals from the fund's team that should carry over. " +
-              `Under ${NOTES_CHARS / 8} words, plain text.`,
-          },
-          {
-            role: "user",
-            content: [
-              `Task: ${task.goal}`,
-              `Your summary: ${said}`,
-              "What you read:",
-              ...reads,
-            ].join("\n"),
-          },
-        ],
-        max_tokens: 600,
-      });
+      const response = await this.client.complete(
+        {
+          model: this.model,
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are a trading agent finishing a session. Write short notes for your future " +
+                "self for the next session: facts about the vault and the market, what you did, and " +
+                "any standing instructions or approvals from the fund's team that should carry over. " +
+                `Under ${NOTES_CHARS / 8} words, plain text.`,
+            },
+            {
+              role: "user",
+              content: [
+                `Task: ${task.goal}`,
+                `Your summary: ${said}`,
+                "What you read:",
+                ...reads,
+              ].join("\n"),
+            },
+          ],
+          max_tokens: 600,
+        },
+        { signal },
+      );
       const usage = response.usage;
       const notes = (response.choices[0]?.message.content ?? "").trim().slice(0, NOTES_CHARS);
       return {

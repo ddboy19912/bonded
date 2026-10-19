@@ -31,10 +31,11 @@ export async function latestScore(db: Database, agentKey: string) {
   );
   const row = r.rows[0];
   if (!row) return null;
-  const a = row.a as { score: number; expiresAt: number; issuedAt: number };
+  const a = row.a as { score: number; securityScore?: number; expiresAt: number; issuedAt: number };
   return {
     runId: row.id as string,
     score: Number(a.score),
+    securityScore: a.securityScore ?? null,
     tier: tierForScore(Number(a.score)).tier,
     issuedAt: new Date(Number(a.issuedAt) * 1000).toISOString(),
     expiresAt: new Date(Number(a.expiresAt) * 1000).toISOString(),

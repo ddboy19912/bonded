@@ -58,17 +58,18 @@ const DISCLOSURE: Record<LeaderboardRecord["disclosure"]["status"], string> = {
 export function Leaderboard() {
   const board = useQuery({ queryKey: ["leaderboard"], queryFn: api.leaderboard });
   const h = board.data?.headline;
-  // The public headline is the security grade (susceptibility); older entries without one fall
-  // back to the loss score. The loss score still shows as the insurance tier.
-  const grade = (e: { securityGrade?: number; score: number }) => e.securityGrade ?? e.score;
+  // Legacy insurance results cannot be compared with security grades.
   const entries = board.data
-    ? [...board.data.entries].sort((a, b) => grade(b) - grade(a))
+    ? [...board.data.entries].sort((a, b) => (b.securityGrade ?? -1) - (a.securityGrade ?? -1))
     : [];
+  const graded = entries.filter(
+    (e): e is LeaderboardRecord & { securityGrade: number } => e.securityGrade !== undefined,
+  );
   return (
     <Page
       eyebrow="Arena results"
       title="Leaderboard"
-      intro="Popular open-source agents and Bonded's own, attacked with the same library and scored on the same scale. That shared scale is what lets the Bonded Score serve as the bar for agent safety."
+      intro="Popular open-source agents and Bonded's own, ranked by their security score. Legacy results without a security score are unranked; their insurance score only measures loss after containment."
     >
       {h && h.evaluations > 0 && (
         <section className="panel border-accent/25 bg-[radial-gradient(ellipse_at_0%_0%,rgb(29_78_216/.25),transparent_60%)] p-7 sm:p-9">
@@ -81,17 +82,17 @@ export function Leaderboard() {
           <p className="mt-4 max-w-3xl text-sm leading-relaxed text-muted">
             Across {h.evaluations} template and model pairs ({h.failingEvaluations} breached), on
             the injection classes A1, A2 and A7, with five runs of every attack, including held-out
-            attacks that are never published. Results can differ with other models or settings.
-            Agents that resist every attack tie: the score separates agents by what breaches them.
+            attacks that are never published. Results can differ with other models or settings. The
+            security score measures manipulation, including attempts blocked by the mandate.
           </p>
         </section>
       )}
 
-      {entries.length >= 3 && (
+      {graded.length >= 3 && (
         <section className="grid gap-4 md:grid-cols-3">
-          {entries.slice(0, 3).map((e, i) => (
+          {graded.slice(0, 3).map((e, i) => (
             <div key={e.slug} className="panel flex items-center gap-5 p-5">
-              <ScoreRing score={grade(e)} size={84} />
+              <ScoreRing score={e.securityGrade} size={84} />
               <div className="min-w-0">
                 <p className="font-mono text-[11px] text-muted">#{i + 1}</p>
                 <p className="truncate font-semibold">{e.name}</p>
@@ -99,8 +100,8 @@ export function Leaderboard() {
                   {e.framework}
                   {e.model ? ` · ${e.model}` : ""}
                 </p>
-                <div className="mt-1.5">
-                  <TierBadge score={e.score} />
+                <div className="mt-1.5 flex items-center gap-2 text-xs text-muted">
+                  Insurance <TierBadge score={e.score} />
                 </div>
               </div>
             </div>
@@ -135,7 +136,7 @@ export function Leaderboard() {
               <div className="grid grid-cols-[40px_minmax(0,1fr)_120px_268px_150px] items-end gap-6 px-5 pb-3 text-[10.5px] font-medium tracking-[0.14em] text-muted uppercase sm:px-6">
                 <span>#</span>
                 <span>Agent</span>
-                <span>Score</span>
+                <span>Security</span>
                 <span className="flex gap-1.5 tracking-normal normal-case">
                   {CLASSES.map((c) => (
                     <span key={c} className="w-5 text-center font-mono text-[9px] tracking-tighter">
@@ -145,7 +146,7 @@ export function Leaderboard() {
                 </span>
                 <span>On chain</span>
               </div>
-              <ol>
+              <ol aria-label="Security rankings">
                 {entries.map((e, i) => {
                   const t = totals(e);
                   return (
@@ -154,7 +155,7 @@ export function Leaderboard() {
                       className="grid grid-cols-[40px_minmax(0,1fr)_120px_268px_150px] items-center gap-6 border-t border-line px-5 py-5 transition hover:bg-white/[0.025] sm:px-6"
                     >
                       <span className="font-mono text-xs text-muted">
-                        {String(i + 1).padStart(2, "0")}
+                        {e.securityGrade === undefined ? "—" : String(i + 1).padStart(2, "0")}
                       </span>
                       <span className="min-w-0">
                         <span className="block truncate font-semibold">
@@ -179,8 +180,15 @@ export function Leaderboard() {
                           {DISCLOSURE[e.disclosure.status]}
                         </span>
                       </span>
-                      <span className="flex items-center gap-2.5">
-                        <span className="font-serif text-3xl leading-none">{grade(e)}</span>
+                      <span className="flex flex-col items-start gap-2">
+                        {e.securityGrade === undefined ? (
+                          <span className="text-xs text-muted">Security not measured</span>
+                        ) : (
+                          <span className="font-serif text-3xl leading-none">
+                            {e.securityGrade}
+                          </span>
+                        )}
+                        <span className="text-xs text-muted">Insurance score {e.score}</span>
                         <TierBadge score={e.score} />
                       </span>
                       <span>

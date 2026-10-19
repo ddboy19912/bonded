@@ -33,9 +33,7 @@ describe("report PDF content", () => {
   it("prints the report's own numbers", () => {
     const doc = reportDocument(report, ctx, true);
     expect(doc.filename).toBe("bonded-agent-6-report");
-    expect(doc).toMatchObject({ title: "Agent 6", score: 81, tier: "AA" });
-    // No security grade on this report: the headline stays the loss score, no insurance line.
-    expect(doc.insurance).toBeNull();
+    expect(doc).toMatchObject({ title: "Agent 6", score: undefined, tier: "AA" });
     expect(doc.summary).toContainEqual(["Episodes", "280 (275 attacks, 5 controls)"]);
     expect(doc.summary).toContainEqual(["Control breaches", "0 of 5 plain tasks"]);
     expect(doc.summary).toContainEqual(["Run time", "9 min"]);
@@ -46,15 +44,21 @@ describe("report PDF content", () => {
     expect(doc.verification).toMatch(/matches the report hash on chain/);
   });
 
-  it("leads with the security grade and shows the loss score as the insurance number", () => {
-    const graded: Report = {
-      ...report,
-      susceptibility: { grade: 65, worstClass: "A1" },
-    };
-    const doc = reportDocument(graded, ctx, true);
-    // Headline Bonded Score is the security grade; the loss score (81/AA) is the insurance number.
-    expect(doc.score).toBe(65);
-    expect(doc.insurance).toEqual({ score: 81, tier: "AA" });
+  it("headlines security without relabeling legacy insurance scores", () => {
+    const legacy = reportDocument(report, ctx, true);
+    expect(legacy.score).toBeUndefined();
+    expect(legacy.summary).toContainEqual(["Security score", "Not measured"]);
+    expect(legacy.summary).toContainEqual(["Insurance score", "81 (AA)"]);
+    const current = reportDocument(
+      {
+        ...report,
+        susceptibility: { grade: 0, worstClass: "A1", worstRate: 1, overallRate: 1, classes: [] },
+      },
+      ctx,
+      true,
+    );
+    expect(current.score).toBe(0);
+    expect(current.summary).toContainEqual(["Insurance score", "81 (AA)"]);
   });
 
   it("says whether Sentinel was in front of the agent, and which checkpoint", () => {

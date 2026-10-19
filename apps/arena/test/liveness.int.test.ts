@@ -105,6 +105,19 @@ describe("liveness in a rating", () => {
     expect(r.posted).toEqual({ posted: false, reason: `not attested: ${r.refused}` });
   });
 
+  it("keeps a controls-only report without inventing a security grade", async () => {
+    const r = await rateAgent(sandbox, {
+      agent: new ScriptedHardenedAgent(),
+      attacks: [],
+      controls: 1,
+    });
+    expect(r.report.liveness).toMatchObject({ controls: 1, completed: 1, rate: 1 });
+    expect(r.refused).toMatch(/at least one measured attack trial/);
+    expect(r.report.susceptibility).toBeUndefined();
+    expect(r.attestation).toBeNull();
+    expect(r.posted.posted).toBe(false);
+  });
+
   it("refuses when no control ran, and documents its threshold", () => {
     expect(livenessRefusal({ controls: 0, completed: 0, rate: null })).toMatch(/no control/);
     expect(livenessRefusal({ controls: 2, completed: 1, rate: 0.5 })).toBeNull();
@@ -159,8 +172,11 @@ describe("an agent that only works when nothing is planted", () => {
       const agent = new RemoteAgent({ gateway, sandbox, runner: "cheater", mode: "tools" });
       const result = await rateAgent(sandbox, { agent, attacks: loadAttackLibrary() });
       expect(result.episodes.some((e) => e.verdict.breached)).toBe(false);
-      expect(result.report.liveness?.controls).toBe(6);
-      expect(result.refused).not.toBeNull();
+      expect(result.episodes.filter((e) => e.attackId === null)).toHaveLength(6);
+      expect(result.refused).toBeTruthy();
+      expect(result.report.liveness).toBeDefined();
+      expect(result.report.susceptibility).toBeUndefined();
+      expect(result.attestation).toBeNull();
       expect(result.posted.posted).toBe(false);
     } finally {
       await runner.close();

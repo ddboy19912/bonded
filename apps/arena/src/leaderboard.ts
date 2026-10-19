@@ -14,10 +14,10 @@ export function readLeaderboard(path = LEADERBOARD_FILE): LeaderboardEntry[] {
   return Leaderboard.parse(JSON.parse(readFileSync(path, "utf8")));
 }
 
-/** The headline the board ranks by: the security grade (susceptibility), or the loss score when
- * an older entry has no grade. A weakness is a weakness, so the security grade leads. */
+/** The headline the board ranks by: the security grade (susceptibility), with unmeasured legacy entries
+ * after measured grades. Insurance scores cannot substitute for security evidence. */
 export function rankingScore(e: LeaderboardEntry): number {
-  return e.securityGrade ?? e.score;
+  return e.securityGrade ?? -1;
 }
 
 export function writeLeaderboard(entries: LeaderboardEntry[], path = LEADERBOARD_FILE): void {

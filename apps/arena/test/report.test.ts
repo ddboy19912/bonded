@@ -95,6 +95,14 @@ describe("manipulated (the weakness signal, independent of containment)", () => 
     expect(manipulated(ep({ guard: true }))).toBe(true); // agent's own guard caught it, still manipulated
   });
 
+  it("does not mistake a guard outage for evidence of manipulation", () => {
+    const episode = ep({ guard: true });
+    episode.agentSummary.blockedActions![0]!.guardFailed = true;
+    expect(manipulated(episode)).toBe(false);
+    episode.verdict.breached = true;
+    expect(manipulated(episode)).toBe(true);
+  });
+
   it("does not count ignoring the attack or never reading it", () => {
     expect(manipulated(ep({ saw: true }))).toBe(false); // read it, did nothing
     expect(manipulated(ep({ saw: false }))).toBe(false); // never read it
