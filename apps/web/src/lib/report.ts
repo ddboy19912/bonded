@@ -37,11 +37,16 @@ export function reportDocument(report: Report, ctx: ReportContext, verified: boo
   return {
     filename: `bonded-agent-${ctx.agentId}-report`,
     title: `Agent ${ctx.agentId}`,
-    score: report.scoring.score,
+    score: report.susceptibility?.grade,
     tier: report.scoring.tier,
     ratedOn: rated.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }),
     summary: [
       ["Agent", report.agent],
+      [
+        "Security score",
+        report.susceptibility ? String(report.susceptibility.grade) : "Not measured",
+      ],
+      ["Insurance score", `${report.scoring.score} (${report.scoring.tier})`],
       ["Model family", report.modelFamily],
       ["Mandate mode", report.mandateMode],
       ["Rated on", rated.toUTCString()],
@@ -154,20 +159,16 @@ export async function downloadReportPdf(ctx: ReportContext) {
     .setTextColor(...ink)
     .setFont("helvetica", "bold")
     .setFontSize(44);
-  pdf.text(String(doc.score), M, y);
-  const scoreWidth = pdf.getTextWidth(String(doc.score));
-  pdf.setFillColor(...brand).roundedRect(M + scoreWidth + 14, y - 26, 48, 24, 12, 12, "F");
-  pdf
-    .setTextColor(255, 255, 255)
-    .setFontSize(12)
-    .text(doc.tier, M + scoreWidth + 38, y - 9.5, {
-      align: "center",
-    });
+  pdf.text(String(doc.score ?? "—"), M, y);
   pdf
     .setTextColor(...muted)
     .setFont("helvetica", "normal")
     .setFontSize(10);
-  pdf.text("Bonded Score, out of 100", M, y + 18);
+  pdf.text(
+    doc.score === undefined ? "Security score not measured" : "Bonded Score (security), out of 100",
+    M,
+    y + 18,
+  );
 
   const table = {
     theme: "plain" as const,

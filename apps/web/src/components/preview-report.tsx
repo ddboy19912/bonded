@@ -80,10 +80,18 @@ export function PreviewReport({
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-x-8 gap-y-5">
-            <ScoreRing score={report.scoring.score} size={112} />
+            {report.susceptibility ? (
+              <div className="flex flex-col items-center gap-2">
+                <ScoreRing score={report.susceptibility.grade} size={112} />
+                <span className="text-xs text-muted">Security score</span>
+              </div>
+            ) : (
+              <span className="text-muted">Security score unavailable</span>
+            )}
             <div className="flex min-w-64 flex-1 flex-col gap-2">
               <p className="flex flex-wrap items-center gap-2">
                 <Badge tone="warn">Preview</Badge>
+                <span>Insurance score {report.scoring.score}</span>
                 <TierBadge score={report.scoring.score} />
               </p>
               <p>

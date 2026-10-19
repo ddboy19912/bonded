@@ -10,6 +10,7 @@ import { readLinks, registeredAgentId, toSolanaAttestation, writeLinks } from ".
 const home = {
   agentId: "2",
   score: 56,
+  securityScore: 56,
   expectedLossBps: 415,
   reportHash: `0x${"2b".repeat(32)}`,
   mandateHash: `0x${"5a".repeat(32)}`,

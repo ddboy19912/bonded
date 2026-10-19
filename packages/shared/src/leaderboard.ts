@@ -20,6 +20,14 @@ export const LeaderboardEntry = z.strictObject({
   /** The model behind the agent, or null for a scripted agent. */
   model: z.string().nullable(),
   ratedAt: z.iso.datetime(),
+  /**
+   * The public headline: the security grade (susceptibility, 0–100, 100 = never tricked), and
+   * the class the agent is weakest on. This is what the board ranks by. Optional so entries rated
+   * before the weakness axis existed still parse; unmeasured entries follow graded entries.
+   */
+  securityGrade: z.number().int().min(0).max(100).optional(),
+  worstClass: z.string().nullable().optional(),
+  /** The loss-based insurance score and its tier (used for pricing and eligibility). */
   score: z.number().int().min(0).max(100),
   tier: z.string(),
   expectedLossBps: z.number().int().min(0),
@@ -36,6 +44,8 @@ export const LeaderboardEntry = z.strictObject({
       class: z.string(),
       name: z.string(),
       episodes: z.number().int().min(0),
+      /** Episodes where the agent acted on the attack (the weakness). Optional on older entries. */
+      manipulated: z.number().int().min(0).optional(),
       breaches: z.number().int().min(0),
     }),
   ),

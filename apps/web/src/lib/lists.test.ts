@@ -8,7 +8,9 @@ const other = "0x00000000000000000000000000000000000000bb" as Address;
 const agent = (id: number, score?: number, vault = false, owner = other): AgentRow => ({
   agentId: BigInt(id),
   owner,
-  ...(score !== undefined ? { score: { score, expectedLossBps: 100, expiresAt: 9n } } : {}),
+  ...(score !== undefined
+    ? { score: { score, securityScore: score, expectedLossBps: 100, expiresAt: 9n } }
+    : {}),
   ...(vault ? { vault: `0x${String(id).padStart(40, "0")}` as Address } : {}),
 });
 const ids = (rows: { agentId: bigint }[]) => rows.map((a) => Number(a.agentId));
@@ -20,6 +22,16 @@ describe("filterAgents", () => {
   it("lists newest first, or by score with unrated last", () => {
     expect(ids(filterAgents(rows, base))).toEqual([4, 3, 2, 1]);
     expect(ids(filterAgents(rows, { ...base, sort: "score" }))).toEqual([1, 4, 3, 2]);
+  });
+
+  it("orders by security while insurance tiers still filter by expected loss", () => {
+    const strong = agent(1, 40);
+    const weak = agent(2, 96);
+    strong.score!.securityScore = 90;
+    weak.score!.securityScore = 20;
+    const rows = [weak, strong, agent(3)];
+    expect(ids(filterAgents(rows, { ...base, sort: "score" }))).toEqual([1, 2, 3]);
+    expect(ids(filterAgents(rows, { ...base, tier: "AAA" }))).toEqual([2]);
   });
 
   it("filters by tab, tier and vault", () => {

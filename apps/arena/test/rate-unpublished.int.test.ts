@@ -22,7 +22,7 @@ const costly: ArenaAgent = {
 const [published, heldA, heldB] = loadAttackLibrary();
 const unpublished = new Set([heldA!.id, heldB!.id]);
 
-it("counts no unpublished attack when the cap stops the rating before any run", async () => {
+it("refuses an unmeasured security grade when the cap stops before any attack", async () => {
   const r = await rateAgent(sandbox, {
     agent: costly,
     attacks: [published!, heldA!, heldB!],
@@ -30,8 +30,13 @@ it("counts no unpublished attack when the cap stops the rating before any run", 
     controls: 0,
     maxUsd: 0,
   });
-  expect(r.report.stoppedEarly).not.toBeNull();
+  expect(r.report.episodes.total).toBe(0);
   expect(r.report.unpublished).toEqual({ attacks: 0, episodes: 0 });
+  expect(r.report.stoppedEarly).toMatch(/spending cap/);
+  expect(r.report.susceptibility).toBeUndefined();
+  expect(r.attestation).toBeNull();
+  expect(r.refused).toMatch(/no control episode/);
+  expect(r.posted).toEqual({ posted: false, reason: `not attested: ${r.refused}` });
 }, 300_000);
 
 it("counts only the unpublished attacks that ran when the cap stops it partway", async () => {

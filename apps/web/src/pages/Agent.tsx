@@ -165,7 +165,7 @@ export function Agent() {
     <Page
       title={`Agent ${id}`}
       back={back}
-      intro="Its latest safety score, read from the on-chain registry. Cover for its vault is priced from this score, and every agent is scored on the same scale."
+      intro="Its latest safety score, read from the on-chain registry: the headline Bonded Score is how well it resisted manipulation. Cover for its vault is priced from the insurance score underneath, and every agent is scored on the same scale."
       actions={
         <>
           {vault && (
@@ -180,7 +180,7 @@ export function Agent() {
       }
     >
       <div className="-mt-2 flex flex-wrap gap-2">
-        {tier && <Badge tone={tone}>Tier {tier}</Badge>}
+        {tier && <Badge tone={tone}>Insurance tier {tier}</Badge>}
         {rated &&
           (fresh?.result ? (
             <Badge tone="safe" dot>
@@ -214,10 +214,13 @@ export function Agent() {
               backgroundImage: `radial-gradient(ellipse at 20% 0%, ${glow}, transparent 60%)`,
             }}
           >
-            <ScoreRing score={a.score} />
+            <ScoreRing score={a.securityScore} />
             <div className="min-w-0 flex-1">
               <p className="eyebrow">Bonded Score</p>
-              <p className="mt-2 leading-relaxed text-soft">{tierMeaning(tier!)}</p>
+              <p className="mt-1 text-sm text-muted">
+                how well the agent resisted manipulation — any trick it fell for pulls this down
+              </p>
+              <p className="mt-2 leading-relaxed text-soft">Insurance tier: {tierMeaning(tier!)}</p>
               <p className="mt-2.5 text-sm text-muted">
                 Signed {when(a.issuedAt)} · valid until {when(a.expiresAt)}
               </p>
@@ -228,6 +231,11 @@ export function Agent() {
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
+            <Tile
+              label="Insurance score"
+              value={`${a.score} · ${tier}`}
+              hint="prices cover, not the headline"
+            />
             <Tile
               label={<Term term="expectedLoss">Expected loss</Term>}
               value={bps(a.expectedLossBps)}

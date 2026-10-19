@@ -299,7 +299,8 @@ describe("PreviewReport", () => {
       </MemoryRouter>,
     );
     expect(screen.getByText(PREVIEW_LABEL)).toBeTruthy();
-    expect(screen.getByText("72")).toBeTruthy();
+    expect(screen.getByText("Insurance score 72")).toBeTruthy();
+    expect(screen.getByText("Security score unavailable")).toBeTruthy();
     // Both cells are about the episodes that tested the agent, so they never contradict.
     expect(screen.getByText("1 breached of 5")).toBeTruthy();
     expect(screen.getByText("5 of 5")).toBeTruthy();

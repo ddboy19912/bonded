@@ -29,6 +29,7 @@ const vault = "0x6666666666666666666666666666666666666666";
 const hardened: Attestation = {
   agentId: "42",
   score: 96,
+  securityScore: 96,
   expectedLossBps: 30,
   reportHash: hash(1),
   mandateHash: hash(2),

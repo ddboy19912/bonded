@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { AgentRow } from "./chain";
 import { showcaseAgents } from "./showcase";
 
-const row = (id: number, score?: number): AgentRow => ({
+const row = (id: number, score?: number, securityScore = score): AgentRow => ({
   agentId: BigInt(id),
   owner: "0x0000000000000000000000000000000000000001",
-  ...(score === undefined ? {} : { score: { score, expectedLossBps: 100, expiresAt: 0n } }),
+  ...(score === undefined
+    ? {}
+    : { score: { score, securityScore: securityScore!, expectedLossBps: 100, expiresAt: 0n } }),
 });
 
 describe("showcaseAgents", () => {

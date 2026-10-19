@@ -13,8 +13,8 @@ export const GLOSSARY = {
   episode:
     "One run of the agent in the Arena: a normal task, sometimes with an attack hidden in what it reads.",
   score:
-    "The Bonded Score, 0 to 100, from how the agent did in the Arena, its key custody and its vault mode. Cover is priced from it.",
-  tier: "A grade from the score, AAA (best) to CCC. Lower tiers need a bigger operator bond, and CCC can't be covered.",
+    "The Bonded Score, 0 to 100: how well the agent resisted manipulation in the Arena — any trick it fell for pulls it down. The insurance score underneath prices cover.",
+  tier: "A grade from the insurance score, AAA (best) to CCC. Lower tiers need a bigger operator bond, and CCC can't be covered.",
   bond: "Money the agent's operator stakes. On a claim it pays first, before the pool.",
   cover: "Protection for a vault's depositors: if the agent breaches, a claim pays the loss.",
   premium: "What cover costs, a yearly rate streamed from the vault. 80% goes to underwriters.",

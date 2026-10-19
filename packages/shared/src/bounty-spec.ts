@@ -66,10 +66,25 @@ export function parseBountySpec(yaml: string): AttackSpec {
   }
   // The task is the Arena's, never the hunter's: a submitted goal such as "buy 10,000 tUSDG
   // worth of tNVDA" breaches the trade limit by itself, with no attack at all.
-  if (raw && typeof raw === "object" && "goal" in raw)
+  if (raw && typeof raw === "object" && ("goal" in raw || "goalVariants" in raw))
     throw new BountySpecError(
       "a bounty spec can't set the agent's goal: the Arena gives every run a trusted benign task",
     );
+  // Execution skew changes the sandbox venue only in the S1 harness. Bounty episodes never
+  // apply it; reject the raw field before Zod can strip it from unsupported campaign steps.
+  const hasSkew = (value: unknown): boolean =>
+    value !== null && typeof value === "object" && "executionSkew" in value;
+  if (raw && typeof raw === "object") {
+    const fields = raw as Record<string, unknown>;
+    if (
+      hasSkew(raw) ||
+      hasSkew(fields.delivery) ||
+      (Array.isArray(fields.campaign) && fields.campaign.some(hasSkew))
+    )
+      throw new BountySpecError(
+        "executionSkew is only supported by the S1 harness, not bounty episodes",
+      );
+  }
   const result = AttackSpec.safeParse(raw);
   if (!result.success)
     throw new BountySpecError(
@@ -92,69 +107,44 @@ const PRICE_LINE = /^\s*([A-Za-z0-9]+)\s*=\s*([0-9]+(?:\.[0-9]+)?)\s*$/;
  * Each of these used to pass the check and then fail validation, so they're refused up front.
  */
 function runProblem(spec: AttackSpec): string | undefined {
-  const delivery = spec.delivery ?? {};
-  const payloadNames = (text: string) => [...text.matchAll(PLACEHOLDER)].map((m) => m[1]!);
-  const unknown = [spec.payloadTemplate, delivery.sender ?? ""]
-    .flatMap((text) => payloadNames(text))
-    .concat(
-      ...(spec.campaign ?? []).map((step) => [
-        ...payloadNames(step.text),
-        ...payloadNames(step.sender ?? ""),
-      ]),
-    )
-    .filter((name) => !(ATTACK_PLACEHOLDERS as readonly string[]).includes(name));
-  if (unknown.length)
-    return `the payload uses unknown placeholders: ${[...new Set(unknown)].map((n) => `{{${n}}}`).join(", ")}; the Arena fills ${ATTACK_PLACEHOLDERS.map((n) => `{{${n}}}`).join(", ")}`;
-  // Price lines are read after the runner fills the placeholders ("{{token}}=108" sets tUSDG).
-  const priceLines = renderLikeArena(spec.payloadTemplate)
-    .split("\n")
-    .map((line) => PRICE_LINE.exec(line)?.[1])
-    .filter((t): t is string => Boolean(t));
-  const named = [
-    ...(delivery.token ? [delivery.token] : []),
-    ...(delivery.executionSkew ? [delivery.executionSkew.token] : []),
-    ...Object.keys(delivery.prices ?? {}),
-    ...(spec.surfaces.includes("price_feed") && !delivery.prices ? priceLines : []),
-    ...(spec.campaign ?? []).flatMap((step) => [
-      ...(step.token ? [step.token] : []),
+  // Campaigns replace the legacy payload and delivery in plantAttack. Validate exactly the
+  // content the runner will plant, including rendered metadata-token placeholders.
+  const pieces =
+    spec.campaign ??
+    spec.surfaces.map((surface) => ({
+      surface,
+      text: spec.payloadTemplate,
+      ...spec.delivery,
+    }));
+  for (const step of pieces) {
+    const unknown = [step.text, step.sender ?? "", ...(spec.campaign ? [step.token ?? ""] : [])]
+      .flatMap((text) => [...text.matchAll(PLACEHOLDER)].map((m) => m[1]!))
+      .filter((name) => !(ATTACK_PLACEHOLDERS as readonly string[]).includes(name));
+    if (unknown.length)
+      return `the payload uses unknown placeholders: ${[...new Set(unknown)].map((n) => `{{${n}}}`).join(", ")}; the Arena fills ${ATTACK_PLACEHOLDERS.map((n) => `{{${n}}}`).join(", ")}`;
+    const priceLines = renderLikeArena(step.text)
+      .split("\n")
+      .map((line) => PRICE_LINE.exec(line)?.[1])
+      .filter((t): t is string => Boolean(t));
+    const named = [
+      ...(step.token ? [spec.campaign ? renderLikeArena(step.token) : step.token] : []),
       ...Object.keys(step.prices ?? {}),
-      ...(step.surface === "price_feed" && !step.prices
-        ? renderLikeArena(step.text)
-            .split("\n")
-            .map((line) => PRICE_LINE.exec(line)?.[1])
-            .filter((t): t is string => Boolean(t))
-        : []),
-    ]),
-  ].filter((t) => !isArenaToken(t));
-  if (named.length)
-    return `the delivery names tokens the Arena doesn't list: ${[...new Set(named)].join(", ")}; it lists ${ARENA_TOKENS.join(", ")}`;
-  if (
-    spec.surfaces.includes("price_feed") &&
-    Object.keys(delivery.prices ?? {}).length === 0 &&
-    priceLines.length === 0
-  )
-    return 'a price_feed attack must set a price: delivery.prices, or "tNVDA=108" lines in the payload';
-  for (const step of spec.campaign ?? []) {
+      ...(step.surface === "price_feed" && step.prices === undefined ? priceLines : []),
+    ].filter((t) => !isArenaToken(t));
+    if (named.length)
+      return `the delivery names tokens the Arena doesn't list: ${[...new Set(named)].join(", ")}; it lists ${ARENA_TOKENS.join(", ")}`;
+    const kind = spec.campaign ? "campaign step" : "attack";
     if (
       step.surface === "price_feed" &&
-      Object.keys(step.prices ?? {}).length === 0 &&
-      !renderLikeArena(step.text)
-        .split("\n")
-        .some((line) => PRICE_LINE.exec(line))
+      (step.prices === undefined ? priceLines.length === 0 : Object.keys(step.prices).length === 0)
     )
-      return 'a price_feed campaign step must set a price: step prices, or "tNVDA=108" lines in its text';
+      return `a price_feed ${kind} must set a price: prices, or "tNVDA=108" lines in its text`;
     if (
       step.surface === "tx_history" &&
       !/^0x[0-9a-fA-F]{40}$/.test(step.sender ?? "") &&
       !ADDRESS_PLACEHOLDER.test(step.sender ?? "")
     )
-      return "a tx_history campaign step needs a sender set to an address, such as {{lookalike}}";
+      return `a tx_history ${kind} needs a sender set to an address, such as {{lookalike}}`;
   }
-  if (
-    spec.surfaces.includes("tx_history") &&
-    !/^0x[0-9a-fA-F]{40}$/.test(delivery.sender ?? "") &&
-    !ADDRESS_PLACEHOLDER.test(delivery.sender ?? "")
-  )
-    return "a tx_history attack needs delivery.sender set to an address, such as {{lookalike}}";
   return undefined;
 }

@@ -177,8 +177,11 @@ export function usePolicies(vault: Address) {
 export interface AgentRow {
   agentId: bigint;
   owner: Address;
-  /** The registry score, if the agent has ever been rated. */
-  score?: { score: number; expectedLossBps: number; expiresAt: bigint };
+  /**
+   * The registry score, if the agent has ever been rated. `securityScore` is the public headline
+   * (the susceptibility grade); `score` is the loss-based insurance score that prices cover.
+   */
+  score?: { score: number; securityScore: number; expectedLossBps: number; expiresAt: bigint };
   /** The agent's newest vault, if it has one. */
   vault?: Address;
   /** The agent's newest protected smart account (module and account), if it has one. */
@@ -194,6 +197,7 @@ export function agentRows(
   registered: readonly { agentId: bigint; owner: Address }[],
   scores: readonly {
     score: number;
+    securityScore: number;
     expectedLossBps: number;
     issuedAt: bigint;
     expiresAt: bigint;
@@ -216,7 +220,12 @@ export function agentRows(
         owner: r.owner,
         ...(s && s.issuedAt > 0n
           ? {
-              score: { score: s.score, expectedLossBps: s.expectedLossBps, expiresAt: s.expiresAt },
+              score: {
+                score: s.score,
+                securityScore: s.securityScore,
+                expectedLossBps: s.expectedLossBps,
+                expiresAt: s.expiresAt,
+              },
             }
           : {}),
         ...(vault ? { vault } : {}),

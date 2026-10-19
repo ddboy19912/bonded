@@ -5,9 +5,11 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   BringYourAgent,
   Faq,
+  LatestPosts,
   LiveAgents,
   Roles,
   ScoreScale,
@@ -175,10 +177,12 @@ vi.mock("../lib/chain", async (original) => ({
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 const current = () => BigInt(nowSeconds() + 7 * 86_400);
 const lapsed = () => BigInt(nowSeconds() - 86_400);
-const agent = (id: number, score?: number, expiresAt = current()) => ({
+const agent = (id: number, score?: number, expiresAt = current(), securityScore = score) => ({
   agentId: BigInt(id),
   owner: "0x0000000000000000000000000000000000000001",
-  ...(score === undefined ? {} : { score: { score, expectedLossBps: 150, expiresAt } }),
+  ...(score === undefined
+    ? {}
+    : { score: { score, securityScore: securityScore!, expectedLossBps: 150, expiresAt } }),
 });
 const usd6 = (n: number) => BigInt(n) * 1_000_000n;
 /** `payout` is the award; `netted` of it went to unpaid premium, and the bond and pool paid the rest. */
@@ -224,7 +228,7 @@ describe("the live agents band", () => {
       "Agent 5",
       "Agent 1",
     ]);
-    expect(screen.getAllByText(/Expected loss/)).toHaveLength(4);
+    expect(screen.getAllByText(/Insurance \d+ · loss/)).toHaveLength(4);
     expect(screen.getByRole("link", { name: /Agent 2/ }).getAttribute("href")).toBe("/agents/2");
   });
 
@@ -359,5 +363,52 @@ describe("the light behind the page", () => {
 
   it("lets the body show it through on the landing page only", () => {
     expect(css).toContain("body:has(.landing)");
+  });
+});
+
+describe("the latest blog posts", () => {
+  const post = {
+    title: "Sandboxed isn't safe",
+    slug: "sandboxed-isnt-safe",
+    description: "Locking an agent's keys stops it from stealing.",
+    publishedAt: "2026-10-13",
+    cover: "https://cdn.sanity.io/images/x/cover.jpg",
+    alt: "The Herald",
+  };
+  const withClient = (ui: React.ReactElement) => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return {
+      client,
+      ...render(
+        <QueryClientProvider client={client}>
+          <MemoryRouter>{ui}</MemoryRouter>
+        </QueryClientProvider>,
+      ),
+    };
+  };
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("links each post to its page under /blog and the heading to the blog", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify([post])));
+    vi.stubGlobal("fetch", fetchMock);
+    withClient(<LatestPosts />);
+    const link = await screen.findByRole("link", { name: /Sandboxed isn't safe/ });
+    expect((fetchMock.mock.calls as unknown[][])[0]?.[0]).toBe("/blog/latest.json");
+    expect(link.getAttribute("href")).toBe("/blog/sandboxed-isnt-safe/");
+    expect(screen.getByText("13 October 2026")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Read the blog/ }).getAttribute("href")).toBe("/blog/");
+  });
+
+  it("renders nothing when the request fails", async () => {
+    const fetchMock = vi.fn(async () => new Response("nope", { status: 500 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { container, client } = withClient(<LatestPosts />);
+    // The section is also absent while loading, so wait for the query to fail first. The hook
+    // retries once (after a second), which its own options set, not this client's defaults.
+    await vi.waitFor(() => expect(client.getQueryState(["blog", "latest"])?.status).toBe("error"), {
+      timeout: 4000,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(container.querySelector("#blog")).toBeNull();
   });
 });

@@ -58,8 +58,14 @@ it("lists agents newest first, with their score and newest vault", () => {
   const b = "0x00000000000000000000000000000000000000bb" as const;
   const v1 = "0x0000000000000000000000000000000000000001" as const;
   const v2 = "0x0000000000000000000000000000000000000002" as const;
-  const rated = { score: 49, expectedLossBps: 511, issuedAt: 100n, expiresAt: 200n };
-  const unrated = { score: 0, expectedLossBps: 0, issuedAt: 0n, expiresAt: 0n };
+  const rated = {
+    score: 49,
+    securityScore: 72,
+    expectedLossBps: 511,
+    issuedAt: 100n,
+    expiresAt: 200n,
+  };
+  const unrated = { score: 0, securityScore: 0, expectedLossBps: 0, issuedAt: 0n, expiresAt: 0n };
   const rows = agentRows(
     [
       { agentId: 1n, owner: a },
@@ -76,7 +82,7 @@ it("lists agents newest first, with their score and newest vault", () => {
     {
       agentId: 1n,
       owner: a,
-      score: { score: 49, expectedLossBps: 511, expiresAt: 200n },
+      score: { score: 49, securityScore: 72, expectedLossBps: 511, expiresAt: 200n },
       vault: v2,
     },
   ]);
@@ -121,7 +127,7 @@ describe("smart accounts protected by a MandateModule", () => {
 
   it("gives an agent its newest protected account next to its vault", () => {
     const owner = "0x00000000000000000000000000000000000000aa" as const;
-    const unrated = { score: 0, expectedLossBps: 0, issuedAt: 0n, expiresAt: 0n };
+    const unrated = { score: 0, securityScore: 0, expectedLossBps: 0, issuedAt: 0n, expiresAt: 0n };
     const rows = agentRows(
       [
         { agentId: 1n, owner },

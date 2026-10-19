@@ -319,7 +319,7 @@ function MyAgent({ a }: { a: AgentRow }) {
   return (
     <Link to={`/agents/${a.agentId}`} className="flex items-center gap-4">
       {a.score ? (
-        <ScoreRing score={a.score.score} size={72} />
+        <ScoreRing score={a.score.securityScore} size={72} />
       ) : (
         <span className="flex size-[72px] items-center justify-center rounded-full border border-dashed border-line-strong text-xs text-muted">
           unrated
@@ -329,7 +329,7 @@ function MyAgent({ a }: { a: AgentRow }) {
         <span className="block text-[17px] font-bold">Agent {a.agentId.toString()}</span>
         {a.score ? (
           <span className="mt-0.5 block text-sm text-muted">
-            Tier {tierForScore(a.score.score).tier}
+            Insurance tier {tierForScore(a.score.score).tier}
           </span>
         ) : (
           <span className="mt-0.5 block text-sm text-muted">Not rated yet</span>

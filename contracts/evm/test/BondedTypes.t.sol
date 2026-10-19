@@ -9,11 +9,11 @@ import {BondedTypes} from "../src/libraries/BondedTypes.sol";
 ///      packages/shared/test/attestation.test.ts. If either side changes, both tests fail.
 contract BondedTypesTest is Test {
     bytes32 constant EXPECTED_ATTESTATION_TYPEHASH =
-        0xa214f173fdb418ef27d396191b8973aa6cd22ce14cfad5e4d463f9e624545225;
+        0x047f40647bc853acdc6f48ec8ccc7a20a30ac0c6c74367542d3ffc1f49175b74;
     bytes32 constant EXPECTED_QUOTE_TYPEHASH =
         0x77aa80c26f664e0586b9e93f383edc272af05d2cd2ddf13ee5e7597ebe314fcc;
     bytes32 constant EXPECTED_ATTESTATION_STRUCT_HASH =
-        0xeadd91612246d4cf99532ebfcd87b2b12c432e92bce58ea9f252e29dba4ec938;
+        0x685a3dea4f32925fdd04ec3467510d9914fdd03bdd5067940ce449a98d857e5e;
     bytes32 constant EXPECTED_QUOTE_STRUCT_HASH =
         0xdad36c5fd409fde62c1bec61b5ce3eafb81d2631b5e1e0eb7f3084ef519ff7ff;
 
@@ -26,6 +26,7 @@ contract BondedTypesTest is Test {
         BondedTypes.Attestation memory a = BondedTypes.Attestation({
             agentId: 42,
             score: 96,
+            securityScore: 90,
             expectedLossBps: 30,
             reportHash: bytes32(uint256(1)),
             mandateHash: bytes32(uint256(2)),

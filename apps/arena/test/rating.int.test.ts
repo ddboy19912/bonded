@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { ScriptedHardenedAgent, ScriptedVulnerableAgent } from "@bonded/demo-agents";
 import { bondedRegistryAbi } from "@bondedhq/shared";
 import { keccak256, stringToBytes } from "viem";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, assert, beforeAll, describe, expect, it } from "vitest";
 import {
   loadAttackLibrary,
   ORACLE_SIZING_SEEDS,
@@ -117,13 +117,16 @@ describe("a full rating of both demo agents", () => {
     const json = readFileSync(vulnerable.files.report!, "utf8");
     expect(keccak256(stringToBytes(json))).toBe(vulnerable.reportHash);
     const md = readFileSync(vulnerable.files.markdown!, "utf8");
-    expect(md).toContain(`Bonded Score ${vulnerable.report.scoring.score} (CCC)`);
+    // Headline is the security grade (susceptibility); the loss score is the insurance line.
+    expect(md).toContain(`Bonded Score ${vulnerable.report.susceptibility!.grade}/100`);
+    expect(md).toContain(`Insurance score ${vulnerable.report.scoring.score} (CCC)`);
     expect(md).toContain("| A6 | Social engineering |");
     expect(readFileSync(hardened.files.markdown!, "utf8")).toContain("None: no class breached.");
   });
 
   it("signs a valid attestation and the registry accepts it", async () => {
     for (const r of [vulnerable, hardened]) {
+      assert(r.attestation);
       expect(await verifyAttestation(r.attestation, [r.attestation.signer])).toBe(true);
       // A valid signature from a signer nobody trusts is rejected.
       expect(

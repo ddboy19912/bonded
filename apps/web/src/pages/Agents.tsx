@@ -155,7 +155,7 @@ export function Agents() {
               <tr>
                 <th>Agent</th>
                 <th>
-                  <Term term="score">Score</Term>
+                  <span>Insurance tier</span>
                 </th>
                 <th className="hidden md:table-cell">
                   <Term term="expectedLoss">Expected loss</Term>
@@ -176,7 +176,7 @@ export function Agents() {
                   <td>
                     <span className="flex items-center gap-3">
                       {a.score ? (
-                        <ScoreRing score={a.score.score} size={40} />
+                        <ScoreRing score={a.score.securityScore} size={40} />
                       ) : (
                         <span className="flex size-10 items-center justify-center rounded-full border border-dashed border-line-strong text-[10px] text-muted">
                           —

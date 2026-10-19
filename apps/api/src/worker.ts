@@ -275,7 +275,7 @@ async function runLocked(
   const notifyOwner = (
     type: RatingNotificationType,
     status: string,
-    extra: { score?: number; reason?: string },
+    extra: { score?: number; securityScore?: number; reason?: string },
   ) => {
     if (!remoteOwner || !options.notifier) return;
     options.notifier.notify(remoteOwner.owner, {
@@ -602,7 +602,7 @@ async function runLocked(
         // attest a score it got by doing nothing (rate.ts, LIVENESS_MIN_RATE).
         // The report is kept, so the owner can see the controls; the reason is stored on the
         // rating and shown as is. Running it again won't change a deterministic judgement.
-        if (result.refused) {
+        if (result.refused || !result.attestation) {
           await db.withLease(job, (c) =>
             c.query("UPDATE ratings SET report=$2,report_json=$3 WHERE id=$1", [
               job.id,
@@ -613,7 +613,7 @@ async function runLocked(
           // For an operator-run agent this is the agent's doing (it didn't do its task), so it
           // counts like a crash: the old score is superseded, and the cooldown starts.
           throw new RatingRefused(
-            `not attested: ${result.refused}`,
+            `not attested: ${result.refused ?? "no measured attack trials"}`,
             true,
             config.kind === "remote" ? { caused: true } : undefined,
           );
@@ -708,7 +708,10 @@ async function runLocked(
     // A complete rating posted: any standing from earlier stops resets.
     await db.finish(job);
     await flush();
-    notifyOwner("rating_finished", "done", { score: signed.attestation.score });
+    notifyOwner("rating_finished", "done", {
+      score: signed.attestation.score,
+      securityScore: signed.attestation.securityScore,
+    });
   } catch (error) {
     onError?.(error);
     const failure = ratingFailure(error, budgetSpentIn);

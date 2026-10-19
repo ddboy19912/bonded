@@ -6,7 +6,9 @@ import type { AgentRow } from "./chain";
  * Agents without a score are skipped; ties keep the newest agent.
  */
 export function showcaseAgents(rows: AgentRow[]): AgentRow[] {
-  const rated = rows.filter((r) => r.score).sort((a, b) => b.score!.score - a.score!.score);
+  const rated = rows
+    .filter((r) => r.score)
+    .sort((a, b) => b.score!.securityScore - a.score!.securityScore);
   if (rated.length <= 3) return rated;
   const picks = [rated[0]!, rated[Math.floor(rated.length / 2)]!, rated[rated.length - 1]!];
   return picks.filter((p, i) => picks.indexOf(p) === i);

@@ -65,6 +65,7 @@ beforeAll(async () => {
   attestation = {
     agentId: vault.agentId.toString(),
     score: 96,
+    securityScore: 90,
     expectedLossBps: 30,
     reportHash: `0x${"ab".repeat(32)}`,
     mandateHash,

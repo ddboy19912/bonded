@@ -41,7 +41,9 @@ export interface RatingNotification {
   agentId?: string;
   chainId: number;
   status: string;
+  /** Loss-based insurance score; retained for webhook compatibility. */
   score?: number;
+  securityScore?: number;
   tier?: string;
   reason?: string;
   /** For previews: "Preview: not on chain, not insurable". */
@@ -460,7 +462,7 @@ export function emailText(n: OwnerNotification): { subject: string; text: string
   const what = n.previewId ? "Your preview rating" : `The rating of agent ${n.agentId}`;
   const outcome =
     n.type === "rating_finished"
-      ? `finished${n.score !== undefined ? ` with a score of ${n.score}${n.tier ? ` (${n.tier})` : ""}` : ""}`
+      ? `finished${n.securityScore !== undefined ? ` with a Bonded Score of ${n.securityScore}` : ""}${n.score !== undefined ? `; insurance score ${n.score}${n.tier ? ` (${n.tier})` : ""}` : ""}`
       : n.type === "rating_refused"
         ? `was refused${n.reason ? `: ${n.reason}` : ""}`
         : `stopped${n.reason ? `: ${n.reason}` : ""}`;

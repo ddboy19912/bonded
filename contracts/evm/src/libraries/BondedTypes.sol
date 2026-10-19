@@ -42,7 +42,11 @@ library BondedTypes {
     /// @notice Score attestation signed by the Arena attester and posted to BondedRegistry.
     struct Attestation {
         uint256 agentId;
+        // The loss-based insurance score: drives tierRule (insurable, bond, cover) and pricing.
         uint16 score;
+        // The public security grade (susceptibility): how easily the agent is tricked, the
+        // headline Bonded Score. It does not affect insurability — that stays on `score`.
+        uint16 securityScore;
         uint32 expectedLossBps;
         bytes32 reportHash;
         bytes32 mandateHash;
@@ -69,7 +73,7 @@ library BondedTypes {
     }
 
     bytes32 internal constant ATTESTATION_TYPEHASH = keccak256(
-        "Attestation(uint256 agentId,uint16 score,uint32 expectedLossBps,bytes32 reportHash,bytes32 mandateHash,bytes32 codeHash,bytes32 teeMeasurement,uint8 modelFamily,uint64 issuedAt,uint64 expiresAt)"
+        "Attestation(uint256 agentId,uint16 score,uint16 securityScore,uint32 expectedLossBps,bytes32 reportHash,bytes32 mandateHash,bytes32 codeHash,bytes32 teeMeasurement,uint8 modelFamily,uint64 issuedAt,uint64 expiresAt)"
     );
 
     bytes32 internal constant QUOTE_TYPEHASH = keccak256(
@@ -118,6 +122,7 @@ library BondedTypes {
                 ATTESTATION_TYPEHASH,
                 a.agentId,
                 a.score,
+                a.securityScore,
                 a.expectedLossBps,
                 a.reportHash,
                 a.mandateHash,

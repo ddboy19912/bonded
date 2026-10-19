@@ -105,6 +105,7 @@ export async function readEvmScore(
   return {
     agentId: s.agentId.toString(),
     score: s.score,
+    securityScore: s.securityScore,
     expectedLossBps: s.expectedLossBps,
     reportHash: s.reportHash,
     mandateHash: s.mandateHash,
@@ -227,6 +228,7 @@ function sameScore(a: Attestation, b: Attestation): boolean {
   return (
     a.agentId === b.agentId &&
     a.score === b.score &&
+    a.securityScore === b.securityScore &&
     a.expectedLossBps === b.expectedLossBps &&
     a.reportHash.toLowerCase() === b.reportHash.toLowerCase() &&
     a.mandateHash.toLowerCase() === b.mandateHash.toLowerCase() &&

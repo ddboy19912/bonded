@@ -77,6 +77,11 @@ export const bondedRegistryAbi = [
             internalType: "uint16",
           },
           {
+            name: "securityScore",
+            type: "uint16",
+            internalType: "uint16",
+          },
+          {
             name: "expectedLossBps",
             type: "uint32",
             internalType: "uint32",
@@ -373,6 +378,11 @@ export const bondedRegistryAbi = [
             internalType: "uint16",
           },
           {
+            name: "securityScore",
+            type: "uint16",
+            internalType: "uint16",
+          },
+          {
             name: "expectedLossBps",
             type: "uint32",
             internalType: "uint32",
@@ -572,6 +582,11 @@ export const bondedRegistryAbi = [
           },
           {
             name: "score",
+            type: "uint16",
+            internalType: "uint16",
+          },
+          {
+            name: "securityScore",
             type: "uint16",
             internalType: "uint16",
           },
@@ -1044,6 +1059,12 @@ export const bondedRegistryAbi = [
       },
       {
         name: "score",
+        type: "uint16",
+        indexed: false,
+        internalType: "uint16",
+      },
+      {
+        name: "securityScore",
         type: "uint16",
         indexed: false,
         internalType: "uint16",

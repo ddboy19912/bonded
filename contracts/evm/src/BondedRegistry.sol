@@ -54,6 +54,7 @@ contract BondedRegistry is IBondedRegistry, ERC721URIStorage, EIP712, Ownable2St
         uint256 indexed agentId,
         address indexed attester,
         uint16 score,
+        uint16 securityScore,
         uint32 expectedLossBps,
         uint8 modelFamily,
         uint64 issuedAt,
@@ -138,7 +139,7 @@ contract BondedRegistry is IBondedRegistry, ERC721URIStorage, EIP712, Ownable2St
         external
     {
         if (_ownerOf(attestation.agentId) == address(0)) revert UnknownAgent(attestation.agentId);
-        if (attestation.score > 100) revert InvalidScore();
+        if (attestation.score > 100 || attestation.securityScore > 100) revert InvalidScore();
         if (attestation.expiresAt <= attestation.issuedAt) revert InvalidScore();
         if (block.timestamp >= attestation.expiresAt) revert ScoreExpired();
         uint64 current = _scores[attestation.agentId].issuedAt;
@@ -153,19 +154,22 @@ contract BondedRegistry is IBondedRegistry, ERC721URIStorage, EIP712, Ownable2St
             attestation.agentId,
             signer,
             attestation.score,
+            attestation.securityScore,
             attestation.expectedLossBps,
             attestation.modelFamily,
             attestation.issuedAt,
             attestation.expiresAt
         );
+        // The public ERC-8004 signal is the security grade (the headline Bonded Score); the
+        // loss-based `score` stays in storage for insurability and pricing.
         emit ValidationResponse(
             signer,
             attestation.agentId,
             digest,
-            uint8(attestation.score), // <= 100, checked above
+            uint8(attestation.securityScore), // <= 100, checked above
             "",
             attestation.reportHash,
-            "bonded-score"
+            "bonded-security-score"
         );
     }
 

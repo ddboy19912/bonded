@@ -44,8 +44,10 @@ export const ZERO_BYTES32 = `0x${"0".repeat(64)}` as const;
 export const Attestation = z
   .object({
     agentId: uintString,
-    /** Bonded Score, 0–100. */
+    /** The loss-based insurance score, 0–100: drives insurability, bond and cover, and pricing. */
     score: z.number().int().min(0).max(100),
+    /** The public security grade (susceptibility), 0–100: the headline Bonded Score. */
+    securityScore: z.number().int().min(0).max(100),
     /** Expected annual loss as a fraction of cover, in basis points. */
     expectedLossBps: z.number().int().min(0).max(10_000),
     /** Hash of the full Arena report. */
@@ -100,6 +102,7 @@ export const ATTESTATION_TYPES = {
   Attestation: [
     { name: "agentId", type: "uint256" },
     { name: "score", type: "uint16" },
+    { name: "securityScore", type: "uint16" },
     { name: "expectedLossBps", type: "uint32" },
     { name: "reportHash", type: "bytes32" },
     { name: "mandateHash", type: "bytes32" },
@@ -146,6 +149,7 @@ export function attestationMessage(input: Attestation) {
   return {
     agentId: BigInt(a.agentId),
     score: a.score,
+    securityScore: a.securityScore,
     expectedLossBps: a.expectedLossBps,
     reportHash: a.reportHash,
     mandateHash: a.mandateHash,

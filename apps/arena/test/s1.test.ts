@@ -1,3 +1,4 @@
+import { SpendingCap } from "../src/budget.js";
 import type { ArenaAgent } from "@bondedhq/shared";
 import { describe, expect, it } from "vitest";
 import {
@@ -5,6 +6,8 @@ import {
   type EpisodeResult,
   loadAttackLibrary,
   runS1Pair,
+  S1BudgetExceeded,
+  S1EpisodeError,
   type Sandbox,
 } from "../src/index.js";
 
@@ -122,5 +125,106 @@ describe("runS1Pair", () => {
     expect(r.usages).toHaveLength(2);
     expect(r.usages[0]?.costUsd).toBe(0.01);
     expect(r.usages[1]?.costUsd).toBe(0.02);
+  });
+});
+
+describe("S1 comparison integrity", () => {
+  it("values each side immediately and resets memory before and after both arms", async () => {
+    const events: string[] = [];
+    let notes = ["old note"];
+    const memoryAgent = {
+      ...agent,
+      get memory() {
+        return notes;
+      },
+      reset() {
+        notes = [];
+      },
+    };
+    await runS1Pair({
+      sandbox: {} as Sandbox,
+      agent: memoryAgent,
+      seed,
+      goal: "Same goal",
+      runEpisodeFn: async (options) => {
+        expect(notes).toEqual([]);
+        notes.push("new note");
+        events.push(options.variantId!);
+        expect(options.worldSeed).toBe(`s1-${seed.id}`);
+        expect(options.goal).toBe("Same goal");
+        return ep({ vault: options.attack ? "0x02" : "0x01" });
+      },
+      valueFn: async (vault) => {
+        events.push(vault);
+        return 50_000;
+      },
+    });
+    expect(events).toEqual(["s1-clean", "0x01", "s1-manip", "0x02"]);
+    expect(notes).toEqual([]);
+  });
+
+  it("does not start the manipulated episode after the clean episode exhausts the cap", async () => {
+    const budget = new SpendingCap({ maxUsd: 0.01 });
+    let calls = 0;
+    await expect(
+      runS1Pair({
+        sandbox: {} as Sandbox,
+        agent,
+        seed,
+        goal: "Same goal",
+        budget,
+        runEpisodeFn: async () => {
+          calls++;
+          return ep({ vault: "0x01", costUsd: 0.02 });
+        },
+        valueFn: async () => 50_000,
+      }),
+    ).rejects.toBeInstanceOf(S1BudgetExceeded);
+    expect(calls).toBe(1);
+    expect(budget.summary().spentUsd).toBe(0.02);
+  });
+
+  it("rejects an errored clean arm instead of reporting a false loss comparison", async () => {
+    let calls = 0;
+    const failed = ep({ vault: "0x01" });
+    failed.agentSummary.stoppedBecause = "error";
+    await expect(
+      runS1Pair({
+        sandbox: {} as Sandbox,
+        agent,
+        seed,
+        goal: "Same goal",
+        runEpisodeFn: async () => {
+          calls++;
+          return failed;
+        },
+        valueFn: async () => 50_000,
+      }),
+    ).rejects.toBeInstanceOf(S1EpisodeError);
+    expect(calls).toBe(1);
+  });
+
+  it("reports a control breach and detects a changed asset even with equal trade counts", async () => {
+    const clean = ep({ vault: "0x01", breached: true });
+    const manipulated = ep({ vault: "0x02" });
+    clean.trades = [
+      {
+        tool: "swap",
+        target: "router",
+        tokens: ["tUSDG", "tNVDA"],
+        outflowUsd: 2000,
+        breached: true,
+        step: 1,
+      },
+    ];
+    manipulated.trades = [{ ...clean.trades[0]!, tokens: ["tUSDG", "tAMZN"], breached: false }];
+    const result = await harness({
+      cleanEp: clean,
+      manipEp: manipulated,
+      values: { "0x01": 49_000, "0x02": 49_000 },
+    }).run();
+    expect(result.controlBreached).toBe(true);
+    expect(result.clean.ruling).toBe("breach");
+    expect(result.changedBehavior).toBe(true);
   });
 });

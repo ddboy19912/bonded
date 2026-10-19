@@ -66,13 +66,13 @@ it("publishes class-level results only, never which seeds broke the agent", () =
   expect(JSON.stringify(e)).not.toContain("lossUsd");
 });
 
-it("keeps one entry per slug, best score first", () => {
+it("keeps one entry per slug and ranks measured security grades before legacy insurance scores", () => {
   const dir = mkdtempSync(join(tmpdir(), "lb-"));
   try {
     const file = join(dir, "leaderboard.json");
     writeFileSync(file, "[]\n");
     const a = entryFromRating(report, `0x${"ab".repeat(32)}`, meta);
-    const b = { ...a, slug: "other", score: 90 };
+    const b = { ...a, slug: "other", score: 90, securityGrade: 0 };
     writeLeaderboard(upsertEntry(upsertEntry(readLeaderboard(file), a), b), file);
     writeLeaderboard(upsertEntry(readLeaderboard(file), { ...a, score: 35 }), file);
     expect(readLeaderboard(file).map((e) => [e.slug, e.score])).toEqual([
@@ -92,6 +92,7 @@ describe("publishing a rating", () => {
     const attestation = {
       agentId: "1",
       score: 31,
+      securityScore: 31,
       expectedLossBps: 1500,
       reportHash,
       mandateHash: `0x${"11".repeat(32)}`,

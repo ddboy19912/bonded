@@ -154,6 +154,7 @@ it("quotes cover for the module, priced from a score on its commitment", async (
     {
       agentId: agentId.toString(),
       score: 90,
+      securityScore: 90,
       expectedLossBps: 50,
       mandateHash: mandateCommitment(toEvmMandateParams(mandate)),
       reportHash: `0x${"ab".repeat(32)}`,

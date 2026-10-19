@@ -474,6 +474,7 @@ describe("binding, cover caps and the live loop", () => {
       {
         agentId: v.agentId.toString(),
         score: 96,
+        securityScore: 96,
         expectedLossBps: 30,
         mandateHash: mandateHash(v.mandate),
         reportHash: hash(Number(issuedAt)),

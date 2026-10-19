@@ -27,6 +27,7 @@ const hash = (n: number) => `0x${n.toString(16).padStart(64, "0")}` as const;
 const attestation: Attestation = {
   agentId: "42",
   score: 96,
+  securityScore: 90,
   expectedLossBps: 30,
   reportHash: hash(1),
   mandateHash: hash(2),
@@ -55,13 +56,13 @@ describe("EIP-712 type strings", () => {
   // These literals are duplicated in contracts/evm/test/BondedTypes.t.sol.
   it("match the strings the Solidity typehashes use", () => {
     expect(ATTESTATION_TYPE_STRING).toBe(
-      "Attestation(uint256 agentId,uint16 score,uint32 expectedLossBps,bytes32 reportHash,bytes32 mandateHash,bytes32 codeHash,bytes32 teeMeasurement,uint8 modelFamily,uint64 issuedAt,uint64 expiresAt)",
+      "Attestation(uint256 agentId,uint16 score,uint16 securityScore,uint32 expectedLossBps,bytes32 reportHash,bytes32 mandateHash,bytes32 codeHash,bytes32 teeMeasurement,uint8 modelFamily,uint64 issuedAt,uint64 expiresAt)",
     );
     expect(QUOTE_TYPE_STRING).toBe(
       "Quote(uint256 agentId,address vault,uint256 coverAmount,uint32 premiumRateBps,uint16 score,uint8 modelFamily,bytes32 mandateHash,bytes32 reportHash,uint256 minBond,uint64 expiresAt,uint256 nonce)",
     );
     expect(ATTESTATION_TYPEHASH).toBe(
-      "0xa214f173fdb418ef27d396191b8973aa6cd22ce14cfad5e4d463f9e624545225",
+      "0x047f40647bc853acdc6f48ec8ccc7a20a30ac0c6c74367542d3ffc1f49175b74",
     );
     expect(QUOTE_TYPEHASH).toBe(
       "0x77aa80c26f664e0586b9e93f383edc272af05d2cd2ddf13ee5e7597ebe314fcc",
@@ -76,7 +77,7 @@ describe("EIP-712 type strings", () => {
         primaryType: "Attestation",
         types: ATTESTATION_TYPES,
       }),
-    ).toBe("0xeadd91612246d4cf99532ebfcd87b2b12c432e92bce58ea9f252e29dba4ec938");
+    ).toBe("0x685a3dea4f32925fdd04ec3467510d9914fdd03bdd5067940ce449a98d857e5e");
     expect(
       hashStruct({ data: quoteMessage(quote), primaryType: "Quote", types: QUOTE_TYPES }),
     ).toBe("0xdad36c5fd409fde62c1bec61b5ce3eafb81d2631b5e1e0eb7f3084ef519ff7ff");

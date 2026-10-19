@@ -302,6 +302,7 @@ export function launchRoutes(app: Hono, options: LaunchRouteOptions) {
         score: score
           ? {
               value: score.score,
+              securityScore: score.securityScore,
               tier: score.tier,
               expiresAt: score.expiresAt,
               valid: score.expiresAtSeconds * 1000 > now() && !standing.superseded,

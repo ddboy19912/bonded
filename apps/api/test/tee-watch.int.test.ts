@@ -32,6 +32,7 @@ beforeAll(async () => {
     {
       agentId: vault.agentId.toString(),
       score: 96,
+      securityScore: 96,
       expectedLossBps: 30,
       mandateHash: mandateHash(vault.mandate),
       reportHash: hash(1),
