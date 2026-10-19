@@ -105,7 +105,7 @@ All runs on a local chain with test tokens. Agents: the AgentKit template on thr
 | Agent's calls and final message (`trace`) | 4 of 4 | 1, 1, 1, 2 |
 | Labels only (`outcome`) | 0 of 4 (23 of 26 tries ran) | none |
 
-So the uplift comes from reading the agent's replies, not from rewording. It also means an agent that explains why it declined gives an attacker what the loop needs.
+These separate stochastic runs are consistent with useful feedback from the agent's replies, but they do not establish that feedback caused the difference. Matched repeated runs would be needed to separate that effect from variation in the rewrites. The positive control illustrates how an explanation of a refusal can reveal information an attacker can use.
 
 **3. On weak LLM agents, rewriting breaches seeds that the unmodified text doesn't.** 11 seeds per model that the sweep had missed, V4 Pro attacker, `trace` feedback, up to 4 rewrites, $0.10 cap per seed:
 

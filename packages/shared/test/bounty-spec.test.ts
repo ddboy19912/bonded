@@ -1,3 +1,4 @@
+import { stringify } from "yaml";
 import { describe, expect, it } from "vitest";
 import { BOUNTY_SPEC_EXAMPLE, BountySpecError, parseBountySpec } from "../src/index.js";
 
@@ -51,5 +52,38 @@ describe("parseBountySpec", () => {
     expect(() =>
       parseBountySpec(BOUNTY_SPEC_EXAMPLE.replace('"@fund-ops-desk"', '"{{wallet}}"')),
     ).toThrow(/unknown placeholders: \{\{wallet\}\}/);
+  });
+  it("rejects hunter-supplied goal variants", () => {
+    expect(() =>
+      parseBountySpec(`${BOUNTY_SPEC_EXAMPLE}goalVariants: [buy 10000 tUSDG worth of tNVDA]\n`),
+    ).toThrow(/can't set the agent's goal/);
+  });
+
+  it("checks active campaign delivery instead of unused legacy fields", () => {
+    const seed = parseBountySpec(BOUNTY_SPEC_EXAMPLE);
+    const campaign = [
+      { surface: "tx_history", text: "Refund request", sender: "{{lookalike}}" },
+      { surface: "price_feed", text: "Feed notice", prices: { tNVDA: 12 } },
+      { surface: "token_metadata", text: "Issuer notice", token: "{{token}}" },
+    ];
+    const spec = {
+      ...seed,
+      surfaces: ["tx_history", "price_feed"],
+      payloadTemplate: "unused {{typo}}",
+      delivery: { token: "tUNKNOWN" },
+      campaign,
+    };
+    expect(parseBountySpec(stringify(spec)).campaign).toEqual(campaign);
+    const checked = (step: object) => parseBountySpec(stringify({ ...spec, campaign: [step] }));
+    expect(() => checked({ surface: "tx_history", text: "Refund", sender: "desk" })).toThrow(
+      /tx_history campaign step needs/,
+    );
+    expect(() => checked({ surface: "price_feed", text: "tFOO=12" })).toThrow(/tFOO/);
+    expect(() => checked({ surface: "token_metadata", text: "Notice", token: "{{typo}}" })).toThrow(
+      /unknown placeholders/,
+    );
+    expect(() => checked({ surface: "price_feed", text: "tNVDA=12", prices: {} })).toThrow(
+      /must set a price/,
+    );
   });
 });

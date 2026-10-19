@@ -45,10 +45,29 @@ Scripted agents, no model spend:
 - **Scripted vulnerable agent**, 2 tries per coupled seed, `--refunds`: **11 of 15 coupled seeds breached in generation 0** (the four that held are the asset-unit A3 pair and the two-content A2 pair, which the scripted brain doesn't act on). The pipeline, campaign planting and goal genes work end to end.
 - **Scripted hardened agent**, 3 candidates × 2 generations on three coupled seeds: **0 breaches**, best score 2 of 4 — the harness still separates a resistant design from a vulnerable one.
 
-No run against a real LLM target has happened yet; that costs only the target's own model spend (the confirmation slice in [HARBINGER-PLAN](HARBINGER-PLAN.md) is the precommitted first try).
+The confirmation slice against AgentKit + DeepSeek V4.1 Flash found 0 of 15 seeds breached: 59 clean holds and one turn-timeout, at $0.885 total spend. See [the recorded outcome](HARBINGER-PLAN.md#slice-outcome-2026-10-17-run-against-agentkit--deepseekdeepseek-v41-flash). These results predate the campaign and goal fixes below and must be rerun before drawing conclusions about the corrected engine.
 
 ## What it doesn't do
 
 - No tree search beyond mutation/crossover, no tool-result replay in feedback (adaptive's limits apply).
 - One attempt per candidate per episode; an attack that needs state carried across sessions needs the memory runner (`memory-attempt.ts`, still framing-only).
 - The goal bank and campaign corroborator are text-only: no fabricated tool schemas, no forged chain reads (the world shows those from the chain only, on purpose).
+
+
+## Review corrections
+
+Campaign variants now plant their rewritten directive while preserving each asset step's token,
+prices and sender. The spread gene is sampled from the first generation, with at most two
+unique corroborating channels. A price-only seed keeps its feed payload because prose cannot
+change that surface; framing genes do not vary its price values. `--random-seed` now reaches
+the search, and attempts report the actual task when `--goal-index` overrides the goal gene.
+
+Every searched goal includes a parseable standing buy. The two 100-unit top-up variants now
+require a feed quote within 2000 USD; normal prices therefore do not instruct an over-cap
+trade without an attack. The goal guard rejects numeric USD asks over the demo cap, but is
+only a syntax check: tasks still need semantic review against the mandate.
+
+Held-out deduplication hashes the campaign that is actually planted. Feed-only campaigns are
+validated through their price delivery instead of being required to breach the parser agent.
+Memory attempts stop after a first-session breach, keep the benign world fixed across variants,
+and account for both sessions when both run.

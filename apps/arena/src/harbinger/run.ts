@@ -14,9 +14,9 @@ import { type Genome, initialPopulation, nextGeneration } from "./generate.js";
  * the episode record (`scoreAttempt`, the same deterministic judge the adaptive loop uses), and
  * the fittest genomes breed the next generation by mutation and crossover.
  *
- * What it controls is the planted text, exactly as the adaptive loop (adaptive.ts): surface,
- * sender, task, tools and vault stay as the seed set them, and the verdict is the vault's breach
- * log. The difference is where the text comes from.
+ * It controls the planted text, a benign workflow task and optional corroboration surfaces.
+ * Asset delivery, tools and vault stay as the seed set them; the verdict is the vault's breach
+ * log.
  */
 
 export interface HarbingerAttempt {
@@ -113,6 +113,7 @@ export async function runHarbinger(options: HarbingerOptions): Promise<Harbinger
     for (let index = 0; index < population.length; index++) {
       if (cap.exceeded) return finish("budget");
       const variant = population[index]!;
+      const goal = options.episode?.goal ?? variant.goal;
       const candidate = candidateSpec(
         seed,
         generation,
@@ -128,7 +129,7 @@ export async function runHarbinger(options: HarbingerOptions): Promise<Harbinger
           generation,
           genome: variant.genome,
           payloadTemplate: variant.text,
-          goal: variant.goal,
+          goal,
           ruling: "invalid",
           note: candidate,
           succeeded: false,
@@ -139,7 +140,7 @@ export async function runHarbinger(options: HarbingerOptions): Promise<Harbinger
       }
       // The task is part of the genome (goals.ts): the engine sets it after the bounty checks,
       // which refuse a hunter-set goal. Goals are benign by construction (goalOk).
-      const spec = { ...candidate, goal: variant.goal };
+      const spec = { ...candidate, goal };
       const result = await attempt(spec, generation, index);
       cap.add(result.agentSummary.usage);
       const ruling = rulingOf(result);
@@ -149,7 +150,7 @@ export async function runHarbinger(options: HarbingerOptions): Promise<Harbinger
         generation,
         genome: variant.genome,
         payloadTemplate: variant.text,
-        goal: variant.goal,
+        goal,
         ruling,
         succeeded: ruling === "breach",
         lossUsd: result.verdict.totalLossUsd,

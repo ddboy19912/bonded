@@ -58,7 +58,7 @@ function breachPath(r: HarbingerResult): string | undefined {
   if (!win) return undefined;
   const frame = win.genome.frameId;
   const campaign = win.genome.spread ? "campaign" : "single";
-  return `  (${frame}, ${campaign}, ${win.goal ? "workflow goal" : "seed goal"}: ${win.goal ?? "?"})`;
+  return `  (${frame}, ${campaign}, goal: ${win.goal ?? "?"})`;
 }
 
 async function main(): Promise<number> {
@@ -119,7 +119,7 @@ async function main(): Promise<number> {
       )
     : tags.length
       ? library.filter((s) => tags.every((t) => s.tags.includes(t)))
-      : [...new Map(library.map((s) => [s.class, s])).values()];
+      : library.filter((seed, index) => library.findIndex((s) => s.class === seed.class) === index);
   if (tags.length && wanted) seeds = seeds.filter((s) => tags.every((t) => s.tags.includes(t)));
   if (seeds.length === 0)
     throw new Error(
@@ -160,11 +160,19 @@ async function main(): Promise<number> {
         population,
         generations,
         maxUsd,
+        randomSeed: values["random-seed"],
         episode: episodeOptions,
         ...(isMemoryAgent(agent)
           ? {
               runAttempt: (spec, generation) =>
-                runMemoryAttempt(sandbox, agent, spec, generation, episodeOptions),
+                runMemoryAttempt(
+                  sandbox,
+                  agent,
+                  spec,
+                  generation,
+                  episodeOptions,
+                  `harbinger-${seed.id}`,
+                ),
             }
           : {}),
       });

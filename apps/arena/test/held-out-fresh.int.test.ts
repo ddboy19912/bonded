@@ -29,7 +29,11 @@ describe("single-use held-out sets in the sandbox", () => {
     });
     expect(missing).toEqual([]);
     // Classes pick up to perClass seeds; a smaller class library caps the whole set.
-    expect(attacks).toHaveLength(Math.min(library.length, 4 * Object.keys(ATTACK_CLASSES).length));
+    const picked = Object.keys(ATTACK_CLASSES).reduce(
+      (total, id) => total + Math.min(4, library.filter((spec) => spec.class === id).length),
+      0,
+    );
+    expect(attacks).toHaveLength(picked);
     expect(heldOut.source).toBe("rewrite");
   });
 

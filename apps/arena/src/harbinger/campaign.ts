@@ -36,9 +36,11 @@ export function corroborate(
   const pieces: CampaignPiece[] = [
     { surface: directiveSurface, ...(sender ? { sender } : {}), text: directive },
   ];
-  for (const surface of echoes.filter(
-    (s) => s !== directiveSurface && !ASSETS.has(s) && pieces.length < 3,
-  )) {
+  const seen = new Set<AttackSurface>([directiveSurface]);
+  for (const surface of echoes) {
+    if (pieces.length >= 3) break;
+    if (seen.has(surface) || ASSETS.has(surface)) continue;
+    seen.add(surface);
     pieces.push({ surface, ...echoPiece(surface, topic, ctx.role) });
   }
   return pieces;

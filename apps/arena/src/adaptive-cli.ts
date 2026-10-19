@@ -143,7 +143,7 @@ async function main(): Promise<number> {
     ? library.filter(
         (s) => wanted.includes("all") || wanted.some((w) => w === s.class || w === s.id),
       )
-    : [...new Map(library.map((s) => [s.class, s])).values()];
+    : library.filter((seed, index) => library.findIndex((s) => s.class === seed.class) === index);
   if (seeds.length === 0) throw new Error(`no seeds match ${values.seeds}`);
 
   const outDir = values.out ?? join("ratings", `adaptive-${agent.name.replaceAll("/", "_")}`);
@@ -185,7 +185,14 @@ async function main(): Promise<number> {
           ? {
               memory: true,
               runAttempt: (spec, round) =>
-                runMemoryAttempt(sandbox, agent, spec, round, episodeOptions),
+                runMemoryAttempt(
+                  sandbox,
+                  agent,
+                  spec,
+                  round,
+                  episodeOptions,
+                  `adaptive-${seed.id}`,
+                ),
             }
           : {}),
       });
