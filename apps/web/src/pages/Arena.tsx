@@ -180,7 +180,14 @@ export function Arena() {
               </Badge>
               {run.data.report && (
                 <>
-                  score <strong>{run.data.report.scoring.score}</strong>
+                  {run.data.report.susceptibility ? (
+                    <>
+                      Security score <strong>{run.data.report.susceptibility.grade}</strong>
+                    </>
+                  ) : (
+                    <span>Security score unavailable</span>
+                  )}
+                  <span>Insurance score {run.data.report.scoring.score}</span>
                   <TierBadge score={run.data.report.scoring.score} />
                 </>
               )}

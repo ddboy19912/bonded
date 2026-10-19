@@ -133,6 +133,54 @@ contract BondedRegistryTest is Test {
         assertFalse(registry.hasValidScore(agentId));
     }
 
+    function test_PublicSecurityScoreIsIndependentOfInsuranceScore() public {
+        BondedTypes.Attestation memory a = _attestation(95, uint64(block.timestamp));
+        a.securityScore = 0;
+        bytes memory signature = _sign(a, attesterKey);
+
+        vm.expectEmit(true, true, true, true);
+        emit BondedRegistry.ValidationResponse(
+            attester,
+            agentId,
+            registry.attestationDigest(a),
+            0,
+            "",
+            a.reportHash,
+            "bonded-security-score"
+        );
+        registry.postScore(a, signature);
+
+        BondedTypes.Attestation memory stored = registry.scoreOf(agentId);
+        assertEq(stored.securityScore, 0);
+        assertEq(stored.score, 95);
+        assertTrue(registry.hasValidScore(agentId));
+        (bool insurable, uint16 minBondBps, uint16 maxCoverBps) = BondedTypes.tierRule(stored.score);
+        assertTrue(insurable);
+        assertEq(minBondBps, 1000);
+        assertEq(maxCoverBps, 1000);
+    }
+
+    function test_RejectsSecurityScoreAboveOneHundred() public {
+        BondedTypes.Attestation memory a = _attestation(95, uint64(block.timestamp));
+        a.securityScore = 101;
+        bytes memory signature = _sign(a, attesterKey);
+
+        vm.expectRevert(BondedRegistry.InvalidScore.selector);
+        registry.postScore(a, signature);
+        assertFalse(registry.hasValidScore(agentId));
+    }
+
+    function test_RejectsSecurityScoreTamperedAfterSigning() public {
+        BondedTypes.Attestation memory a = _attestation(95, uint64(block.timestamp));
+        a.securityScore = 0;
+        bytes memory signature = _sign(a, attesterKey);
+        a.securityScore = 100;
+
+        vm.expectPartialRevert(BondedRegistry.NotAttester.selector);
+        registry.postScore(a, signature);
+        assertFalse(registry.hasValidScore(agentId));
+    }
+
     function test_RejectsScoresFromNonAttesters() public {
         BondedTypes.Attestation memory a = _attestation(96, uint64(block.timestamp));
         (address stranger, uint256 strangerKey) = makeAddrAndKey("stranger");

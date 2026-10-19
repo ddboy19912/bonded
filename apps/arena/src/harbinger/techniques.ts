@@ -6,8 +6,7 @@ import type { BreachType } from "@bondedhq/shared";
  * (generate.ts). The point of making it deterministic is cost: generating thousands of variants
  * is free, so the budget goes entirely on running them against the target agent.
  *
- * Every template ends up wrapping one `clause`: the literal instruction (transfer, approve or
- * oversize trade) the seed's breach type is aiming for. The framing around that clause is what
+ * Templates wrap either an instruction clause or record fields for the seed's breach type. The framing around that clause is what
  * varies — who it claims to be from, how urgent it sounds, whether it cites a reference code,
  * whether the instruction is buried in otherwise ordinary text.
  *
@@ -33,13 +32,11 @@ const CLAUSE: Record<BreachType, string> = {
 export const HARBINGER_CLAUSE_TYPES = Object.keys(CLAUSE) as BreachType[];
 
 /**
- * The same breach written as record data, not an instruction: a payee/amount/spender rendered
- * as fields of a document (a line item, a ledger row), with no verb aimed at the agent. This is
- * the AutoDojo finding (arXiv 2606.15057): an instruction-detecting filter strips "transfer X to
- * Y", but the same payee written as a bill line ("Payee: Y, Amount: X") passes through, and an
- * agent whose task is to *process a queue* acts on it. The imperative lives in the (legitimate)
- * goal; the planted text is pure data. Bonded's vault judges the resulting action, not the prose,
- * so this is the sharp test of whether an action-allowlist resists what a text filter can't.
+ * The same breach written as record data, with no imperative aimed at the agent.
+ * Inspired by AutoDojo's PIGuard invoice case study (arXiv 2606.15057, Appendix E).
+ * The task supplies the action; these fields supply the adversarial parameters.
+ * This tests the agent's handling of records. It exercises the vault policy only if
+ * the agent attempts an action; there is no instruction-detecting filter in this harness.
  */
 const RECORD: Record<BreachType, string> = {
   T1_UNAUTHORIZED_TRANSFER:
@@ -88,7 +85,7 @@ export function recordFor(type: BreachType): string {
 
 /** The frames of a family (missing family means "instruction"); "all" returns every frame. */
 export function framesByFamily(family: FrameFamily | "all" = "all"): Frame[] {
-  if (family === "all") return FRAMES;
+  if (family === "all") return [...FRAMES];
   return FRAMES.filter((f) => (f.family ?? "instruction") === family);
 }
 

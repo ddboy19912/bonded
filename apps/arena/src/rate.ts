@@ -444,13 +444,12 @@ export interface RatingTee {
 export interface RatingResult {
   report: RatingReport;
   /**
-   * Why this rating must not be attested, or null. Set when liveness fails (LIVENESS_MIN_RATE);
-   * the attestation is then signed for the record but not posted, and the rating service refuses
-   * it like a rating with guard failures.
+   * Why this rating must not be attested, or null. Failed liveness keeps a signed record only
+   * when security was measured. With no measured attack trials, no attestation is signed.
    */
   refused: string | null;
   reportHash: `0x${string}`;
-  attestation: SignedAttestation;
+  attestation: SignedAttestation | null;
   posted: Awaited<ReturnType<typeof postAttestation>>;
   episodes: EpisodeResult[];
   files: Record<string, string>;
@@ -556,7 +555,13 @@ export async function rateAgent(sandbox: Sandbox, options: RatingOptions): Promi
       ? { severityCap: Math.min(1, profile.mandate.limits.maxTxNotionalUsd / deposit) }
       : {}),
   });
-  const weakness = susceptibility(scoredObservations);
+  // A known manipulation is security evidence even when a guard prevented task completion.
+  // Keep the insurance exercise/liveness denominator unchanged.
+  const securityObservations = observations(
+    episodes.filter((episode) => manipulated(episode) || counts(episode)),
+    options.attacks,
+  );
+  const weakness = securityObservations.length ? susceptibility(securityObservations) : null;
   const modelFamily = options.modelFamily ?? modelFamilyOf(options.agent.name);
   const market = { tokens: marketTokens(sandbox), router: sandbox.deployment.router };
   const evidence = episodes
@@ -607,7 +612,7 @@ export async function rateAgent(sandbox: Sandbox, options: RatingOptions): Promi
     coverage: ratingCoverage(episodes),
     heldOut: options.heldOut ?? null,
     scoring,
-    susceptibility: weakness,
+    ...(weakness ? { susceptibility: weakness } : {}),
     worst: episodes
       .filter((e) => e.verdict.breached)
       .sort((a, b) => b.verdict.totalLossUsd - a.verdict.totalLossUsd)
@@ -650,42 +655,49 @@ export async function rateAgent(sandbox: Sandbox, options: RatingOptions): Promi
   const reportHash = keccak256(stringToBytes(reportJson));
   const block = await sandbox.publicClient.getBlock();
   const issuedAt = Number(block.timestamp);
-  const attestation = await signAttestation(
-    {
-      agentId: profile.agentId.toString(),
-      score: scoring.score,
-      securityScore: weakness.grade,
-      expectedLossBps: scoring.expectedLossBps,
-      reportHash,
-      mandateHash: mandateHash(profile.mandate),
-      codeHash: options.codeHash ?? keccak256(stringToBytes(options.agent.name)),
-      teeMeasurement: options.tee?.measurement ?? `0x${"0".repeat(64)}`,
-      modelFamily,
-      issuedAt,
-      expiresAt: issuedAt + ATTESTATION_TTL_SECONDS,
-    },
-    {
-      chainId: sandbox.chain.id,
-      registry: sandbox.deployment.registry,
-      attesterKey: SANDBOX_ATTESTER_KEY,
-    },
-  );
-  const refused = livenessRefusal(report.liveness!);
-  const posted = refused
-    ? ({ posted: false, reason: `not attested: ${refused}` } as const)
-    : await postAttestation(sandbox, attestation);
+  const refused =
+    livenessRefusal(report.liveness!) ??
+    (weakness ? null : "security grade requires at least one measured attack trial");
+  const attestation = weakness
+    ? await signAttestation(
+        {
+          agentId: profile.agentId.toString(),
+          score: scoring.score,
+          securityScore: weakness.grade,
+          expectedLossBps: scoring.expectedLossBps,
+          reportHash,
+          mandateHash: mandateHash(profile.mandate),
+          codeHash: options.codeHash ?? keccak256(stringToBytes(options.agent.name)),
+          teeMeasurement: options.tee?.measurement ?? `0x${"0".repeat(64)}`,
+          modelFamily,
+          issuedAt,
+          expiresAt: issuedAt + ATTESTATION_TTL_SECONDS,
+        },
+        {
+          chainId: sandbox.chain.id,
+          registry: sandbox.deployment.registry,
+          attesterKey: SANDBOX_ATTESTER_KEY,
+        },
+      )
+    : null;
+  const posted =
+    refused || !attestation
+      ? ({ posted: false, reason: `not attested: ${refused}` } as const)
+      : await postAttestation(sandbox, attestation);
 
   const files: Record<string, string> = {};
   if (outDir) {
     files.report = join(outDir, "report.json");
     files.markdown = join(outDir, "report.md");
-    files.attestation = join(outDir, "attestation.json");
     writeFileSync(files.report, reportJson);
     writeFileSync(files.markdown, renderReportMarkdown(report, reportHash, posted));
-    writeFileSync(
-      files.attestation,
-      `${JSON.stringify({ ...attestation, reportHash, posted }, null, 2)}\n`,
-    );
+    if (attestation) {
+      files.attestation = join(outDir, "attestation.json");
+      writeFileSync(
+        files.attestation,
+        `${JSON.stringify({ ...attestation, reportHash, posted }, null, 2)}\n`,
+      );
+    }
     if (datasetPath) {
       // Written once the rating is complete, each row tagged with the report it belongs to.
       writeDataset(
@@ -866,7 +878,7 @@ export function renderReportMarkdown(
         ]
       : []),
     `**Insurance score ${s.score} (${s.tier})**${s.insurable ? "" : ", not insurable"}` +
-      ` — the loss-and-cost axis that prices cover (what is signed on chain today). ` +
+      ` — the loss-and-cost axis that prices cover. ` +
       `Expected annual loss ${pct(s.expectedLoss)} of cover; premium ${pct(s.premiumRate)} a year ` +
       `(after containment: a blocked breach costs nothing, so Enforce mode lowers this but not the security grade).`,
     "",

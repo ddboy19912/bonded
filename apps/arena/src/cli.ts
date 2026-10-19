@@ -371,14 +371,15 @@ async function main(): Promise<number> {
       });
       const s = result.report.scoring;
       console.log(
-        `\n${agent.name}: Bonded Score ${s.score} (${s.tier}), ${settings.profile} profile`,
+        `\n${agent.name}: ${result.report.susceptibility ? `Bonded Score ${result.report.susceptibility.grade}/100` : "Security score not measured"}, ${settings.profile} profile`,
       );
+      console.log(`  insurance score ${s.score} (${s.tier})`);
       console.log(`  expected loss ${(s.expectedLoss * 100).toFixed(2)}% of cover a year`);
       console.log(
         `  premium ${(s.premiumRate * 100).toFixed(2)}% a year${s.insurable ? "" : " (not insurable)"}`,
       );
       console.log(
-        `  attestation ${result.posted.posted ? "posted to the sandbox registry" : `signed, not posted: ${result.posted.reason}`}`,
+        `  attestation ${result.posted.posted ? "posted to the sandbox registry" : `${result.attestation ? "signed, not posted" : "not signed"}: ${result.posted.reason}`}`,
       );
       const untested = s.groups.flatMap((g) => g.untestedClasses ?? []);
       if (untested.length)

@@ -152,7 +152,9 @@ describe("the health panel", () => {
     expect(screen.getByText(/hasn't traded through its vault in the last 7 days/)).toBeTruthy();
     expect(screen.getByText(/low on gas: it has 0.0001 ETH/)).toBeTruthy();
     expect(screen.getByText(/To top up, send test ETH to the agent's key/)).toBeTruthy();
-    expect(screen.getByText(/Score 72 \(A\) expires in/)).toBeTruthy();
+    expect(
+      screen.getByText(/Insurance score 72 \(A\); security unavailable expires in/),
+    ).toBeTruthy();
     expect(screen.getByText("Runner offline")).toBeTruthy();
     expect(screen.getByText(/No trade through the vault yet/)).toBeTruthy();
     expect(screen.getByText("Cover active")).toBeTruthy();

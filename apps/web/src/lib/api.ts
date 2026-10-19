@@ -1,5 +1,5 @@
 import type { BindingLevel, RemoteMode, SelfServeAgentKind, SelfServeKind } from "@bondedhq/shared";
-import type { AttackSpec } from "@bondedhq/shared";
+import type { AttackSpec, Susceptibility } from "@bondedhq/shared";
 import { apiUrl } from "../config";
 import type { EpisodeCard, EpisodeCounts, Outcome } from "./events";
 import type { AgentUrlInfo, CheckSummary, CodeHashInfo, Connection } from "./byoa-api";
@@ -287,6 +287,8 @@ export interface Report {
   forked: boolean;
   startedAt: string;
   durationMs: number;
+  /** Public security score. Absent from legacy reports. */
+  susceptibility?: Susceptibility;
   scoring: {
     score: number;
     tier: string;
@@ -358,7 +360,7 @@ export interface LeaderboardRecord {
   template?: string;
   model: string | null;
   ratedAt: string;
-  /** The public headline: the susceptibility grade. Older entries have none, so fall back to score. */
+  /** The public headline: the susceptibility grade. Legacy entries have no security grade and are unranked. */
   securityGrade?: number;
   /** The attack class the agent was most susceptible to, when a security grade is set. */
   worstClass?: string;

@@ -32,7 +32,8 @@ export function filterAgents(rows: readonly AgentRow[], f: AgentFilters, you?: A
     })
     .sort((x, y) =>
       f.sort === "score"
-        ? (y.score?.score ?? -1) - (x.score?.score ?? -1) || desc(x.agentId, y.agentId)
+        ? (y.score?.securityScore ?? -1) - (x.score?.securityScore ?? -1) ||
+          desc(x.agentId, y.agentId)
         : desc(x.agentId, y.agentId),
     );
 }

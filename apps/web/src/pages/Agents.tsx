@@ -155,7 +155,7 @@ export function Agents() {
               <tr>
                 <th>Agent</th>
                 <th>
-                  <Term term="score">Insurance</Term>
+                  <span>Insurance tier</span>
                 </th>
                 <th className="hidden md:table-cell">
                   <Term term="expectedLoss">Expected loss</Term>

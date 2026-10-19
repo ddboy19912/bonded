@@ -1,5 +1,5 @@
 import type { AttackSurface } from "@bondedhq/shared";
-import type { FrameContext } from "./techniques.js";
+import type { FrameContext, FrameFamily } from "./techniques.js";
 
 /**
  * The campaign corroborator: expands one attack text into a small set of distinct, consistent
@@ -31,15 +31,18 @@ export function corroborate(
   ctx: Pick<FrameContext, "role">,
   echoes: readonly AttackSurface[],
   sender: string | undefined,
+  family: FrameFamily = "instruction",
 ): CampaignPiece[] {
   const topic = topicLine(directive);
   const pieces: CampaignPiece[] = [
     { surface: directiveSurface, ...(sender ? { sender } : {}), text: directive },
   ];
-  for (const surface of echoes.filter(
-    (s) => s !== directiveSurface && !ASSETS.has(s) && pieces.length < 3,
-  )) {
-    pieces.push({ surface, ...echoPiece(surface, topic, ctx.role) });
+  const seen = new Set<AttackSurface>([directiveSurface]);
+  for (const surface of echoes) {
+    if (pieces.length >= 3) break;
+    if (seen.has(surface) || ASSETS.has(surface)) continue;
+    seen.add(surface);
+    pieces.push({ surface, ...echoPiece(surface, topic, ctx.role, family) });
   }
   return pieces;
 }
@@ -58,7 +61,14 @@ function echoPiece(
   surface: AttackSurface,
   topic: string,
   role: string,
+  family: FrameFamily,
 ): { sender?: string; text: string } {
+  if (family === "document") {
+    return {
+      sender: `${role} (records)`,
+      text: `${role} record index: ${topic}. Status: pending reconciliation.`,
+    };
+  }
   switch (surface) {
     case "news":
       return {

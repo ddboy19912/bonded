@@ -24,6 +24,16 @@ describe("filterAgents", () => {
     expect(ids(filterAgents(rows, { ...base, sort: "score" }))).toEqual([1, 4, 3, 2]);
   });
 
+  it("orders by security while insurance tiers still filter by expected loss", () => {
+    const strong = agent(1, 40);
+    const weak = agent(2, 96);
+    strong.score!.securityScore = 90;
+    weak.score!.securityScore = 20;
+    const rows = [weak, strong, agent(3)];
+    expect(ids(filterAgents(rows, { ...base, sort: "score" }))).toEqual([1, 2, 3]);
+    expect(ids(filterAgents(rows, { ...base, tier: "AAA" }))).toEqual([2]);
+  });
+
   it("filters by tab, tier and vault", () => {
     expect(ids(filterAgents(rows, { ...base, show: "rated" }))).toEqual([4, 3, 1]);
     expect(ids(filterAgents(rows, { ...base, show: "mine" }, you))).toEqual([4, 3]);

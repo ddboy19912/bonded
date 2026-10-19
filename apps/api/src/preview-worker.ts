@@ -109,7 +109,7 @@ async function runPreview(
   const key = previewKey(row.preview_id);
   let budgetSpentIn: string | undefined;
   let outcome: PreviewOutcome;
-  let score: { score: number; tier: string } | undefined;
+  let score: { score: number; securityScore?: number; tier: string } | undefined;
   try {
     // Setting up (the sandbox, the held-out set): "starting", then "running".
     await db.markStarting(job);
@@ -241,7 +241,11 @@ async function runPreview(
           `${JSON.stringify(report, null, 2)}\n`,
         ]),
       );
-      score = { score: result.report.scoring.score, tier: String(result.report.scoring.tier) };
+      score = {
+        score: result.report.scoring.score,
+        securityScore: result.report.susceptibility?.grade,
+        tier: String(result.report.scoring.tier),
+      };
       if (result.report.stoppedEarly || result.report.episodes.agentErrors)
         throw new RatingRefused("stopped: the agent failed an episode", true, { caused: true });
       outcome = result.refused
