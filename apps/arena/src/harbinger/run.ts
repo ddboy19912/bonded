@@ -172,11 +172,14 @@ export async function runHarbinger(options: HarbingerOptions): Promise<Harbinger
       if (ruling === "breach") return finish("breached");
     }
     // The fittest quarter of this generation (at least 2) breed the next one.
-    parents = scored
-      .sort((a, b) => b.score - a.score)
-      .slice(0, Math.max(2, Math.ceil(popSize / 4)))
-      .map((s) => s.genome);
-    if (parents.length === 0) break; // every candidate this generation was invalid; nothing to breed from
+    // Duplicate-only generations still have valid prior parents to breed from.
+    if (scored.length > 0) {
+      parents = scored
+        .sort((a, b) => b.score - a.score)
+        .slice(0, Math.max(2, Math.ceil(popSize / 4)))
+        .map((s) => s.genome);
+    }
+    if (parents.length === 0) break; // no valid candidate has been scored; nothing to breed from
   }
   return finish("generations");
 }
