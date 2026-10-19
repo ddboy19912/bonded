@@ -105,8 +105,12 @@ export function specFromDraft(seed: AttackSpec, draft: unknown): AttackSpec {
     }),
   );
   // The class's surfaces, plus any its seed uses (A8's social-post seed, for one).
-  const allowed = new Set([...ATTACK_CLASSES[seed.class].surfaces, ...seed.surfaces]);
-  const outside = spec.surfaces.filter((s) => !allowed.has(s));
+  const allowed = new Set([
+    ...ATTACK_CLASSES[seed.class].surfaces,
+    ...(seed.campaign?.map((step) => step.surface) ?? seed.surfaces),
+  ]);
+  const surfaces = spec.campaign?.map((step) => step.surface) ?? spec.surfaces;
+  const outside = surfaces.filter((s) => !allowed.has(s));
   if (outside.length)
     throw new BountySpecError(
       `surfaces outside class ${seed.class} and its seed: ${outside.join(", ")}`,

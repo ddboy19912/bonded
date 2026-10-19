@@ -7,7 +7,8 @@ import { ScoreRing, Skeleton, TierBadge, buttonClass, tierTone } from "../compon
 import { useAgents, useClaims, waterfall } from "../lib/chain";
 import { FRAMEWORKS, FRAMEWORK_TEXT } from "../lib/frameworks";
 import { bps, usd } from "../lib/format";
-import { DOCS_BYOA, DOCS_HOME, DOCS_SECURITY, TEST_AGENT } from "../lib/routes";
+import { blogPostPath, formatPostDate, useLatestPosts } from "../lib/blog";
+import { BLOG_HOME, DOCS_BYOA, DOCS_HOME, DOCS_SECURITY, TEST_AGENT } from "../lib/routes";
 
 /** What Bonded works with, logo only: the frameworks agents are built on, and the chains and accounts it runs on. */
 const INTEGRATIONS = [
@@ -55,7 +56,7 @@ function Logo({ name, src, size }: { name: string; src: string; size: string }) 
  */
 export function WorksWith() {
   return (
-    <section aria-label="Works with" className="px-4 pt-20 sm:px-6">
+    <section aria-label="Works with" className="px-4 pt-24 sm:px-6">
       <p className="mx-auto max-w-xl text-center text-sm text-muted">
         Works with the frameworks agents are built on, and the chains they trade on.
       </p>
@@ -81,7 +82,10 @@ export function WorksWith() {
 /** Who Bonded is for: the operator gets the large panel, depositors and underwriters share the rest. */
 export function Roles() {
   return (
-    <section id="who" className="mx-auto max-w-[1180px] scroll-mt-24 px-4 py-24 sm:px-6">
+    <section
+      id="who"
+      className="mx-auto max-w-[1180px] scroll-mt-24 px-4 sm:px-6 py-24 sm:min-h-svh sm:justify-center sm:py-28 sm:flex sm:flex-col"
+    >
       <h2 className="max-w-2xl font-serif text-5xl leading-none sm:text-6xl">
         Pick your side of the loop.
       </h2>
@@ -134,7 +138,10 @@ export function Roles() {
 /** The tiers, from the contracts' own rules, across the page as one scale. */
 export function ScoreScale() {
   return (
-    <section id="score" className="mx-auto max-w-[1180px] scroll-mt-24 px-4 pb-24 sm:px-6">
+    <section
+      id="score"
+      className="mx-auto max-w-[1180px] scroll-mt-24 px-4 sm:px-6 py-24 sm:min-h-svh sm:justify-center sm:py-28 sm:flex sm:flex-col"
+    >
       <h2 className="max-w-3xl font-serif text-5xl leading-none sm:text-6xl">
         One score, the same scale for every agent.
       </h2>
@@ -175,7 +182,10 @@ export function ScoreScale() {
 /** Bring any agent: the one command, and the frameworks it wires in. */
 export function BringYourAgent() {
   return (
-    <section id="bring" className="mx-auto max-w-[1180px] scroll-mt-24 px-4 pb-24 sm:px-6">
+    <section
+      id="bring"
+      className="mx-auto max-w-[1180px] scroll-mt-24 px-4 sm:px-6 py-24 sm:min-h-svh sm:justify-center sm:py-28 sm:flex sm:flex-col"
+    >
       <div className="grid items-start gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div>
           <h2 className="font-serif text-5xl leading-none sm:text-6xl">
@@ -260,12 +270,59 @@ const QUESTIONS: { id: string; q: string; a: string }[] = [
 ];
 
 /**
+ * The newest blog posts, read from the blog's public Sanity dataset. Hidden while loading and if
+ * the request fails or there are no posts, so the page never shows an empty or broken block.
+ * The cards are plain links: the blog is its own site under /blog, not a router page.
+ */
+export function LatestPosts() {
+  const posts = useLatestPosts();
+  if (!posts.data?.length) return null;
+  return (
+    <section
+      id="blog"
+      className="mx-auto max-w-[1180px] scroll-mt-24 px-4 sm:px-6 py-24 sm:min-h-svh sm:justify-center sm:py-28 sm:flex sm:flex-col"
+    >
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <h2 className="max-w-2xl font-serif text-5xl leading-none sm:text-6xl">
+          Notes from the red team.
+        </h2>
+        <a href={BLOG_HOME} className="text-accent hover:underline">
+          Read the blog <span aria-hidden>→</span>
+        </a>
+      </div>
+      <ul className="mt-12 grid gap-8 md:grid-cols-3">
+        {posts.data.map((p) => (
+          <li key={p.slug}>
+            <a href={blogPostPath(p.slug)} className="group flex h-full flex-col gap-4">
+              <img
+                src={p.cover}
+                alt={p.alt}
+                width={800}
+                height={420}
+                loading="lazy"
+                className="aspect-[800/420] w-full rounded-2xl object-cover"
+              />
+              <span className="text-sm text-muted">{formatPostDate(p.publishedAt)}</span>
+              <span className="text-xl font-semibold group-hover:underline">{p.title}</span>
+              <span className="leading-relaxed text-muted">{p.description}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/**
  * Plain questions in an accordion, one open at a time. The title and the way into the docs sit on
  * the left; the answers take the rest of the width, and the open one is lifted onto a soft panel.
  */
 export function Faq() {
   return (
-    <section id="faq" className="mx-auto max-w-[1180px] scroll-mt-24 px-4 pb-24 sm:px-6">
+    <section
+      id="faq"
+      className="mx-auto max-w-[1180px] scroll-mt-24 px-4 sm:px-6 py-24 sm:min-h-svh sm:justify-center sm:py-28 sm:flex sm:flex-col"
+    >
       <div className="grid gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-20">
         <div className="lg:sticky lg:top-24 lg:self-start">
           <h2 className="font-serif text-5xl leading-none sm:text-6xl">
@@ -334,7 +391,10 @@ export function LiveAgents() {
   const w = biggest ? waterfall(biggest) : undefined;
   const sources = w ? claimSources(w.fromBond, w.fromPool) : "";
   return (
-    <section id="agents" className="mx-auto max-w-[1180px] scroll-mt-24 px-4 pt-12 pb-8 sm:px-6">
+    <section
+      id="agents"
+      className="mx-auto max-w-[1180px] scroll-mt-24 px-4 sm:px-6 py-24 sm:min-h-svh sm:justify-center sm:py-28 sm:flex sm:flex-col"
+    >
       <h2 className="max-w-2xl font-serif text-5xl leading-none sm:text-6xl">
         Scores you can check, straight from the chain.
       </h2>

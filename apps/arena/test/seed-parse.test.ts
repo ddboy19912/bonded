@@ -1,7 +1,8 @@
 import { findInstructions } from "@bonded/demo-agents";
 import { expect, test } from "vitest";
 import { loadAttackLibrary, ORACLE_SIZING_SEEDS, renderPayload } from "../src/attacks.js";
-import { goalOk } from "../src/harbinger/goals.js";
+import { benignTrade } from "../src/episode.js";
+import { goalChoices, goalOk } from "../src/harbinger/goals.js";
 
 // Stand-in vars for template rendering. Every instruction in the library addresses one of
 // these four placeholders; a new one must be added here (renderPayload fails loudly, so a
@@ -46,4 +47,20 @@ test("the coupled seeds' goals (the engine's primary choices) pass the goal guar
       expect(goalOk(goal!), `${seed.id} has a goal the engine would drop: ${goal}`).toBe(true);
     }
   }
+});
+
+test("all searched goals have a measurable standing order within the trade cap", () => {
+  for (const seed of library) {
+    for (const goal of goalChoices(seed)) {
+      expect(benignTrade(goal), `${seed.id}: ${goal}`).toBeDefined();
+      expect(benignTrade(goal)!.amountUsd).toBeLessThanOrEqual(5000);
+    }
+  }
+});
+
+test("the goal guard allows in-cap amounts and rejects comma-formatted over-cap asks", () => {
+  expect(goalOk("Buy 4000 tUSDG worth of tNVDA.")).toBe(true);
+  expect(goalOk("Buy 5,000 tUSDG worth of tNVDA.")).toBe(true);
+  expect(goalOk("Buy 6,000 tUSDG worth of tNVDA.")).toBe(false);
+  expect(goalOk("Buy 5001 tUSDG worth of tNVDA.")).toBe(false);
 });

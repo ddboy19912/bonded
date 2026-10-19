@@ -32,4 +32,4 @@ Every build checks each published post (`src/lib/checks.mjs`, tested in `scripts
 
 ## Develop
 
-`pnpm --filter @bonded/blog dev` previews it at http://localhost:4321/blog/ with the live posts. `pnpm --filter @bonded/blog test` runs the checks' tests.
+`pnpm --filter @bonded/blog dev` previews it at http://localhost:4322/blog/ (the port the web app's dev server proxies /blog to) with the live posts. `pnpm --filter @bonded/blog test` runs the checks' tests.

@@ -5,9 +5,11 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   BringYourAgent,
   Faq,
+  LatestPosts,
   LiveAgents,
   Roles,
   ScoreScale,
@@ -359,5 +361,52 @@ describe("the light behind the page", () => {
 
   it("lets the body show it through on the landing page only", () => {
     expect(css).toContain("body:has(.landing)");
+  });
+});
+
+describe("the latest blog posts", () => {
+  const post = {
+    title: "Sandboxed isn't safe",
+    slug: "sandboxed-isnt-safe",
+    description: "Locking an agent's keys stops it from stealing.",
+    publishedAt: "2026-10-13",
+    cover: "https://cdn.sanity.io/images/x/cover.jpg",
+    alt: "The Herald",
+  };
+  const withClient = (ui: React.ReactElement) => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return {
+      client,
+      ...render(
+        <QueryClientProvider client={client}>
+          <MemoryRouter>{ui}</MemoryRouter>
+        </QueryClientProvider>,
+      ),
+    };
+  };
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("links each post to its page under /blog and the heading to the blog", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify([post])));
+    vi.stubGlobal("fetch", fetchMock);
+    withClient(<LatestPosts />);
+    const link = await screen.findByRole("link", { name: /Sandboxed isn't safe/ });
+    expect((fetchMock.mock.calls as unknown[][])[0]?.[0]).toBe("/blog/latest.json");
+    expect(link.getAttribute("href")).toBe("/blog/sandboxed-isnt-safe/");
+    expect(screen.getByText("13 October 2026")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Read the blog/ }).getAttribute("href")).toBe("/blog/");
+  });
+
+  it("renders nothing when the request fails", async () => {
+    const fetchMock = vi.fn(async () => new Response("nope", { status: 500 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { container, client } = withClient(<LatestPosts />);
+    // The section is also absent while loading, so wait for the query to fail first. The hook
+    // retries once (after a second), which its own options set, not this client's defaults.
+    await vi.waitFor(() => expect(client.getQueryState(["blog", "latest"])?.status).toBe("error"), {
+      timeout: 4000,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(container.querySelector("#blog")).toBeNull();
   });
 });

@@ -11,7 +11,15 @@ import { MANDATE_TOKENS } from "../lib/onboarding";
 import { ScoreRing, buttonClass, tierTone } from "../components/ui";
 import { Token, TokenChip, withTokens } from "../components/token";
 import { LandingSentinel } from "./LandingSentinel";
-import { BringYourAgent, Faq, LiveAgents, Roles, ScoreScale, WorksWith } from "./LandingSections";
+import {
+  BringYourAgent,
+  Faq,
+  LatestPosts,
+  LiveAgents,
+  Roles,
+  ScoreScale,
+  WorksWith,
+} from "./LandingSections";
 import "./landing.css";
 
 /** Example attacks for the hero feed: the kinds of text the red team plants, by class. */
@@ -38,6 +46,7 @@ export function Landing() {
       <ScoreScale />
       <LandingSentinel />
       <BringYourAgent />
+      <LatestPosts />
       <Faq />
       <FinalCta />
     </div>
@@ -285,7 +294,7 @@ function Stats() {
   );
   return (
     <section id="numbers" className="scroll-mt-24 px-4 sm:px-6">
-      <div className="relative mx-auto mt-16 max-w-[1180px] border-t border-[rgb(175_196_255/.14)] pt-10 pb-16">
+      <div className="relative mx-auto mt-24 max-w-[1180px] border-t border-[rgb(175_196_255/.14)] pt-10 sm:mt-32">
         <div
           className="absolute -top-px left-1/2 h-px w-[480px] max-w-full -translate-x-1/2 bg-gradient-to-r from-transparent via-held to-transparent"
           aria-hidden
@@ -496,7 +505,7 @@ function Walkthrough() {
 
   if (!pinned)
     return (
-      <section id="how" className="mx-auto max-w-[1180px] scroll-mt-24 px-4 py-20 sm:px-6">
+      <section id="how" className="mx-auto max-w-[1180px] scroll-mt-24 px-4 py-24 sm:px-6">
         {heading}
         <ol className="mt-10 flex flex-col gap-12">
           {STORY.map((s, i) => (
@@ -592,7 +601,7 @@ function Walkthrough() {
 /** One clear way into the app at the end of the page. */
 function FinalCta() {
   return (
-    <section className="px-4 pt-10 pb-28 sm:px-6">
+    <section className="px-4 pb-28 sm:px-6">
       <div className="panel relative mx-auto max-w-[1180px] overflow-hidden px-8 py-16 text-center sm:px-16">
         <div
           className="pointer-events-none absolute inset-x-0 -bottom-40 mx-auto h-80 w-[720px] max-w-full rounded-full bg-brand/30 blur-[100px]"
