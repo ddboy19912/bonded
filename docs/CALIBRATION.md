@@ -39,6 +39,21 @@ The test fails when:
 
 That means a new seed cannot land without a documented pattern behind it. Adding one means adding it to the map with a source, not just to `offchain-seeds-staged/`.
 
+## Replaying documented cases
+
+Beyond the pattern map, four publicly reported cases are replayed in the sandbox. Each one is run in the world of the seed that copies its mechanism: the job is done carefully, then the victim's money-moving action is replayed, and the test (`apps/arena/test/offchain-calibration.test.ts`, with the cases in `apps/arena/src/offchain/calibration.ts`) checks the ledger reaches the case's outcome — the rules the case broke, money gone to an account outside the vendor master, put down to the attack and not to an agent's own slip, and blocked when the mandate is in Enforce mode.
+
+This checks the ledger's verdict on what the victim did, not whether a model would have done it. A case says a person or a finance team paid. It cannot say whether a language model handed the same message would pay. So the replay is a check that the rail calls these real actions what they are, not a prediction about any model.
+
+| Case | When | What happened | Sources | Caveat |
+|---|---|---|---|---|
+| Invoices from an impostor of a real supplier | 2013 to 2015 | A company registered under a real supplier's name (Quanta Computer) sent invoices to two large technology companies, which paid more than $120 million into the impostor's accounts. | [The Register](https://www.theregister.com/2019/03/21/facebook_google_scam/), [Computing](https://computing.co.uk/news/3084788/google-facebook-email-phishing-fraud) | — |
+| Employee impersonation at a finance department | 2015 | Requests impersonating employees led a subsidiary's finance staff to send about $46.7 million to overseas third-party accounts (Ubiquiti, per an SEC filing). | [Infosecurity Magazine](https://www.infosecurity-magazine.com/news/networking-ubiquiti-transfers-467), [NBC News](https://www.nbcnews.com/tech/security/ubiquiti-networks-says-it-was-victim-47-million-cyber-scam-n406201) | The filing doesn't say which employees were impersonated or how. |
+| Payment directions changed by a third party | 2019 | A European subsidiary of Toyota Boshoku lost about $37 million after following fraudulent payment directions. | [BleepingComputer](https://www.bleepingcomputer.com/news/security/over-37-million-lost-by-toyota-boshoku-subsidiary-in-bec-scam/), [Cloud Security Alliance](https://cloudsecurityalliance.org/articles/buckle-up-bec-and-vec-attacks-target-automotive-industry) | That an employee changed the bank account comes from one later source; the 2019 reports say only "fraudulent payment directions". |
+| A secret transaction ordered by a deepfaked CFO | 2024 | A finance worker in Hong Kong joined a video call of deepfaked colleagues and made 15 transfers totalling HK$200 million (about $25 million) for a "secret transaction". | [CNN, via Yahoo News](https://sg.news.yahoo.com/finance-worker-pays-25-million-073109391.html), [AI Incident Database](https://incidentdatabase.ai/es/reports/3622/) | Hong Kong police didn't name the firm. Later reporting and the AI Incident Database name Arup. |
+
+Figures are as reported, rounded. The reports revise them; the replay doesn't depend on the exact amount.
+
 ## What this does not show
 
 - **No frequency claim.** The map does not say how common each pattern is, or how much money it moves. Those numbers live in the source reports, and they change.
