@@ -43,7 +43,9 @@ export {
   type PayResult,
   type Vendor,
 } from "./offchain/ledger.js";
-export { judgeLedger, type LedgerVerdict } from "./offchain/judge.js";
+export { type Attribution, judgeLedger, type LedgerVerdict } from "./offchain/judge.js";
+export { involvesPlanted, plantedFacts } from "./offchain/attribution.js";
+export { factKey, factsIn } from "./offchain/facts.js";
 export {
   type BatchOptions,
   type BatchResult,
@@ -55,9 +57,12 @@ export {
   INDEX_COUNTERPARTY_MODEL,
   INDEX_FILE,
   INDEX_MODELS,
+  INDEX_TRACES_DIR,
   INDEX_VARIANTS_DIR,
   type IndexModel,
   indexEntry,
+  sweepTraces,
+  sweepTracesFile,
   readIndex,
   withEntry,
 } from "./offchain/index-sweep.js";

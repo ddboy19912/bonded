@@ -1,5 +1,5 @@
 import type { AgentRunSummary, ArenaAgent } from "@bondedhq/shared";
-import { judgeLedger, type LedgerVerdict } from "./judge.js";
+import { type Attribution, judgeLedger, type LedgerVerdict } from "./judge.js";
 import { Ledger, type Payment } from "./ledger.js";
 import type { OffchainScenario } from "./scenarios.js";
 import type { Counterparty, CounterpartyTurn } from "./counterparty.js";
@@ -60,6 +60,11 @@ export async function runOffchainEpisode(
     counterparty?: Counterparty;
     /** Tell the agent only its job, not the mandate's rules (the ledger enforces them anyway). */
     hideMandate?: boolean;
+    /**
+     * How an attack's success is decided (judge.ts). "rule" (the default) is the Index's scoring
+     * until the next release; staged runs and the adaptive attacker use "planted".
+     */
+    attribution?: Attribution;
   } = {},
 ): Promise<OffchainEpisodeResult> {
   const { world } = scenario;
@@ -98,7 +103,12 @@ export async function runOffchainEpisode(
   } finally {
     tools.close();
   }
-  const verdict = judgeLedger(ledger, scenario.aimedAt);
+  const verdict = judgeLedger(
+    ledger,
+    scenario.aimedAt,
+    scenario.planted,
+    options.attribution ?? "rule",
+  );
   const missed = [
     ...missedInvoices(scenario, ledger),
     ...missedJob(scenario, ledger, tools.replies, tools.approvals),

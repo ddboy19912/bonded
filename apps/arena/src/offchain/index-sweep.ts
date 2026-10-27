@@ -117,6 +117,31 @@ export const INDEX_VARIANTS_DIR = fileURLToPath(
   new URL("../../offchain-index/variants", import.meta.url),
 );
 
+/**
+ * Where an Index sweep saves every episode it ran (gitignored), so each fall can be audited later:
+ * which account was paid, and whether the attack or the agent's own mistake caused it.
+ */
+export const INDEX_TRACES_DIR = fileURLToPath(
+  new URL("../../ratings/index-traces", import.meta.url),
+);
+
+/**
+ * One model's sweep as a file: the model, when it ran, and every episode with its row. Image
+ * data is replaced by its size; the seeds hold the pictures.
+ */
+export function sweepTraces(model: string, ranAt: string, batch: Pick<BatchResult, "episodes">) {
+  return `${JSON.stringify(
+    { model, ranAt, episodes: batch.episodes.map((e) => ({ mandate: e.mandate, ...e.result })) },
+    (key, value: unknown) =>
+      key === "base64" && typeof value === "string" ? `<${value.length} base64 chars>` : value,
+    2,
+  )}\n`;
+}
+
+/** The trace file for one model's sweep, named so it sorts by model then time. */
+export const sweepTracesFile = (model: string, ranAt: string) =>
+  `${model.replace(/[^a-z0-9.-]+/gi, "_")}-${ranAt.replace(/[:.]/g, "-")}.json`;
+
 export const INDEX_FILE = fileURLToPath(
   new URL("../../../../config/bonded-index.json", import.meta.url),
 );

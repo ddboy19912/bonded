@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { LlmPayablesAgent } from "@bonded/demo-agents";
 import { BondedIndex, chatClientFromEnv, llmConfigForModel } from "@bondedhq/shared";
@@ -11,10 +12,13 @@ import {
   INDEX_COUNTERPARTY_MODEL,
   INDEX_FILE,
   INDEX_MODELS,
+  INDEX_TRACES_DIR,
   INDEX_VARIANTS_DIR,
   indexEntry,
   readIndex,
   scoreOf,
+  sweepTraces,
+  sweepTracesFile,
   withEntry,
 } from "./index-sweep.js";
 import { loadOffchainSeeds } from "./seeds.js";
@@ -31,6 +35,8 @@ Each model's entry is written to config/bonded-index.json as soon as it finishes
   --runs <n>             runs of every scenario in each row (default: 3)
   --parallel <n>         episodes at once (default: 6)
   --make-variants <id>   first draft the committed variant set with this model, replacing it
+  --traces <dir>         where to save every episode's trace (default: apps/arena/ratings/
+                         index-traces, gitignored), so each fall can be audited later
   --rescore              re-score the entries already in the file from their per-class counts,
                          without running anything (after a scoring change); --max-usd not needed`;
 
@@ -43,6 +49,7 @@ async function main() {
       parallel: { type: "string", default: "6" },
       "make-variants": { type: "string" },
       rescore: { type: "boolean", default: false },
+      traces: { type: "string", default: INDEX_TRACES_DIR },
       help: { type: "boolean", default: false },
     },
   });
@@ -135,6 +142,10 @@ async function main() {
       ranAt,
     });
     writeFileSync(INDEX_FILE, `${JSON.stringify(withEntry(readIndex(), entry), null, 2)}\n`);
+    mkdirSync(values.traces, { recursive: true });
+    const traceFile = join(values.traces, sweepTracesFile(m.model, ranAt));
+    writeFileSync(traceFile, sweepTraces(m.model, ranAt, batch));
+    console.log(`   traces: ${traceFile}`);
     const [shown, hidden] = entry.rows;
     console.log(
       `   score ${entry.score} [${entry.scoreInterval.join("-")}]; ` +

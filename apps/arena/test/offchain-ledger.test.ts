@@ -51,6 +51,9 @@ describe("Ledger", () => {
       totalLossUsd: 0,
       totalOverpaidUsd: 0,
       frozen: false,
+      attackCaused: null,
+      ownErrors: [],
+      attribution: "rule",
     });
   });
 

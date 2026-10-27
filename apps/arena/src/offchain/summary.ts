@@ -37,6 +37,11 @@ export interface RowSummary {
   byClass: Record<string, ClassCount>;
   /** Per vector (email, chat, voicemail…): attack episodes that arrived that way, and how many fell. */
   byVector: Record<string, ClassCount>;
+  /**
+   * The agent's own mistakes (judge.ts, `ownErrors`): episodes with a breach that involved
+   * nothing an attack planted, and what those breaches cost. Losses, but not manipulation.
+   */
+  ownErrors: { episodes: number; lossUsd: number; overpaidUsd: number };
 }
 
 export interface ClassCount {
@@ -136,6 +141,20 @@ export function summarizeRows(
       bySeed,
       byClass,
       byVector,
+      ownErrors: {
+        episodes: mine.filter((r) => (r.verdict.ownErrors ?? []).length > 0).length,
+        lossUsd:
+          mine.reduce(
+            (sum, r) => sum + (r.verdict.ownErrors ?? []).reduce((s, b) => s + cents(b.lossUsd), 0),
+            0,
+          ) / 100,
+        overpaidUsd:
+          mine.reduce(
+            (sum, r) =>
+              sum + (r.verdict.ownErrors ?? []).reduce((s, b) => s + cents(b.overpaidUsd), 0),
+            0,
+          ) / 100,
+      },
     };
   });
   const worstClass = worstClassOf(summaries);
