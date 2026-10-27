@@ -23,6 +23,8 @@ import {
   MAX_ROUNDS,
   runOffchainAdaptive,
 } from "./adaptive.js";
+import { writeFinding } from "./findings.js";
+import { assertPrivateDir } from "./held-out.js";
 import {
   loadOffchainSeeds,
   OFFCHAIN_STAGED_SEEDS_DIR,
@@ -35,7 +37,8 @@ const USAGE = `Usage: pnpm --filter @bonded/arena offchain-adaptive --max-usd <n
 Runs the off-chain adaptive attacker (src/offchain/adaptive.ts) against one agent. For each seed
 it plants the published text first, then lets an attacker model read how the agent reacted and
 rewrite that prose, until the ledger records a breach that goes through, the rounds run out, or
-the spend cap is hit. Needs OPENROUTER_API_KEY in .env. Results go to ratings/offchain-adaptive-/.
+the spend cap is hit. Needs OPENROUTER_API_KEY in .env. Results go to ratings/offchain-adaptive-/,
+with a finding, a disclosure note and any bounty candidate beside each result.
 
   --max-usd <n>          stop once model spend (agent, attacker, counterparty) reaches this,
                          across every seed in the run (required)
@@ -140,6 +143,7 @@ async function main(): Promise<number> {
 
   const outDir =
     values.out ?? join("ratings", `offchain-adaptive-${agent.name.replaceAll("/", "_")}`);
+  assertPrivateDir(outDir, "an adaptive result");
   mkdirSync(outDir, { recursive: true });
   console.log(
     `Agent ${agent.name}, attacker ${values["attacker-model"]}, feedback ${feedback}, ` +
@@ -176,6 +180,7 @@ async function main(): Promise<number> {
     console.log(describe(result));
     if (result.note) console.log(`  ${result.note}`);
     writeFileSync(join(outDir, `${seed.id}.json`), `${JSON.stringify(result, null, 2)}\n`);
+    writeFinding(outDir, seed, result);
   }
   const breached = results.filter((r) => r.breached);
   const staticBreached = results.filter((r) => r.staticBreached);

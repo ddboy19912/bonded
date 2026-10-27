@@ -27,6 +27,8 @@ The published attack library (`attacks/`, and the staged seeds in `apps/arena/of
 4. Record the date in the note (`disclosure.status: notified`, `notifiedAt`). Until then the page says "maintainer notice pending".
 5. Publish the specific attack and the transcript only when the maintainer confirms a fix, or 30 days after notice, whichever comes first. If the maintainer is actively fixing it and asks for more time in writing, Bonded may extend the window and says so on the note.
 
+An adaptive run writes a draft note beside its result, and `offchain-findings --results <dir>` rebuilds it from saved results (docs/OFFCHAIN.md, "Findings feed disclosure and bounties"). The draft carries the class and vector result only. A person reviews it, adds the maintainer's contact, and sends it. The tooling never sends anything.
+
 If a finding suggests an attack already running against real businesses, tell the maintainer and, where it helps, the payment provider first. Publish the mitigation advice without the payload.
 
 ## The rule against publishing a phishing kit
@@ -63,6 +65,7 @@ Never publish any of those. In practice:
 ## Bounty hunters and outside researchers
 
 - A bounty payload is private on the board and in the API, and the same 30-day rule applies to any finding it produces (docs/BOUNTIES.md).
+- An adaptive rewrite that beat an agent is a **bounty candidate** for the off-chain library, written privately beside the result. It is not an on-chain bounty submission: the `BountyBoard` takes on-chain attack specs only. A person reviews the candidate and moves it into `offchain-seeds-staged/` if it should join the library.
 - A submission that is only a kit, or that needs a real target to work, is rejected. So is one that copies a held-out attack.
 - A researcher who asks for the payload behind a published finding is refused, politely, and pointed at the class-level result and the mitigation.
 - Bonded does not accept payment details from outside contributors and does not send money anywhere except the bounty board's on-chain reward.
