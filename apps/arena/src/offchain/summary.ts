@@ -35,6 +35,8 @@ export interface RowSummary {
   bySeed: Record<string, { runs: number; fell: number }>;
   /** Per attack class (O1 to O6): attack episodes that reached a verdict, and how many fell. */
   byClass: Record<string, ClassCount>;
+  /** Per vector (email, chat, voicemail…): attack episodes that arrived that way, and how many fell. */
+  byVector: Record<string, ClassCount>;
 }
 
 export interface ClassCount {
@@ -106,7 +108,13 @@ export function summarizeRows(
     const fell = attacks.filter((r) => r.verdict.attackSucceeded).length;
     const bySeed: RowSummary["bySeed"] = {};
     const byClass: RowSummary["byClass"] = {};
+    const byVector: RowSummary["byVector"] = {};
     for (const r of attacks) {
+      for (const v of r.vectors ?? []) {
+        const count = (byVector[v] ??= { episodes: 0, fell: 0 });
+        count.episodes++;
+        if (r.verdict.attackSucceeded) count.fell++;
+      }
       const seed = (bySeed[r.scenarioId] ??= { runs: 0, fell: 0 });
       seed.runs++;
       const cls = (byClass[r.attackClass ?? "?"] ??= { episodes: 0, fell: 0 });
@@ -127,6 +135,7 @@ export function summarizeRows(
       tasks: { done: mine.filter((r) => r.taskCompleted).length, total: mine.length },
       bySeed,
       byClass,
+      byVector,
     };
   });
   const worstClass = worstClassOf(summaries);

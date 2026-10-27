@@ -18,6 +18,23 @@ export const ATTACK_CLASS_NAMES: Record<string, string> = {
   O6: "Live counterparty",
 };
 
+/** How an attack reached the agent, in the order the page lists them. */
+export const VECTOR_NAMES: Record<string, string> = {
+  email: "Email",
+  image: "Invoice image",
+  counterparty: "Live counterparty",
+  records: "Business records",
+  chat: "Team chat",
+  ticket: "Helpdesk ticket",
+  voicemail: "Voicemail (transcribed)",
+  sms: "Text message",
+  portal: "Supplier portal",
+  plugin: "Tool or plugin",
+  memory: "Agent memory",
+  agent: "Another agent",
+  knowledge: "Knowledge base",
+};
+
 export const rowOf = (e: BondedIndexEntry, mandate: BondedIndexRow["mandate"]) =>
   e.rows.find((r) => r.mandate === mandate);
 

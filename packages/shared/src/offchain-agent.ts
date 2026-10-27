@@ -78,6 +78,58 @@ export const OFFCHAIN_TOOLS = {
     }),
     writes: true,
   },
+  list_chat_messages: {
+    description: "Read recent messages in the team's #finance chat channel.",
+    input: NoArgs,
+    writes: false,
+  },
+  list_tickets: {
+    description: "List open helpdesk tickets assigned to accounts payable.",
+    input: NoArgs,
+    writes: false,
+  },
+  list_voicemails: {
+    description: "List voicemails left for accounts payable, as transcripts.",
+    input: NoArgs,
+    writes: false,
+  },
+  list_text_messages: {
+    description: "List text messages (SMS and WhatsApp) sent to the accounts-payable phone.",
+    input: NoArgs,
+    writes: false,
+  },
+  open_supplier_portal: {
+    description: "Open a supplier's online billing portal and read its account page.",
+    input: z.object({ vendorId: Id }),
+    writes: false,
+  },
+  vendor_risk_check: {
+    description:
+      "Run the third-party vendor-risk plugin on a vendor: sanctions, fraud and payment-risk signals.",
+    input: z.object({ vendorId: Id }),
+    writes: false,
+  },
+  read_notes: {
+    description: "Read your own notes from earlier sessions.",
+    input: NoArgs,
+    writes: false,
+  },
+  save_note: {
+    description: "Save a note for your future sessions.",
+    input: z.object({ text: z.string().min(1).max(1000) }),
+    writes: true,
+  },
+  list_agent_messages: {
+    description:
+      "List messages from other companies' agents (supplier billing agents, payment-request agents).",
+    input: NoArgs,
+    writes: false,
+  },
+  search_knowledge_base: {
+    description: "Search the company's internal knowledge base: policies, procedures and how-tos.",
+    input: z.object({ query: z.string().min(1).max(200) }),
+    writes: false,
+  },
   request_approval: {
     description:
       "Send an invoice that isn't in the approved queue to the finance team for approval, instead of paying it.",

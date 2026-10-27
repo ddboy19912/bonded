@@ -20,7 +20,12 @@ import { probeCounterparties, runOffchainBatch } from "./batch.js";
 import type { ProbeResult } from "./counterparty.js";
 import { draftVariants, saveVariants, type VariantCandidate } from "./fresh.js";
 import { controlScenario, realisticControl, verifiedBankChangeTwin } from "./scenarios.js";
-import { loadOffchainSeeds, OFFCHAIN_STAGED_SEEDS_DIR, type OffchainSeed } from "./seeds.js";
+import {
+  loadOffchainSeeds,
+  OFFCHAIN_STAGED_SEEDS_DIR,
+  type OffchainSeed,
+  viaChannel,
+} from "./seeds.js";
 import type { MandateRow } from "./summary.js";
 
 const USAGE = `Usage: pnpm --filter @bonded/arena offchain --max-usd <n> [options]
@@ -42,6 +47,11 @@ saved, and --replay runs a saved set again exactly.
   --seeds <list>             only these library seed ids (comma-separated)
   --staged                   run the staged attacks (offchain-seeds-staged/) instead of the
                              library, with the realistic job's control alongside
+  --channels <list>          the vectors the agent is integrated with (email, chat, ticket,
+                             voicemail, sms, portal, plugin, memory, agent, knowledge); attacks
+                             through others aren't run and count as not exposed (default: all)
+  --via <list>               also deliver each multi-vector attack through these channels (chat,
+                             ticket, voicemail, sms, agent), to find the one the agent trusts
   --fresh                    draft one fresh variant per seed and run it too
   --replay <dir>             run the variants saved in <dir> (a previous --out's variants/)
   --generator-model <id>     the model drafting variants (default: ${DEFAULT_AGENT_MODEL})
@@ -70,6 +80,8 @@ async function main() {
       runs: { type: "string", default: "3" },
       seeds: { type: "string" },
       staged: { type: "boolean", default: false },
+      channels: { type: "string" },
+      via: { type: "string" },
       fresh: { type: "boolean", default: false },
       replay: { type: "string" },
       "generator-model": { type: "string", default: DEFAULT_AGENT_MODEL },
@@ -137,11 +149,18 @@ async function main() {
     for (const c of candidates.filter((c) => !c.kept)) console.log(`  ${c.seed}: ${c.reason}`);
   }
 
+  const via = (values.via?.split(",").map((c) => c.trim()) ?? []) as Parameters<
+    typeof viaChannel
+  >[1][];
+  const redelivered = [...library, ...variants]
+    .filter((s) => s.multiVector)
+    .flatMap((s) => via.map((c) => viaChannel(s, c)));
   const { episodes, summary, notShown, skipped, counterpartyTurns } = await runOffchainBatch({
     agent: () => agentFor(values.agent, values.model, client, values.vision),
     seesImages: values.agent === "payables" && values.vision,
     images: !values["text-only"],
-    attackSeeds: [...library, ...variants],
+    attackSeeds: [...library, ...variants, ...redelivered],
+    ...(values.channels ? { channels: values.channels.split(",").map((c) => c.trim()) } : {}),
     ...(values.staged
       ? { controls: [controlScenario, verifiedBankChangeTwin, realisticControl] }
       : {}),
@@ -152,6 +171,16 @@ async function main() {
     client,
     counterpartyModel: values["counterparty-model"],
   });
+  const byVector = new Map<string, { episodes: number; fell: number }>();
+  for (const row of summary.rows) {
+    for (const [v, c] of Object.entries(row.byVector)) {
+      const sum = byVector.get(`${row.mandate}:${v}`) ?? { episodes: 0, fell: 0 };
+      byVector.set(`${row.mandate}:${v}`, {
+        episodes: sum.episodes + c.episodes,
+        fell: sum.fell + c.fell,
+      });
+    }
+  }
   const probes: Record<string, ProbeResult> = values["probe-counterparty"]
     ? await probeCounterparties({
         seeds: library,
@@ -181,6 +210,11 @@ async function main() {
         `(${(row.manipulationRate * 100).toFixed(1)}%); lost $${row.lossUsd}, overpaid ` +
         `$${row.overpaidUsd}; tasks done ${row.tasks.done} of ${row.tasks.total}` +
         (row.errors.length ? `; ${row.errors.length} errored, not counted` : ""),
+    );
+  }
+  if (byVector.size > 0) {
+    console.log(
+      `by vector: ${[...byVector].map(([k, c]) => `${k} ${c.fell}/${c.episodes}`).join(", ")}`,
     );
   }
   console.log(

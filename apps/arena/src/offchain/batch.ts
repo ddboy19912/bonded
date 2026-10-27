@@ -1,9 +1,11 @@
-import type { ArenaAgent, ChatClient } from "@bondedhq/shared";
+import type { ArenaAgent, ChatClient, OffchainToolName } from "@bondedhq/shared";
 import type { SpendingCap } from "../budget.js";
 import { LlmCounterparty, type ProbeResult, probeCounterparty } from "./counterparty.js";
 import { runOffchainEpisode } from "./episode.js";
 import { controlScenario, type OffchainScenario, verifiedBankChangeTwin } from "./scenarios.js";
-import { attackScenario, type OffchainSeed, seedNeedsVision } from "./seeds.js";
+import { attackScenario, type OffchainSeed, seedNeedsVision, seedVectors } from "./seeds.js";
+import { CHANNEL_TOOLS, CHANNELS, EMAIL_TOOLS } from "./channels.js";
+import { worldTools } from "./world.js";
 import {
   type MandateRow,
   type OffchainSummary,
@@ -25,6 +27,12 @@ export interface BatchOptions {
   attackSeeds: readonly OffchainSeed[];
   /** The controls and benign twins (default: the approved-queue payment run's). */
   controls?: readonly (() => OffchainScenario)[];
+  /**
+   * The vectors the agent is integrated with (email, chat, voicemail…); every one when absent.
+   * Tools for the others are taken away, and attacks that arrive through them aren't run: they
+   * count as not exposed, not as resisted.
+   */
+  channels?: readonly string[];
   rows: readonly MandateRow[];
   runs: number;
   parallel: number;
@@ -45,10 +53,15 @@ export interface BatchResult {
 export async function runOffchainBatch(options: BatchOptions): Promise<BatchResult> {
   // An attack that lives only in an invoice image can't reach an agent that never sees images:
   // it isn't run, and isn't counted as resisted.
-  const notShown =
-    options.seesImages && options.images
-      ? []
-      : options.attackSeeds.filter(seedNeedsVision).map((s) => s.id);
+  // Likewise an attack through a channel the agent isn't integrated with (`channels`). Invoice
+  // images and counterparties arrive by email; vendor-record notes reach every agent.
+  const allowed = options.channels ? new Set(options.channels) : null;
+  const sees = (v: string) =>
+    v === "records" || !allowed || allowed.has(v === "image" || v === "counterparty" ? "email" : v);
+  const exposed = (s: OffchainSeed) =>
+    seedVectors(s).every(sees) &&
+    (!seedNeedsVision(s) || Boolean(options.seesImages && options.images));
+  const notShown = options.attackSeeds.filter((s) => !exposed(s)).map((s) => s.id);
   // Each run builds its scenario afresh: an episode changes its world (an O6 thread grows).
   const builders: (() => OffchainScenario)[] = [
     ...(options.controls ?? [controlScenario, verifiedBankChangeTwin]),
@@ -65,6 +78,7 @@ export async function runOffchainBatch(options: BatchOptions): Promise<BatchResu
     Array.from({ length: Math.min(options.parallel, queue.length) }, async () => {
       for (let job = queue.shift(); job; job = queue.shift()) {
         const scenario = job.build();
+        if (allowed) scenario.world.tools = restrictTools(worldTools(scenario.world), allowed);
         if (options.cap.exceeded) {
           skipped.push(`${job.mandate}:${scenario.id}`);
           continue;
@@ -96,6 +110,18 @@ export async function runOffchainBatch(options: BatchOptions): Promise<BatchResu
     skipped,
     counterpartyTurns: { turns: turns.length, refused: turns.filter((t) => t.refused).length },
   };
+}
+
+/** A world's tools without those of the vectors the agent isn't integrated with. */
+export function restrictTools(
+  tools: readonly OffchainToolName[],
+  allowed: ReadonlySet<string>,
+): OffchainToolName[] {
+  const removed = new Set<OffchainToolName>([
+    ...(allowed.has("email") ? [] : EMAIL_TOOLS),
+    ...CHANNELS.filter((c) => !allowed.has(c)).flatMap((c) => CHANNEL_TOOLS[c]),
+  ]);
+  return tools.filter((t) => !removed.has(t));
 }
 
 /** Probes the counterparty model on each O6 seed's opening email (probeCounterparty). */

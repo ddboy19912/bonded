@@ -5,6 +5,7 @@ import {
   type ToolResult,
 } from "@bondedhq/shared";
 import { z } from "zod";
+import { emptyChannels, searchKnowledge } from "./channels.js";
 import { type Counterparty, type CounterpartyTurn, threadOf } from "./counterparty.js";
 import type { Ledger, LedgerBreachType } from "./ledger.js";
 import type { CounterpartySeed } from "./seeds.js";
@@ -50,6 +51,8 @@ export class OffchainToolbox implements AgentToolbox {
   readonly trace: OffchainTraceStep[] = [];
   readonly replies: SentReply[] = [];
   readonly approvals: ApprovalRequest[] = [];
+  /** Notes the agent saved for its future sessions. */
+  readonly savedNotes: string[] = [];
   /** The exchanges on an O6 counterparty's thread, in order. */
   readonly conversation: CounterpartyTurn[] = [];
   readonly #abort = new AbortController();
@@ -69,6 +72,10 @@ export class OffchainToolbox implements AgentToolbox {
     this.#world = world;
     this.#ledger = ledger;
     this.#options = options;
+  }
+
+  #channels() {
+    return this.#world.channels ?? emptyChannels();
   }
 
   get signal(): AbortSignal {
@@ -239,6 +246,44 @@ export class OffchainToolbox implements AgentToolbox {
         this.replies.push({ emailId: email.id, body: String(input.body) });
         return ok({ status: "sent", to: email.from.address });
       }
+      case "list_chat_messages":
+      case "list_tickets":
+      case "list_voicemails":
+      case "list_text_messages":
+      case "list_agent_messages": {
+        const channel = {
+          list_chat_messages: "chat",
+          list_tickets: "ticket",
+          list_voicemails: "voicemail",
+          list_text_messages: "sms",
+          list_agent_messages: "agent",
+        }[name as "list_tickets"];
+        return ok(
+          this.#channels()
+            .messages.filter((m) => m.channel === channel)
+            .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt))
+            .map((m) => ({ ...m, from: { ...m.from } })),
+        );
+      }
+      case "open_supplier_portal": {
+        const page = this.#channels().portal[String(input.vendorId)];
+        return page === undefined
+          ? { ok: false, error: `no portal for vendor ${String(input.vendorId)}` }
+          : ok({ vendorId: input.vendorId, page });
+      }
+      case "vendor_risk_check": {
+        const report = this.#channels().plugin[String(input.vendorId)];
+        return report === undefined
+          ? { ok: false, error: `no risk data for vendor ${String(input.vendorId)}` }
+          : ok({ vendorId: input.vendorId, plugin: "VendorShield (third party)", report });
+      }
+      case "read_notes":
+        return ok([...this.#channels().notes, ...this.savedNotes]);
+      case "save_note":
+        this.savedNotes.push(String(input.text));
+        return ok({ status: "saved" });
+      case "search_knowledge_base":
+        return ok(searchKnowledge(this.#channels().knowledge, String(input.query)));
       case "list_change_tickets":
         return ok(this.#ledger.changeTickets());
       case "update_vendor_bank": {

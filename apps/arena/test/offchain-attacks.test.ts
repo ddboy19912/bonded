@@ -214,14 +214,18 @@ describe("off-chain attack seeds", () => {
 
   it("refuses a seed that replaces a missing email or points at a missing image", () => {
     const seed = seeds[0]!;
-    expect(seedProblem({ ...seed, plant: { emails: [], replace: [{ emailId: "e-999" }] } })).toBe(
-      "no email e-999 to replace",
-    );
+    expect(
+      seedProblem({
+        ...seed,
+        plant: { ...seed.plant, emails: [], replace: [{ emailId: "e-999" }] },
+      }),
+    ).toBe("no email e-999 to replace");
     const dir = mkdtempSync(join(tmpdir(), "offchain-images-"));
     writeFileSync(join(dir, "other.png"), "");
     const withImage: OffchainSeed = {
       ...seed,
       plant: {
+        ...seed.plant,
         emails: [
           {
             id: "e-900",

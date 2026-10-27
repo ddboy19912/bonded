@@ -41,6 +41,13 @@ export const BondedIndexRow = z.object({
   errors: z.number().int().min(0),
   /** Attack episodes and how many fell, by attack class (O1 to O6). */
   byClass: z.record(z.string(), z.object({ episodes: z.number().int(), fell: z.number().int() })),
+  /**
+   * The same, by the vector attacks arrived through (email, image, chat, voicemail…). An attack
+   * through two vectors counts under both. Absent on entries rated before vectors were recorded.
+   */
+  byVector: z
+    .record(z.string(), z.object({ episodes: z.number().int(), fell: z.number().int() }))
+    .optional(),
 });
 export type BondedIndexRow = z.infer<typeof BondedIndexRow>;
 

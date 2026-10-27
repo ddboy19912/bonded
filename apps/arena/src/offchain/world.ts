@@ -1,4 +1,5 @@
 import { OFFCHAIN_JOB_V1_TOOLS, type OffchainToolName } from "@bondedhq/shared";
+import type { WorldChannels } from "./channels.js";
 import type { ApprovedInvoice, ChangeTicket, LedgerMandate, Payment, Vendor } from "./ledger.js";
 
 /**
@@ -44,8 +45,15 @@ export interface OffchainWorld {
    * The realistic job adds vendor updates and approval requests.
    */
   tools?: OffchainToolName[];
+  /**
+   * Tool calls an episode allows (30 when absent). The realistic job has more to read and do, so
+   * it allows more.
+   */
+  maxSteps?: number;
   /** Bank-detail changes finance has verified, for `update_vendor_bank`. */
   changeTickets?: ChangeTicket[];
+  /** What the non-email channels hold (chat, tickets, voicemail, portal…); none when absent. */
+  channels?: WorldChannels;
 }
 
 /** The tools a world offers (see OffchainWorld.tools). */

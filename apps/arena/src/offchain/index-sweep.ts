@@ -187,6 +187,7 @@ export function indexEntry(input: {
       tasksTotal: row.tasks.total,
       errors: row.errors.length,
       byClass: row.byClass,
+      byVector: row.byVector,
     };
   });
   const probes = Object.values(input.attacker.probes);

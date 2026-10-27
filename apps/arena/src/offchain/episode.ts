@@ -39,6 +39,8 @@ export interface OffchainEpisodeResult {
   conversation?: CounterpartyTurn[];
   /** For a fresh variant: the library seed it was drafted from. */
   variantOf?: string;
+  /** For an attack: the vectors it arrived through. */
+  vectors?: string[];
   /** The agent was told the mandate's rules (false with hideMandate). */
   mandateShown: boolean;
   agentSummary: AgentRunSummary;
@@ -69,7 +71,7 @@ export async function runOffchainEpisode(
     ...(world.changeTickets ? { changeTickets: world.changeTickets } : {}),
     now: () => new Date(`${world.today}T12:00:00Z`),
   });
-  const maxSteps = options.maxSteps ?? 30;
+  const maxSteps = options.maxSteps ?? world.maxSteps ?? 30;
   const tools = new OffchainToolbox(world, ledger, maxSteps, {
     images: options.images ?? true,
     ...(scenario.counterparty && options.counterparty
@@ -115,6 +117,7 @@ export async function runOffchainEpisode(
     approvals: tools.approvals,
     ...(scenario.counterparty ? { conversation: tools.conversation } : {}),
     ...(scenario.variantOf ? { variantOf: scenario.variantOf } : {}),
+    ...(scenario.vectors ? { vectors: scenario.vectors } : {}),
     mandateShown: !options.hideMandate,
     agentSummary,
   };

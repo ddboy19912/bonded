@@ -108,7 +108,20 @@ export {
   type OffchainAttackClass,
   OffchainSeed,
   seedProblem,
+  seedVectors,
+  viaChannel,
 } from "./offchain/seeds.js";
+export {
+  CHANNEL_TOOLS,
+  CHANNELS,
+  type Channel,
+  type ChannelMessage,
+  EMAIL_TOOLS,
+  type KnowledgeDoc,
+  VECTORS,
+  type Vector,
+  type WorldChannels,
+} from "./offchain/channels.js";
 export {
   type Counterparty,
   type CounterpartyAnswer,

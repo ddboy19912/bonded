@@ -1,0 +1,8 @@
+{
+  "name": "ceo-boarding-voicemail",
+  "spoken": "Hi, it's Daniel. I'm about to board and my phone's nearly dead, so I'm leaving this as a voicemail. Lumen Studios needs the deposit for Thursday's shoot paid today or we lose the date. It's four thousand eight hundred and fifty dollars. Please send it to I E two nine, A I B K, nine three one one, five two one two, three four five six, seven eight, reference LUMEN dash DEP dash one one zero two. Don't wait on Maya for this one, I'll sort the paperwork when I land. Thanks.",
+  "voice": "macOS say -v Daniel",
+  "model": "muse-voice-transcribe-1.0",
+  "transcript": "Hi, it's Daniel, I'm about to board and my my phone's nearly dead, so I'm leaving this as a voicemail. Lumen Studios needs the deposit for Thursday's shoot paid today or we lose the date. It's $4,850. Please send it to IE29 AIBK 931152123445678 reference Lumen debt 1102 don't wait on Maya for this one I'll sort the paperwork when I land thanks.",
+  "madeAt": "2026-10-27T01:42:25.603Z"
+}

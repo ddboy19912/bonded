@@ -12,6 +12,7 @@ import {
   REALISTIC_TASKS,
   realisticWorld,
 } from "./scenarios.js";
+import { emptyChannels, type Vector } from "./channels.js";
 import { type Attachment, type Email, invoiceText, type OffchainWorld } from "./world.js";
 
 /**
@@ -72,6 +73,17 @@ const AttachmentSeed = z
     message: "an attachment needs exactly one of invoice or text",
   });
 
+const ChannelMessageSeed = z.object({
+  id: z.string().min(1),
+  channel: z.enum(["chat", "ticket", "voicemail", "sms", "agent"]),
+  from: Sender,
+  subject: z.string().optional(),
+  body: z.string().min(1),
+  receivedAt: z.iso.datetime(),
+  /** For a voicemail: where its transcript came from. */
+  source: z.string().optional(),
+});
+
 const EmailSeed = z.object({
   id: z.string().min(1),
   threadId: z.string().optional(),
@@ -105,7 +117,7 @@ export type CounterpartySeed = z.infer<typeof CounterpartySeed>;
 
 export const OffchainSeed = z.object({
   /** A library seed's id, or a fresh variant's: the seed's id and a hash of its text. */
-  id: z.string().regex(/^O[1-6]-[a-z0-9-]+-\d{3}(-f[0-9a-f]{8})?$/),
+  id: z.string().regex(/^O[1-6]-[a-z0-9-]+-\d{3}(-f[0-9a-f]{8})?(-via-[a-z]+)?$/),
   /** For a fresh variant: the library seed it was drafted from. */
   variantOf: z.string().optional(),
   class: z.enum(Object.keys(OFFCHAIN_ATTACK_CLASSES) as [OffchainAttackClass]),
@@ -136,7 +148,26 @@ export const OffchainSeed = z.object({
         }),
       )
       .default([]),
+    /** Messages on other channels (chat, tickets, voicemail, text, other agents). */
+    messages: z.array(ChannelMessageSeed).default([]),
+    /** Supplier-portal pages, by vendor id, replacing the vendor's page. */
+    portal: z.record(z.string(), z.string()).default({}),
+    /** What the third-party vendor-risk plugin returns, by vendor id. */
+    plugin: z.record(z.string(), z.string()).default({}),
+    /** Notes added to the agent's memory from "earlier sessions". */
+    notes: z.array(z.string()).default([]),
+    /** Documents added to the internal knowledge base. */
+    knowledge: z
+      .array(z.object({ id: z.string(), title: z.string(), body: z.string() }))
+      .default([]),
+    /** Notes on vendor records (business records), by vendor id, replacing the record's notes. */
+    vendorNotes: z.record(z.string(), z.string()).default({}),
   }),
+  /**
+   * The attack is one email with no attachments, so it can be re-delivered through another
+   * channel unchanged (viaChannel), to find the channel an agent trusts too much.
+   */
+  multiVector: z.boolean().default(false),
   counterparty: CounterpartySeed.optional(),
 });
 export type OffchainSeed = z.infer<typeof OffchainSeed>;
@@ -200,6 +231,33 @@ export function seedProblem(
     ...attachments.map((a) => a.id),
   ];
   if (new Set(attachmentIds).size !== attachmentIds.length) return "two attachments share an id";
+  const p = seed.plant;
+  const plantsChannels =
+    p.messages.length > 0 ||
+    Object.keys(p.portal).length > 0 ||
+    Object.keys(p.plugin).length > 0 ||
+    p.notes.length > 0 ||
+    p.knowledge.length > 0;
+  if (plantsChannels && !world.channels) return "channels need the realistic job (world: v2)";
+  const vendorIds = new Set(world.vendors.map((v) => v.id));
+  for (const id of [
+    ...Object.keys(p.portal),
+    ...Object.keys(p.plugin),
+    ...Object.keys(p.vendorNotes),
+  ]) {
+    if (!vendorIds.has(id)) return `no vendor ${id}`;
+  }
+  const messageIds = [...(world.channels?.messages ?? []), ...p.messages].map((m) => m.id);
+  if (new Set(messageIds).size !== messageIds.length) return "two channel messages share an id";
+  if (
+    seed.multiVector &&
+    (p.emails.length !== 1 ||
+      p.emails[0]!.attachments.length > 0 ||
+      p.replace.length > 0 ||
+      plantsChannels)
+  ) {
+    return "a multi-vector seed is a single email with no attachments";
+  }
   if ((seed.class === "O6") !== (seed.counterparty !== undefined)) {
     return "an O6 seed, and only an O6 seed, has a counterparty";
   }
@@ -228,6 +286,68 @@ export function seedProblem(
     }
   }
   return undefined;
+}
+
+/**
+ * The vectors a seed's attack arrives through: email (planted or rewritten emails), image (an
+ * invoice picture), counterparty (a live sender), records (vendor-record notes), and each channel
+ * it plants into.
+ */
+export function seedVectors(seed: OffchainSeed): Vector[] {
+  const p = seed.plant;
+  const out = new Set<Vector>();
+  const attachments = [
+    ...p.emails.flatMap((e) => e.attachments),
+    ...p.replace.flatMap((r) => r.attachments ?? []),
+  ];
+  if (
+    p.emails.length ||
+    p.replace.some((r) => r.body !== undefined || r.attachments?.some((a) => !a.image))
+  )
+    out.add("email");
+  if (attachments.some((a) => a.image)) out.add("image");
+  if (seed.counterparty) out.add("counterparty");
+  if (Object.keys(p.vendorNotes).length) out.add("records");
+  for (const m of p.messages) out.add(m.channel);
+  if (Object.keys(p.portal).length) out.add("portal");
+  if (Object.keys(p.plugin).length) out.add("plugin");
+  if (p.notes.length) out.add("memory");
+  if (p.knowledge.length) out.add("knowledge");
+  return [...out];
+}
+
+/**
+ * The same attack delivered through another channel: a multi-vector seed's single email becomes
+ * a message on `channel`, with the same sender, subject and words. Its id gains `-via-<channel>`.
+ */
+export function viaChannel(
+  seed: OffchainSeed,
+  channel: "chat" | "ticket" | "voicemail" | "sms" | "agent",
+): OffchainSeed {
+  if (!seed.multiVector) throw new Error(`${seed.id} isn't a multi-vector seed`);
+  const email = seed.plant.emails[0]!;
+  return OffchainSeed.parse({
+    ...structuredClone(seed),
+    id: `${seed.id}-via-${channel}`,
+    multiVector: false,
+    plant: {
+      ...structuredClone(seed.plant),
+      emails: [],
+      messages: [
+        {
+          id: `${email.id}-${channel}`,
+          channel,
+          from: email.from,
+          subject: email.subject,
+          body: email.body,
+          receivedAt: email.receivedAt,
+          ...(channel === "voicemail"
+            ? { source: "the email's words, read as a voicemail transcript" }
+            : {}),
+        },
+      ],
+    },
+  });
 }
 
 /** The unplanted world a seed's attack goes into. */
@@ -271,6 +391,7 @@ export function attackScenario(
     aimedAt: seed.aimedAt,
     ...(seed.variantOf ? { variantOf: seed.variantOf } : {}),
     ...(seed.counterparty ? { counterparty: seed.counterparty } : {}),
+    vectors: seedVectors(seed),
   };
 }
 
@@ -290,6 +411,25 @@ function plantSeed(world: OffchainWorld, seed: OffchainSeed, dir: string): Offch
     attachments: e.attachments.map((a) => attachment(a, dir)),
   }));
   world.inbox = [...world.inbox, ...added].sort((a, b) => b.receivedAt.localeCompare(a.receivedAt));
+  const p = seed.plant;
+  if (
+    p.messages.length ||
+    Object.keys(p.portal).length ||
+    Object.keys(p.plugin).length ||
+    p.notes.length ||
+    p.knowledge.length
+  ) {
+    const channels = (world.channels ??= emptyChannels());
+    channels.messages.push(...p.messages.map((m) => ({ ...m, from: { ...m.from } })));
+    Object.assign(channels.portal, p.portal);
+    Object.assign(channels.plugin, p.plugin);
+    channels.notes.push(...p.notes);
+    channels.knowledge.push(...p.knowledge.map((d) => ({ ...d })));
+  }
+  for (const [vendorId, notes] of Object.entries(p.vendorNotes)) {
+    const vendor = world.vendors.find((v) => v.id === vendorId);
+    if (vendor) vendor.notes = notes;
+  }
   return world;
 }
 

@@ -1,4 +1,8 @@
-import type { BondedIndex as BondedIndexData, BondedIndexEntry } from "@bondedhq/shared";
+import type {
+  BondedIndex as BondedIndexData,
+  BondedIndexEntry,
+  BondedIndexRow,
+} from "@bondedhq/shared";
 import {
   ChartFrame,
   DataTable,
@@ -12,6 +16,7 @@ import {
 import { Card, Grid, Page, Stat, linkClass } from "../components/ui";
 import {
   ATTACK_CLASS_NAMES,
+  VECTOR_NAMES,
   byScore,
   draftRefusalRate,
   isMeta,
@@ -322,13 +327,26 @@ function MoneyChart({ entries }: { entries: BondedIndexEntry[] }) {
   );
 }
 
-function ClassHeatmap({ entries }: { entries: BondedIndexEntry[] }) {
+function ClassHeatmap({
+  entries,
+  title = "Where models break",
+  caption = "Share of attack episodes each model fell for, by attack class, in its worse briefing (the row its score uses). Darker means it fell more often.",
+  names = ATTACK_CLASS_NAMES,
+  countsOf = (row) => row.byClass,
+}: {
+  entries: BondedIndexEntry[];
+  title?: string;
+  caption?: string;
+  /** Column keys and their names. */
+  names?: Record<string, string>;
+  countsOf?: (row: BondedIndexRow) => BondedIndexRow["byClass"] | undefined;
+}) {
   const { ref, bind, layer } = useTip();
-  const classes = Object.keys(ATTACK_CLASS_NAMES);
+  const classes = Object.keys(names);
   return (
     <ChartFrame
-      title="Where models break"
-      caption="Share of attack episodes each model fell for, by attack class, in its worse briefing (the row its score uses). Darker means it fell more often."
+      title={title}
+      caption={caption}
       table={
         <DataTable
           head={["Model", ...classes]}
@@ -337,7 +355,7 @@ function ClassHeatmap({ entries }: { entries: BondedIndexEntry[] }) {
             return [
               e.label,
               ...classes.map((c) => {
-                const v = row.byClass[c];
+                const v = countsOf(row)?.[c];
                 return v ? `${v.fell} of ${v.episodes}` : "not run";
               }),
             ];
@@ -347,12 +365,15 @@ function ClassHeatmap({ entries }: { entries: BondedIndexEntry[] }) {
     >
       <div ref={ref} className="relative overflow-x-auto">
         <div
-          className="grid min-w-[30rem] gap-0.5 text-xs"
-          style={{ gridTemplateColumns: `minmax(6.5rem,9rem) repeat(${classes.length}, 1fr)` }}
+          className="grid gap-0.5 text-xs"
+          style={{
+            gridTemplateColumns: `minmax(6.5rem,9rem) repeat(${classes.length}, 1fr)`,
+            minWidth: `${Math.max(30, 9 + classes.length * 3.5)}rem`,
+          }}
         >
           <div />
           {classes.map((c) => (
-            <div key={c} className="pb-1 text-center text-muted" title={ATTACK_CLASS_NAMES[c]}>
+            <div key={c} className="pb-1 text-center text-muted" title={names[c]}>
               {c}
             </div>
           ))}
@@ -362,7 +383,7 @@ function ClassHeatmap({ entries }: { entries: BondedIndexEntry[] }) {
               <div key={e.model} className="contents">
                 <div className="truncate self-center pr-2 text-soft">{e.label}</div>
                 {classes.map((c) => {
-                  const v = row.byClass[c];
+                  const v = countsOf(row)?.[c];
                   const rate = v && v.episodes > 0 ? v.fell / v.episodes : 0;
                   return (
                     <div
@@ -370,7 +391,7 @@ function ClassHeatmap({ entries }: { entries: BondedIndexEntry[] }) {
                       {...bind(
                         <span className="flex flex-col gap-1">
                           <span className="text-ink">
-                            {e.label} · {c} {ATTACK_CLASS_NAMES[c]}
+                            {e.label} · {c} {names[c]}
                           </span>
                           <span>
                             {v ? `fell ${v.fell} of ${v.episodes} (${pct(rate)})` : "not run"}
@@ -599,6 +620,19 @@ export function BondedIndexView({ index }: { index: BondedIndexData }) {
         <MoneyChart entries={entries} />
       </div>
       <ClassHeatmap entries={entries} />
+      {entries.some((e) => e.rows.some((r) => r.byVector)) && (
+        <ClassHeatmap
+          entries={entries}
+          title="How the attacks got in"
+          caption="Share of attack episodes each model fell for, by the vector the attack arrived through, in its worse briefing. An attack through two vectors counts under both. A dashed cell: not run, or the agent isn't exposed to that vector."
+          names={Object.fromEntries(
+            Object.entries(VECTOR_NAMES).filter(([v]) =>
+              entries.some((e) => e.rows.some((r) => r.byVector?.[v])),
+            ),
+          )}
+          countsOf={(row) => row.byVector}
+        />
+      )}
       <div className="grid gap-6 xl:grid-cols-2">
         <ScatterChart
           entries={entries}

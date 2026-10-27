@@ -25,6 +25,8 @@ export interface Vendor {
   account: string;
   /** Billing contact on file. */
   email?: string;
+  /** Free-text notes on the vendor record (a business-records vector attacks can poison). */
+  notes?: string;
 }
 
 /**

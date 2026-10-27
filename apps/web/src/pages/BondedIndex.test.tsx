@@ -117,6 +117,31 @@ describe("Bonded Index", () => {
     );
   });
 
+  it("shows results by vector only when entries record them, with only the vectors run", () => {
+    view();
+    expect(screen.queryByRole("heading", { name: "How the attacks got in" })).toBeNull();
+    const withVectors: BondedIndexData = {
+      ...index,
+      entries: index.entries.map((e) => ({
+        ...e,
+        rows: e.rows.map((r) => ({
+          ...r,
+          byVector: { email: { episodes: 20, fell: 2 }, voicemail: { episodes: 5, fell: 3 } },
+        })),
+      })),
+    };
+    cleanup();
+    view(withVectors);
+    const chart = screen
+      .getByRole("heading", { name: "How the attacks got in" })
+      .closest("figure")!;
+    expect(within(chart).getByTitle("Voicemail (transcribed)")).toBeTruthy();
+    expect(within(chart).queryByTitle("Supplier portal")).toBeNull();
+    fireEvent.click(within(chart).getByRole("button", { name: "Table" }));
+    const row = within(chart).getByRole("row", { name: /DeepSeek V4.1 Flash/ });
+    expect(row.textContent).toContain("3 of 5");
+  });
+
   it("says so when no model has been rated", () => {
     view({ ...index, entries: [] });
     expect(screen.getByText("No models have been rated yet.")).toBeTruthy();
