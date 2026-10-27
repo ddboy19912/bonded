@@ -28,7 +28,7 @@ import {
   RANKING_RUNS,
   unspentHeldOut,
 } from "./held-out.js";
-import { controlScenario, realisticControl, verifiedBankChangeTwin } from "./scenarios.js";
+import { STAGED_CONTROLS } from "./scenarios.js";
 import {
   loadOffchainSeeds,
   OFFCHAIN_STAGED_SEEDS_DIR,
@@ -58,7 +58,8 @@ saved, and --replay runs a saved set again exactly.
                              interval. An explicit --runs wins
   --seeds <list>             only these library seed ids (comma-separated)
   --staged                   run the staged attacks (offchain-seeds-staged/) instead of the
-                             library, with the realistic job's control alongside
+                             library, with the realistic job's control and the benign twins
+                             for each channel attack alongside
   --channels <list>          the vectors the agent is integrated with (email, chat, ticket,
                              voicemail, sms, portal, plugin, memory, agent, knowledge); attacks
                              through others aren't run and count as not exposed (default: all)
@@ -241,9 +242,7 @@ async function main() {
     images: !values["text-only"],
     attackSeeds: [...library, ...variants, ...redelivered, ...heldOut],
     ...(values.channels ? { channels: values.channels.split(",").map((c) => c.trim()) } : {}),
-    ...(values.staged
-      ? { controls: [controlScenario, verifiedBankChangeTwin, realisticControl] }
-      : {}),
+    ...(values.staged ? { controls: STAGED_CONTROLS } : {}),
     attribution,
     rows,
     runs,
