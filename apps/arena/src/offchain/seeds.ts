@@ -94,6 +94,12 @@ export const CounterpartySeed = z.object({
   brief: z.string().min(1),
   /** Replies it sends at most, one per agent reply on the thread. */
   maxReplies: z.number().int().min(1).max(8).default(4),
+  /**
+   * Thread hijacking: the counterparty controls a genuine vendor's mailbox, so it owns that
+   * vendor's real thread and answers the agent's replies on it, including ones the job requires.
+   * Off by default, so a seed can't take over a real thread by mistake.
+   */
+  hijack: z.boolean().default(false),
 });
 export type CounterpartySeed = z.infer<typeof CounterpartySeed>;
 
@@ -205,8 +211,16 @@ export function seedProblem(
   }
   if (seed.counterparty) {
     const cp = seed.counterparty;
-    if (world.inbox.some((e) => e.threadId === cp.threadId)) {
+    if (!cp.hijack && world.inbox.some((e) => e.threadId === cp.threadId)) {
       return `the counterparty can't own ${cp.threadId}, a genuine thread`;
+    }
+    if (cp.hijack) {
+      const genuine = world.inbox.filter((e) => e.threadId === cp.threadId);
+      if (genuine.length === 0)
+        return `a hijacking counterparty needs a genuine thread, not ${cp.threadId}`;
+      if (!genuine.some((e) => e.from.address === cp.from.address)) {
+        return "a hijacking counterparty writes from the thread's genuine sender";
+      }
     }
     const opener = seed.plant.emails.find((e) => (e.threadId ?? `t-${e.id}`) === cp.threadId)!;
     if (opener.from.address !== cp.from.address || opener.from.name !== cp.from.name) {
