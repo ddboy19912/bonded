@@ -16,12 +16,11 @@ import {
 } from "@bondedhq/shared";
 import { metaCapFallback, SpendingCap } from "../budget.js";
 import { loadDotEnv } from "../env.js";
-import { LlmCounterparty, type ProbeResult, probeCounterparty } from "./counterparty.js";
-import { runOffchainEpisode } from "./episode.js";
+import { probeCounterparties, runOffchainBatch } from "./batch.js";
+import type { ProbeResult } from "./counterparty.js";
 import { draftVariants, saveVariants, type VariantCandidate } from "./fresh.js";
-import { controlScenario, type OffchainScenario, verifiedBankChangeTwin } from "./scenarios.js";
-import { attackScenario, loadOffchainSeeds, type OffchainSeed, seedNeedsVision } from "./seeds.js";
-import { type MandateRow, type RowEpisode, summarizeRows } from "./summary.js";
+import { loadOffchainSeeds, type OffchainSeed } from "./seeds.js";
+import type { MandateRow } from "./summary.js";
 
 const USAGE = `Usage: pnpm --filter @bonded/arena offchain --max-usd <n> [options]
 
@@ -132,74 +131,26 @@ async function main() {
     for (const c of candidates.filter((c) => !c.kept)) console.log(`  ${c.seed}: ${c.reason}`);
   }
 
-  // An attack that lives only in an invoice image can't reach an agent that never sees images:
-  // it isn't run, and isn't counted as resisted.
-  const seesImages = values.agent === "payables" && values.vision && !values["text-only"];
-  const attackSeeds = [...library, ...variants];
-  const notShown = seesImages ? [] : attackSeeds.filter(seedNeedsVision).map((s) => s.id);
-  // Each run builds its scenario afresh: an episode changes its world (an O6 thread grows).
-  const builders: (() => OffchainScenario)[] = [
-    controlScenario,
-    verifiedBankChangeTwin,
-    ...attackSeeds.filter((s) => !notShown.includes(s.id)).map((s) => () => attackScenario(s)),
-  ];
-  const jobs = rows.flatMap((mandate) =>
-    builders.flatMap((build) => Array.from({ length: runs }, () => ({ mandate, build }))),
-  );
-  const episodes: RowEpisode[] = [];
-  const skipped: string[] = [];
-  const queue = [...jobs];
-  await Promise.all(
-    Array.from({ length: Math.min(parallel, queue.length) }, async () => {
-      for (let job = queue.shift(); job; job = queue.shift()) {
-        const scenario = job.build();
-        if (cap.exceeded) {
-          skipped.push(`${job.mandate}:${scenario.id}`);
-          continue;
-        }
-        const counterparty = scenario.counterparty
-          ? new LlmCounterparty(
-              scenario.counterparty,
-              scenario.world.company,
-              client,
-              values["counterparty-model"],
-              (u) => cap.add(u),
-            )
-          : undefined;
-        const agent = agentFor(values.agent, values.model, client, values.vision);
-        const result = await runOffchainEpisode(agent, scenario, {
-          images: !values["text-only"],
-          hideMandate: job.mandate === "hidden",
-          ...(counterparty ? { counterparty } : {}),
-        });
-        cap.add(result.agentSummary.usage);
-        episodes.push({ mandate: job.mandate, result });
-      }
-    }),
-  );
-
-  const summary = summarizeRows(episodes, rows);
-  const turns = episodes.flatMap((e) => e.result.conversation ?? []);
-  const counterpartyTurns = { turns: turns.length, refused: turns.filter((t) => t.refused).length };
-  const probes: Record<string, ProbeResult> = {};
-  if (values["probe-counterparty"]) {
-    for (const seed of library.filter((s) => s.counterparty)) {
-      const opener = seed.plant.emails.find(
-        (e) => (e.threadId ?? `t-${e.id}`) === seed.counterparty!.threadId,
-      )!;
-      const cp = new LlmCounterparty(
-        seed.counterparty!,
-        controlScenario().world.company,
+  const { episodes, summary, notShown, skipped, counterpartyTurns } = await runOffchainBatch({
+    agent: () => agentFor(values.agent, values.model, client, values.vision),
+    seesImages: values.agent === "payables" && values.vision,
+    images: !values["text-only"],
+    attackSeeds: [...library, ...variants],
+    rows,
+    runs,
+    parallel,
+    cap,
+    client,
+    counterpartyModel: values["counterparty-model"],
+  });
+  const probes: Record<string, ProbeResult> = values["probe-counterparty"]
+    ? await probeCounterparties({
+        seeds: library,
         client,
-        values["counterparty-model"],
-        (u) => cap.add(u),
-      );
-      probes[seed.id] = await probeCounterparty(cp, {
-        from: `${opener.from.name} <${opener.from.address}>`,
-        body: opener.body,
-      });
-    }
-  }
+        model: values["counterparty-model"],
+        cap,
+      })
+    : {};
   const ids = [...new Set(episodes.map((e) => e.result.scenarioId))];
   console.log(`${"scenario".padEnd(42)}${rows.map((r) => `rules ${r}`.padEnd(16)).join("")}`);
   for (const id of ids) {

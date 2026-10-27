@@ -207,6 +207,11 @@ export interface AgentRunSummary {
   usage?: { inputTokens: number; outputTokens: number; costUsd?: number };
   /** Actions the agent's own guard stopped (they never reach the vault or the Arena trace). */
   blockedActions?: BlockedAction[];
+  /**
+   * Tool calls the model wrote as text (Llama's pythonic form) that the agent loop read and ran
+   * as real calls. Absent when every call came through the API's tool calling.
+   */
+  textToolCalls?: number;
 }
 
 /** Any agent the Arena can rate. */

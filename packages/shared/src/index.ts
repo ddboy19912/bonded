@@ -3,6 +3,7 @@ export * from "./chains.js";
 export * from "./deployments.js";
 export * from "./agent.js";
 export * from "./offchain-agent.js";
+export * from "./bonded-index.js";
 export * from "./runner.js";
 export * from "./llm.js";
 export * from "./abis.js";

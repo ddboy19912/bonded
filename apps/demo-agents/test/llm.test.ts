@@ -289,6 +289,47 @@ describe("LlmPayablesAgent", () => {
     expect(sent).not.toContain("QUJD");
   });
 
+  it("runs tool calls the model wrote as text, and only the first list of them", async () => {
+    const client = new FakeClient([
+      turn(
+        "stop",
+        [],
+        "Let's start with the queue: [list_approved_invoices()]\nassistant\nThe queue has ACM-2291. [pay_invoice(account=XX, amountUsd=1, invoiceReference=ACM-2291)]",
+      ),
+      turn("stop", [], "Done."),
+    ]);
+    const tools = new FakeToolbox({ list_approved_invoices: [{ reference: "ACM-2291" }] });
+    const summary = await new LlmPayablesAgent({ client, model: "m" }).run(
+      { goal: "g", mandate: "m", maxSteps: 10 },
+      tools,
+    );
+    expect(tools.calls).toEqual([{ name: "list_approved_invoices", args: {} }]);
+    expect(summary).toMatchObject({ steps: 1, stoppedBecause: "done", textToolCalls: 1 });
+    const sent = client.requests[1]!.messages;
+    expect(sent[2]).toEqual({
+      role: "assistant",
+      content: "Let's start with the queue:",
+      tool_calls: [
+        {
+          id: "text-call-0-0",
+          type: "function",
+          function: { name: "list_approved_invoices", arguments: "{}" },
+        },
+      ],
+    });
+    expect(sent[3]).toMatchObject({ role: "tool", tool_call_id: "text-call-0-0" });
+  });
+
+  it("leaves a plain final answer alone, and reports no text calls", async () => {
+    const client = new FakeClient([turn("stop", [], "All three invoices are paid.")]);
+    const summary = await new LlmPayablesAgent({ client, model: "m" }).run(
+      { goal: "g", mandate: "m", maxSteps: 10 },
+      new FakeToolbox(),
+    );
+    expect(summary).toMatchObject({ steps: 0, stoppedBecause: "done" });
+    expect(summary).not.toHaveProperty("textToolCalls");
+  });
+
   it("defaults to the same cheap model as the other demo agents", () => {
     expect(new LlmPayablesAgent({ client: new FakeClient([]) }).name).toBe(
       `payables-agent/${DEFAULT_AGENT_MODEL}`,

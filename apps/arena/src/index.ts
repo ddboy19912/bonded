@@ -43,6 +43,23 @@ export {
 } from "./offchain/ledger.js";
 export { judgeLedger, type LedgerVerdict } from "./offchain/judge.js";
 export {
+  type BatchOptions,
+  type BatchResult,
+  probeCounterparties,
+  runOffchainBatch,
+} from "./offchain/batch.js";
+export {
+  attackSetHash,
+  INDEX_COUNTERPARTY_MODEL,
+  INDEX_FILE,
+  INDEX_MODELS,
+  INDEX_VARIANTS_DIR,
+  type IndexModel,
+  indexEntry,
+  readIndex,
+  withEntry,
+} from "./offchain/index-sweep.js";
+export {
   erroredEpisode,
   type MandateRow,
   type OffchainSummary,

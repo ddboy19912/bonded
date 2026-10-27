@@ -18,6 +18,7 @@ import { Vault } from "./pages/Vault";
 import { Underwrite } from "./pages/Underwrite";
 import { Claims } from "./pages/Claims";
 import { Leaderboard } from "./pages/Leaderboard";
+import { BondedIndex } from "./pages/BondedIndex";
 import { Bounties } from "./pages/Bounties";
 import { NotFound } from "./pages/NotFound";
 import { NewAgent } from "./pages/NewAgent";
@@ -50,6 +51,7 @@ const router = createBrowserRouter([
       { path: "/underwrite", element: <Underwrite /> },
       { path: "/claims", element: <Claims /> },
       { path: "/leaderboard", element: <Leaderboard /> },
+      { path: "/index", element: <BondedIndex /> },
       { path: "/bounties", element: <Bounties /> },
       { path: "/status", element: <Status /> },
       { path: "/inbox", element: <Inbox /> },

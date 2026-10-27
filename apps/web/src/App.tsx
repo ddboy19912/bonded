@@ -17,6 +17,7 @@ const ICONS = {
   overview: "M3 3h8v10H3zM13 3h8v6h-8zM13 11h8v10h-8zM3 15h8v6H3z",
   agents: "M7 7h10v10H7zM10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4",
   leaderboard: "M4 21h16M7 21V12M12 21V6M17 21v-5",
+  index: "M4 19l5-6 4 3 7-9M4 4v15h16",
   arena: "M5 12a7 7 0 1 0 14 0a7 7 0 1 0-14 0M12 2v5M12 17v5M2 12h5M17 12h5",
   vaults: "M4 5h16v14H4zM9 12a3 3 0 1 0 6 0a3 3 0 1 0-6 0M4 9h2M4 15h2",
   mine: "M12 12a4 4 0 1 0 0-8a4 4 0 0 0 0 8M4 21c0-4 4-6 8-6s8 2 8 6",
@@ -116,6 +117,7 @@ function Sidebar() {
             extra={<Count n={agents.data?.length} />}
           />
           <Item to="/leaderboard" icon={ICONS.leaderboard} label="Leaderboard" />
+          <Item to="/index" icon={ICONS.index} label="Index" />
           <Item
             to="/arena"
             icon={ICONS.arena}

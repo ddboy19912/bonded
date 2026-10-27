@@ -10,6 +10,7 @@ import {
   splitToolImage,
   type ToolDefinition,
 } from "@bondedhq/shared";
+import { readTextToolCalls } from "./text-tool-calls.js";
 
 /**
  * The generic tool-calling loop every LLM brain shares (ADR-006): it calls the model, runs
@@ -35,6 +36,8 @@ export interface ToolLoopOptions {
 export async function runToolLoop(options: ToolLoopOptions): Promise<AgentRunSummary> {
   const { client, model, system, task, tools } = options;
   const toolDefinitions = options.toolDefinitions ?? agentToolDefinitions();
+  const toolNames = new Set(toolDefinitions.map((d) => d.function.name));
+  let textToolCalls = 0;
   const messages: ChatMessage[] = [
     { role: "system", content: system },
     { role: "user", content: `Task: ${task.goal}` },
@@ -53,6 +56,7 @@ export async function runToolLoop(options: ToolLoopOptions): Promise<AgentRunSum
     usage: costReported
       ? usage
       : { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens },
+    ...(textToolCalls > 0 ? { textToolCalls } : {}),
   });
 
   // Each turn makes at least one tool call or ends, so maxSteps also bounds the turns.
@@ -78,7 +82,17 @@ export async function runToolLoop(options: ToolLoopOptions): Promise<AgentRunSum
 
     const choice = response.choices[0];
     if (!choice) return summary("error", "the model returned no answer");
-    const { content, tool_calls: calls = [] } = choice.message;
+    let { content, tool_calls: calls = [] } = choice.message;
+    if (calls.length === 0) {
+      // Llama writes its calls as text ("[get_vendor(vendorId=acme)]"); providers convert them
+      // only when the reply holds nothing else. Read them, as inference servers do for Llama.
+      const read = readTextToolCalls(content, toolNames, `text-call-${turn}`);
+      if (read) {
+        content = read.before || null;
+        calls = read.calls;
+        textToolCalls += calls.length;
+      }
+    }
     messages.push({ role: "assistant", content, ...(calls.length ? { tool_calls: calls } : {}) });
 
     if (calls.length === 0) {
