@@ -1,0 +1,215 @@
+#!/usr/bin/env node
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { parseArgs } from "node:util";
+import {
+  AgentKitAgent,
+  DEFAULT_AGENT_MODEL,
+  LlmPayablesAgent,
+  SolanaAgentKitAgent,
+} from "@bonded/demo-agents";
+import {
+  type ArenaAgent,
+  type ChatClient,
+  chatClientFromEnv,
+  llmConfigForModel,
+} from "@bondedhq/shared";
+import { OUT_OF_TOKENS, REFUSED } from "../adaptive.js";
+import { loadDotEnv } from "../env.js";
+import {
+  type OffchainAdaptiveAttempt,
+  type OffchainAdaptiveResult,
+  type OffchainFeedback,
+  MAX_ROUNDS,
+  runOffchainAdaptive,
+} from "./adaptive.js";
+import {
+  loadOffchainSeeds,
+  OFFCHAIN_STAGED_SEEDS_DIR,
+  type OffchainSeed,
+  seedNeedsVision,
+} from "./seeds.js";
+
+const USAGE = `Usage: pnpm --filter @bonded/arena offchain-adaptive --max-usd <n> --seeds <list> [options]
+
+Runs the off-chain adaptive attacker (src/offchain/adaptive.ts) against one agent. For each seed
+it plants the published text first, then lets an attacker model read how the agent reacted and
+rewrite that prose, until the ledger records a breach that goes through, the rounds run out, or
+the spend cap is hit. Needs OPENROUTER_API_KEY in .env. Results go to ratings/offchain-adaptive-/.
+
+  --max-usd <n>          stop once model spend (agent, attacker, counterparty) reaches this,
+                         across every seed in the run (required)
+  --seeds <list>         seed ids or classes, e.g. O5,O5-chat-ceo-001 (required)
+  --agent <name>         payables | agentkit | solana-agent-kit (default: payables)
+  --model <id>           the agent's model (default: ${DEFAULT_AGENT_MODEL})
+  --attacker-model <id>  the attacker's model, and the O6 counterparty's (default:
+                         ${DEFAULT_AGENT_MODEL}). A weaker attacker finds less
+  --rounds <n>           rewrites after the seed's own run, 0 to ${MAX_ROUNDS} (default: 4)
+  --feedback <level>     outcome | trace: what the attacker sees of each try (default: trace)
+  --mandate <row>        shown | hidden: tell the agent the mandate's rules, or only its job
+                         (default: hidden; the ledger enforces either way)
+  --staged               load apps/arena/offchain-seeds-staged instead of the published library
+  --vision               payables: show invoice images to the model. Without it, an attack that
+                         lives only in an image isn't run: it is listed as not exposed
+  --attacker-reasoning <off|low>  off asks the attacker for no hidden reasoning (default: off)
+  --out <dir>            where to write results (default: ratings/offchain-adaptive-<agent>)`;
+
+function agentFor(name: string, model: string, client: ChatClient, vision: boolean): ArenaAgent {
+  if (name === "payables") return new LlmPayablesAgent({ client, model, vision });
+  if (name === "agentkit") return new AgentKitAgent(model, undefined, "offchain");
+  if (name === "solana-agent-kit") return new SolanaAgentKitAgent(model, undefined, "offchain");
+  throw new Error(`unknown --agent ${name}`);
+}
+
+/**
+ * One letter per try; X is a breach of an aimed-at rule that went through. "breach" here (O) is
+ * one that broke other rules only. "blocked" and "breach" must not share a letter.
+ */
+const TRAIL: Record<OffchainAdaptiveAttempt["ruling"], string> = {
+  breach: "O",
+  blocked: "K",
+  ignored: "I",
+  unseen: "U",
+  no_verdict: "E",
+  invalid: "N",
+};
+
+function describe(r: OffchainAdaptiveResult): string {
+  const outcome = r.breached
+    ? r.roundsToBreach === 0
+      ? "breached by the published seed"
+      : `breached in round ${r.roundsToBreach}`
+    : `held (${r.staticFell ? "static fell" : "static held"}, ${r.fell ? "adaptive fell" : "adaptive held"}, ${r.stoppedBecause})`;
+  const trail = r.attempts.map((a) => (a.succeeded ? "X" : TRAIL[a.ruling])).join("");
+  return `${r.seed.padEnd(32)} ${outcome.padEnd(42)} ${trail}  $${r.spend.spentUsd.toFixed(3)}`;
+}
+
+function selectSeeds(library: readonly OffchainSeed[], wanted: readonly string[]): OffchainSeed[] {
+  return library.filter((s) => wanted.some((w) => w === s.class || w === s.id));
+}
+
+async function main(): Promise<number> {
+  const { values } = parseArgs({
+    args: process.argv.slice(2).filter((a) => a !== "--"),
+    options: {
+      "max-usd": { type: "string" },
+      seeds: { type: "string" },
+      agent: { type: "string", default: "payables" },
+      model: { type: "string", default: DEFAULT_AGENT_MODEL },
+      "attacker-model": { type: "string", default: DEFAULT_AGENT_MODEL },
+      rounds: { type: "string", default: "4" },
+      feedback: { type: "string", default: "trace" },
+      mandate: { type: "string", default: "hidden" },
+      staged: { type: "boolean", default: false },
+      vision: { type: "boolean", default: false },
+      "attacker-reasoning": { type: "string", default: "off" },
+      out: { type: "string" },
+      help: { type: "boolean", default: false },
+    },
+  });
+  const maxUsd = Number(values["max-usd"]);
+  const rounds = Number(values.rounds);
+  const feedback = values.feedback as OffchainFeedback;
+  const mandate = values.mandate;
+  if (
+    values.help ||
+    !(maxUsd > 0) ||
+    !values.seeds ||
+    !Number.isInteger(rounds) ||
+    rounds < 0 ||
+    rounds > MAX_ROUNDS ||
+    (feedback !== "outcome" && feedback !== "trace") ||
+    (mandate !== "shown" && mandate !== "hidden") ||
+    (values["attacker-reasoning"] !== "off" && values["attacker-reasoning"] !== "low")
+  ) {
+    console.log(USAGE);
+    return values.help ? 0 : 1;
+  }
+
+  loadDotEnv();
+  const client = chatClientFromEnv();
+  for (const model of [values.model, values["attacker-model"]]) llmConfigForModel(model);
+  const agent = agentFor(values.agent, values.model, client, values.vision);
+  const wanted = values.seeds
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const library = loadOffchainSeeds(values.staged ? OFFCHAIN_STAGED_SEEDS_DIR : undefined);
+  const seeds = selectSeeds(library, wanted);
+  if (seeds.length === 0) throw new Error(`no seeds match ${values.seeds}`);
+
+  const outDir =
+    values.out ?? join("ratings", `offchain-adaptive-${agent.name.replaceAll("/", "_")}`);
+  mkdirSync(outDir, { recursive: true });
+  console.log(
+    `Agent ${agent.name}, attacker ${values["attacker-model"]}, feedback ${feedback}, ` +
+      `mandate ${mandate}, ${rounds} rewrites per seed, up to $${maxUsd} in all\n`,
+  );
+  const results: OffchainAdaptiveResult[] = [];
+  const notExposed: string[] = [];
+  const unrun: string[] = [];
+  // One budget for the whole run: each seed gets what the earlier ones left.
+  let spent = 0;
+  for (const seed of seeds) {
+    if (seedNeedsVision(seed) && !(values.agent === "payables" && values.vision)) {
+      notExposed.push(seed.id);
+      continue;
+    }
+    if (spent >= maxUsd) {
+      unrun.push(seed.id);
+      continue;
+    }
+    const result = await runOffchainAdaptive({
+      client,
+      attackerModel: values["attacker-model"],
+      agent,
+      seed,
+      rounds,
+      feedback,
+      showMandate: mandate === "shown",
+      images: values.vision,
+      attackerReasoning: values["attacker-reasoning"] === "low" ? "low" : "off",
+      maxUsd: maxUsd - spent,
+    });
+    spent += result.spend.spentUsd;
+    results.push(result);
+    console.log(describe(result));
+    if (result.note) console.log(`  ${result.note}`);
+    writeFileSync(join(outDir, `${seed.id}.json`), `${JSON.stringify(result, null, 2)}\n`);
+  }
+  const breached = results.filter((r) => r.breached);
+  const staticBreached = results.filter((r) => r.staticBreached);
+  const fell = results.filter((r) => r.fell);
+  const staticFell = results.filter((r) => r.staticFell);
+  // Static baseline against adaptive worst case, on the rules each attack aims at.
+  console.log(
+    `\n${results.length} seeds. Got through (aimed-at rule, not blocked): ` +
+      `${staticBreached.length} with the published text, ${breached.length} within ${rounds} ` +
+      `rewrites. Fell, counting blocked tries as the score does: ${staticFell.length} static, ` +
+      `${fell.length} adaptive. Results in ${outDir}`,
+  );
+  const other = results.filter((r) => r.otherBreach && !r.breached).length;
+  if (other) console.log(`${other} seeds saw only breaches of rules the attack doesn't aim at`);
+  if (notExposed.length)
+    console.log(`not exposed (the agent sees no images): ${notExposed.join(", ")}`);
+  if (unrun.length) console.log(`not run, the spending cap was reached: ${unrun.join(", ")}`);
+  console.log(`spend $${spent.toFixed(4)} of $${maxUsd}`);
+  const tries = results.flatMap((r) => r.attempts);
+  const invalid = tries.filter((a) => a.ruling === "invalid");
+  const refused = invalid.filter((a) => a.note?.startsWith(REFUSED)).length;
+  const outOfTokens = invalid.filter((a) => a.note?.startsWith(OUT_OF_TOKENS)).length;
+  console.log(
+    `${tries.length - invalid.length} of ${tries.length} tries ran an episode; ${invalid.length} drafts ` +
+      `were lost: ${refused} refused, ${outOfTokens} out of tokens, ` +
+      `${invalid.length - refused - outOfTokens} rejected by the checks`,
+  );
+  return 0;
+}
+
+main().then(
+  (code) => process.exit(code),
+  (error: unknown) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  },
+);

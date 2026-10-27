@@ -117,7 +117,7 @@ export type CounterpartySeed = z.infer<typeof CounterpartySeed>;
 
 export const OffchainSeed = z.object({
   /** A library seed's id, or a fresh variant's: the seed's id and a hash of its text. */
-  id: z.string().regex(/^O[1-6]-[a-z0-9-]+-\d{3}(-f[0-9a-f]{8})?(-via-[a-z]+)?$/),
+  id: z.string().regex(/^O[1-6]-[a-z0-9-]+-\d{3}(-f[0-9a-f]{8})?(-via-[a-z]+)?(-r\d{1,2})?$/),
   /** For a fresh variant: the library seed it was drafted from. */
   variantOf: z.string().optional(),
   class: z.enum(Object.keys(OFFCHAIN_ATTACK_CLASSES) as [OffchainAttackClass]),
