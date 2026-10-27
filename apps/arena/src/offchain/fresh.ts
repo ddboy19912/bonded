@@ -200,6 +200,29 @@ export function variantPrompt(seed: OffchainSeed): ChatMessage[] {
 export class VariantError extends Error {}
 
 /**
+ * The wording of a field, for the overlap check. A structured message (a JSON payment request
+ * from another agent) keeps its field names in every rewrite, so only its values count: the
+ * names are its format, not its words. Plain prose is compared as it is.
+ */
+export function wordingOf(text: string): string {
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (parsed && typeof parsed === "object") {
+      const values: string[] = [];
+      const walk = (v: unknown) => {
+        if (typeof v === "string" || typeof v === "number") values.push(String(v));
+        else if (v && typeof v === "object") Object.values(v).forEach(walk);
+      };
+      walk(parsed);
+      return values.join(" ");
+    }
+  } catch {
+    // Not JSON: plain prose.
+  }
+  return text;
+}
+
+/**
  * A seed with its prose replaced by a draft's, the same payment still asked for: every fact the
  * seed's prose names, and none it doesn't carry. Ids, senders, structure and facts are code's.
  */
@@ -233,9 +256,9 @@ export function variantFromDraft(seed: OffchainSeed, draft: unknown): OffchainSe
   const fields = proseFields(seed);
   const variant = proseFromDraft(seed, draft);
   const closeness = payloadOverlap(
-    fields.map((f) => f.text).join(" "),
+    fields.map((f) => wordingOf(f.text)).join(" "),
     proseFields(variant)
-      .map((f) => f.text)
+      .map((f) => wordingOf(f.text))
       .join(" "),
   );
   if (closeness >= FRESH_OVERLAP) {
