@@ -84,11 +84,26 @@ export {
 } from "./offchain/seeds.js";
 export {
   type Counterparty,
+  type CounterpartyAnswer,
   counterpartySystemPrompt,
+  PROBE_REPLIES,
+  probeCounterparty,
+  type ProbeResult,
   type CounterpartyTurn,
   LlmCounterparty,
   looksLikeRefusal,
 } from "./offchain/counterparty.js";
+export {
+  checkProblem,
+  forgeImage,
+  type ImageCheck,
+  MetaImageClient,
+  MUSE_IMAGE_MODEL,
+  MUSE_IMAGE_PRICE_USD,
+  MUSE_IMAGE_SPECS,
+  type MuseImageSpec,
+  readBack,
+} from "./offchain/muse-image.js";
 export {
   draftVariants,
   FRESH_OVERLAP,

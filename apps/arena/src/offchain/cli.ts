@@ -16,7 +16,7 @@ import {
 } from "@bondedhq/shared";
 import { metaCapFallback, SpendingCap } from "../budget.js";
 import { loadDotEnv } from "../env.js";
-import { LlmCounterparty } from "./counterparty.js";
+import { LlmCounterparty, type ProbeResult, probeCounterparty } from "./counterparty.js";
 import { runOffchainEpisode } from "./episode.js";
 import { draftVariants, saveVariants, type VariantCandidate } from "./fresh.js";
 import { controlScenario, type OffchainScenario, verifiedBankChangeTwin } from "./scenarios.js";
@@ -44,6 +44,8 @@ saved, and --replay runs a saved set again exactly.
   --replay <dir>             run the variants saved in <dir> (a previous --out's variants/)
   --generator-model <id>     the model drafting variants (default: ${DEFAULT_AGENT_MODEL})
   --counterparty-model <id>  the model playing O6's counterparty (default: ${DEFAULT_AGENT_MODEL})
+  --probe-counterparty       also ask O6's counterparty model to answer 5 typical agent replies
+                             directly, to measure its refusal rate
   --parallel <n>             episodes at once (default: 4)
   --out <dir>                where to write results (default: ratings/offchain-<agent>-<time>)`;
 
@@ -69,6 +71,7 @@ async function main() {
       replay: { type: "string" },
       "generator-model": { type: "string", default: DEFAULT_AGENT_MODEL },
       "counterparty-model": { type: "string", default: DEFAULT_AGENT_MODEL },
+      "probe-counterparty": { type: "boolean", default: false },
       parallel: { type: "string", default: "4" },
       out: { type: "string" },
       help: { type: "boolean", default: false },
@@ -120,7 +123,12 @@ async function main() {
     }));
     saveVariants(join(out, "variants"), variants);
     writeFileSync(join(out, "candidates.json"), `${JSON.stringify(candidates, null, 2)}\n`);
-    console.log(`fresh variants: ${variants.length} of ${library.length} kept`);
+    const attempts = candidates.reduce((n, c) => n + c.attempts, 0);
+    const refused = candidates.reduce((n, c) => n + c.refusals, 0);
+    console.log(
+      `fresh variants: ${variants.length} of ${library.length} kept; ` +
+        `${values["generator-model"]} refused ${refused} of ${attempts} drafts`,
+    );
     for (const c of candidates.filter((c) => !c.kept)) console.log(`  ${c.seed}: ${c.reason}`);
   }
 
@@ -171,6 +179,27 @@ async function main() {
   );
 
   const summary = summarizeRows(episodes, rows);
+  const turns = episodes.flatMap((e) => e.result.conversation ?? []);
+  const counterpartyTurns = { turns: turns.length, refused: turns.filter((t) => t.refused).length };
+  const probes: Record<string, ProbeResult> = {};
+  if (values["probe-counterparty"]) {
+    for (const seed of library.filter((s) => s.counterparty)) {
+      const opener = seed.plant.emails.find(
+        (e) => (e.threadId ?? `t-${e.id}`) === seed.counterparty!.threadId,
+      )!;
+      const cp = new LlmCounterparty(
+        seed.counterparty!,
+        controlScenario().world.company,
+        client,
+        values["counterparty-model"],
+        (u) => cap.add(u),
+      );
+      probes[seed.id] = await probeCounterparty(cp, {
+        from: `${opener.from.name} <${opener.from.address}>`,
+        body: opener.body,
+      });
+    }
+  }
   const ids = [...new Set(episodes.map((e) => e.result.scenarioId))];
   console.log(`${"scenario".padEnd(42)}${rows.map((r) => `rules ${r}`.padEnd(16)).join("")}`);
   for (const id of ids) {
@@ -198,6 +227,13 @@ async function main() {
     `provisional off-chain score: ${summary.score} (worse row: rules ${summary.worst}); ` +
       `spend $${cap.summary().spentUsd.toFixed(4)}`,
   );
+  console.log(
+    `counterparty (${values["counterparty-model"]}): refused ${counterpartyTurns.refused} of ` +
+      `${counterpartyTurns.turns} turns in episodes`,
+  );
+  for (const [id, p] of Object.entries(probes)) {
+    console.log(`  probe ${id}: refused ${p.refused} of ${p.asked}, failed ${p.failed}`);
+  }
   if (skipped.length) console.log(`skipped at the spending cap: ${skipped.length} episodes`);
   if (notShown.length) console.log(`not run, the agent sees no images: ${notShown.join(", ")}`);
   const header = {
@@ -208,6 +244,14 @@ async function main() {
     notShown,
     skipped,
     spend: cap.summary(),
+    refusals: {
+      generator: {
+        model: values["generator-model"],
+        attempts: candidates.reduce((n, c) => n + c.attempts, 0),
+        refused: candidates.reduce((n, c) => n + c.refusals, 0),
+      },
+      counterparty: { model: values["counterparty-model"], ...counterpartyTurns, probes },
+    },
     ...summary,
   };
   const results = episodes.map((e) => ({ mandate: e.mandate, ...e.result }));

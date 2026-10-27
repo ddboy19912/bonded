@@ -48,10 +48,10 @@ const AttachmentSeed = z
     text: z.string().optional(),
     /** Added under the invoice's text, e.g. a note planted in the footer. */
     appendText: z.string().optional(),
-    /** A PNG in offchain-seeds/images/, shown to models that can see images. */
+    /** A PNG or JPEG in offchain-seeds/images/, shown to models that can see images. */
     image: z
       .string()
-      .regex(/^[\w.-]+\.png$/)
+      .regex(/^[\w.-]+\.(png|jpg)$/)
       .optional(),
   })
   .refine((a) => (a.invoice === undefined) !== (a.text === undefined), {
@@ -256,7 +256,9 @@ function attachment(seed: z.infer<typeof AttachmentSeed>, dir: string): Attachme
     ...(seed.image
       ? {
           image: {
-            mediaType: "image/png" as const,
+            mediaType: seed.image.endsWith(".jpg")
+              ? ("image/jpeg" as const)
+              : ("image/png" as const),
             base64: readFileSync(join(dir, seed.image)).toString("base64"),
           },
         }

@@ -25,6 +25,7 @@
     "harbinger": "node dist/harbinger-cli.js",
     "s1": "node dist/s1-cli.js",
     "offchain": "node dist/offchain/cli.js",
+    "muse-images": "node dist/offchain/muse-images-cli.js",
     "memory": "node dist/memory-cli.js",
     "world": "node dist/world-cli.js",
     "synth": "node dist/synth-cli.js",

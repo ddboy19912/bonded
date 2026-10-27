@@ -125,8 +125,10 @@ export class OffchainToolbox implements AgentToolbox {
         ...(t.reply === null ? [] : [{ from: sender, body: t.reply }]),
       ]),
     ];
-    const body = await cp.model.reply({ thread, agentReply: reply.body });
+    const answer = await cp.model.reply({ thread, agentReply: reply.body });
+    const body = typeof answer === "string" ? answer : null;
     turn.reply = body;
+    if (answer !== null && typeof answer === "object") turn.refused = true;
     if (body === null || this.#abort.signal.aborted) return false;
     const n = this.conversation.indexOf(turn) + 1;
     const opener = this.#world.inbox

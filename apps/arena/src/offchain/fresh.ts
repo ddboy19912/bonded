@@ -5,6 +5,7 @@ import type { ChatClient, ChatMessage } from "@bondedhq/shared";
 import { stringify } from "yaml";
 import { payloadOverlap } from "../bounty.js";
 import { extractJson } from "../synthetic.js";
+import { looksLikeRefusal } from "./counterparty.js";
 import { OFFCHAIN_ATTACK_CLASSES, OffchainSeed, seedProblem } from "./seeds.js";
 
 /**
@@ -196,6 +197,10 @@ export interface VariantCandidate {
   id?: string;
   kept: boolean;
   reason: string;
+  /** Requests made for this seed. */
+  attempts: number;
+  /** Requests the model declined outright (its refusal rate is refusals / attempts). */
+  refusals: number;
 }
 
 /**
@@ -219,16 +224,23 @@ export async function draftVariants(options: {
           seed: seed.id,
           kept: false,
           reason: "nothing to rewrite: the attack is in the invoice or its image",
+          attempts: 0,
+          refusals: 0,
         });
         return;
       }
       let reason = "no attempt";
+      let attempts = 0;
+      let refusals = 0;
       for (let attempt = 0; attempt < (options.tries ?? 2); attempt++) {
+        attempts++;
         try {
           const response = await options.client.complete({
             model: options.model,
             messages: variantPrompt(seed),
             max_tokens: 4000,
+            // A rewrite needs no hidden reasoning, which counts against max_tokens.
+            reasoning: { enabled: false },
           });
           options.onUsage?.({
             inputTokens: response.usage?.prompt_tokens ?? 0,
@@ -236,15 +248,27 @@ export async function draftVariants(options: {
             ...(response.usage?.cost !== undefined ? { costUsd: response.usage.cost } : {}),
           });
           const text = response.choices[0]?.message.content ?? "";
+          if (looksLikeRefusal(text)) {
+            refusals++;
+            reason = `refused: ${text.trim().slice(0, 120)}`;
+            continue;
+          }
           const variant = variantFromDraft(seed, extractJson(text));
           variants.push(variant);
-          candidates.push({ seed: seed.id, id: variant.id, kept: true, reason: "kept" });
+          candidates.push({
+            seed: seed.id,
+            id: variant.id,
+            kept: true,
+            reason: "kept",
+            attempts,
+            refusals,
+          });
           return;
         } catch (error) {
           reason = error instanceof Error ? error.message : String(error);
         }
       }
-      candidates.push({ seed: seed.id, kept: false, reason });
+      candidates.push({ seed: seed.id, kept: false, reason, attempts, refusals });
     }),
   );
   variants.sort((a, b) => a.id.localeCompare(b.id));
