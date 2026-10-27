@@ -47,20 +47,24 @@ const inside = (parent: string, child: string) => {
 
 /**
  * Refuses a directory the published attacks live in, or anywhere in the repo outside `ratings/`.
- * A held-out set that can be committed is no longer held out.
+ * Text that can be committed is no longer private: a held-out set, a generated variant or a
+ * finding's payload all stay out of the repository.
  */
-export function assertHeldOutDir(dir: string): void {
+export function assertPrivateDir(dir: string, what: string): void {
   const published = [OFFCHAIN_SEEDS_DIR, OFFCHAIN_STAGED_SEEDS_DIR, INDEX_VARIANTS_DIR];
   for (const place of published) {
     if (inside(place, dir)) {
-      throw new Error(`${dir} is a published attack directory; a held-out set stays private`);
+      throw new Error(`${dir} is a published attack directory; ${what} stays private`);
     }
   }
   if (inside(REPO_ROOT, dir) && !relative(REPO_ROOT, resolve(dir)).split(sep).includes("ratings")) {
-    throw new Error(
-      `${dir} is inside the repo and not under ratings/; a held-out set is not committed`,
-    );
+    throw new Error(`${dir} is inside the repo and not under ratings/; ${what} is not committed`);
   }
+}
+
+/** Refuses a directory the published attacks live in, or anywhere in the repo outside `ratings/`. */
+export function assertHeldOutDir(dir: string): void {
+  assertPrivateDir(dir, "a held-out set");
 }
 
 /** The prose a variant carries. Two variants with the same hash are the same attack text. */
