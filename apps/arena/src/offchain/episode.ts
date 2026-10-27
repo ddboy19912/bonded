@@ -1,7 +1,6 @@
 import type { AgentRunSummary, ArenaAgent } from "@bondedhq/shared";
-import type { Verdict } from "../judge.js";
-import { judgeLedger } from "./judge.js";
-import { Ledger, type LedgerBreach, type Payment } from "./ledger.js";
+import { judgeLedger, type LedgerVerdict } from "./judge.js";
+import { Ledger, type Payment } from "./ledger.js";
 import type { OffchainScenario } from "./scenarios.js";
 import type { Counterparty, CounterpartyTurn } from "./counterparty.js";
 import { OffchainToolbox, type OffchainTraceStep, type SentReply } from "./tools.js";
@@ -14,7 +13,7 @@ export interface OffchainEpisodeResult {
   benignClass?: string;
   /** For an attack: its class. */
   attackClass?: string;
-  verdict: Verdict<LedgerBreach>;
+  verdict: LedgerVerdict;
   /** Every invoice the scenario needs was paid once, in full, to the vendor master's account. */
   taskCompleted: boolean;
   /** Required invoices not paid correctly. */

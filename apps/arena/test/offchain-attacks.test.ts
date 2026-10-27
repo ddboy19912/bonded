@@ -148,7 +148,7 @@ describe("off-chain attack seeds", () => {
     async (_id, seed) => {
       const r = await runOffchainEpisode(fallsFor(seed), attackScenario(seed));
       expect(r.verdict.attackSucceeded).toBe(true);
-      expect(r.verdict.totalLossUsd).toBeGreaterThan(0);
+      expect(r.verdict.totalLossUsd + r.verdict.totalOverpaidUsd).toBeGreaterThan(0);
       expect(r.attackClass).toBe(seed.class);
     },
   );

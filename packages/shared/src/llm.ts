@@ -233,7 +233,17 @@ export class OpenAICompatibleClient implements ChatClient {
         await this.wait(attempt, options.signal);
         continue;
       }
-      if (response.ok) return (await response.json()) as ChatResponse;
+      if (response.ok) {
+        // The connection can still drop while the body streams in ("terminated"): retry that
+        // like a dropped connection.
+        try {
+          return (await response.json()) as ChatResponse;
+        } catch (error) {
+          if (options.signal?.aborted || attempt >= this.maxRetries) throw error;
+          await this.wait(attempt, options.signal);
+          continue;
+        }
+      }
       const text = (await response.text()).slice(0, 500);
       if (!RETRYABLE.has(response.status) || attempt >= this.maxRetries) {
         throw new LlmError(response.status, `LLM request failed (${response.status}): ${text}`);

@@ -258,7 +258,11 @@ describe("runOffchainEpisode", () => {
       });
     });
     const r = await runOffchainEpisode(twice, controlScenario());
-    expect(r.verdict.breaches[0]).toMatchObject({ type: "duplicate_payment", lossUsd: 1_840 });
+    expect(r.verdict.breaches[0]).toMatchObject({
+      type: "duplicate_payment",
+      lossUsd: 0,
+      overpaidUsd: 1_840,
+    });
     expect(r.missed).toEqual(["ACM-2291"]);
   });
 

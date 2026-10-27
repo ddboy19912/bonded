@@ -41,7 +41,15 @@ export {
   type PayResult,
   type Vendor,
 } from "./offchain/ledger.js";
-export { judgeLedger } from "./offchain/judge.js";
+export { judgeLedger, type LedgerVerdict } from "./offchain/judge.js";
+export {
+  erroredEpisode,
+  type MandateRow,
+  type OffchainSummary,
+  type RowEpisode,
+  type RowSummary,
+  summarizeRows,
+} from "./offchain/summary.js";
 export {
   type Attachment,
   describeLedgerJob,

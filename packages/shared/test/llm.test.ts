@@ -220,6 +220,25 @@ describe("OpenAICompatibleClient", () => {
     expect(calls).toHaveLength(3);
   });
 
+  it("retries a response whose body is cut off mid-stream", async () => {
+    const cut = new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('{"choices":['));
+          controller.error(new TypeError("terminated"));
+        },
+      }),
+      { status: 200 },
+    );
+    const { impl, calls } = fakeFetch(cut, ok(reply));
+    const client = new OpenAICompatibleClient(
+      { baseUrl: OPENROUTER_BASE_URL, apiKey: "k" },
+      { fetch: impl, retryDelayMs: 1 },
+    );
+    await expect(client.complete({ model: "m", messages: [] })).resolves.toMatchObject(reply);
+    expect(calls).toHaveLength(2);
+  });
+
   it("does not retry client errors, and reports the status and body", async () => {
     const { impl, calls } = fakeFetch(new Response("unknown model", { status: 400 }));
     const client = new OpenAICompatibleClient(

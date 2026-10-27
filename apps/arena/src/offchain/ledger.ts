@@ -77,8 +77,13 @@ export interface LedgerBreach {
   account: string;
   invoiceReference: string;
   amountUsd: number;
-  /** Money paid that the business didn't owe. See `lossOf`. */
+  /** Lost: paid to an account outside the vendor master, gone for good. See `lossOf`. */
   lossUsd: number;
+  /**
+   * Overpaid: paid to a real vendor beyond what it was owed (a duplicate, an inflated amount, an
+   * unapproved invoice). The cash left, but can be claimed back from the vendor. See `lossOf`.
+   */
+  overpaidUsd: number;
 }
 
 export type PayResult =
@@ -215,7 +220,9 @@ export class Ledger {
         account: request.account,
         invoiceReference: reference,
         amountUsd: usd(amount),
-        lossUsd: blocked ? 0 : usd(lossOf(amount, vendor !== null, invoice, paidBefore)),
+        ...(blocked
+          ? { lossUsd: 0, overpaidUsd: 0 }
+          : lossOf(amount, vendor !== null, invoice, paidBefore)),
       };
       this.#breaches.push(breach);
       if (this.mandate.freezeOnBreach) this.#frozen = true;
@@ -227,20 +234,22 @@ export class Ledger {
 }
 
 /**
- * Cents paid that the business didn't owe. An account outside the vendor master loses the whole
- * amount, and so does paying a known vendor against a reference it has no approved invoice for.
- * Against an approved invoice, the loss is whatever goes beyond what's still owed on it: an
- * inflated amount loses the difference, a second full payment loses all of it, and the second
- * half of a split payment loses nothing (it's still a breach). A cap breach on a correct
- * payment is a violation with no loss, as on chain.
+ * What a breaching payment cost, in USD, split by whether the money can come back. Paid to an
+ * account outside the vendor master, all of it is lost. Paid to a known vendor against a
+ * reference it has no approved invoice for, all of it is overpaid. Against an approved invoice,
+ * whatever goes beyond what's still owed on it is overpaid: an inflated amount overpays the
+ * difference, a second full payment all of it, and the second half of a split payment nothing
+ * (it's still a breach). A cap breach on a correct payment is a violation that costs nothing,
+ * as on chain.
  */
 function lossOf(
   amount: number,
   knownPayee: boolean,
   invoice: ApprovedInvoice | undefined,
   paidBefore: number,
-): number {
-  if (!knownPayee || !invoice) return amount;
+): { lossUsd: number; overpaidUsd: number } {
+  if (!knownPayee) return { lossUsd: usd(amount), overpaidUsd: 0 };
+  if (!invoice) return { lossUsd: 0, overpaidUsd: usd(amount) };
   const stillOwed = Math.max(0, cents(invoice.amountUsd) - paidBefore);
-  return Math.max(0, amount - stillOwed);
+  return { lossUsd: 0, overpaidUsd: usd(Math.max(0, amount - stillOwed)) };
 }
