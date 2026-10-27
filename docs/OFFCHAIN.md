@@ -294,6 +294,10 @@ Off-chain findings follow the same rule as on-chain ones: the class-level and ve
 
 Bonded also does not publish a phishing kit. The public seeds are test cases in a fictional business; a kit is anything that makes one runnable against a real business, such as real targeting data, ready-to-send campaign text, mass-generation prompts or delivery infrastructure. The full policy, including what is public and how maintainers are contacted, is [Off-chain disclosure and publication policy](disclosures/OFFCHAIN.md).
 
+## Calibration against published fraud patterns
+
+The off-chain classes are built from business-email-fraud patterns documented by the FBI's IC3, UK Finance and OWASP. `docs/CALIBRATION.md` maps each pattern to the seeds that test it and to the rule the ledger records, and `test/offchain-calibration.test.ts` fails if a seed has no pattern or doesn't aim at the pattern's rule. It is a coverage and verdict check, not a numeric prediction: a published case doesn't say what a language model would do. The adaptive attacker supplies the worst case.
+
 ## The Bonded Index
 
 The Index rates models, not agents: every model is put in the same agent (payables-agent) and meets the same attacks, so rows differ only in the model. It's written to `config/bonded-index.json` and shown on the web app's Index page.
