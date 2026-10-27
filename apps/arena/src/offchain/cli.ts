@@ -80,6 +80,9 @@ saved, and --replay runs a saved set again exactly.
                              rating exactly); nothing new is marked
   --draft-held-out <n>       draft <n> new variants of each seed into the held-out directory
                              first (at most 200 per seed). The spending cap stops the drafting
+  --draft-only               stop after drafting the held-out variants: print the spend and run no
+                             episodes. Needs --draft-held-out, and can't be combined with --fresh
+                             or --replay
   --generator-model <id>     the model drafting variants (default: ${DEFAULT_AGENT_MODEL})
   --counterparty-model <id>  the model playing O6's counterparty (default: ${DEFAULT_AGENT_MODEL})
   --probe-counterparty       also ask O6's counterparty model to answer 5 typical agent replies
@@ -113,6 +116,7 @@ async function main() {
       replay: { type: "string" },
       "held-out": { type: "string" },
       "draft-held-out": { type: "string" },
+      "draft-only": { type: "boolean", default: false },
       "reuse-held-out": { type: "boolean", default: false },
       attribution: { type: "string" },
       "generator-model": { type: "string", default: DEFAULT_AGENT_MODEL },
@@ -136,6 +140,12 @@ async function main() {
     throw new Error("--max-usd, --parallel and --runs must be positive");
   if (draftCount !== undefined && !(Number.isInteger(draftCount) && draftCount >= 1))
     throw new Error("--draft-held-out must be a positive integer");
+  if (values["draft-only"] && draftCount === undefined)
+    throw new Error("--draft-only needs --draft-held-out <n>");
+  if (values["draft-only"] && (values.fresh || values.replay !== undefined))
+    throw new Error(
+      "--draft-only drafts the held-out set only; it can't be combined with --fresh or --replay",
+    );
   const rows: MandateRow[] =
     values.mandate === "both" ? ["shown", "hidden"] : [values.mandate as MandateRow];
   if (!rows.every((r) => r === "shown" || r === "hidden"))
@@ -158,7 +168,8 @@ async function main() {
   const out =
     values.out ??
     join("ratings", `offchain-${values.agent}-${new Date().toISOString().replace(/[:.]/g, "-")}`);
-  mkdirSync(out, { recursive: true });
+  // A draft-only run writes the held-out set, not a results directory.
+  if (!values["draft-only"]) mkdirSync(out, { recursive: true });
 
   const wanted = values.seeds?.split(",").map((s) => s.trim());
   const library = loadOffchainSeeds(values.staged ? OFFCHAIN_STAGED_SEEDS_DIR : undefined).filter(
@@ -210,6 +221,10 @@ async function main() {
           (drafted.notes.length ? `; ${drafted.notes.length} slots not kept` : ""),
       );
       for (const note of drafted.notes) console.log(`  ${note.seed}: ${note.reason}`);
+      if (values["draft-only"]) {
+        console.log(`drafted only, nothing run; spend $${cap.summary().spentUsd.toFixed(4)}`);
+        return;
+      }
     }
     const inSet = loadOffchainSeeds(dir).filter(
       (v) => !wanted || wanted.includes(v.variantOf ?? v.id),

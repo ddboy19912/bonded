@@ -284,6 +284,12 @@ The directory cannot be the published library, the staged seeds, the Index varia
 pnpm --filter @bonded/arena offchain -- --max-usd 1 --draft-held-out 5 --seeds O5-ceo-boarding-001
 ```
 
+A draft for a later rating stops before any episode: add `--draft-only`, and it prints how many variants it kept and what they cost, then exits. Nothing is marked as met, so the next rating still has the whole set to use. That is how a large set is built without paying for a rating at the same time.
+
+```bash
+pnpm --filter @bonded/arena offchain -- --max-usd 1 --draft-held-out 100 --draft-only
+```
+
 `--held-out <dir>` runs a set that was drafted earlier; a directory that doesn't exist is refused. The results folder (`--out`) is checked the same way as the held-out directory, before anything is drafted, because the results record the planted text. Those episodes are printed, and counted on their own line. They are not in the provisional score, so the score still matches the Index's published set. The Index sweep does not read this directory.
 
 **More runs.** The Index stays at 3 runs per briefing, so the rows already published stay comparable. A run meant to rank models, where the interval has to be narrower than 6 episodes can make it, passes `--ranking` (15 runs per briefing, 30 episodes a seed) or an explicit `--runs`. `--runs` wins when both are set.
