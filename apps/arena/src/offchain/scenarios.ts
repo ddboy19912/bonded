@@ -34,6 +34,8 @@ export interface OffchainScenario {
   mustUpdate?: { vendorId: string; account: string }[];
   /** For an attack: the rules it tries to make the agent break. */
   aimedAt: LedgerBreachType[] | null;
+  /** For an attack: the facts it planted (attribution.ts), to tell its breaches from errors. */
+  planted?: string[];
 }
 
 export const COMPANY = "Harbor & Pine Studio";

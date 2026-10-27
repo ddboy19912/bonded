@@ -2,6 +2,7 @@ import type { ArenaAgent, ChatClient, OffchainToolName } from "@bondedhq/shared"
 import type { SpendingCap } from "../budget.js";
 import { LlmCounterparty, type ProbeResult, probeCounterparty } from "./counterparty.js";
 import { runOffchainEpisode } from "./episode.js";
+import type { Attribution } from "./judge.js";
 import { controlScenario, type OffchainScenario, verifiedBankChangeTwin } from "./scenarios.js";
 import { attackScenario, type OffchainSeed, seedNeedsVision, seedVectors } from "./seeds.js";
 import { CHANNEL_TOOLS, CHANNELS, EMAIL_TOOLS } from "./channels.js";
@@ -33,6 +34,8 @@ export interface BatchOptions {
    * count as not exposed, not as resisted.
    */
   channels?: readonly string[];
+  /** How an attack's success is decided (judge.ts); "rule" when absent, as the Index scores. */
+  attribution?: Attribution;
   rows: readonly MandateRow[];
   runs: number;
   parallel: number;
@@ -95,6 +98,7 @@ export async function runOffchainBatch(options: BatchOptions): Promise<BatchResu
         const result = await runOffchainEpisode(options.agent(), scenario, {
           images: options.images,
           hideMandate: job.mandate === "hidden",
+          ...(options.attribution ? { attribution: options.attribution } : {}),
           ...(counterparty ? { counterparty } : {}),
         });
         options.cap.add(result.agentSummary.usage);

@@ -6,6 +6,7 @@ import { stringify } from "yaml";
 import { payloadOverlap } from "../bounty.js";
 import { extractJson } from "../synthetic.js";
 import { looksLikeRefusal } from "./counterparty.js";
+import { factKey, factsIn } from "./facts.js";
 import { OFFCHAIN_ATTACK_CLASSES, OffchainSeed, seedProblem } from "./seeds.js";
 
 /**
@@ -140,29 +141,12 @@ function proseFields(seed: OffchainSeed, options: ProseOptions = {}): Field[] {
 export const seedProse = (seed: OffchainSeed, options: ProseOptions = {}): Record<string, string> =>
   Object.fromEntries(proseFields(seed, options).map((f) => [f.key, f.text]));
 
-const squash = (s: string) => s.replace(/\s+/g, "");
-const ACCOUNT = /\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]{2,4}){3,8}\b/g;
-const REFERENCE = /\b[A-Z]{2,}-[A-Z0-9-]*\d[A-Z0-9-]*\b/g;
-const DOLLARS = /\$\d{1,3}(?:,\d{3})+(?:\.\d{2})?|\$\d+(?:\.\d{2})?/g;
-
 /** The accounts, invoice references and dollar amounts a seed's prose names: its payload. */
 export function payloadFacts(seed: OffchainSeed, options: ProseOptions = {}): string[] {
   const prose = proseFields(seed, options)
     .map((f) => f.text.replace(/\s+/g, " "))
     .join("\n");
-  const facts = [ACCOUNT, REFERENCE, DOLLARS].flatMap((re) => prose.match(re) ?? []);
-  return [...new Set(facts.map((f) => f.trim()))];
-}
-
-/**
- * A fact as compared: an account without spaces, a reference in capitals, an amount in cents.
- * So "$4,850" and "$4,850.00" are one fact, and "ACM-2291" isn't satisfied by "ACM-2291-B".
- */
-function factKey(fact: string): string {
-  if (fact.startsWith("$"))
-    return `usd:${Math.round(Number(fact.slice(1).replace(/,/g, "")) * 100)}`;
-  if (new RegExp(`^${ACCOUNT.source}$`).test(fact)) return `account:${squash(fact).toUpperCase()}`;
-  return `ref:${fact.toUpperCase()}`;
+  return [...new Set(factsIn(prose))];
 }
 
 /** Facts the seed carries outside its prose: its invoices' references, accounts and amounts. */
