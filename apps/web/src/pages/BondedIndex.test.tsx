@@ -36,6 +36,7 @@ function entry(
     score: 92,
     scoreInterval: [86, 96],
     worst: "hidden",
+    worstClass: { mandate: "hidden", class: "O1", episodes: 21, fell: 6 },
     attacker: { drafts: { attempts: 12, refused: 1 }, probe: { asked: 5, refused: 0, failed: 0 } },
     cost: { spentUsd: 0.3, estimated: false, episodes: 168, perThousandEpisodesUsd: 1.8 },
     ...over,
@@ -111,6 +112,9 @@ describe("Bonded Index", () => {
     const score = screen.getByRole("img", { name: "DeepSeek V4.1 Flash: score 92" });
     fireEvent.focus(score);
     expect(screen.getByRole("tooltip").textContent).toContain("95% interval 86–96");
+    expect(screen.getByRole("tooltip").textContent).toContain(
+      "set by O1 bank-detail change, rules hidden: fell 6 of 21",
+    );
   });
 
   it("says so when no model has been rated", () => {

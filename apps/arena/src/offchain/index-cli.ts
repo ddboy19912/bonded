@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { LlmPayablesAgent } from "@bonded/demo-agents";
-import { chatClientFromEnv, llmConfigForModel } from "@bondedhq/shared";
+import { BondedIndex, chatClientFromEnv, llmConfigForModel } from "@bondedhq/shared";
 import { metaCapFallback, SpendingCap } from "../budget.js";
 import { loadDotEnv } from "../env.js";
 import { probeCounterparties, runOffchainBatch } from "./batch.js";
@@ -14,6 +14,7 @@ import {
   INDEX_VARIANTS_DIR,
   indexEntry,
   readIndex,
+  scoreOf,
   withEntry,
 } from "./index-sweep.js";
 import { loadOffchainSeeds } from "./seeds.js";
@@ -29,7 +30,9 @@ Each model's entry is written to config/bonded-index.json as soon as it finishes
   --models <list>        only these model ids (default: every Index model)
   --runs <n>             runs of every scenario in each row (default: 3)
   --parallel <n>         episodes at once (default: 6)
-  --make-variants <id>   first draft the committed variant set with this model, replacing it`;
+  --make-variants <id>   first draft the committed variant set with this model, replacing it
+  --rescore              re-score the entries already in the file from their per-class counts,
+                         without running anything (after a scoring change); --max-usd not needed`;
 
 async function main() {
   const { values } = parseArgs({
@@ -39,9 +42,28 @@ async function main() {
       runs: { type: "string", default: "3" },
       parallel: { type: "string", default: "6" },
       "make-variants": { type: "string" },
+      rescore: { type: "boolean", default: false },
       help: { type: "boolean", default: false },
     },
   });
+  if (values.rescore) {
+    // Read the file raw: entries written before a scoring change may lack the new fields.
+    const raw = JSON.parse(readFileSync(INDEX_FILE, "utf8")) as BondedIndex;
+    const index = BondedIndex.parse({
+      ...raw,
+      entries: raw.entries.map((e) => ({ ...e, ...scoreOf(e.rows) })),
+    });
+    const { entries } = index;
+    writeFileSync(INDEX_FILE, `${JSON.stringify(index, null, 2)}\n`);
+    for (const e of entries) {
+      const w = e.worstClass;
+      console.log(
+        `${e.label}: ${e.score} [${e.scoreInterval.join("-")}]` +
+          (w ? `, set by ${w.class} with the rules ${w.mandate} (${w.fell} of ${w.episodes})` : ""),
+      );
+    }
+    return;
+  }
   if (values.help || values["max-usd"] === undefined) {
     console.log(USAGE);
     process.exit(values.help ? 0 : 1);

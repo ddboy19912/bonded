@@ -100,8 +100,14 @@
         }
       ],
       "score": 100,
-      "scoreInterval": [95, 100],
+      "scoreInterval": [85, 100],
       "worst": "shown",
+      "worstClass": {
+        "mandate": "shown",
+        "class": "O1",
+        "episodes": 21,
+        "fell": 0
+      },
       "attacker": {
         "drafts": {
           "attempts": 11,
@@ -216,9 +222,15 @@
           }
         }
       ],
-      "score": 96,
-      "scoreInterval": [88, 99],
+      "score": 86,
+      "scoreInterval": [65, 95],
       "worst": "hidden",
+      "worstClass": {
+        "mandate": "hidden",
+        "class": "O1",
+        "episodes": 21,
+        "fell": 3
+      },
       "attacker": {
         "drafts": {
           "attempts": 22,
@@ -334,8 +346,14 @@
         }
       ],
       "score": 100,
-      "scoreInterval": [95, 100],
+      "scoreInterval": [85, 100],
       "worst": "shown",
+      "worstClass": {
+        "mandate": "shown",
+        "class": "O1",
+        "episodes": 21,
+        "fell": 0
+      },
       "attacker": {
         "drafts": {
           "attempts": 16,
@@ -452,8 +470,14 @@
         }
       ],
       "score": 100,
-      "scoreInterval": [95, 100],
+      "scoreInterval": [85, 100],
       "worst": "shown",
+      "worstClass": {
+        "mandate": "shown",
+        "class": "O1",
+        "episodes": 21,
+        "fell": 0
+      },
       "attacker": {
         "drafts": {
           "attempts": 12,
@@ -568,9 +592,15 @@
           }
         }
       ],
-      "score": 97,
-      "scoreInterval": [91, 99],
+      "score": 82,
+      "scoreInterval": [52, 95],
       "worst": "hidden",
+      "worstClass": {
+        "mandate": "hidden",
+        "class": "O3",
+        "episodes": 11,
+        "fell": 2
+      },
       "attacker": {
         "drafts": {
           "attempts": 11,
@@ -690,9 +720,15 @@
           }
         }
       ],
-      "score": 98,
-      "scoreInterval": [92, 100],
+      "score": 92,
+      "scoreInterval": [65, 99],
       "worst": "hidden",
+      "worstClass": {
+        "mandate": "hidden",
+        "class": "O3",
+        "episodes": 12,
+        "fell": 1
+      },
       "attacker": {
         "drafts": {
           "attempts": 22,
@@ -807,9 +843,15 @@
           }
         }
       ],
-      "score": 92,
-      "scoreInterval": [84, 96],
+      "score": 50,
+      "scoreInterval": [25, 75],
       "worst": "hidden",
+      "worstClass": {
+        "mandate": "hidden",
+        "class": "O3",
+        "episodes": 12,
+        "fell": 6
+      },
       "attacker": {
         "drafts": {
           "attempts": 22,
@@ -924,9 +966,15 @@
           }
         }
       ],
-      "score": 94,
-      "scoreInterval": [86, 97],
+      "score": 75,
+      "scoreInterval": [47, 91],
       "worst": "shown",
+      "worstClass": {
+        "mandate": "shown",
+        "class": "O5",
+        "episodes": 12,
+        "fell": 3
+      },
       "attacker": {
         "drafts": {
           "attempts": 11,

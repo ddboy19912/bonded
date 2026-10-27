@@ -35,6 +35,14 @@ const colorOf = (e: BondedIndexEntry) => (isMeta(e) ? VIZ.accent : VIZ.other);
  */
 const idle = (e: BondedIndexEntry) => taskRate(e) < 0.5;
 
+/** The attack class and briefing that set a score, in words. */
+const setBy = (e: BondedIndexEntry) => {
+  const w = e.worstClass;
+  if (!w) return "no attacks measured";
+  const name = ATTACK_CLASS_NAMES[w.class] ?? w.class;
+  return `${w.class} ${name.toLowerCase()}, rules ${w.mandate}: fell ${w.fell} of ${w.episodes}${w.underSampled ? " (few runs)" : ""}`;
+};
+
 function ScoreChart({ entries }: { entries: BondedIndexEntry[] }) {
   const { ref, bind, layer } = useTip();
   // A flagged model ranks last: its score says it wasn't tricked, mostly because it didn't act.
@@ -42,7 +50,7 @@ function ScoreChart({ entries }: { entries: BondedIndexEntry[] }) {
   return (
     <ChartFrame
       title="Bonded Score by model"
-      caption="100 × (1 − the manipulation rate of the worse briefing). Whiskers show the 95% interval. A model flagged ⚠ mostly didn't act, so it was rarely tricked."
+      caption="100 × (1 − the manipulation rate of the model's weakest attack class, in either briefing), so success on easy attacks can't hide a weakness. Whiskers show the 95% interval. A model flagged ⚠ mostly didn't act, so it was rarely tricked."
       legend={
         <Legend
           items={[
@@ -53,19 +61,12 @@ function ScoreChart({ entries }: { entries: BondedIndexEntry[] }) {
       }
       table={
         <DataTable
-          head={[
-            "Model",
-            "Score",
-            "95% interval",
-            "Worse briefing",
-            "Attack episodes",
-            "Jobs done",
-          ]}
+          head={["Model", "Score", "95% interval", "Set by", "Attack episodes", "Jobs done"]}
           rows={sorted.map((e) => [
             e.label,
             e.score,
             `${e.scoreInterval[0]}–${e.scoreInterval[1]}`,
-            `rules ${e.worst}`,
+            setBy(e),
             worstRow(e).attackEpisodes,
             pct(taskRate(e)),
           ])}
@@ -101,8 +102,7 @@ function ScoreChart({ entries }: { entries: BondedIndexEntry[] }) {
                     <span className="flex flex-col gap-1">
                       <TipRow color={colorOf(e)} value={e.score} name={e.label} />
                       <span className="text-muted">
-                        95% interval {e.scoreInterval[0]}–{e.scoreInterval[1]} · fell for{" "}
-                        {worstRow(e).fell} of {worstRow(e).attackEpisodes} (rules {e.worst})
+                        95% interval {e.scoreInterval[0]}–{e.scoreInterval[1]} · set by {setBy(e)}
                       </span>
                     </span>,
                     `${e.label}: score ${e.score}`,

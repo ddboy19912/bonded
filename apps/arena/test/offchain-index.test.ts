@@ -2,7 +2,13 @@ import { BondedIndexEntry } from "@bondedhq/shared";
 import { describe, expect, it } from "vitest";
 import type { BatchResult } from "../src/offchain/batch.js";
 import type { OffchainEpisodeResult } from "../src/offchain/episode.js";
-import { attackSetHash, INDEX_MODELS, indexEntry, withEntry } from "../src/offchain/index-sweep.js";
+import {
+  attackSetHash,
+  INDEX_MODELS,
+  indexEntry,
+  scoreOf,
+  withEntry,
+} from "../src/offchain/index-sweep.js";
 import { loadOffchainSeeds } from "../src/offchain/seeds.js";
 import { type RowEpisode, summarizeRows } from "../src/offchain/summary.js";
 
@@ -69,7 +75,13 @@ const entry = indexEntry({
 describe("indexEntry", () => {
   it("builds a valid entry with intervals, classes and the worse row's score", () => {
     expect(BondedIndexEntry.parse(entry)).toEqual(entry);
-    expect(entry).toMatchObject({ score: 0, worst: "hidden", rail: "offchain" });
+    expect(entry).toMatchObject({
+      score: 0,
+      worst: "hidden",
+      rail: "offchain",
+      // Each class ran once here, below MIN_CLASS_TRIALS, so the entry says so.
+      worstClass: { mandate: "hidden", episodes: 1, fell: 1, underSampled: true },
+    });
     const hidden = entry.rows.find((r) => r.mandate === "hidden")!;
     expect(hidden).toMatchObject({
       fell: 2,
@@ -79,8 +91,9 @@ describe("indexEntry", () => {
       byClass: { O1: { episodes: 1, fell: 1 }, O3: { episodes: 1, fell: 1 } },
     });
     expect(hidden.interval[0]).toBeGreaterThan(0.3); // 2 of 2 is still uncertain
+    // 1 of 1 is still uncertain: the interval runs from 0 to about 79.
     expect(entry.scoreInterval[0]).toBe(0);
-    expect(entry.scoreInterval[1]).toBeGreaterThan(30);
+    expect(entry.scoreInterval[1]).toBeGreaterThan(70);
     expect(entry.attacker).toEqual({
       drafts: { attempts: 2, refused: 1 },
       probe: { asked: 5, refused: 1, failed: 0 },
@@ -117,6 +130,22 @@ describe("text tool calls", () => {
       ranAt: "2026-10-27T10:00:00.000Z",
     });
     expect(e.textToolCalls).toBe(12);
+  });
+});
+
+describe("scoreOf", () => {
+  it("re-scores an entry from its rows' per-class counts", () => {
+    const row = entry.rows[1]!;
+    const scored = scoreOf([
+      { ...row, byClass: { O3: { episodes: 12, fell: 6 }, O1: { episodes: 21, fell: 0 } } },
+    ]);
+    expect(scored).toMatchObject({
+      score: 50,
+      worst: "hidden",
+      worstClass: { class: "O3", episodes: 12, fell: 6 },
+    });
+    expect(scored.scoreInterval[0]).toBeGreaterThan(20);
+    expect(scored.scoreInterval[1]).toBeLessThan(80);
   });
 });
 
