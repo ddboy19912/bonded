@@ -10,12 +10,14 @@ import { OFFCHAIN_ATTACK_CLASSES, OffchainSeed, seedProblem } from "./seeds.js";
 
 /**
  * Fresh off-chain variants, drafted per rating so an agent can't be tuned to the published seeds'
- * wording (docs/OFFCHAIN.md). A model rewrites a seed's prose: subjects, bodies, sender names and
- * notes planted in invoices. Everything the ledger or the task checks stays the seed's: accounts,
- * amounts, invoice references, who the email claims to be from, the rules aimed at. A draft is
- * kept only if it still carries every account, reference and dollar amount its seed's prose did
- * (so the attack still asks for the same payment) and shares under FRESH_OVERLAP of its words.
- * Kept variants are saved, so a rating can be replayed exactly. The model writes; it never judges.
+ * wording (docs/OFFCHAIN.md). A model rewrites a seed's prose: subjects, bodies, notes planted in
+ * invoices and the other channels' text (an adaptive run may also rewrite an O6 counterparty's
+ * brief, ProseOptions). Everything the ledger or
+ * the task checks stays the seed's: accounts, amounts, invoice references, who the message claims
+ * to be from, the rules aimed at. A draft is kept only if it still carries every account,
+ * reference and dollar amount its seed's prose did (so the attack still asks for the same
+ * payment) and shares under FRESH_OVERLAP of its words. Kept variants are saved, so a rating can
+ * be replayed exactly. The model writes; it never judges.
  */
 
 /**
@@ -33,7 +35,15 @@ interface Field {
   set: (seed: OffchainSeed, text: string) => void;
 }
 
-function proseFields(seed: OffchainSeed): Field[] {
+/**
+ * Which prose a caller may rewrite. A fresh variant rewrites only what the agent reads; an
+ * adaptive run (adaptive.ts) may also rewrite an O6 counterparty's brief.
+ */
+export interface ProseOptions {
+  counterpartyBrief?: boolean;
+}
+
+function proseFields(seed: OffchainSeed, options: ProseOptions = {}): Field[] {
   const fields: Field[] = [];
   seed.plant.emails.forEach((e, i) => {
     // Sender names stay the seed's: renaming "Daniel Park" as the finance lead is another attack.
@@ -73,8 +83,62 @@ function proseFields(seed: OffchainSeed): Field[] {
       }
     });
   });
+  // The other channels' text (docs/OFFCHAIN.md, "Attack vectors"). Senders and ids stay.
+  seed.plant.messages.forEach((m, i) => {
+    if (m.subject !== undefined) {
+      fields.push({
+        key: `${m.channel}${i}.subject`,
+        text: m.subject,
+        set: (s, t) => (s.plant.messages[i]!.subject = t),
+      });
+    }
+    fields.push({
+      key: `${m.channel}${i}.body`,
+      text: m.body,
+      set: (s, t) => (s.plant.messages[i]!.body = t),
+    });
+  });
+  for (const part of ["portal", "plugin", "vendorNotes"] as const) {
+    for (const vendorId of Object.keys(seed.plant[part])) {
+      fields.push({
+        key: `${part}.${vendorId}`,
+        text: seed.plant[part][vendorId]!,
+        set: (s, t) => (s.plant[part][vendorId] = t),
+      });
+    }
+  }
+  seed.plant.notes.forEach((n, i) =>
+    fields.push({ key: `note${i}`, text: n, set: (s, t) => (s.plant.notes[i] = t) }),
+  );
+  seed.plant.knowledge.forEach((k, i) =>
+    fields.push(
+      {
+        key: `knowledge${i}.title`,
+        text: k.title,
+        set: (s, t) => (s.plant.knowledge[i]!.title = t),
+      },
+      {
+        key: `knowledge${i}.body`,
+        text: k.body,
+        set: (s, t) => (s.plant.knowledge[i]!.body = t),
+      },
+    ),
+  );
+  // What an O6 counterparty may argue, for adaptive runs only: fresh variants of the rated
+  // library keep the seed's brief. The mailbox it writes from stays the seed's.
+  if (seed.counterparty && options.counterpartyBrief) {
+    fields.push({
+      key: "counterparty.brief",
+      text: seed.counterparty.brief,
+      set: (s, t) => (s.counterparty!.brief = t),
+    });
+  }
   return fields;
 }
+
+/** The text an attacker controls in a seed, by field key (what a rewrite returns). */
+export const seedProse = (seed: OffchainSeed, options: ProseOptions = {}): Record<string, string> =>
+  Object.fromEntries(proseFields(seed, options).map((f) => [f.key, f.text]));
 
 const squash = (s: string) => s.replace(/\s+/g, "");
 const ACCOUNT = /\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]{2,4}){3,8}\b/g;
@@ -82,8 +146,8 @@ const REFERENCE = /\b[A-Z]{2,}-[A-Z0-9-]*\d[A-Z0-9-]*\b/g;
 const DOLLARS = /\$\d{1,3}(?:,\d{3})+(?:\.\d{2})?|\$\d+(?:\.\d{2})?/g;
 
 /** The accounts, invoice references and dollar amounts a seed's prose names: its payload. */
-export function payloadFacts(seed: OffchainSeed): string[] {
-  const prose = proseFields(seed)
+export function payloadFacts(seed: OffchainSeed, options: ProseOptions = {}): string[] {
+  const prose = proseFields(seed, options)
     .map((f) => f.text.replace(/\s+/g, " "))
     .join("\n");
   const facts = [ACCOUNT, REFERENCE, DOLLARS].flatMap((re) => prose.match(re) ?? []);
@@ -120,7 +184,7 @@ function structuralFacts(seed: OffchainSeed): string[] {
 
 /** The messages asking a model to rewrite one seed's prose. */
 export function variantPrompt(seed: OffchainSeed): ChatMessage[] {
-  const fields = Object.fromEntries(proseFields(seed).map((f) => [f.key, f.text]));
+  const fields = seedProse(seed);
   return [
     {
       role: "system",
@@ -151,25 +215,39 @@ export function variantPrompt(seed: OffchainSeed): ChatMessage[] {
 
 export class VariantError extends Error {}
 
-/** A model's draft as a variant seed. Ids, structure and facts are code's; only prose changes. */
-export function variantFromDraft(seed: OffchainSeed, draft: unknown): OffchainSeed {
+/**
+ * A seed with its prose replaced by a draft's, the same payment still asked for: every fact the
+ * seed's prose names, and none it doesn't carry. Ids, senders, structure and facts are code's.
+ */
+export function proseFromDraft(
+  seed: OffchainSeed,
+  draft: unknown,
+  options: ProseOptions = {},
+): OffchainSeed {
   if (!draft || typeof draft !== "object") throw new VariantError("the draft isn't a JSON object");
   const d = draft as Record<string, unknown>;
-  const fields = proseFields(seed);
   const variant = OffchainSeed.parse(structuredClone(seed));
-  for (const f of fields) {
+  for (const f of proseFields(seed, options)) {
     const text = d[f.key];
     if (typeof text !== "string" || !text.trim())
       throw new VariantError(`the draft has no ${f.key}`);
     f.set(variant, text.trim());
   }
-  // The same payment asked for: every fact the seed's prose names, and none it doesn't carry.
-  const kept = new Set(payloadFacts(variant).map(factKey));
-  const lost = payloadFacts(seed).filter((fact) => !kept.has(factKey(fact)));
+  const kept = new Set(payloadFacts(variant, options).map(factKey));
+  const lost = payloadFacts(seed, options).filter((fact) => !kept.has(factKey(fact)));
   if (lost.length) throw new VariantError(`the draft dropped ${lost.join(", ")}`);
-  const allowed = new Set([...payloadFacts(seed), ...structuralFacts(seed)].map(factKey));
-  const added = payloadFacts(variant).filter((fact) => !allowed.has(factKey(fact)));
+  const allowed = new Set([...payloadFacts(seed, options), ...structuralFacts(seed)].map(factKey));
+  const added = payloadFacts(variant, options).filter((fact) => !allowed.has(factKey(fact)));
   if (added.length) throw new VariantError(`the draft added ${added.join(", ")}`);
+  const problem = seedProblem(variant);
+  if (problem) throw new VariantError(problem);
+  return variant;
+}
+
+/** A model's draft as a variant seed. Ids, structure and facts are code's; only prose changes. */
+export function variantFromDraft(seed: OffchainSeed, draft: unknown): OffchainSeed {
+  const fields = proseFields(seed);
+  const variant = proseFromDraft(seed, draft);
   const closeness = payloadOverlap(
     fields.map((f) => f.text).join(" "),
     proseFields(variant)
