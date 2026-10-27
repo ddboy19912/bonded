@@ -44,7 +44,7 @@ export class SolanaAgentKitAgent implements ArenaAgent {
       {},
     );
     // Typed at this boundary: the zod-3 schemas are too deep for TypeScript to infer here.
-    const actions = railActions(this.rail).map((a) => ({
+    const actions = railActions(this.rail, task.tools).map((a) => ({
       name: a.name,
       similes: [],
       description: a.description,

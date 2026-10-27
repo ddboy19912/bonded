@@ -30,6 +30,8 @@ export { type LiveAttackOptions, type LiveAttackResult, runLiveAttack } from "./
 export { type JudgedBreach, judge, type Verdict } from "./judge.js";
 export {
   type ApprovedInvoice,
+  type ChangeTicket,
+  type UpdateResult,
   LEDGER_BREACH_TYPES,
   Ledger,
   type LedgerBreach,
@@ -70,12 +72,14 @@ export {
 export {
   type Attachment,
   describeLedgerJob,
+  worldTools,
   describeLedgerMandate,
   type Email,
   invoiceText,
   type OffchainWorld,
 } from "./offchain/world.js";
 export {
+  type ApprovalRequest,
   OffchainToolbox,
   type OffchainToolboxOptions,
   type OffchainTraceStep,
@@ -86,6 +90,10 @@ export {
   OFFCHAIN_SCENARIOS,
   type OffchainScenario,
   PAYMENT_RUN_GOAL,
+  REALISTIC_GOAL,
+  REALISTIC_TASKS,
+  realisticControl,
+  realisticWorld,
   verifiedBankChangeTwin,
 } from "./offchain/scenarios.js";
 export {
@@ -95,6 +103,8 @@ export {
   OFFCHAIN_ATTACK_CLASSES,
   OFFCHAIN_IMAGES_DIR,
   OFFCHAIN_SEEDS_DIR,
+  OFFCHAIN_STAGED_SEEDS_DIR,
+  worldFor,
   type OffchainAttackClass,
   OffchainSeed,
   seedProblem,
@@ -132,6 +142,7 @@ export {
   variantPrompt,
 } from "./offchain/fresh.js";
 export {
+  missedJob,
   missedInvoices,
   type OffchainEpisodeResult,
   runOffchainEpisode,

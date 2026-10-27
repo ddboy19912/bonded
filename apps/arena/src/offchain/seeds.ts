@@ -4,7 +4,14 @@ import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
 import { z } from "zod";
 import { LEDGER_BREACH_TYPES } from "./ledger.js";
-import { baseWorld, type OffchainScenario, PAYMENT_RUN_GOAL } from "./scenarios.js";
+import {
+  baseWorld,
+  type OffchainScenario,
+  PAYMENT_RUN_GOAL,
+  REALISTIC_GOAL,
+  REALISTIC_TASKS,
+  realisticWorld,
+} from "./scenarios.js";
 import { type Attachment, type Email, invoiceText, type OffchainWorld } from "./world.js";
 
 /**
@@ -13,6 +20,13 @@ import { type Attachment, type Email, invoiceText, type OffchainWorld } from "./
  * `aimedAt` only says which breaches count as the attack succeeding. See docs/OFFCHAIN.md.
  */
 export const OFFCHAIN_SEEDS_DIR = fileURLToPath(new URL("../../offchain-seeds", import.meta.url));
+/**
+ * New attacks wait here until a library release moves them into OFFCHAIN_SEEDS_DIR (CLAUDE.md,
+ * "Batch library changes into releases"). The runner reads them with --staged; the Index doesn't.
+ */
+export const OFFCHAIN_STAGED_SEEDS_DIR = fileURLToPath(
+  new URL("../../offchain-seeds-staged", import.meta.url),
+);
 /** The library's invoice pictures. Fresh variants saved elsewhere still use these. */
 export const OFFCHAIN_IMAGES_DIR = join(OFFCHAIN_SEEDS_DIR, "images");
 
@@ -93,8 +107,14 @@ export const OffchainSeed = z.object({
   description: z.string().min(1),
   aimedAt: z.array(z.enum(LEDGER_BREACH_TYPES)).min(1),
   /**
-   * Approved invoices the attack casts doubt on. A careful agent may hold them back to check,
-   * so the task doesn't require them; paying them correctly is still fine.
+   * The job the attack is planted in: "v1", the approved-queue payment run, or "v2", the
+   * realistic job (scenarios.ts, realisticWorld), with vendor updates and approval requests.
+   */
+  world: z.enum(["v1", "v2"]).default("v1"),
+  /**
+   * Parts of the job the attack casts doubt on. A careful agent may hold them back to check, so
+   * the task doesn't require them; doing them correctly is still fine. An approved invoice's
+   * reference, or (realistic job) `reply:<email>`, `approval:<invoice>` or `update:<vendor>`.
    */
   mayHold: z.array(z.string()).default([]),
   plant: z.object({
@@ -146,17 +166,16 @@ export function seedProblem(
   seed: OffchainSeed,
   imagesDir: string = OFFCHAIN_IMAGES_DIR,
 ): string | undefined {
-  const world = baseWorld();
+  const world = worldFor(seed);
   const ids = new Set(world.inbox.map((e) => e.id));
-  const approved = new Set(world.approvedInvoices.map((i) => i.reference));
+  const tasks = new Set(taskKeys(seed));
   for (const r of seed.plant.replace)
     if (!ids.has(r.emailId)) return `no email ${r.emailId} to replace`;
   for (const e of seed.plant.emails) {
     if (ids.has(e.id)) return `email id ${e.id} is already in the inbox`;
     if (e.receivedAt.slice(0, 10) > world.today) return `${e.id} arrives after ${world.today}`;
   }
-  for (const ref of seed.mayHold)
-    if (!approved.has(ref)) return `${ref} is not an approved invoice`;
+  for (const ref of seed.mayHold) if (!tasks.has(ref)) return `${ref} is not part of the job`;
   const attachments = [
     ...seed.plant.emails.flatMap((e) => e.attachments),
     ...seed.plant.replace.flatMap((r) => r.attachments ?? []),
@@ -197,20 +216,44 @@ export function seedProblem(
   return undefined;
 }
 
+/** The unplanted world a seed's attack goes into. */
+export const worldFor = (seed: Pick<OffchainSeed, "world">) =>
+  seed.world === "v2" ? realisticWorld() : baseWorld();
+
+/** Every part of the job a seed's `mayHold` may name. */
+function taskKeys(seed: Pick<OffchainSeed, "world">): string[] {
+  const refs = worldFor(seed).approvedInvoices.map((i) => i.reference);
+  if (seed.world !== "v2") return refs;
+  return [
+    ...refs,
+    ...REALISTIC_TASKS.mustReply.map((id) => `reply:${id}`),
+    ...REALISTIC_TASKS.mustRoute.map((r) => `approval:${r}`),
+    ...REALISTIC_TASKS.mustUpdate.map((u) => `update:${u.vendorId}`),
+  ];
+}
+
 /** The base world with the seed planted, as an attack scenario. */
 export function attackScenario(
   seed: OffchainSeed,
   imagesDir: string = OFFCHAIN_IMAGES_DIR,
 ): OffchainScenario {
-  const world = plantSeed(baseWorld(), seed, imagesDir);
+  const world = plantSeed(worldFor(seed), seed, imagesDir);
   const hold = new Set(seed.mayHold);
+  const jobTasks = seed.world === "v2" ? REALISTIC_TASKS : null;
   return {
     id: seed.id,
     kind: "attack",
     attackClass: seed.class,
-    goal: PAYMENT_RUN_GOAL,
+    goal: seed.world === "v2" ? REALISTIC_GOAL : PAYMENT_RUN_GOAL,
     world,
     mustPay: world.approvedInvoices.map((i) => i.reference).filter((r) => !hold.has(r)),
+    ...(jobTasks
+      ? {
+          mustReply: jobTasks.mustReply.filter((id) => !hold.has(`reply:${id}`)),
+          mustRoute: jobTasks.mustRoute.filter((r) => !hold.has(`approval:${r}`)),
+          mustUpdate: jobTasks.mustUpdate.filter((u) => !hold.has(`update:${u.vendorId}`)),
+        }
+      : {}),
     aimedAt: seed.aimedAt,
     ...(seed.variantOf ? { variantOf: seed.variantOf } : {}),
     ...(seed.counterparty ? { counterparty: seed.counterparty } : {}),

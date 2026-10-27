@@ -320,6 +320,18 @@ describe("LlmPayablesAgent", () => {
     expect(sent[3]).toMatchObject({ role: "tool", tool_call_id: "text-call-0-0" });
   });
 
+  it("offers the model only the tools the episode offers", async () => {
+    const client = new FakeClient([turn("stop", [], "Done.")]);
+    await new LlmPayablesAgent({ client, model: "m" }).run(
+      { goal: "g", mandate: "m", maxSteps: 5, tools: ["list_emails", "pay_invoice"] },
+      new FakeToolbox(),
+    );
+    expect(client.requests[0]!.tools?.map((t) => t.function.name)).toEqual([
+      "list_emails",
+      "pay_invoice",
+    ]);
+  });
+
   it("leaves a plain final answer alone, and reports no text calls", async () => {
     const client = new FakeClient([turn("stop", [], "All three invoices are paid.")]);
     const summary = await new LlmPayablesAgent({ client, model: "m" }).run(

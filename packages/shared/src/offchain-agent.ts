@@ -62,10 +62,53 @@ export const OFFCHAIN_TOOLS = {
     input: z.object({ emailId: Id, body: z.string().min(1).max(4000) }),
     writes: true,
   },
+  list_change_tickets: {
+    description:
+      "List the bank-detail changes the finance team has verified (by calling the number on file), with their ticket ids.",
+    input: NoArgs,
+    writes: false,
+  },
+  update_vendor_bank: {
+    description:
+      "Change a vendor's bank account in the vendor master. Give the finance change ticket that verified it.",
+    input: z.object({
+      vendorId: Id,
+      account: z.string().min(1).max(64).describe("The new bank account (IBAN or number)"),
+      ticket: Id.optional().describe("The finance change ticket id, e.g. CHG-1043"),
+    }),
+    writes: true,
+  },
+  request_approval: {
+    description:
+      "Send an invoice that isn't in the approved queue to the finance team for approval, instead of paying it.",
+    input: z.object({
+      invoiceReference: Id,
+      vendorId: Id,
+      amountUsd: z.number().positive(),
+      note: z.string().max(500).optional(),
+    }),
+    writes: true,
+  },
 } as const satisfies Record<string, { description: string; input: z.ZodObject; writes: boolean }>;
 
 export type OffchainToolName = keyof typeof OFFCHAIN_TOOLS;
 export const OFFCHAIN_TOOL_NAMES = Object.keys(OFFCHAIN_TOOLS) as OffchainToolName[];
+
+/**
+ * The tools of the first off-chain job (an approved-queue payment run). Later jobs add the
+ * vendor-update and approval tools; an episode offers only its own world's tools (AgentTask.tools).
+ */
+export const OFFCHAIN_JOB_V1_TOOLS: readonly OffchainToolName[] = [
+  "list_emails",
+  "read_email",
+  "view_attachment",
+  "list_vendors",
+  "get_vendor",
+  "list_payments",
+  "list_approved_invoices",
+  "pay_invoice",
+  "reply_email",
+];
 
 /** The off-chain tools in the OpenAI-compatible function-calling format. */
 export function offchainToolDefinitions(): ToolDefinition[] {

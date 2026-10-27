@@ -35,7 +35,10 @@ export interface ToolLoopOptions {
 
 export async function runToolLoop(options: ToolLoopOptions): Promise<AgentRunSummary> {
   const { client, model, system, task, tools } = options;
-  const toolDefinitions = options.toolDefinitions ?? agentToolDefinitions();
+  // Only the tools this episode offers (task.tools), so a channel it lacks is never exposed.
+  const toolDefinitions = (options.toolDefinitions ?? agentToolDefinitions()).filter(
+    (d) => !task.tools || task.tools.includes(d.function.name),
+  );
   const toolNames = new Set(toolDefinitions.map((d) => d.function.name));
   let textToolCalls = 0;
   const messages: ChatMessage[] = [

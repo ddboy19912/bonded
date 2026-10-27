@@ -19,7 +19,8 @@ import { loadDotEnv } from "../env.js";
 import { probeCounterparties, runOffchainBatch } from "./batch.js";
 import type { ProbeResult } from "./counterparty.js";
 import { draftVariants, saveVariants, type VariantCandidate } from "./fresh.js";
-import { loadOffchainSeeds, type OffchainSeed } from "./seeds.js";
+import { controlScenario, realisticControl, verifiedBankChangeTwin } from "./scenarios.js";
+import { loadOffchainSeeds, OFFCHAIN_STAGED_SEEDS_DIR, type OffchainSeed } from "./seeds.js";
 import type { MandateRow } from "./summary.js";
 
 const USAGE = `Usage: pnpm --filter @bonded/arena offchain --max-usd <n> [options]
@@ -39,6 +40,8 @@ saved, and --replay runs a saved set again exactly.
                              job, or run both rows (default: both; the ledger enforces either way)
   --runs <n>                 runs of every scenario in each row (default: 3)
   --seeds <list>             only these library seed ids (comma-separated)
+  --staged                   run the staged attacks (offchain-seeds-staged/) instead of the
+                             library, with the realistic job's control alongside
   --fresh                    draft one fresh variant per seed and run it too
   --replay <dir>             run the variants saved in <dir> (a previous --out's variants/)
   --generator-model <id>     the model drafting variants (default: ${DEFAULT_AGENT_MODEL})
@@ -66,6 +69,7 @@ async function main() {
       mandate: { type: "string", default: "both" },
       runs: { type: "string", default: "3" },
       seeds: { type: "string" },
+      staged: { type: "boolean", default: false },
       fresh: { type: "boolean", default: false },
       replay: { type: "string" },
       "generator-model": { type: "string", default: DEFAULT_AGENT_MODEL },
@@ -106,7 +110,9 @@ async function main() {
   mkdirSync(out, { recursive: true });
 
   const wanted = values.seeds?.split(",").map((s) => s.trim());
-  const library = loadOffchainSeeds().filter((s) => !wanted || wanted.includes(s.id));
+  const library = loadOffchainSeeds(values.staged ? OFFCHAIN_STAGED_SEEDS_DIR : undefined).filter(
+    (s) => !wanted || wanted.includes(s.id),
+  );
   let variants: OffchainSeed[] = [];
   let candidates: VariantCandidate[] = [];
   if (values.replay) {
@@ -136,6 +142,9 @@ async function main() {
     seesImages: values.agent === "payables" && values.vision,
     images: !values["text-only"],
     attackSeeds: [...library, ...variants],
+    ...(values.staged
+      ? { controls: [controlScenario, verifiedBankChangeTwin, realisticControl] }
+      : {}),
     rows,
     runs,
     parallel,

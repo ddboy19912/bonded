@@ -23,6 +23,8 @@ export interface BatchOptions {
   /** Serve attachments' images at all (off: text layers only). */
   images: boolean;
   attackSeeds: readonly OffchainSeed[];
+  /** The controls and benign twins (default: the approved-queue payment run's). */
+  controls?: readonly (() => OffchainScenario)[];
   rows: readonly MandateRow[];
   runs: number;
   parallel: number;
@@ -49,8 +51,7 @@ export async function runOffchainBatch(options: BatchOptions): Promise<BatchResu
       : options.attackSeeds.filter(seedNeedsVision).map((s) => s.id);
   // Each run builds its scenario afresh: an episode changes its world (an O6 thread grows).
   const builders: (() => OffchainScenario)[] = [
-    controlScenario,
-    verifiedBankChangeTwin,
+    ...(options.controls ?? [controlScenario, verifiedBankChangeTwin]),
     ...options.attackSeeds
       .filter((s) => !notShown.includes(s.id))
       .map((s) => () => attackScenario(s)),

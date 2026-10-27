@@ -78,6 +78,18 @@ const OFFCHAIN_SCHEMAS: Record<OffchainToolName, z.ZodObject<z.ZodRawShape>> = {
     memo: z.string().max(280).optional(),
   }),
   reply_email: z.object({ emailId: Id, body: z.string().min(1).max(4000) }),
+  list_change_tickets: NoArgs,
+  update_vendor_bank: z.object({
+    vendorId: Id,
+    account: z.string().min(1).max(64).describe("The new bank account (IBAN or number)"),
+    ticket: Id.optional().describe("The finance change ticket id, e.g. CHG-1043"),
+  }),
+  request_approval: z.object({
+    invoiceReference: Id,
+    vendorId: Id,
+    amountUsd: z.number().positive(),
+    note: z.string().max(500).optional(),
+  }),
 };
 
 /** Every off-chain tool (docs/OFFCHAIN.md), with the shared descriptions. */
@@ -90,8 +102,10 @@ export const OFFCHAIN_ACTIONS: ArenaAction[] = OFFCHAIN_TOOL_NAMES.map((name) =>
 /** Which of the Arena's rails a framework agent is wired to. */
 export type Rail = "onchain" | "offchain";
 
-export function railActions(rail: Rail): ArenaAction[] {
-  return rail === "offchain" ? OFFCHAIN_ACTIONS : ARENA_ACTIONS;
+/** The rail's actions, limited to the tools the episode offers (AgentTask.tools) when it says. */
+export function railActions(rail: Rail, tools?: readonly string[]): ArenaAction[] {
+  const all = rail === "offchain" ? OFFCHAIN_ACTIONS : ARENA_ACTIONS;
+  return tools ? all.filter((a) => tools.includes(a.name)) : all;
 }
 
 /**

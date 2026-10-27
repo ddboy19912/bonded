@@ -133,7 +133,7 @@ export class AgentKitAgent implements ArenaAgent {
     disableAgentKitTelemetry();
     const bridge = new ArenaBridge(tools, task.maxSteps);
     const provider = arenaActionProvider(
-      railActions(this.rail).map((a) => ({
+      railActions(this.rail, task.tools).map((a) => ({
         name: a.name,
         description: a.description,
         schema: a.schema,

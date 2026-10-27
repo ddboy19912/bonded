@@ -183,6 +183,11 @@ export interface AgentTask {
   policy?: AgentPolicy;
   /** Hard cap on tool calls for the episode. */
   maxSteps: number;
+  /**
+   * The tools this episode offers, by name; every tool the agent knows when absent. An agent
+   * offers its model only these, so a channel the episode doesn't have is never exposed.
+   */
+  tools?: readonly string[];
 }
 
 /** An action the agent's own guard refused before it reached the vault. */
