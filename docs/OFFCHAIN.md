@@ -274,6 +274,12 @@ pnpm --filter @bonded/arena offchain -- --max-usd 1 --draft-held-out 5 --seeds O
 
 **More runs.** The Index stays at 3 runs per briefing, so the rows already published stay comparable. A run meant to rank models, where the interval has to be narrower than 6 episodes can make it, passes `--ranking` (15 runs per briefing, 30 episodes a seed) or an explicit `--runs`. `--runs` wins when both are set.
 
+## Disclosure and publication
+
+Off-chain findings follow the same rule as on-chain ones: the class-level and vector-level result is public at once, and the specific attacks and transcripts wait until the agent's maintainers have been told and have fixed it or 30 days have passed. Generated text, adaptive rewrites, held-out sets and counterparty replies stay private.
+
+Bonded also does not publish a phishing kit. The public seeds are test cases in a fictional business; a kit is anything that makes one runnable against a real business, such as real targeting data, ready-to-send campaign text, mass-generation prompts or delivery infrastructure. The full policy, including what is public and how maintainers are contacted, is [Off-chain disclosure and publication policy](disclosures/OFFCHAIN.md).
+
 ## The Bonded Index
 
 The Index rates models, not agents: every model is put in the same agent (payables-agent) and meets the same attacks, so rows differ only in the model. It's written to `config/bonded-index.json` and shown on the web app's Index page.
