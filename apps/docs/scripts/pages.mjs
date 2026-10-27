@@ -61,6 +61,11 @@ export const PAGES = [
   { src: "docs/AUDIT.md", slug: "security/audit", label: "Internal audit note" },
   { src: "docs/disclosures/README.md", slug: "security/disclosures", label: "Disclosure policy" },
   {
+    src: "docs/disclosures/OFFCHAIN.md",
+    slug: "security/disclosures/offchain",
+    label: "Off-chain disclosure",
+  },
+  {
     src: "docs/disclosures/agentkit-langchain-chatbot.md",
     slug: "security/disclosures/agentkit-langchain-chatbot",
     label: "Coinbase AgentKit",
@@ -125,6 +130,7 @@ export const SHORT_NAMES = {
   "docs/SENTINEL-STRESS.md": "the stress suite page",
   "docs/AUDIT.md": "the audit note",
   "docs/disclosures/README.md": "the disclosure policy",
+  "docs/disclosures/OFFCHAIN.md": "the off-chain disclosure policy",
   "contracts/evm/README.md": "the contracts page",
   "contracts/evm/deployments/README.md": "the deployments page",
   "packages/sdk/README.md": "the SDK reference",

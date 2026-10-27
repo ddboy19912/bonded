@@ -30,7 +30,12 @@ Every note says the same three things, because each is true:
 - **The model matters.** The same template can score differently on another model. Every entry names the model rated.
 - **The fix is mostly outside the prompt.** Mandate limits enforced in code or on chain, an allowlist of tools and recipients, and a pre-trade guard (Bonded's Sentinel is one) stop these classes, whatever the prompt says.
 
+## Off-chain findings
+
+The same policy covers the off-chain rail: agents that pay invoices and move money through a payment API. The class-level and vector-level result is public at once; the exact attack, the transcript and the generated text wait for the maintainers. Off-chain findings also carry a rule against publishing a phishing kit: no real targeting data, no ready-to-send campaign text, no mass-generation prompts and no delivery infrastructure. That rule is written out in [Off-chain disclosure and publication policy](OFFCHAIN.md).
+
 ## Notes
 
+- [Off-chain disclosure and publication policy](OFFCHAIN.md)
 - [Coinbase AgentKit, LangChain chatbot template](agentkit-langchain-chatbot.md)
 - [Solana Agent Kit, LangGraph example](solana-agent-kit-langgraph.md)
