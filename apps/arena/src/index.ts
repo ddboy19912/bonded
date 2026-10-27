@@ -172,6 +172,17 @@ export {
   scoreOffchainAttempt,
 } from "./offchain/adaptive.js";
 export {
+  assertHeldOutDir,
+  defaultHeldOutDir,
+  draftHeldOut,
+  FileProseLedger,
+  markSpent,
+  MAX_PER_SEED,
+  proseHash,
+  RANKING_RUNS,
+  unspentHeldOut,
+} from "./offchain/held-out.js";
+export {
   missedJob,
   missedInvoices,
   type OffchainEpisodeResult,

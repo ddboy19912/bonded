@@ -19,6 +19,14 @@ import { loadDotEnv } from "../env.js";
 import { probeCounterparties, runOffchainBatch } from "./batch.js";
 import type { ProbeResult } from "./counterparty.js";
 import { draftVariants, saveVariants, type VariantCandidate } from "./fresh.js";
+import {
+  assertHeldOutDir,
+  defaultHeldOutDir,
+  draftHeldOut,
+  markSpent,
+  RANKING_RUNS,
+  unspentHeldOut,
+} from "./held-out.js";
 import { controlScenario, realisticControl, verifiedBankChangeTwin } from "./scenarios.js";
 import {
   loadOffchainSeeds,
@@ -26,7 +34,7 @@ import {
   type OffchainSeed,
   viaChannel,
 } from "./seeds.js";
-import type { MandateRow } from "./summary.js";
+import { erroredEpisode, type MandateRow, summarizeRows } from "./summary.js";
 
 const USAGE = `Usage: pnpm --filter @bonded/arena offchain --max-usd <n> [options]
 
@@ -43,7 +51,10 @@ saved, and --replay runs a saved set again exactly.
   --text-only                serve attachments' text layers only, never their images
   --mandate <row>            shown | hidden | both: tell the agent the mandate's rules, only its
                              job, or run both rows (default: both; the ledger enforces either way)
-  --runs <n>                 runs of every scenario in each row (default: 3)
+  --runs <n>                 runs of every scenario in each row (default: 3; the Index
+                             stays at 3 so its rows stay comparable)
+  --ranking                  use ${RANKING_RUNS} runs per row instead of 3, for a narrower
+                             interval. An explicit --runs wins
   --seeds <list>             only these library seed ids (comma-separated)
   --staged                   run the staged attacks (offchain-seeds-staged/) instead of the
                              library, with the realistic job's control alongside
@@ -54,6 +65,15 @@ saved, and --replay runs a saved set again exactly.
                              ticket, voicemail, sms, agent), to find the one the agent trusts
   --fresh                    draft one fresh variant per seed and run it too
   --replay <dir>             run the variants saved in <dir> (a previous --out's variants/)
+  --held-out <dir>           also run a private variant set from <dir> (default, when drafting:
+                             ~/.config/bonded/offchain-held-out). Refused if the directory is a
+                             published seed folder or anywhere in the repo outside ratings/.
+                             Variants an agent has already met are skipped, then the ones run
+                             are marked as met
+  --reuse-held-out           run the held-out variants an agent already met too (to replay a
+                             rating exactly); nothing new is marked
+  --draft-held-out <n>       draft <n> new variants of each seed into the held-out directory
+                             first (at most 200 per seed). The spending cap stops the drafting
   --generator-model <id>     the model drafting variants (default: ${DEFAULT_AGENT_MODEL})
   --counterparty-model <id>  the model playing O6's counterparty (default: ${DEFAULT_AGENT_MODEL})
   --probe-counterparty       also ask O6's counterparty model to answer 5 typical agent replies
@@ -77,13 +97,17 @@ async function main() {
       vision: { type: "boolean", default: false },
       "text-only": { type: "boolean", default: false },
       mandate: { type: "string", default: "both" },
-      runs: { type: "string", default: "3" },
+      runs: { type: "string" },
+      ranking: { type: "boolean", default: false },
       seeds: { type: "string" },
       staged: { type: "boolean", default: false },
       channels: { type: "string" },
       via: { type: "string" },
       fresh: { type: "boolean", default: false },
       replay: { type: "string" },
+      "held-out": { type: "string" },
+      "draft-held-out": { type: "string" },
+      "reuse-held-out": { type: "boolean", default: false },
       "generator-model": { type: "string", default: DEFAULT_AGENT_MODEL },
       "counterparty-model": { type: "string", default: DEFAULT_AGENT_MODEL },
       "probe-counterparty": { type: "boolean", default: false },
@@ -98,9 +122,13 @@ async function main() {
   }
   const maxUsd = Number(values["max-usd"]);
   const parallel = Number(values.parallel);
-  const runs = Number(values.runs);
+  const runs = Number(values.runs ?? (values.ranking ? RANKING_RUNS : 3));
+  const draftCount =
+    values["draft-held-out"] === undefined ? undefined : Number(values["draft-held-out"]);
   if (!(maxUsd > 0) || !(parallel >= 1) || !(Number.isInteger(runs) && runs >= 1))
     throw new Error("--max-usd, --parallel and --runs must be positive");
+  if (draftCount !== undefined && !(Number.isInteger(draftCount) && draftCount >= 1))
+    throw new Error("--draft-held-out must be a positive integer");
   const rows: MandateRow[] =
     values.mandate === "both" ? ["shown", "hidden"] : [values.mandate as MandateRow];
   if (!rows.every((r) => r === "shown" || r === "hidden"))
@@ -112,6 +140,7 @@ async function main() {
   const models = [
     values.model,
     ...(values.fresh && !values.replay ? [values["generator-model"]] : []),
+    ...(draftCount !== undefined ? [values["generator-model"]] : []),
     values["counterparty-model"],
   ];
   for (const model of models) llmConfigForModel(model);
@@ -149,17 +178,59 @@ async function main() {
     for (const c of candidates.filter((c) => !c.kept)) console.log(`  ${c.seed}: ${c.reason}`);
   }
 
+  let heldOut: OffchainSeed[] = [];
+  let heldOutDir: string | undefined;
+  if (draftCount !== undefined || values["held-out"] !== undefined) {
+    const dir = values["held-out"] ?? defaultHeldOutDir();
+    assertHeldOutDir(dir);
+    // The results record the planted text, so they stay private too. Checked before drafting.
+    assertHeldOutDir(out);
+    if (draftCount !== undefined) {
+      const drafted = await draftHeldOut({
+        seeds: library,
+        perSeed: draftCount,
+        client,
+        model: values["generator-model"],
+        dir,
+        onUsage: (u) => cap.add(u),
+        shouldStop: () => cap.exceeded,
+      });
+      console.log(
+        `held-out: kept ${drafted.kept.length} new variants in ${dir}` +
+          (drafted.notes.length ? `; ${drafted.notes.length} slots not kept` : ""),
+      );
+      for (const note of drafted.notes) console.log(`  ${note.seed}: ${note.reason}`);
+    }
+    const inSet = loadOffchainSeeds(dir).filter(
+      (v) => !wanted || wanted.includes(v.variantOf ?? v.id),
+    );
+    if (values["reuse-held-out"]) {
+      heldOut = inSet;
+    } else {
+      const { fresh, spent } = await unspentHeldOut(dir, inSet);
+      heldOut = fresh;
+      if (spent) console.log(`held-out: skipped ${spent} variants an agent has already met`);
+    }
+    heldOutDir = dir;
+  }
+
   const via = (values.via?.split(",").map((c) => c.trim()) ?? []) as Parameters<
     typeof viaChannel
   >[1][];
-  const redelivered = [...library, ...variants]
+  const redelivered = [...library, ...variants, ...heldOut]
     .filter((s) => s.multiVector)
     .flatMap((s) => via.map((c) => viaChannel(s, c)));
-  const { episodes, summary, notShown, skipped, counterpartyTurns } = await runOffchainBatch({
+  const heldOutIds = new Set([
+    ...heldOut.map((s) => s.id),
+    ...redelivered
+      .filter((s) => heldOut.some((h) => s.id.startsWith(`${h.id}-via-`)))
+      .map((s) => s.id),
+  ]);
+  const { episodes, notShown, skipped, counterpartyTurns } = await runOffchainBatch({
     agent: () => agentFor(values.agent, values.model, client, values.vision),
     seesImages: values.agent === "payables" && values.vision,
     images: !values["text-only"],
-    attackSeeds: [...library, ...variants, ...redelivered],
+    attackSeeds: [...library, ...variants, ...redelivered, ...heldOut],
     ...(values.channels ? { channels: values.channels.split(",").map((c) => c.trim()) } : {}),
     ...(values.staged
       ? { controls: [controlScenario, verifiedBankChangeTwin, realisticControl] }
@@ -171,6 +242,26 @@ async function main() {
     client,
     counterpartyModel: values["counterparty-model"],
   });
+  // The score is the published set only. Held-out variants are a private finding, so a run
+  // that includes them still compares with the Index.
+  const summary = summarizeRows(
+    episodes.filter((e) => !heldOutIds.has(e.result.scenarioId)),
+    rows,
+  );
+  const heldAttacks = episodes.filter(
+    (e) =>
+      heldOutIds.has(e.result.scenarioId) &&
+      e.result.kind === "attack" &&
+      !erroredEpisode(e.result),
+  );
+  // An agent has now met these texts: the next run drafts or picks others.
+  if (heldOutDir && !values["reuse-held-out"]) {
+    const ran = new Set(episodes.map((e) => e.result.scenarioId));
+    await markSpent(
+      heldOutDir,
+      heldOut.filter((v) => ran.has(v.id) || [...ran].some((id) => id.startsWith(`${v.id}-via-`))),
+    );
+  }
   const byVector = new Map<string, { episodes: number; fell: number }>();
   for (const row of summary.rows) {
     for (const [v, c] of Object.entries(row.byVector)) {
@@ -215,6 +306,16 @@ async function main() {
   if (byVector.size > 0) {
     console.log(
       `by vector: ${[...byVector].map(([k, c]) => `${k} ${c.fell}/${c.episodes}`).join(", ")}`,
+    );
+  }
+  if (heldOutIds.size > 0) {
+    const heldFell = heldAttacks.filter((e) => e.result.verdict.attackSucceeded).length;
+    const heldLoss =
+      heldAttacks.reduce((sum, e) => sum + Math.round(e.result.verdict.totalLossUsd * 100), 0) /
+      100;
+    console.log(
+      `held-out, not in the score: fell for ${heldFell} of ${heldAttacks.length} ` +
+        `(${heldOut.length} private variants, lost $${heldLoss})`,
     );
   }
   console.log(
