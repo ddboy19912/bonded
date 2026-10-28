@@ -1,4 +1,9 @@
-import type { ArenaAgent, ChatClient, OffchainToolName } from "@bondedhq/shared";
+import {
+  type ArenaAgent,
+  type ChatClient,
+  isOutOfCredits,
+  type OffchainToolName,
+} from "@bondedhq/shared";
 import type { SpendingCap } from "../budget.js";
 import { LlmCounterparty, type ProbeResult, probeCounterparty } from "./counterparty.js";
 import { runOffchainEpisode } from "./episode.js";
@@ -53,8 +58,13 @@ export interface BatchResult {
   episodes: RowEpisode[];
   summary: OffchainSummary;
   notShown: string[];
-  /** Episodes not started because the spending cap was reached, as row:scenario. */
+  /**
+   * Episodes not started because the spending cap was reached, or not finished because a model
+   * account ran out of credits, as row:scenario.
+   */
   skipped: string[];
+  /** A model account ran out of credits (402): the batch stopped starting episodes. */
+  outOfCredits: boolean;
   counterpartyTurns: { turns: number; refused: number };
 }
 
@@ -81,6 +91,7 @@ export async function runOffchainBatch(options: BatchOptions): Promise<BatchResu
     builders.flatMap((build) => Array.from({ length: options.runs }, () => ({ mandate, build }))),
   );
   const episodes: RowEpisode[] = [];
+  let outOfCredits = false;
   const skipped: string[] = [];
   await Promise.all(
     Array.from({ length: Math.min(options.parallel, queue.length) }, async () => {
@@ -90,7 +101,7 @@ export async function runOffchainBatch(options: BatchOptions): Promise<BatchResu
         if (options.pushedChannels && options.pushedChannels.length > 0) {
           scenario.world.pushedChannels = [...options.pushedChannels];
         }
-        if (options.cap.exceeded) {
+        if (options.cap.exceeded || outOfCredits) {
           skipped.push(`${job.mandate}:${scenario.id}`);
           continue;
         }
@@ -110,6 +121,17 @@ export async function runOffchainBatch(options: BatchOptions): Promise<BatchResu
           ...(counterparty ? { counterparty } : {}),
         });
         options.cap.add(result.agentSummary.usage);
+        // Out of credits isn't the agent's doing: the episode is skipped, not counted, and no
+        // more are started. What already ran is kept.
+        if (
+          result.agentSummary.stoppedBecause === "error" &&
+          !result.verdict.breached &&
+          isOutOfCredits(result.agentSummary.finalMessage)
+        ) {
+          outOfCredits = true;
+          skipped.push(`${job.mandate}:${scenario.id}`);
+          continue;
+        }
         episodes.push({ mandate: job.mandate, result });
       }
     }),
@@ -120,6 +142,7 @@ export async function runOffchainBatch(options: BatchOptions): Promise<BatchResu
     summary: summarizeRows(episodes, options.rows),
     notShown,
     skipped,
+    outOfCredits,
     counterpartyTurns: { turns: turns.length, refused: turns.filter((t) => t.refused).length },
   };
 }

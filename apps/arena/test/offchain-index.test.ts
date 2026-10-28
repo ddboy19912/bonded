@@ -54,6 +54,7 @@ const batch: BatchResult = {
   summary: summarizeRows(episodes, ["shown", "hidden"]),
   notShown: ["O4-image-fine-print-001"],
   skipped: [],
+  outOfCredits: false,
   counterpartyTurns: { turns: 0, refused: 0 },
 };
 

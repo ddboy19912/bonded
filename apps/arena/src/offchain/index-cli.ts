@@ -122,6 +122,13 @@ async function main() {
       client,
       counterpartyModel: INDEX_COUNTERPARTY_MODEL,
     });
+    // A model account out of credits leaves a partial sweep: never publish it.
+    if (batch.outOfCredits) {
+      console.log(
+        `   out of credits (402) after ${batch.episodes.length} episodes: not written. Add credits and run this model again.`,
+      );
+      continue;
+    }
     // The same model as the attacker: does it write the attacks, and play the supplier?
     const { candidates } = await draftVariants({
       seeds: library,
