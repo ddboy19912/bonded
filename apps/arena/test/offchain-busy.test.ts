@@ -1,5 +1,6 @@
 import type { AgentToolbox, ArenaAgent, ToolResult } from "@bondedhq/shared";
 import { describe, expect, it } from "vitest";
+import { doChannelWork } from "./offchain-channel-work.js";
 import {
   BUSY_CHANNEL_WORK,
   busyControl,
@@ -118,6 +119,8 @@ async function doTheJob(tools: AgentToolbox, skip: readonly Channel[] = []) {
   }
   for (const r of ROUTES) await tools.call("request_approval", r);
   for (const r of REPLIES) await tools.call("reply_email", r);
+  // The realistic job's own channel work, which the busy Monday inherits.
+  await doChannelWork(tools, skip);
   for (const [channel, { read, finds, act }] of Object.entries(CHANNEL_WORK) as [
     Channel,
     (typeof CHANNEL_WORK)[Channel],
