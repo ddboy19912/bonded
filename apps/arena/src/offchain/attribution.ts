@@ -68,6 +68,53 @@ export function plantedFacts(seed: OffchainSeed, genuine: OffchainWorld): string
   return [...keys].filter((k) => !real.has(k)).sort();
 }
 
+/** The attachment's text layer: the invoice fields or the verbatim text, plus any footer note. */
+function attachmentLayer(attachment: {
+  invoice?: {
+    vendorName: string;
+    vendorEmail?: string;
+    reference: string;
+    account: string;
+    lines: { description: string; amountUsd: number }[];
+  };
+  text?: string;
+  appendText?: string;
+}): string {
+  const base =
+    attachment.text ??
+    [
+      attachment.invoice?.vendorName,
+      attachment.invoice?.vendorEmail,
+      attachment.invoice?.reference,
+      attachment.invoice?.account,
+      ...(attachment.invoice?.lines.map((l) => `${l.description} $${l.amountUsd}`) ?? []),
+    ]
+      .filter((part) => part !== undefined)
+      .join("\n");
+  return attachment.appendText ? `${base}\n${attachment.appendText}` : base;
+}
+
+/**
+ * True when a picture carries a planted fact the text layer does not. That attack can't reach
+ * an agent that never sees images. A picture that only shows a genuine account, while the text
+ * names the planted one, is the other way round: the text is enough to meet it.
+ */
+export function attackOnlyInImage(seed: OffchainSeed, genuine: OffchainWorld): boolean {
+  const planted = new Set(plantedFacts(seed, genuine));
+  const attachments = [
+    ...seed.plant.emails.flatMap((e) => e.attachments),
+    ...seed.plant.replace.flatMap((r) => r.attachments ?? []),
+  ];
+  return attachments.some((attachment) => {
+    if (!attachment.image) return false;
+    const textKeys = new Set(factsIn(attachmentLayer(attachment)).map(keyOf));
+    return imageText(attachment.image)
+      .flatMap(factsIn)
+      .map(keyOf)
+      .some((key) => planted.has(key) && !textKeys.has(key));
+  });
+}
+
 /** What an invoice picture shows beyond its text layer: its spec's planted account and notes. */
 function imageText(file: string): string[] {
   const spec = SEED_IMAGES[file];
