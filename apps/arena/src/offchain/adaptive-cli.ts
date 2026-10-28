@@ -75,7 +75,8 @@ beside each result.
                          lives only in an image isn't run: it is listed as not exposed
   --attacker-reasoning <off|low>  off asks the attacker for no hidden reasoning (default: off)
   --out <dir>            where to write results (default: ratings/offchain-adaptive-<agent>)
-  --estimate             print the planned episodes and their estimated cost, then stop`;
+  --estimate             print the planned episodes and their estimated cost, then stop.
+                         It calls no model, so it needs no API key`;
 
 function agentFor(name: string, model: string, client: ChatClient, vision: boolean): ArenaAgent {
   if (name === "payables") return new LlmPayablesAgent({ client, model, vision });
@@ -167,10 +168,6 @@ async function main(): Promise<number> {
     ? parsePushedChannels(values["push-channels"])
     : undefined;
 
-  loadDotEnv();
-  const client = chatClientFromEnv();
-  for (const model of [values.model, values["attacker-model"]]) llmConfigForModel(model);
-  const agent = agentFor(values.agent, values.model, client, values.vision);
   const wanted = values.seeds
     .split(",")
     .map((s) => s.trim())
@@ -209,6 +206,10 @@ async function main(): Promise<number> {
   console.log(`${describeEstimate(estimate, maxUsd)}; at most, plus the attacker's rewrites`);
   if (values.estimate) return 0;
 
+  loadDotEnv();
+  const client = chatClientFromEnv();
+  for (const model of [values.model, values["attacker-model"]]) llmConfigForModel(model);
+  const agent = agentFor(values.agent, values.model, client, values.vision);
   const outDir =
     values.out ?? join("ratings", `offchain-adaptive-${agent.name.replaceAll("/", "_")}`);
   assertPrivateDir(outDir, "an adaptive result");

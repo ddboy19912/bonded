@@ -91,7 +91,7 @@ saved, and --replay runs a saved set again exactly.
   --draft-held-out <n>       draft <n> new variants of each seed into the held-out directory
                              first (at most 200 per seed). The spending cap stops the drafting
   --estimate                 print the planned episodes and their estimated cost, from measured
-                             per-episode costs, then stop without running anything
+                             per-episode costs, then stop. It calls no model, so it needs no API key
   --draft-only               stop after drafting the held-out variants: print the spend and run no
                              episodes. Needs --draft-held-out, and can't be combined with --fresh
                              or --replay
@@ -184,16 +184,19 @@ async function main() {
     ? parsePushedChannels(values["push-channels"])
     : undefined;
 
-  loadDotEnv();
-  const client = chatClientFromEnv();
-  // Meta's models go to Meta Model API: check every model's key now, before anything runs.
+  // An estimate is a local sum. Keys are checked only when a run will call a model.
   const models = [
     values.model,
     ...(values.fresh && !values.replay ? [values["generator-model"]] : []),
     ...(draftCount !== undefined ? [values["generator-model"]] : []),
     values["counterparty-model"],
   ];
-  for (const model of models) llmConfigForModel(model);
+  let client: ChatClient | undefined;
+  if (!values.estimate) {
+    loadDotEnv();
+    for (const model of models) llmConfigForModel(model);
+    client = chatClientFromEnv();
+  }
   const cap = new SpendingCap({ maxUsd, ...metaCapFallback(...models) });
   const out =
     values.out ??
@@ -227,7 +230,7 @@ async function main() {
   } else if (values.fresh) {
     ({ variants, candidates } = await draftVariants({
       seeds: library,
-      client,
+      client: client!,
       model: values["generator-model"],
       onUsage: (u) => cap.add(u),
     }));
@@ -253,7 +256,7 @@ async function main() {
       const drafted = await draftHeldOut({
         seeds: library,
         perSeed: draftCount,
-        client,
+        client: client!,
         model: values["generator-model"],
         dir,
         onUsage: (u) => cap.add(u),
@@ -324,7 +327,7 @@ async function main() {
   console.log(describeEstimate(estimate, maxUsd));
   if (values.estimate) return;
   const { episodes, notShown, skipped, outOfCredits, counterpartyTurns } = await runOffchainBatch({
-    agent: () => agentFor(values.agent, values.model, client, values.vision),
+    agent: () => agentFor(values.agent, values.model, client!, values.vision),
     seesImages: values.agent === "payables" && values.vision,
     images: !values["text-only"],
     attackSeeds,
@@ -336,7 +339,7 @@ async function main() {
     runs,
     parallel,
     cap,
-    client,
+    client: client!,
     counterpartyModel: values["counterparty-model"],
   });
   // The score is the published set only. Held-out variants are a private finding, so a run
@@ -373,7 +376,7 @@ async function main() {
   const probes: Record<string, ProbeResult> = values["probe-counterparty"]
     ? await probeCounterparties({
         seeds: library,
-        client,
+        client: client!,
         model: values["counterparty-model"],
         cap,
       })
@@ -452,7 +455,7 @@ async function main() {
   }
   if (notShown.length) console.log(`not run, the agent sees no images: ${notShown.join(", ")}`);
   const header = {
-    agent: agentFor(values.agent, values.model, client, values.vision).name,
+    agent: agentFor(values.agent, values.model, client!, values.vision).name,
     attribution,
     exposure,
     vision: values.vision,
