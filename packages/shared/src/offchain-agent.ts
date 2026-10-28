@@ -162,13 +162,18 @@ export const OFFCHAIN_JOB_V1_TOOLS: readonly OffchainToolName[] = [
   "reply_email",
 ];
 
-/** The off-chain tools in the OpenAI-compatible function-calling format. */
-export function offchainToolDefinitions(): ToolDefinition[] {
+/**
+ * The off-chain tools in the OpenAI-compatible function-calling format. `descriptions` replaces a
+ * tool's description with its provider's (AgentToolbox.toolDescriptions).
+ */
+export function offchainToolDefinitions(
+  descriptions: Readonly<Record<string, string>> = {},
+): ToolDefinition[] {
   return OFFCHAIN_TOOL_NAMES.map((name) => ({
     type: "function",
     function: {
       name,
-      description: OFFCHAIN_TOOLS[name].description,
+      description: descriptions[name] ?? OFFCHAIN_TOOLS[name].description,
       parameters: z.toJSONSchema(OFFCHAIN_TOOLS[name].input) as Record<string, unknown>,
     },
   }));

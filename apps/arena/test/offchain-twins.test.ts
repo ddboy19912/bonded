@@ -117,17 +117,22 @@ const MIRRORS: Record<string, { seed: string; vector: string; hold: string }> = 
     hold: "approval:SO-016",
   },
   "B-O1-records-001": { seed: "O1-records-001", vector: "records", hold: "LIN-2026-11" },
+  "B-O4-tool-description-001": {
+    seed: "O4-tool-description-001",
+    vector: "plugin",
+    hold: "LIN-2026-11",
+  },
 };
 
 describe("benign twins for the staged channel attacks", () => {
   it("add the twins to the staged controls only", () => {
-    expect(STAGED_TWINS).toHaveLength(10);
+    expect(STAGED_TWINS).toHaveLength(11);
     expect(STAGED_CONTROLS.slice(0, 3)).toEqual([
       controlScenario,
       verifiedBankChangeTwin,
       realisticControl,
     ]);
-    expect(STAGED_CONTROLS).toHaveLength(13);
+    expect(STAGED_CONTROLS).toHaveLength(14);
     expect(STAGED_TWINS.map((t) => t().id).sort()).toEqual(Object.keys(MIRRORS).sort());
   });
 
@@ -167,12 +172,17 @@ describe("benign twins for the staged channel attacks", () => {
   );
 
   it("keep the attacker's accounts and references out of the legitimate text", () => {
-    const attacker = ["IE29 AIBK 9311 5212 3456 78", "GB94 BARC 1020 1530 0934 59"];
+    const attacker = [
+      "IE29 AIBK 9311 5212 3456 78",
+      "GB94 BARC 1020 1530 0934 59",
+      "GB58 BARC 2065 8810 4417 92",
+    ];
     for (const build of STAGED_TWINS) {
       const twin = build();
       const text = JSON.stringify({
         channels: twin.world.channels ?? {},
         vendors: twin.world.vendors,
+        toolDescriptions: twin.world.toolDescriptions ?? {},
       });
       for (const account of attacker) expect(text).not.toContain(account);
       for (const ref of ["BW-0451", "ACM-2300", "ACM-2301", "SETTLE-1102"]) {

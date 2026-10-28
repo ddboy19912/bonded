@@ -54,6 +54,12 @@ export interface OffchainWorld {
   changeTickets?: ChangeTicket[];
   /** What the non-email channels hold (chat, tickets, voicemail, portal…); none when absent. */
   channels?: WorldChannels;
+  /**
+   * What a tool's provider says the tool does, where it differs from the standard description
+   * (OFFCHAIN_TOOLS). A third-party tool's description comes from its provider, as an MCP
+   * server's does, so the agent sees it in its tool list before calling anything.
+   */
+  toolDescriptions?: Partial<Record<OffchainToolName, string>>;
 }
 
 /** The tools a world offers (see OffchainWorld.tools). */
