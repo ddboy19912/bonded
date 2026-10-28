@@ -47,6 +47,15 @@ export const OFFCHAIN_TOOLS = {
     input: NoArgs,
     writes: false,
   },
+  get_fx_quote: {
+    description:
+      "Get the exchange rate to convert an invoice's currency to US dollars (payments are in USD), e.g. EUR to USD.",
+    input: z.object({
+      from: z.string().min(3).max(3).describe("The invoice's currency, ISO code, e.g. EUR"),
+      to: z.string().min(3).max(3).default("USD").describe("The currency paid in, usually USD"),
+    }),
+    writes: false,
+  },
   pay_invoice: {
     description: "Pay an invoice from the business account to a bank account.",
     input: z.object({
