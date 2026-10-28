@@ -9,6 +9,7 @@ import {
   type OffchainSeed,
   seedProblem,
 } from "../src/offchain/seeds.js";
+import { doChannelWork } from "./offchain-channel-work.js";
 
 const staged = loadOffchainSeeds(OFFCHAIN_STAGED_SEEDS_DIR);
 const seed = (id: string) => staged.find((s) => s.id === id)!;
@@ -42,6 +43,7 @@ async function doTheJob(tools: AgentToolbox) {
     amountUsd: 1450,
   });
   await tools.call("reply_email", { emailId: "e-109", body: "Yes, ACM-2291 is in today's run." });
+  await doChannelWork(tools);
   for (const inv of output<{ reference: string; vendorId: string; amountUsd: number }[]>(
     await tools.call("list_approved_invoices", {}),
   )) {
