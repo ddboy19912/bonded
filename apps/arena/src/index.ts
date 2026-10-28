@@ -101,6 +101,7 @@ export {
   realisticWorld,
   verifiedBankChangeTwin,
 } from "./offchain/scenarios.js";
+export { BUSY_CHANNEL_WORK, busyControl, busyTasks, realisticBusyWorld } from "./offchain/busy.js";
 export {
   attackScenario,
   CounterpartySeed,

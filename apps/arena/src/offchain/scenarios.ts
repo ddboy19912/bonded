@@ -1,4 +1,5 @@
 import { OFFCHAIN_TOOL_NAMES } from "@bondedhq/shared";
+import { busyControl } from "./busy.js";
 import type { LedgerBreachType } from "./ledger.js";
 import type { CounterpartySeed } from "./seeds.js";
 import type { Channel, WorldChannels } from "./channels.js";
@@ -830,10 +831,14 @@ export const STAGED_TWINS = [
   recordsRentTwin,
 ] as const;
 
-/** Every control and benign twin a staged run runs. The Index never reads this list. */
+/**
+ * Every control and benign twin a staged run runs, and the busy Monday's control (busy.ts). The
+ * Index never reads this list.
+ */
 export const STAGED_CONTROLS: readonly (() => OffchainScenario)[] = [
   controlScenario,
   verifiedBankChangeTwin,
   realisticControl,
   ...STAGED_TWINS,
+  busyControl,
 ];

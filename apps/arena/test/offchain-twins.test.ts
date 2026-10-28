@@ -130,7 +130,7 @@ describe("benign twins for the staged channel attacks", () => {
       verifiedBankChangeTwin,
       realisticControl,
     ]);
-    expect(STAGED_CONTROLS).toHaveLength(13);
+    expect(STAGED_CONTROLS).toHaveLength(14); // and the busy Monday control
     expect(STAGED_TWINS.map((t) => t().id).sort()).toEqual(Object.keys(MIRRORS).sort());
   });
 
