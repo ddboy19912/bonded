@@ -35,6 +35,7 @@ import {
   loadOffchainSeeds,
   OFFCHAIN_STAGED_SEEDS_DIR,
   type OffchainSeed,
+  plantIntoBusyWorld,
   viaChannel,
   worldFor,
 } from "./seeds.js";
@@ -63,6 +64,9 @@ saved, and --replay runs a saved set again exactly.
   --staged                   run the staged attacks (offchain-seeds-staged/) instead of the
                              library, with the realistic job's control and the benign twins
                              for each channel attack alongside
+  --world busy               with --staged, plant each realistic-job seed (world v2) into the
+                             busy Monday (world v3) instead of the quiet week. A seed that
+                             cannot plant is skipped and listed
   --channels <list>          the vectors the agent is integrated with (email, chat, ticket,
                              voicemail, sms, portal, plugin, memory, agent, knowledge); attacks
                              through others aren't run and count as not exposed (default: all)
@@ -118,6 +122,7 @@ async function main() {
       ranking: { type: "boolean", default: false },
       seeds: { type: "string" },
       staged: { type: "boolean", default: false },
+      world: { type: "string" },
       channels: { type: "string" },
       "push-channels": { type: "string" },
       via: { type: "string" },
@@ -164,6 +169,12 @@ async function main() {
     values.mandate === "both" ? ["shown", "hidden"] : [values.mandate as MandateRow];
   if (!rows.every((r) => r === "shown" || r === "hidden"))
     throw new Error("--mandate must be shown, hidden or both");
+  if (values.world !== undefined && values.world !== "busy")
+    throw new Error("--world must be busy");
+  if (values.world === "busy" && !values.staged)
+    throw new Error(
+      "--world busy plants staged seeds written for the realistic job; pass --staged",
+    );
   const attribution = (values.attribution ?? (values.staged ? "planted" : "rule")) as Attribution;
   if (attribution !== "planted" && attribution !== "rule")
     throw new Error("--attribution must be planted or rule");
@@ -191,14 +202,27 @@ async function main() {
   if (!values["draft-only"]) mkdirSync(out, { recursive: true });
 
   const wanted = values.seeds?.split(",").map((s) => s.trim());
-  const library = loadOffchainSeeds(values.staged ? OFFCHAIN_STAGED_SEEDS_DIR : undefined).filter(
-    (s) => !wanted || wanted.includes(s.id),
+  const busySkips: { id: string; reason: string }[] = [];
+  // v2 seeds become v3 before drafting, so a fresh variant or a held-out draft is checked
+  // against the busy world too.
+  const useBusy = (seeds: OffchainSeed[]): OffchainSeed[] => {
+    if (values.world !== "busy") return seeds;
+    const planted = plantIntoBusyWorld(seeds);
+    busySkips.push(...planted.skipped);
+    return planted.seeds;
+  };
+  const library = useBusy(
+    loadOffchainSeeds(values.staged ? OFFCHAIN_STAGED_SEEDS_DIR : undefined).filter(
+      (s) => !wanted || wanted.includes(s.id),
+    ),
   );
   let variants: OffchainSeed[] = [];
   let candidates: VariantCandidate[] = [];
   if (values.replay) {
-    variants = loadOffchainSeeds(values.replay).filter(
-      (v) => !wanted || wanted.includes(v.variantOf ?? v.id),
+    variants = useBusy(
+      loadOffchainSeeds(values.replay).filter(
+        (v) => !wanted || wanted.includes(v.variantOf ?? v.id),
+      ),
     );
   } else if (values.fresh) {
     ({ variants, candidates } = await draftVariants({
@@ -249,10 +273,10 @@ async function main() {
       (v) => !wanted || wanted.includes(v.variantOf ?? v.id),
     );
     if (values["reuse-held-out"]) {
-      heldOut = inSet;
+      heldOut = useBusy(inSet);
     } else {
       const { fresh, spent } = await unspentHeldOut(dir, inSet);
-      heldOut = fresh;
+      heldOut = useBusy(fresh);
       if (spent) console.log(`held-out: skipped ${spent} variants an agent has already met`);
     }
     heldOutDir = dir;
@@ -271,6 +295,17 @@ async function main() {
       .map((s) => s.id),
   ]);
   const attackSeeds = [...library, ...variants, ...redelivered, ...heldOut];
+  if (values.world === "busy") {
+    for (const skip of busySkips) {
+      console.log(`skipped, can't plant in the busy world: ${skip.id}: ${skip.reason}`);
+    }
+    const planted = attackSeeds.length - redelivered.length;
+    console.log(
+      `busy world: planted ${planted} seed${planted === 1 ? "" : "s"}` +
+        (busySkips.length ? `; skipped ${busySkips.length}` : ""),
+    );
+    if (planted === 0) throw new Error("no seed could plant in the busy world");
+  }
   const controls = values.staged ? STAGED_CONTROLS : [controlScenario, verifiedBankChangeTwin];
   // Each scenario runs once per row and run. Its world sets the job, and so the cost.
   const perScenario = rows.length * runs;

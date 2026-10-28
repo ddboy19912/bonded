@@ -31,6 +31,7 @@ import {
   loadOffchainSeeds,
   OFFCHAIN_STAGED_SEEDS_DIR,
   type OffchainSeed,
+  plantIntoBusyWorld,
   seedNeedsVision,
   worldFor,
 } from "./seeds.js";
@@ -64,6 +65,9 @@ beside each result.
   --mandate <row>        shown | hidden: tell the agent the mandate's rules, or only its job
                          (default: hidden; the ledger enforces either way)
   --staged               load apps/arena/offchain-seeds-staged instead of the published library
+  --world busy           with --staged, plant each realistic-job seed (world v2) into the busy
+                         Monday (world v3) instead of the quiet week. A seed that cannot plant
+                         is skipped and listed
   --push-channels <spec> deliver these channels in the briefing (all, or a comma-separated
                          list of chat, ticket, voicemail, sms, portal, plugin, memory, agent,
                          knowledge). Default: none
@@ -122,6 +126,7 @@ async function main(): Promise<number> {
       feedback: { type: "string", default: "trace" },
       mandate: { type: "string", default: "hidden" },
       staged: { type: "boolean", default: false },
+      world: { type: "string" },
       "push-channels": { type: "string" },
       vision: { type: "boolean", default: false },
       "attacker-reasoning": { type: "string", default: "off" },
@@ -152,6 +157,12 @@ async function main(): Promise<number> {
     console.log(USAGE);
     return values.help ? 0 : 1;
   }
+  if (values.world !== undefined && values.world !== "busy")
+    throw new Error("--world must be busy");
+  if (values.world === "busy" && !values.staged)
+    throw new Error(
+      "--world busy plants staged seeds written for the realistic job; pass --staged",
+    );
   const pushedChannels = values["push-channels"]
     ? parsePushedChannels(values["push-channels"])
     : undefined;
@@ -165,8 +176,21 @@ async function main(): Promise<number> {
     .map((s) => s.trim())
     .filter(Boolean);
   const library = loadOffchainSeeds(values.staged ? OFFCHAIN_STAGED_SEEDS_DIR : undefined);
-  const seeds = selectSeeds(library, wanted);
-  if (seeds.length === 0) throw new Error(`no seeds match ${values.seeds}`);
+  const selected = selectSeeds(library, wanted);
+  if (selected.length === 0) throw new Error(`no seeds match ${values.seeds}`);
+  let seeds = selected;
+  if (values.world === "busy") {
+    const busy = plantIntoBusyWorld(selected);
+    for (const skip of busy.skipped) {
+      console.log(`skipped, can't plant in the busy world: ${skip.id}: ${skip.reason}`);
+    }
+    seeds = busy.seeds;
+    console.log(
+      `busy world: planted ${seeds.length} seed${seeds.length === 1 ? "" : "s"}` +
+        (busy.skipped.length ? `; skipped ${busy.skipped.length}` : ""),
+    );
+    if (seeds.length === 0) throw new Error("no seed could plant in the busy world");
+  }
   // At most the seed's own run plus every candidate of every rewrite, per seed (fewer when one
   // gets through). The attacker's rewrites add a little on top. Switching channels does not add
   // episodes: a candidate is delivered one way.
@@ -191,7 +215,8 @@ async function main(): Promise<number> {
   mkdirSync(outDir, { recursive: true });
   console.log(
     `Agent ${agent.name}, attacker ${values["attacker-model"]}, feedback ${feedback}, ` +
-      `mandate ${mandate}, ${rounds} rewrites, ${candidates} candidate${candidates === 1 ? "" : "s"} ` +
+      `mandate ${mandate}${values.world === "busy" ? ", busy Monday" : ""}, ${rounds} rewrites, ` +
+      `${candidates} candidate${candidates === 1 ? "" : "s"} ` +
       `per round${values["switch-channels"] ? ", may switch channels" : ""}, up to $${maxUsd} in all\n`,
   );
   const results: OffchainAdaptiveResult[] = [];

@@ -390,6 +390,31 @@ export function viaChannel(
 export const worldFor = (seed: Pick<OffchainSeed, "world">) =>
   seed.world === "v3" ? realisticBusyWorld() : seed.world === "v2" ? realisticWorld() : baseWorld();
 
+/**
+ * Plant realistic-job seeds (world v2) into the busy Monday (world v3). A seed already written
+ * for v3 is checked again. One that cannot plant is left out, with the reason from `seedProblem`.
+ * Seeds for the first job are left out: the busy world is the realistic job, only busier.
+ */
+export function plantIntoBusyWorld(seeds: readonly OffchainSeed[]): {
+  seeds: OffchainSeed[];
+  skipped: { id: string; reason: string }[];
+} {
+  const kept: OffchainSeed[] = [];
+  const skipped: { id: string; reason: string }[] = [];
+  for (const seed of seeds) {
+    if (seed.world !== "v2" && seed.world !== "v3") {
+      skipped.push({ id: seed.id, reason: "not written for the realistic job (world v2)" });
+      continue;
+    }
+    const busy =
+      seed.world === "v3" ? seed : OffchainSeed.parse({ ...structuredClone(seed), world: "v3" });
+    const problem = seedProblem(busy);
+    if (problem) skipped.push({ id: seed.id, reason: problem });
+    else kept.push(busy);
+  }
+  return { seeds: kept, skipped };
+}
+
 /** The replies, approvals and bank changes a seed's job requires (none in the first job). */
 const jobTasksFor = (seed: Pick<OffchainSeed, "world">) =>
   seed.world === "v3" ? busyTasks() : seed.world === "v2" ? REALISTIC_TASKS : null;

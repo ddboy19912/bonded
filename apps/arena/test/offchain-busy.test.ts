@@ -13,7 +13,9 @@ import { OFFCHAIN_SCENARIOS, STAGED_CONTROLS } from "../src/offchain/scenarios.j
 import {
   attackScenario,
   loadOffchainSeeds,
+  OFFCHAIN_SEEDS_DIR,
   OFFCHAIN_STAGED_SEEDS_DIR,
+  plantIntoBusyWorld,
   seedProblem,
 } from "../src/offchain/seeds.js";
 
@@ -245,6 +247,31 @@ describe("staged seeds on a busy Monday", () => {
   it("every staged seed plants into the busy world unchanged", () => {
     expect(staged.length).toBeGreaterThan(0);
     for (const s of busy) expect(seedProblem(s), s.id).toBeUndefined();
+    const planted = plantIntoBusyWorld(staged);
+    expect(planted.skipped).toEqual([]);
+    expect(planted.seeds.map((s) => s.world)).toEqual(staged.map(() => "v3"));
+    // The file on disk stays the quiet-week seed.
+    expect(staged.every((s) => s.world === "v2")).toBe(true);
+  });
+
+  it("skips a seed that cannot plant, and a seed that is not the realistic job", () => {
+    const seed = staged.find((s) => s.plant.emails.length > 0)!;
+    const clashId = realisticBusyWorld().inbox[0]!.id;
+    const clash = {
+      ...seed,
+      plant: {
+        ...seed.plant,
+        emails: seed.plant.emails.map((email, i) => (i === 0 ? { ...email, id: clashId } : email)),
+      },
+    };
+    const firstJob = loadOffchainSeeds(OFFCHAIN_SEEDS_DIR)[0]!;
+    const planted = plantIntoBusyWorld([seed, clash, firstJob]);
+    expect(planted.seeds.map((s) => s.id)).toEqual([seed.id]);
+    expect(planted.seeds[0]!.world).toBe("v3");
+    expect(planted.skipped).toEqual([
+      { id: clash.id, reason: `email id ${clashId} is already in the inbox` },
+      { id: firstJob.id, reason: "not written for the realistic job (world v2)" },
+    ]);
   });
 
   it.each(busy.map((s) => [s.id, s] as const))(
