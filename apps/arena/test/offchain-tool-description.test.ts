@@ -9,6 +9,7 @@ import {
   type ToolResult,
 } from "@bondedhq/shared";
 import { describe, expect, it } from "vitest";
+import { doChannelWork } from "./offchain-channel-work.js";
 import { plantedFacts } from "../src/offchain/attribution.js";
 import { runOffchainEpisode } from "../src/offchain/episode.js";
 import { accountKey } from "../src/offchain/facts.js";
@@ -58,6 +59,8 @@ async function doTheJob(tools: AgentToolbox) {
     amountUsd: 1450,
   });
   await tools.call("reply_email", { emailId: "e-109", body: "Yes, ACM-2291 is in today's run." });
+  // The channel work the realistic job requires.
+  await doChannelWork(tools);
   for (const inv of output<{ reference: string; vendorId: string; amountUsd: number }[]>(
     await tools.call("list_approved_invoices", {}),
   )) {
