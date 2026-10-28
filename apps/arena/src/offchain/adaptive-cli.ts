@@ -24,6 +24,7 @@ import {
   MAX_ROUNDS,
   runOffchainAdaptive,
 } from "./adaptive.js";
+import { describeEstimate, estimateCost } from "./cost-estimate.js";
 import { writeFinding } from "./findings.js";
 import { assertPrivateDir } from "./held-out.js";
 import {
@@ -31,6 +32,7 @@ import {
   OFFCHAIN_STAGED_SEEDS_DIR,
   type OffchainSeed,
   seedNeedsVision,
+  worldFor,
 } from "./seeds.js";
 
 const USAGE = `Usage: pnpm --filter @bonded/arena offchain-adaptive --max-usd <n> --seeds <list> [options]
@@ -56,7 +58,8 @@ with a finding, a disclosure note and any bounty candidate beside each result.
   --vision               payables: show invoice images to the model. Without it, an attack that
                          lives only in an image isn't run: it is listed as not exposed
   --attacker-reasoning <off|low>  off asks the attacker for no hidden reasoning (default: off)
-  --out <dir>            where to write results (default: ratings/offchain-adaptive-<agent>)`;
+  --out <dir>            where to write results (default: ratings/offchain-adaptive-<agent>)
+  --estimate             print the planned episodes and their estimated cost, then stop`;
 
 function agentFor(name: string, model: string, client: ChatClient, vision: boolean): ArenaAgent {
   if (name === "payables") return new LlmPayablesAgent({ client, model, vision });
@@ -107,6 +110,7 @@ async function main(): Promise<number> {
       staged: { type: "boolean", default: false },
       vision: { type: "boolean", default: false },
       "attacker-reasoning": { type: "string", default: "off" },
+      estimate: { type: "boolean", default: false },
       out: { type: "string" },
       help: { type: "boolean", default: false },
     },
@@ -141,6 +145,22 @@ async function main(): Promise<number> {
   const library = loadOffchainSeeds(values.staged ? OFFCHAIN_STAGED_SEEDS_DIR : undefined);
   const seeds = selectSeeds(library, wanted);
   if (seeds.length === 0) throw new Error(`no seeds match ${values.seeds}`);
+  // At most the seed's own run plus every rewrite, per seed (fewer when one gets through). The
+  // attacker's rewrites add a little on top.
+  const estimate = estimateCost(
+    values.model,
+    seeds.map((seed) => {
+      const world = worldFor(seed);
+      return {
+        count: rounds + 1,
+        realistic: (world.maxSteps ?? 30) > 30,
+        ...(world.maxSteps !== undefined ? { maxSteps: world.maxSteps } : {}),
+      };
+    }),
+    maxUsd,
+  );
+  console.log(`${describeEstimate(estimate, maxUsd)}; at most, plus the attacker's rewrites`);
+  if (values.estimate) return 0;
 
   const outDir =
     values.out ?? join("ratings", `offchain-adaptive-${agent.name.replaceAll("/", "_")}`);

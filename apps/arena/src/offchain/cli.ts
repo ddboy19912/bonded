@@ -28,12 +28,14 @@ import {
   RANKING_RUNS,
   unspentHeldOut,
 } from "./held-out.js";
-import { STAGED_CONTROLS } from "./scenarios.js";
+import { describeEstimate, estimateCost } from "./cost-estimate.js";
+import { controlScenario, STAGED_CONTROLS, verifiedBankChangeTwin } from "./scenarios.js";
 import {
   loadOffchainSeeds,
   OFFCHAIN_STAGED_SEEDS_DIR,
   type OffchainSeed,
   viaChannel,
+  worldFor,
 } from "./seeds.js";
 import { erroredEpisode, type MandateRow, summarizeRows } from "./summary.js";
 
@@ -80,6 +82,8 @@ saved, and --replay runs a saved set again exactly.
                              rating exactly); nothing new is marked
   --draft-held-out <n>       draft <n> new variants of each seed into the held-out directory
                              first (at most 200 per seed). The spending cap stops the drafting
+  --estimate                 print the planned episodes and their estimated cost, from measured
+                             per-episode costs, then stop without running anything
   --draft-only               stop after drafting the held-out variants: print the spend and run no
                              episodes. Needs --draft-held-out, and can't be combined with --fresh
                              or --replay
@@ -115,6 +119,7 @@ async function main() {
       fresh: { type: "boolean", default: false },
       replay: { type: "string" },
       "held-out": { type: "string" },
+      estimate: { type: "boolean", default: false },
       "draft-held-out": { type: "string" },
       "draft-only": { type: "boolean", default: false },
       "reuse-held-out": { type: "boolean", default: false },
@@ -140,6 +145,10 @@ async function main() {
     throw new Error("--max-usd, --parallel and --runs must be positive");
   if (draftCount !== undefined && !(Number.isInteger(draftCount) && draftCount >= 1))
     throw new Error("--draft-held-out must be a positive integer");
+  if (values.estimate && (values.fresh || draftCount !== undefined))
+    throw new Error(
+      "--estimate spends nothing: it can't be combined with --fresh or --draft-held-out",
+    );
   if (values["draft-only"] && draftCount === undefined)
     throw new Error("--draft-only needs --draft-held-out <n>");
   if (values["draft-only"] && (values.fresh || values.replay !== undefined))
@@ -251,11 +260,29 @@ async function main() {
       .filter((s) => heldOut.some((h) => s.id.startsWith(`${h.id}-via-`)))
       .map((s) => s.id),
   ]);
+  const attackSeeds = [...library, ...variants, ...redelivered, ...heldOut];
+  const controls = values.staged ? STAGED_CONTROLS : [controlScenario, verifiedBankChangeTwin];
+  // Each scenario runs once per row and run. Its world sets the job, and so the cost.
+  const perScenario = rows.length * runs;
+  const estimate = estimateCost(
+    values.model,
+    [
+      ...attackSeeds.map((seed) => ({ world: worldFor(seed) })),
+      ...controls.map((build) => ({ world: build().world })),
+    ].map(({ world }) => ({
+      count: perScenario,
+      realistic: (world.maxSteps ?? 30) > 30,
+      ...(world.maxSteps !== undefined ? { maxSteps: world.maxSteps } : {}),
+    })),
+    maxUsd,
+  );
+  console.log(describeEstimate(estimate, maxUsd));
+  if (values.estimate) return;
   const { episodes, notShown, skipped, outOfCredits, counterpartyTurns } = await runOffchainBatch({
     agent: () => agentFor(values.agent, values.model, client, values.vision),
     seesImages: values.agent === "payables" && values.vision,
     images: !values["text-only"],
-    attackSeeds: [...library, ...variants, ...redelivered, ...heldOut],
+    attackSeeds,
     ...(values.channels ? { channels: values.channels.split(",").map((c) => c.trim()) } : {}),
     ...(values.staged ? { controls: STAGED_CONTROLS } : {}),
     attribution,
