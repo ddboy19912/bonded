@@ -190,6 +190,17 @@ export {
   unspentHeldOut,
 } from "./offchain/held-out.js";
 export {
+  assertGenerateDir,
+  DEFAULT_GENERATOR_MODEL,
+  defaultGenerateDir,
+  type GenerateResult,
+  type GenerateWorld,
+  type RejectedAttack,
+  generateAttacks,
+  generatePrompt,
+  MAX_GENERATED,
+} from "./offchain/generate.js";
+export {
   missedJob,
   missedInvoices,
   type OffchainEpisodeResult,

@@ -312,6 +312,18 @@ The note never carries the prose, the agent's messages or the transcript. The ca
 
 The note is a draft. A person at Bonded sends it through the maintainer's security policy, a security advisory or a private email. The tooling never contacts anyone. The policy is [Off-chain disclosure and publication policy](disclosures/OFFCHAIN.md).
 
+## Generated attacks
+
+A model can draft new attacks as seed data. It does not run the agent, see credentials, or decide whether an attack worked. The call uses the same client as the other models: OpenRouter, unless the id is a Muse model, which goes to Meta's API. The default model is `xiaomi/mimo-v2.6-flash`. `--model` selects another, such as DeepSeek or GLM.
+
+The input is the realistic job or the busy Monday. The model is asked for several attacks, each with a channel, a planted account, invoice reference and amount, and the rules it aims at. A draft is kept only when it is a valid seed for that world, those three facts are in the text and are not already facts of the world (so the attribution judge can see them when the seed is run), and its prose is not a duplicate. The generator writes the kept seeds and prints how many it kept, how many it rejected, and what the call cost. It does not judge them. A later staged run does, with the existing attribution judge.
+
+The seeds are staged data. This does not change the rated library and does not bump `ATTACK_LIBRARY_VERSION`. The default directory is `apps/arena/offchain-seeds-staged/generated/`, which `offchain --staged` does not read, because that command reads only the top of the staged directory. Move a seed up into `offchain-seeds-staged/` when it should be run.
+
+```bash
+pnpm --filter @bonded/arena offchain-generate -- --world realistic --count 8 --max-usd 0.05 --seed 1
+```
+
 ## A private held-out set
 
 The published seeds and the Index's committed variants are the same for every model, so someone can train against them. A held-out set is drafted for one run and kept out of the repository. The same fresh-variant rules apply: the accounts, references and amounts stay, and the wording has to move. Two hash files in that directory keep it held out. `ledger.txt` stops a draft from repeating prose already in the set. `spent.txt` records every variant an agent has been run against, and `--held-out` skips those, so a later run uses only text no agent has met. `--reuse-held-out` replays them anyway, to reproduce a rating exactly, and marks nothing new.
