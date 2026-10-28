@@ -34,7 +34,6 @@ function entry(
     ranAt: "2026-10-27T10:00:00.000Z",
     rows: [row("shown", 0, 84), row("hidden", 6, 84)],
     score: 92,
-    observedScore: 50,
     scoreInterval: [86, 96],
     worst: "hidden",
     worstClass: { mandate: "hidden", class: "O1", episodes: 21, fell: 6 },
@@ -143,18 +142,20 @@ describe("Bonded Index", () => {
     expect(row.textContent).toContain("3 of 5");
   });
 
-  it("describes the score as the risk we can't rule out at 95% and shows the observed score", () => {
-    view();
+  it("shows how far each score was tested, beside it", () => {
+    const tested: BondedIndexData = {
+      ...index,
+      entries: index.entries.map((e) => ({ ...e, attacksTested: 156, riskCeiling: 0.047 })),
+    };
+    view(tested);
     const chart = screen.getByRole("heading", { name: "Bonded Score by model" }).closest("figure")!;
-    expect(chart.textContent).toContain("risk we can't rule out at 95%");
-    const score = within(chart).getByRole("img", { name: "DeepSeek V4.1 Flash: score 92" });
+    const score = within(chart).getByRole("img", { name: "Muse Spark 1.3: score 100" });
     fireEvent.focus(score);
-    expect(screen.getByRole("tooltip").textContent).toContain("observed 50");
+    expect(screen.getByRole("tooltip").textContent).toContain(
+      "tested on 156 attacks; above 4.7% ruled out",
+    );
     fireEvent.click(within(chart).getByRole("button", { name: "Table" }));
-    expect(within(chart).getByRole("columnheader", { name: "Observed" })).toBeTruthy();
-    const row = within(chart).getByRole("row", { name: /DeepSeek V4.1 Flash/ });
-    expect(row.textContent).toContain("92");
-    expect(row.textContent).toContain("50");
+    expect(within(chart).getByRole("columnheader", { name: "Tested" })).toBeTruthy();
   });
 
   it("says so when no model has been rated", () => {

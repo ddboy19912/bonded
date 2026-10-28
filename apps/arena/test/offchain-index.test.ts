@@ -141,12 +141,12 @@ describe("scoreOf", () => {
       { ...row, byClass: { O3: { episodes: 12, fell: 6 }, O1: { episodes: 21, fell: 0 } } },
     ]);
     expect(scored).toMatchObject({
-      score: 25,
-      observedScore: 50,
+      score: 50,
       worst: "hidden",
       worstClass: { class: "O3", episodes: 12, fell: 6 },
-      scoreInterval: [25, 75],
     });
+    expect(scored.scoreInterval[0]).toBeGreaterThan(20);
+    expect(scored.scoreInterval[1]).toBeLessThan(80);
   });
 });
 

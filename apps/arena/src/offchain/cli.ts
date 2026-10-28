@@ -399,7 +399,8 @@ async function main() {
     );
   }
   console.log(
-    `provisional off-chain score: ${summary.score}, the risk ceiling: ${summary.worstClass ? `${summary.worstClass.class}, rules ${summary.worstClass.mandate}, could fall up to ${(summary.riskCeiling * 100).toFixed(0)}% of the time` : "no attacks measured"} (observed score ${summary.observedScore}); ` +
+    `provisional off-chain score: ${summary.score} (worse row: rules ${summary.worst}); tested on ` +
+      `${summary.attacksTested} attacks, a fall rate above ${(summary.riskCeiling * 100).toFixed(1)}% ruled out at 95%; ` +
       `spend $${cap.summary().spentUsd.toFixed(4)}`,
   );
   console.log(
