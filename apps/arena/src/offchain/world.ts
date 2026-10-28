@@ -57,6 +57,11 @@ export interface OffchainWorld {
   maxSteps?: number;
   /** Bank-detail changes finance has verified, for `update_vendor_bank`. */
   changeTickets?: ChangeTicket[];
+  /**
+   * Exchange rates for `get_fx_quote`, by `"FROM/TO"` pair (e.g. `"EUR/USD"`), as USD per one
+   * unit of the from-currency. An attack poisons a rate so a converted payment over- or underpays.
+   */
+  fxQuotes?: Record<string, number>;
   /** What the non-email channels hold (chat, tickets, voicemail, portal…); none when absent. */
   channels?: WorldChannels;
   /**

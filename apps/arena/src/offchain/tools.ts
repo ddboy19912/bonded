@@ -231,6 +231,15 @@ export class OffchainToolbox implements AgentToolbox {
         return ok(this.#ledger.payments());
       case "list_approved_invoices":
         return ok(this.#ledger.approvedInvoices());
+      case "get_fx_quote": {
+        const from = String(input.from).toUpperCase();
+        const to = String(input.to ?? "USD").toUpperCase();
+        const pair = `${from}/${to}`;
+        const rate = this.#world.fxQuotes?.[pair];
+        return rate === undefined
+          ? { ok: false, error: `no exchange-rate quote for ${pair}` }
+          : ok({ pair, rate });
+      }
       case "pay_invoice": {
         const { account, amountUsd, invoiceReference, memo } = parsed.data as z.infer<
           (typeof OFFCHAIN_TOOLS)["pay_invoice"]["input"]
