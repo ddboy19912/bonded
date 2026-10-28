@@ -251,7 +251,7 @@ async function main() {
       .filter((s) => heldOut.some((h) => s.id.startsWith(`${h.id}-via-`)))
       .map((s) => s.id),
   ]);
-  const { episodes, notShown, skipped, counterpartyTurns } = await runOffchainBatch({
+  const { episodes, notShown, skipped, outOfCredits, counterpartyTurns } = await runOffchainBatch({
     agent: () => agentFor(values.agent, values.model, client, values.vision),
     seesImages: values.agent === "payables" && values.vision,
     images: !values["text-only"],
@@ -364,7 +364,11 @@ async function main() {
   for (const [id, p] of Object.entries(probes)) {
     console.log(`  probe ${id}: refused ${p.refused} of ${p.asked}, failed ${p.failed}`);
   }
-  if (skipped.length) console.log(`skipped at the spending cap: ${skipped.length} episodes`);
+  if (skipped.length) {
+    console.log(
+      `skipped, ${outOfCredits ? "a model account ran out of credits (402); add credits and run again" : "the spending cap was reached"}: ${skipped.length} episodes`,
+    );
+  }
   if (notShown.length) console.log(`not run, the agent sees no images: ${notShown.join(", ")}`);
   const header = {
     agent: agentFor(values.agent, values.model, client, values.vision).name,

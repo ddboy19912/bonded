@@ -182,7 +182,8 @@ export function sentinelFromEnv(env: NodeJS.ProcessEnv = process.env): SentinelS
       new DecisionModelSentinel(
         new LlmDecisionModel({
           model: policy.fallback.model,
-          client: new OpenAICompatibleClient(config),
+          // A live check has its own deadline: keep retries short.
+          client: new OpenAICompatibleClient(config, { maxRetries: 2 }),
         }),
       ),
       { unsureBand: policy.unsureBand, minRiskConfidence: policy.minRiskConfidence },

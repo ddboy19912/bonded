@@ -3,6 +3,7 @@ import {
   agentToolDefinitions,
   chatClientForModel,
   isMetaModel,
+  isOutOfCredits,
   LlmError,
   llmConfigForModel,
   llmConfigFromEnv,
@@ -237,6 +238,50 @@ describe("OpenAICompatibleClient", () => {
     );
     await expect(client.complete({ model: "m", messages: [] })).resolves.toMatchObject(reply);
     expect(calls).toHaveLength(2);
+  });
+
+  it("waits as long as a rate limit's Retry-After says, up to a cap", async () => {
+    const { impl, calls } = fakeFetch(
+      new Response("slow down", { status: 429, headers: { "retry-after": "0.05" } }),
+      ok(reply),
+    );
+    const client = new OpenAICompatibleClient(
+      { baseUrl: OPENROUTER_BASE_URL, apiKey: "k" },
+      { fetch: impl, retryDelayMs: 60_000 },
+    );
+    const started = Date.now();
+    await expect(client.complete({ model: "m", messages: [] })).resolves.toMatchObject(reply);
+    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(calls).toHaveLength(2);
+  });
+
+  it("retries four times by default before giving up on a dropped connection", async () => {
+    const { impl, calls } = fakeFetch(
+      new Error("fetch failed"),
+      new Error("fetch failed"),
+      new Error("fetch failed"),
+      new Error("fetch failed"),
+      ok(reply),
+    );
+    const client = new OpenAICompatibleClient(
+      { baseUrl: OPENROUTER_BASE_URL, apiKey: "k" },
+      { fetch: impl, retryDelayMs: 1 },
+    );
+    await expect(client.complete({ model: "m", messages: [] })).resolves.toMatchObject(reply);
+    expect(calls).toHaveLength(5);
+  });
+
+  it("doesn't retry an out-of-credits error, and says it is one", async () => {
+    const { impl, calls } = fakeFetch(new Response("requires more credits", { status: 402 }));
+    const client = new OpenAICompatibleClient(
+      { baseUrl: OPENROUTER_BASE_URL, apiKey: "k" },
+      { fetch: impl, retryDelayMs: 1 },
+    );
+    const error = await client.complete({ model: "m", messages: [] }).catch((e: unknown) => e);
+    expect(isOutOfCredits(error)).toBe(true);
+    expect(isOutOfCredits(new Error("LLM request failed (402): no credits"))).toBe(true);
+    expect(isOutOfCredits(new Error("LLM request failed (400): bad model"))).toBe(false);
+    expect(calls).toHaveLength(1);
   });
 
   it("does not retry client errors, and reports the status and body", async () => {

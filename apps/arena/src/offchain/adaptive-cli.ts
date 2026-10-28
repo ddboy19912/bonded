@@ -12,6 +12,7 @@ import {
   type ArenaAgent,
   type ChatClient,
   chatClientFromEnv,
+  isOutOfCredits,
   llmConfigForModel,
 } from "@bondedhq/shared";
 import { OUT_OF_TOKENS, REFUSED } from "../adaptive.js";
@@ -152,6 +153,7 @@ async function main(): Promise<number> {
   const results: OffchainAdaptiveResult[] = [];
   const notExposed: string[] = [];
   const unrun: string[] = [];
+  let outOfCredits = false;
   // One budget for the whole run: each seed gets what the earlier ones left.
   let spent = 0;
   for (const seed of seeds) {
@@ -159,22 +161,32 @@ async function main(): Promise<number> {
       notExposed.push(seed.id);
       continue;
     }
-    if (spent >= maxUsd) {
+    if (spent >= maxUsd || outOfCredits) {
       unrun.push(seed.id);
       continue;
     }
-    const result = await runOffchainAdaptive({
-      client,
-      attackerModel: values["attacker-model"],
-      agent,
-      seed,
-      rounds,
-      feedback,
-      showMandate: mandate === "shown",
-      images: values.vision,
-      attackerReasoning: values["attacker-reasoning"] === "low" ? "low" : "off",
-      maxUsd: maxUsd - spent,
-    });
+    let result: OffchainAdaptiveResult;
+    try {
+      result = await runOffchainAdaptive({
+        client,
+        attackerModel: values["attacker-model"],
+        agent,
+        seed,
+        rounds,
+        feedback,
+        showMandate: mandate === "shown",
+        images: values.vision,
+        attackerReasoning: values["attacker-reasoning"] === "low" ? "low" : "off",
+        maxUsd: maxUsd - spent,
+      });
+    } catch (error) {
+      // A model account out of credits ends the run cleanly: finished seeds are already saved,
+      // and the rest are listed as not run. Anything else is a real failure.
+      if (!isOutOfCredits(error)) throw error;
+      outOfCredits = true;
+      unrun.push(seed.id);
+      continue;
+    }
     spent += result.spend.spentUsd;
     results.push(result);
     console.log(describe(result));
@@ -197,7 +209,11 @@ async function main(): Promise<number> {
   if (other) console.log(`${other} seeds saw only breaches of rules the attack doesn't aim at`);
   if (notExposed.length)
     console.log(`not exposed (the agent sees no images): ${notExposed.join(", ")}`);
-  if (unrun.length) console.log(`not run, the spending cap was reached: ${unrun.join(", ")}`);
+  if (unrun.length) {
+    console.log(
+      `not run, ${outOfCredits ? "a model account ran out of credits (402)" : "the spending cap was reached"}: ${unrun.join(", ")}`,
+    );
+  }
   console.log(`spend $${spent.toFixed(4)} of $${maxUsd}`);
   const tries = results.flatMap((r) => r.attempts);
   const invalid = tries.filter((a) => a.ruling === "invalid");
