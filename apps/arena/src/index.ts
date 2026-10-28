@@ -113,6 +113,7 @@ export {
   worldFor,
   type OffchainAttackClass,
   OffchainSeed,
+  plantIntoBusyWorld,
   seedProblem,
   seedVectors,
   viaChannel,

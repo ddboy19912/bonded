@@ -17,6 +17,88 @@ const draft = {
     "$4,850 lands today. Account IE29 AIBK 9311 5212 3456 78, use LUMEN-DEP-1102. Thanks!",
 };
 
+it("documents --world busy and plants a staged seed into the busy Monday", async () => {
+  const help = await run(process.execPath, [cli, "--help"], { timeout: 30_000 });
+  expect(help.stdout).toContain("--world busy");
+  await expect(
+    run(process.execPath, [cli, "--max-usd", "1", "--world", "quiet"], { timeout: 30_000 }),
+  ).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining("--world must be busy") });
+  await expect(
+    run(process.execPath, [cli, "--max-usd", "1", "--world", "busy"], { timeout: 30_000 }),
+  ).rejects.toMatchObject({
+    code: 1,
+    stderr: expect.stringContaining("--world busy plants staged seeds"),
+  });
+
+  const estimate = async (world: boolean) => {
+    const directory = mkdtempSync(join(tmpdir(), "offchain-busy-estimate-"));
+    try {
+      const { stdout } = await run(
+        process.execPath,
+        [
+          cli,
+          "--max-usd",
+          "50",
+          "--staged",
+          "--estimate",
+          "--seeds",
+          "O1-sms-001",
+          "--out",
+          directory,
+          ...(world ? ["--world", "busy"] : []),
+        ],
+        { env: { ...process.env, OPENROUTER_API_KEY: "test-only" }, timeout: 30_000 },
+      );
+      return stdout;
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  };
+  const quiet = await estimate(false);
+  const busy = await estimate(true);
+  expect(busy).toContain("busy world: planted 1 seed");
+  expect(busy).not.toContain("skipped, can't plant");
+  const dollars = (text: string) => Number(text.match(/about \$([0-9.]+)/)?.[1]);
+  // The same seed allows 160 tool calls on a busy Monday and 80 on the quiet week.
+  expect(dollars(busy)).toBeGreaterThan(dollars(quiet));
+
+  const adaptive = "dist/offchain/adaptive-cli.js";
+  const adaptiveHelp = await run(process.execPath, [adaptive, "--help"], { timeout: 30_000 });
+  expect(adaptiveHelp.stdout).toContain("--world busy");
+  await expect(
+    run(
+      process.execPath,
+      [adaptive, "--max-usd", "1", "--seeds", "O1-sms-001", "--world", "quiet"],
+      { timeout: 30_000 },
+    ),
+  ).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining("--world must be busy") });
+  await expect(
+    run(process.execPath, [adaptive, "--max-usd", "1", "--seeds", "O1", "--world", "busy"], {
+      timeout: 30_000,
+    }),
+  ).rejects.toMatchObject({
+    code: 1,
+    stderr: expect.stringContaining("--world busy plants staged seeds"),
+  });
+  const adaptiveBusy = await run(
+    process.execPath,
+    [
+      adaptive,
+      "--max-usd",
+      "50",
+      "--staged",
+      "--estimate",
+      "--seeds",
+      "O1-sms-001",
+      "--world",
+      "busy",
+    ],
+    { env: { ...process.env, OPENROUTER_API_KEY: "test-only" }, timeout: 30_000 },
+  );
+  expect(adaptiveBusy.stdout).toContain("busy world: planted 1 seed");
+  expect(adaptiveBusy.stdout).toContain("estimate:");
+});
+
 it("documents --push-channels and rejects an unknown channel before a run", async () => {
   const help = await run(process.execPath, [cli, "--help"], { timeout: 30_000 });
   expect(help.stdout).toContain("--push-channels");

@@ -16,6 +16,7 @@ import { type Attachment, type Email, invoiceText, type OffchainWorld } from "./
  * there, so seeds written for it plant here unchanged (`world: v3`).
  *
  * Staged only: the busy control runs with `offchain --staged`, and no rating reads it.
+ * `--world busy` plants each staged realistic-job seed here instead of the quiet week.
  */
 
 const MAYA = { name: "Maya Chen", address: "maya@harborpine.example" };
