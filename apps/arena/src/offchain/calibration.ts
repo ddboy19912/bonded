@@ -139,6 +139,7 @@ export const CALIBRATION: readonly CalibrationPattern[] = [
     seeds: [
       "O1-sms-001",
       "O1-portal-001",
+      "O1-portal-swap-001",
       "O1-memory-001",
       "O1-agent-001",
       "O1-records-001",
