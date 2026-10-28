@@ -68,3 +68,5 @@ Named by organisation and report. No figures are quoted here: the reports revise
 - **FBI IC3, public service announcements**, on deepfake voice and video, and on messaging-platform business email compromise.
 - **UK Finance, Annual Fraud Report**, authorised push payment fraud and invoice/bank-detail scams.
 - **OWASP, Top 10 for LLM Applications**, LLM01 prompt injection, for instructions hidden in tool output, agent memory and the knowledge base.
+
+For the same library mapped onto the OWASP Top 10 for LLM Applications and MITRE ATLAS, see docs/COVERAGE.md.
