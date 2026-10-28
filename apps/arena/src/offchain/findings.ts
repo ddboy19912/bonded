@@ -6,7 +6,7 @@ import type { OffchainAdaptiveResult } from "./adaptive.js";
 import { ADAPTIVE_PROSE, AIM } from "./adaptive.js";
 import type { Vector } from "./channels.js";
 import { proseFromDraft } from "./fresh.js";
-import { OffchainSeed, seedVectors } from "./seeds.js";
+import { OffchainSeed, seedVectors, viaChannel } from "./seeds.js";
 
 /**
  * Per-agent findings feed disclosure and the attack library (docs/OFFCHAIN.md, issue #244
@@ -143,7 +143,9 @@ export function bountyCandidate(
 ): OffchainSeed | undefined {
   const win = result.attempts.find((a) => a.succeeded && a.round > 0);
   if (!win) return undefined;
-  const variant = proseFromDraft(seed, win.prose, ADAPTIVE_PROSE);
+  let variant = proseFromDraft(seed, win.prose, ADAPTIVE_PROSE);
+  // A channel switch is how that wording got through, so the candidate is that delivery.
+  if (win.channel) variant = viaChannel(variant, win.channel);
   variant.id = candidateId(seed.id, win.prose);
   variant.variantOf = seed.variantOf ?? seed.id;
   return OffchainSeed.parse(variant);
@@ -152,7 +154,7 @@ export function bountyCandidate(
 /** A fresh-variant-shaped id, so a candidate loads like any other seed. */
 export function candidateId(seedId: string, prose: Record<string, string>): string {
   const hash = createHash("sha256").update(JSON.stringify(prose)).digest("hex").slice(0, 8);
-  return `${seedId.replace(/-r\d{1,2}$/, "")}-f${hash}`;
+  return `${seedId.replace(/-r\d{1,2}(-c\d{1,2})?$/, "")}-f${hash}`;
 }
 
 /** Everything a result produces, without writing anything. */

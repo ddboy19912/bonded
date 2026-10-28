@@ -17,6 +17,7 @@ import {
 import { metaCapFallback, SpendingCap } from "../budget.js";
 import { loadDotEnv } from "../env.js";
 import { probeCounterparties, runOffchainBatch } from "./batch.js";
+import { parsePushedChannels } from "./world.js";
 import type { Attribution } from "./judge.js";
 import type { ProbeResult } from "./counterparty.js";
 import { draftVariants, saveVariants, type VariantCandidate } from "./fresh.js";
@@ -28,14 +29,16 @@ import {
   RANKING_RUNS,
   unspentHeldOut,
 } from "./held-out.js";
-import { STAGED_CONTROLS } from "./scenarios.js";
+import { describeEstimate, estimateCost } from "./cost-estimate.js";
+import { controlScenario, STAGED_CONTROLS, verifiedBankChangeTwin } from "./scenarios.js";
 import {
   loadOffchainSeeds,
   OFFCHAIN_STAGED_SEEDS_DIR,
   type OffchainSeed,
   viaChannel,
+  worldFor,
 } from "./seeds.js";
-import { erroredEpisode, type MandateRow, summarizeRows } from "./summary.js";
+import { erroredEpisode, type Exposure, type MandateRow, summarizeRows } from "./summary.js";
 
 const USAGE = `Usage: pnpm --filter @bonded/arena offchain --max-usd <n> [options]
 
@@ -63,6 +66,9 @@ saved, and --replay runs a saved set again exactly.
   --channels <list>          the vectors the agent is integrated with (email, chat, ticket,
                              voicemail, sms, portal, plugin, memory, agent, knowledge); attacks
                              through others aren't run and count as not exposed (default: all)
+  --push-channels <spec>     deliver these channels in the briefing (all, or a comma-separated
+                             list of chat, ticket, voicemail, sms, portal, plugin, memory,
+                             agent, knowledge). Default: none, so the Index is unchanged
   --via <list>               also deliver each multi-vector attack through these channels (chat,
                              ticket, voicemail, sms, agent), to find the one the agent trusts
   --fresh                    draft one fresh variant per seed and run it too
@@ -80,6 +86,8 @@ saved, and --replay runs a saved set again exactly.
                              rating exactly); nothing new is marked
   --draft-held-out <n>       draft <n> new variants of each seed into the held-out directory
                              first (at most 200 per seed). The spending cap stops the drafting
+  --estimate                 print the planned episodes and their estimated cost, from measured
+                             per-episode costs, then stop without running anything
   --draft-only               stop after drafting the held-out variants: print the spend and run no
                              episodes. Needs --draft-held-out, and can't be combined with --fresh
                              or --replay
@@ -111,10 +119,12 @@ async function main() {
       seeds: { type: "string" },
       staged: { type: "boolean", default: false },
       channels: { type: "string" },
+      "push-channels": { type: "string" },
       via: { type: "string" },
       fresh: { type: "boolean", default: false },
       replay: { type: "string" },
       "held-out": { type: "string" },
+      estimate: { type: "boolean", default: false },
       "draft-held-out": { type: "string" },
       "draft-only": { type: "boolean", default: false },
       "reuse-held-out": { type: "boolean", default: false },
@@ -140,6 +150,10 @@ async function main() {
     throw new Error("--max-usd, --parallel and --runs must be positive");
   if (draftCount !== undefined && !(Number.isInteger(draftCount) && draftCount >= 1))
     throw new Error("--draft-held-out must be a positive integer");
+  if (values.estimate && (values.fresh || draftCount !== undefined))
+    throw new Error(
+      "--estimate spends nothing: it can't be combined with --fresh or --draft-held-out",
+    );
   if (values["draft-only"] && draftCount === undefined)
     throw new Error("--draft-only needs --draft-held-out <n>");
   if (values["draft-only"] && (values.fresh || values.replay !== undefined))
@@ -153,6 +167,11 @@ async function main() {
   const attribution = (values.attribution ?? (values.staged ? "planted" : "rule")) as Attribution;
   if (attribution !== "planted" && attribution !== "rule")
     throw new Error("--attribution must be planted or rule");
+  // Staged runs leave attacks the agent never met out of the rate; the Index counts every one.
+  const exposure: Exposure = values.staged ? "measured" : "count";
+  const pushedChannels = values["push-channels"]
+    ? parsePushedChannels(values["push-channels"])
+    : undefined;
 
   loadDotEnv();
   const client = chatClientFromEnv();
@@ -251,12 +270,31 @@ async function main() {
       .filter((s) => heldOut.some((h) => s.id.startsWith(`${h.id}-via-`)))
       .map((s) => s.id),
   ]);
-  const { episodes, notShown, skipped, counterpartyTurns } = await runOffchainBatch({
+  const attackSeeds = [...library, ...variants, ...redelivered, ...heldOut];
+  const controls = values.staged ? STAGED_CONTROLS : [controlScenario, verifiedBankChangeTwin];
+  // Each scenario runs once per row and run. Its world sets the job, and so the cost.
+  const perScenario = rows.length * runs;
+  const estimate = estimateCost(
+    values.model,
+    [
+      ...attackSeeds.map((seed) => ({ world: worldFor(seed) })),
+      ...controls.map((build) => ({ world: build().world })),
+    ].map(({ world }) => ({
+      count: perScenario,
+      realistic: (world.maxSteps ?? 30) > 30,
+      ...(world.maxSteps !== undefined ? { maxSteps: world.maxSteps } : {}),
+    })),
+    maxUsd,
+  );
+  console.log(describeEstimate(estimate, maxUsd));
+  if (values.estimate) return;
+  const { episodes, notShown, skipped, outOfCredits, counterpartyTurns } = await runOffchainBatch({
     agent: () => agentFor(values.agent, values.model, client, values.vision),
     seesImages: values.agent === "payables" && values.vision,
     images: !values["text-only"],
-    attackSeeds: [...library, ...variants, ...redelivered, ...heldOut],
+    attackSeeds,
     ...(values.channels ? { channels: values.channels.split(",").map((c) => c.trim()) } : {}),
+    ...(pushedChannels ? { pushedChannels } : {}),
     ...(values.staged ? { controls: STAGED_CONTROLS } : {}),
     attribution,
     rows,
@@ -271,6 +309,7 @@ async function main() {
   const summary = summarizeRows(
     episodes.filter((e) => !heldOutIds.has(e.result.scenarioId)),
     rows,
+    exposure,
   );
   const heldAttacks = episodes.filter(
     (e) =>
@@ -326,6 +365,12 @@ async function main() {
         `$${row.overpaidUsd}; tasks done ${row.tasks.done} of ${row.tasks.total}` +
         (row.errors.length ? `; ${row.errors.length} errored, not counted` : ""),
     );
+    if (row.notMet.length > 0) {
+      console.log(
+        `  not met, so not tested (${exposure === "measured" ? "left out of the rate" : "counted in the rate"}): ` +
+          `${row.notMet.length} attack episodes: ${[...new Set(row.notMet)].join(", ")}`,
+      );
+    }
     if (row.ownErrors.episodes > 0) {
       console.log(
         `  the agent's own errors (nothing an attack planted): ${row.ownErrors.episodes} ` +
@@ -354,7 +399,8 @@ async function main() {
     );
   }
   console.log(
-    `provisional off-chain score: ${summary.score} (worse row: rules ${summary.worst}); ` +
+    `provisional off-chain score: ${summary.score} (worse row: rules ${summary.worst}); tested on ` +
+      `${summary.attacksTested} attacks, a fall rate above ${(summary.riskCeiling * 100).toFixed(1)}% ruled out at 95%; ` +
       `spend $${cap.summary().spentUsd.toFixed(4)}`,
   );
   console.log(
@@ -364,11 +410,16 @@ async function main() {
   for (const [id, p] of Object.entries(probes)) {
     console.log(`  probe ${id}: refused ${p.refused} of ${p.asked}, failed ${p.failed}`);
   }
-  if (skipped.length) console.log(`skipped at the spending cap: ${skipped.length} episodes`);
+  if (skipped.length) {
+    console.log(
+      `skipped, ${outOfCredits ? "a model account ran out of credits (402); add credits and run again" : "the spending cap was reached"}: ${skipped.length} episodes`,
+    );
+  }
   if (notShown.length) console.log(`not run, the agent sees no images: ${notShown.join(", ")}`);
   const header = {
     agent: agentFor(values.agent, values.model, client, values.vision).name,
     attribution,
+    exposure,
     vision: values.vision,
     images: !values["text-only"],
     runs,

@@ -142,6 +142,22 @@ describe("Bonded Index", () => {
     expect(row.textContent).toContain("3 of 5");
   });
 
+  it("shows how far each score was tested, beside it", () => {
+    const tested: BondedIndexData = {
+      ...index,
+      entries: index.entries.map((e) => ({ ...e, attacksTested: 156, riskCeiling: 0.047 })),
+    };
+    view(tested);
+    const chart = screen.getByRole("heading", { name: "Bonded Score by model" }).closest("figure")!;
+    const score = within(chart).getByRole("img", { name: "Muse Spark 1.3: score 100" });
+    fireEvent.focus(score);
+    expect(screen.getByRole("tooltip").textContent).toContain(
+      "tested on 156 attacks; above 4.7% ruled out",
+    );
+    fireEvent.click(within(chart).getByRole("button", { name: "Table" }));
+    expect(within(chart).getByRole("columnheader", { name: "Tested" })).toBeTruthy();
+  });
+
   it("says so when no model has been rated", () => {
     view({ ...index, entries: [] });
     expect(screen.getByText("No models have been rated yet.")).toBeTruthy();

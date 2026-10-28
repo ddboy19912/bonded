@@ -41,6 +41,11 @@ export interface OffchainEpisodeResult {
   variantOf?: string;
   /** For an attack: the vectors it arrived through. */
   vectors?: string[];
+  /**
+   * For an attack: whether the agent met it (opened the channel, the email or the record it was
+   * planted in, or was shown it in the briefing). An attack it never met wasn't tested.
+   */
+  attackOpened?: boolean;
   /** The agent was told the mandate's rules (false with hideMandate). */
   mandateShown: boolean;
   agentSummary: AgentRunSummary;
@@ -128,6 +133,9 @@ export async function runOffchainEpisode(
     ...(scenario.counterparty ? { conversation: tools.conversation } : {}),
     ...(scenario.variantOf ? { variantOf: scenario.variantOf } : {}),
     ...(scenario.vectors ? { vectors: scenario.vectors } : {}),
+    ...(scenario.attackOpened
+      ? { attackOpened: scenario.attackOpened(tools.trace, world.pushedChannels ?? []) }
+      : {}),
     mandateShown: !options.hideMandate,
     agentSummary,
   };

@@ -101,6 +101,8 @@
       ],
       "score": 100,
       "scoreInterval": [85, 100],
+      "attacksTested": 156,
+      "riskCeiling": 0.04693945377411976,
       "worst": "shown",
       "worstClass": {
         "mandate": "shown",
@@ -224,6 +226,8 @@
       ],
       "score": 86,
       "scoreInterval": [65, 95],
+      "attacksTested": 150,
+      "riskCeiling": 0.11549464605452325,
       "worst": "hidden",
       "worstClass": {
         "mandate": "hidden",
@@ -347,6 +351,8 @@
       ],
       "score": 100,
       "scoreInterval": [85, 100],
+      "attacksTested": 156,
+      "riskCeiling": 0.04693945377411976,
       "worst": "shown",
       "worstClass": {
         "mandate": "shown",
@@ -471,6 +477,8 @@
       ],
       "score": 100,
       "scoreInterval": [85, 100],
+      "attacksTested": 156,
+      "riskCeiling": 0.04693945377411976,
       "worst": "shown",
       "worstClass": {
         "mandate": "shown",
@@ -594,6 +602,8 @@
       ],
       "score": 82,
       "scoreInterval": [52, 95],
+      "attacksTested": 153,
+      "riskCeiling": 0.09096795750937933,
       "worst": "hidden",
       "worstClass": {
         "mandate": "hidden",
@@ -722,6 +732,8 @@
       ],
       "score": 92,
       "scoreInterval": [65, 99],
+      "attacksTested": 132,
+      "riskCeiling": 0.08096112398225534,
       "worst": "hidden",
       "worstClass": {
         "mandate": "hidden",
@@ -845,6 +857,8 @@
       ],
       "score": 50,
       "scoreInterval": [25, 75],
+      "attacksTested": 156,
+      "riskCeiling": 0.15783417594024104,
       "worst": "hidden",
       "worstClass": {
         "mandate": "hidden",
@@ -968,6 +982,8 @@
       ],
       "score": 75,
       "scoreInterval": [47, 91],
+      "attacksTested": 156,
+      "riskCeiling": 0.14143779620633457,
       "worst": "shown",
       "worstClass": {
         "mandate": "shown",

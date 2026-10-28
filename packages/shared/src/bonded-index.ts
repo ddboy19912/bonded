@@ -94,6 +94,14 @@ export const BondedIndexEntry = z.object({
    */
   score: z.number().min(0).max(100),
   scoreInterval: Interval,
+  /** Attack episodes measured over both briefings: how much the score rests on. */
+  attacksTested: z.number().int().min(0).optional(),
+  /**
+   * The fall rate that can't be ruled out at 95%, 0 to 1: the Wilson upper bound of the worse
+   * briefing's rate over all its attack episodes. Shown beside the score, never instead of it: a
+   * model that fell for nothing scores 100, and this says how far that has been tested.
+   */
+  riskCeiling: z.number().min(0).max(1).optional(),
   /** The briefing of the row that set the score. */
   worst: z.enum(["shown", "hidden"]),
   /** The attack class and briefing that set the score. */

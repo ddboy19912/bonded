@@ -155,6 +155,12 @@ export interface AgentToolbox {
   call(name: string, args: unknown): Promise<ToolResult>;
   /** Aborted when the episode ends (e.g. on a timeout). Agents should stop when it fires. */
   readonly signal?: AbortSignal;
+  /**
+   * What the tools' providers say a tool does, by tool name, where it differs from the agent's
+   * own definition. Like an MCP server's tool list, the provider writes it, not the agent, so an
+   * agent that shows its model the provider's words should take them from here.
+   */
+  readonly toolDescriptions?: Readonly<Record<string, string>>;
 }
 
 /**

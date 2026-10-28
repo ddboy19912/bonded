@@ -169,8 +169,24 @@ export class LlmError extends Error {
 
 const RETRYABLE = new Set([408, 409, 429, 500, 502, 503, 504]);
 
+/** The longest a provider's Retry-After is honoured, in ms. */
+const MAX_RETRY_AFTER_MS = 30_000;
+
+/**
+ * The request failed because the account is out of credits (402). Retrying can't help; a run
+ * should stop starting new work and keep what it has.
+ */
+export function isOutOfCredits(error: unknown): boolean {
+  if (error instanceof LlmError) return error.status === 402;
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /\(402\)/.test(message);
+}
+
 export interface OpenAICompatibleClientOptions {
-  /** Retries for rate limits, server errors and dropped connections (default 2). */
+  /**
+   * Retries for rate limits, server errors and dropped connections (default 4: about 15 seconds
+   * of waiting, so a short network drop doesn't end a paid run).
+   */
   maxRetries?: number;
   /** Base delay between retries in ms, doubled each time (default 1000). */
   retryDelayMs?: number;
@@ -194,7 +210,7 @@ export class OpenAICompatibleClient implements ChatClient {
       config.provider === "meta" ||
       new URL(config.baseUrl).hostname === new URL(META_MODEL_API_BASE_URL).hostname;
     this.fetch = options.fetch ?? fetch;
-    this.maxRetries = options.maxRetries ?? 2;
+    this.maxRetries = options.maxRetries ?? 4;
     this.retryDelayMs = options.retryDelayMs ?? 1000;
   }
 
@@ -248,12 +264,12 @@ export class OpenAICompatibleClient implements ChatClient {
       if (!RETRYABLE.has(response.status) || attempt >= this.maxRetries) {
         throw new LlmError(response.status, `LLM request failed (${response.status}): ${text}`);
       }
-      await this.wait(attempt, options.signal);
+      await this.wait(attempt, options.signal, retryAfterMs(response));
     }
   }
 
   /** Waits before a retry; rejects at once if the episode is (or becomes) aborted. */
-  private wait(attempt: number, signal?: AbortSignal): Promise<void> {
+  private wait(attempt: number, signal?: AbortSignal, after?: number): Promise<void> {
     return new Promise((resolve, reject) => {
       if (signal?.aborted) {
         reject(signal.reason);
@@ -268,9 +284,18 @@ export class OpenAICompatibleClient implements ChatClient {
           signal?.removeEventListener("abort", onAbort);
           resolve();
         },
-        this.retryDelayMs * 2 ** attempt,
+        after ?? this.retryDelayMs * 2 ** attempt,
       );
       signal?.addEventListener("abort", onAbort, { once: true });
     });
   }
+}
+
+/** A rate limit's Retry-After in ms (seconds or an HTTP date), capped; undefined when absent. */
+function retryAfterMs(response: Response): number | undefined {
+  const header = response.headers.get("retry-after");
+  if (!header) return undefined;
+  const seconds = Number(header);
+  const ms = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(header) - Date.now();
+  return Number.isFinite(ms) && ms >= 0 ? Math.min(ms, MAX_RETRY_AFTER_MS) : undefined;
 }

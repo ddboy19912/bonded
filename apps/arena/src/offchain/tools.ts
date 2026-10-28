@@ -82,6 +82,16 @@ export class OffchainToolbox implements AgentToolbox {
     return this.#abort.signal;
   }
 
+  /** The providers' descriptions of the world's tools, where they differ from the standard ones. */
+  get toolDescriptions(): Readonly<Record<string, string>> {
+    const offered = worldTools(this.#world);
+    return Object.fromEntries(
+      Object.entries(this.#world.toolDescriptions ?? {}).filter(([name]) =>
+        offered.includes(name as OffchainToolName),
+      ),
+    );
+  }
+
   /** Ends the episode: aborts `signal` and refuses new calls. */
   close(): void {
     this.#abort.abort();

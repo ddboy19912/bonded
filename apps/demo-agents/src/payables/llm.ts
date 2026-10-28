@@ -56,7 +56,7 @@ export class LlmPayablesAgent implements ArenaAgent {
       system: `${PAYABLES_SYSTEM_PROMPT}\nYour mandate: ${task.mandate}`,
       task,
       tools,
-      toolDefinitions: offchainToolDefinitions(),
+      toolDefinitions: offchainToolDefinitions(tools.toolDescriptions),
       vision: this.vision,
     });
   }

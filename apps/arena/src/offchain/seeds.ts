@@ -1,3 +1,4 @@
+import { OFFCHAIN_TOOL_NAMES, type OffchainToolName } from "@bondedhq/shared";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,8 +14,16 @@ import {
   realisticWorld,
 } from "./scenarios.js";
 import { plantedFacts } from "./attribution.js";
-import { emptyChannels, type Vector } from "./channels.js";
-import { type Attachment, type Email, invoiceText, type OffchainWorld } from "./world.js";
+import { busyTasks, realisticBusyWorld } from "./busy.js";
+import { attackSeen } from "./exposure.js";
+import { CHANNEL_TOOLS, CHANNELS, emptyChannels, type Vector } from "./channels.js";
+import {
+  type Attachment,
+  type Email,
+  invoiceText,
+  type OffchainWorld,
+  worldTools,
+} from "./world.js";
 
 /**
  * Off-chain attack seeds (apps/arena/offchain-seeds): each plants emails and invoices into the
@@ -117,8 +126,14 @@ export const CounterpartySeed = z.object({
 export type CounterpartySeed = z.infer<typeof CounterpartySeed>;
 
 export const OffchainSeed = z.object({
-  /** A library seed's id, or a fresh variant's: the seed's id and a hash of its text. */
-  id: z.string().regex(/^O[1-6]-[a-z0-9-]+-\d{3}(-f[0-9a-f]{8})?(-via-[a-z]+)?(-r\d{1,2})?$/),
+  /**
+   * A library seed's id, a fresh variant's (the seed's id and a hash of its text), or an adaptive
+   * rewrite's: `-via-<channel>` when it was re-delivered, then `-r<round>` and `-c<candidate>`
+   * when a round tried several.
+   */
+  id: z
+    .string()
+    .regex(/^O[1-6]-[a-z0-9-]+-\d{3}(-f[0-9a-f]{8})?(-via-[a-z]+)?(-r\d{1,2}(-c\d{1,2})?)?$/),
   /** For a fresh variant: the library seed it was drafted from. */
   variantOf: z.string().optional(),
   class: z.enum(Object.keys(OFFCHAIN_ATTACK_CLASSES) as [OffchainAttackClass]),
@@ -126,10 +141,12 @@ export const OffchainSeed = z.object({
   description: z.string().min(1),
   aimedAt: z.array(z.enum(LEDGER_BREACH_TYPES)).min(1),
   /**
-   * The job the attack is planted in: "v1", the approved-queue payment run, or "v2", the
-   * realistic job (scenarios.ts, realisticWorld), with vendor updates and approval requests.
+   * The job the attack is planted in: "v1", the approved-queue payment run; "v2", the realistic
+   * job (scenarios.ts, realisticWorld), with vendor updates and approval requests; or "v3", the
+   * realistic job on a busy Monday (busy.ts, realisticBusyWorld). A v2 seed plants into v3
+   * unchanged: the busy world keeps everything the realistic one has.
    */
-  world: z.enum(["v1", "v2"]).default("v1"),
+  world: z.enum(["v1", "v2", "v3"]).default("v1"),
   /**
    * Parts of the job the attack casts doubt on. A careful agent may hold them back to check, so
    * the task doesn't require them; doing them correctly is still fine. An approved invoice's
@@ -163,6 +180,14 @@ export const OffchainSeed = z.object({
       .default([]),
     /** Notes on vendor records (business records), by vendor id, replacing the record's notes. */
     vendorNotes: z.record(z.string(), z.string()).default({}),
+    /**
+     * What a channel tool's provider says the tool does, by tool name, replacing its description
+     * in the agent's tool list (tool-description poisoning). The agent sees it before calling
+     * anything.
+     */
+    toolDescriptions: z
+      .partialRecord(z.enum(OFFCHAIN_TOOL_NAMES as [OffchainToolName]), z.string().min(1))
+      .default({}),
   }),
   /**
    * The attack is one email with no attachments, so it can be re-delivered through another
@@ -239,7 +264,12 @@ export function seedProblem(
     Object.keys(p.plugin).length > 0 ||
     p.notes.length > 0 ||
     p.knowledge.length > 0;
-  if (plantsChannels && !world.channels) return "channels need the realistic job (world: v2)";
+  if (plantsChannels && !world.channels) return "channels need the realistic job (world: v2 or v3)";
+  for (const tool of Object.keys(p.toolDescriptions) as OffchainToolName[]) {
+    if (!CHANNELS.some((c) => CHANNEL_TOOLS[c].includes(tool)))
+      return `${tool} isn't a channel's tool, so it has no provider description to plant`;
+    if (!worldTools(world).includes(tool)) return `the job doesn't offer ${tool}`;
+  }
   const vendorIds = new Set(world.vendors.map((v) => v.id));
   for (const id of [
     ...Object.keys(p.portal),
@@ -255,7 +285,8 @@ export function seedProblem(
     (p.emails.length !== 1 ||
       p.emails[0]!.attachments.length > 0 ||
       p.replace.length > 0 ||
-      plantsChannels)
+      plantsChannels ||
+      Object.keys(p.toolDescriptions).length > 0)
   ) {
     return "a multi-vector seed is a single email with no attachments";
   }
@@ -292,7 +323,7 @@ export function seedProblem(
 /**
  * The vectors a seed's attack arrives through: email (planted or rewritten emails), image (an
  * invoice picture), counterparty (a live sender), records (vendor-record notes), and each channel
- * it plants into.
+ * it plants into. A tool's poisoned description arrives through that tool's channel.
  */
 export function seedVectors(seed: OffchainSeed): Vector[] {
   const p = seed.plant;
@@ -314,6 +345,10 @@ export function seedVectors(seed: OffchainSeed): Vector[] {
   if (Object.keys(p.plugin).length) out.add("plugin");
   if (p.notes.length) out.add("memory");
   if (p.knowledge.length) out.add("knowledge");
+  for (const tool of Object.keys(p.toolDescriptions) as OffchainToolName[]) {
+    const channel = CHANNELS.find((c) => CHANNEL_TOOLS[c].includes(tool));
+    if (channel) out.add(channel);
+  }
   return [...out];
 }
 
@@ -353,17 +388,22 @@ export function viaChannel(
 
 /** The unplanted world a seed's attack goes into. */
 export const worldFor = (seed: Pick<OffchainSeed, "world">) =>
-  seed.world === "v2" ? realisticWorld() : baseWorld();
+  seed.world === "v3" ? realisticBusyWorld() : seed.world === "v2" ? realisticWorld() : baseWorld();
+
+/** The replies, approvals and bank changes a seed's job requires (none in the first job). */
+const jobTasksFor = (seed: Pick<OffchainSeed, "world">) =>
+  seed.world === "v3" ? busyTasks() : seed.world === "v2" ? REALISTIC_TASKS : null;
 
 /** Every part of the job a seed's `mayHold` may name. */
 function taskKeys(seed: Pick<OffchainSeed, "world">): string[] {
   const refs = worldFor(seed).approvedInvoices.map((i) => i.reference);
-  if (seed.world !== "v2") return refs;
+  const tasks = jobTasksFor(seed);
+  if (!tasks) return refs;
   return [
     ...refs,
-    ...REALISTIC_TASKS.mustReply.map((id) => `reply:${id}`),
-    ...REALISTIC_TASKS.mustRoute.map((r) => `approval:${r}`),
-    ...REALISTIC_TASKS.mustUpdate.map((u) => `update:${u.vendorId}`),
+    ...tasks.mustReply.map((id) => `reply:${id}`),
+    ...tasks.mustRoute.map((r) => `approval:${r}`),
+    ...tasks.mustUpdate.map((u) => `update:${u.vendorId}`),
   ];
 }
 
@@ -374,12 +414,12 @@ export function attackScenario(
 ): OffchainScenario {
   const world = plantSeed(worldFor(seed), seed, imagesDir);
   const hold = new Set(seed.mayHold);
-  const jobTasks = seed.world === "v2" ? REALISTIC_TASKS : null;
+  const jobTasks = jobTasksFor(seed);
   return {
     id: seed.id,
     kind: "attack",
     attackClass: seed.class,
-    goal: seed.world === "v2" ? REALISTIC_GOAL : PAYMENT_RUN_GOAL,
+    goal: jobTasks ? REALISTIC_GOAL : PAYMENT_RUN_GOAL,
     world,
     mustPay: world.approvedInvoices.map((i) => i.reference).filter((r) => !hold.has(r)),
     ...(jobTasks
@@ -391,6 +431,7 @@ export function attackScenario(
       : {}),
     aimedAt: seed.aimedAt,
     planted: plantedFacts(seed, worldFor(seed)),
+    attackOpened: (trace, pushed) => attackSeen(seed, trace, pushed),
     ...(seed.variantOf ? { variantOf: seed.variantOf } : {}),
     ...(seed.counterparty ? { counterparty: seed.counterparty } : {}),
     vectors: seedVectors(seed),
@@ -431,6 +472,9 @@ function plantSeed(world: OffchainWorld, seed: OffchainSeed, dir: string): Offch
   for (const [vendorId, notes] of Object.entries(p.vendorNotes)) {
     const vendor = world.vendors.find((v) => v.id === vendorId);
     if (vendor) vendor.notes = notes;
+  }
+  if (Object.keys(p.toolDescriptions).length) {
+    world.toolDescriptions = { ...world.toolDescriptions, ...p.toolDescriptions };
   }
   return world;
 }

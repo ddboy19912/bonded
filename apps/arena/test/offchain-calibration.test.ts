@@ -7,6 +7,7 @@ import {
   attackScenario,
   loadOffchainSeeds,
   OFFCHAIN_STAGED_SEEDS_DIR,
+  type OffchainSeed,
 } from "../src/offchain/seeds.js";
 
 const library = loadOffchainSeeds();
@@ -65,11 +66,11 @@ const carefulV2 = agent(async (tools) => {
   await payApprovedQueue(tools);
 });
 
-const carefulFor = (world: "v1" | "v2") => (world === "v2" ? carefulV2 : carefulV1);
+const carefulFor = (world: OffchainSeed["world"]) => (world === "v1" ? carefulV1 : carefulV2);
 
 /** The careful run of the job, followed by the victim's replayed tool calls. */
 const withReplay = (
-  world: "v1" | "v2",
+  world: OffchainSeed["world"],
   replay: readonly (readonly [string, Record<string, unknown>])[],
 ) =>
   agent(async (tools) => {

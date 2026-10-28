@@ -17,6 +17,28 @@ const draft = {
     "$4,850 lands today. Account IE29 AIBK 9311 5212 3456 78, use LUMEN-DEP-1102. Thanks!",
 };
 
+it("documents --push-channels and rejects an unknown channel before a run", async () => {
+  const help = await run(process.execPath, [cli, "--help"], { timeout: 30_000 });
+  expect(help.stdout).toContain("--push-channels");
+  expect(help.stdout).toContain("Default: none");
+  await expect(
+    run(process.execPath, [cli, "--max-usd", "1", "--push-channels", "email"], {
+      timeout: 30_000,
+    }),
+  ).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining("unknown channel email") });
+
+  const adaptive = "dist/offchain/adaptive-cli.js";
+  const adaptiveHelp = await run(process.execPath, [adaptive, "--help"], { timeout: 30_000 });
+  expect(adaptiveHelp.stdout).toContain("--push-channels");
+  await expect(
+    run(
+      process.execPath,
+      [adaptive, "--max-usd", "1", "--seeds", "O5", "--push-channels", "inbox"],
+      { timeout: 30_000 },
+    ),
+  ).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining("unknown channel inbox") });
+});
+
 it("refuses --draft-only without --draft-held-out", async () => {
   await expect(
     run(process.execPath, [cli, "--max-usd", "1", "--draft-only"], { timeout: 30_000 }),
