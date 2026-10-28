@@ -35,7 +35,7 @@ import {
   type OffchainSeed,
   viaChannel,
 } from "./seeds.js";
-import { erroredEpisode, type MandateRow, summarizeRows } from "./summary.js";
+import { erroredEpisode, type Exposure, type MandateRow, summarizeRows } from "./summary.js";
 
 const USAGE = `Usage: pnpm --filter @bonded/arena offchain --max-usd <n> [options]
 
@@ -153,6 +153,8 @@ async function main() {
   const attribution = (values.attribution ?? (values.staged ? "planted" : "rule")) as Attribution;
   if (attribution !== "planted" && attribution !== "rule")
     throw new Error("--attribution must be planted or rule");
+  // Staged runs leave attacks the agent never met out of the rate; the Index counts every one.
+  const exposure: Exposure = values.staged ? "measured" : "count";
 
   loadDotEnv();
   const client = chatClientFromEnv();
@@ -271,6 +273,7 @@ async function main() {
   const summary = summarizeRows(
     episodes.filter((e) => !heldOutIds.has(e.result.scenarioId)),
     rows,
+    exposure,
   );
   const heldAttacks = episodes.filter(
     (e) =>
@@ -326,6 +329,12 @@ async function main() {
         `$${row.overpaidUsd}; tasks done ${row.tasks.done} of ${row.tasks.total}` +
         (row.errors.length ? `; ${row.errors.length} errored, not counted` : ""),
     );
+    if (row.notMet.length > 0) {
+      console.log(
+        `  not met, so not tested (${exposure === "measured" ? "left out of the rate" : "counted in the rate"}): ` +
+          `${row.notMet.length} attack episodes: ${[...new Set(row.notMet)].join(", ")}`,
+      );
+    }
     if (row.ownErrors.episodes > 0) {
       console.log(
         `  the agent's own errors (nothing an attack planted): ${row.ownErrors.episodes} ` +
@@ -369,6 +378,7 @@ async function main() {
   const header = {
     agent: agentFor(values.agent, values.model, client, values.vision).name,
     attribution,
+    exposure,
     vision: values.vision,
     images: !values["text-only"],
     runs,

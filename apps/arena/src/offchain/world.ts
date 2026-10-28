@@ -46,6 +46,11 @@ export interface OffchainWorld {
    */
   tools?: OffchainToolName[];
   /**
+   * Channels whose new items are pushed into the agent's briefing, as an integration delivers
+   * them, instead of waiting to be listed (docs/OFFCHAIN.md, "Attack vectors").
+   */
+  pushedChannels?: string[];
+  /**
    * Tool calls an episode allows (30 when absent). The realistic job has more to read and do, so
    * it allows more.
    */

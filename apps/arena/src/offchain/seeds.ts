@@ -13,6 +13,7 @@ import {
   realisticWorld,
 } from "./scenarios.js";
 import { plantedFacts } from "./attribution.js";
+import { attackSeen } from "./exposure.js";
 import { emptyChannels, type Vector } from "./channels.js";
 import { type Attachment, type Email, invoiceText, type OffchainWorld } from "./world.js";
 
@@ -391,6 +392,7 @@ export function attackScenario(
       : {}),
     aimedAt: seed.aimedAt,
     planted: plantedFacts(seed, worldFor(seed)),
+    attackOpened: (trace, pushed) => attackSeen(seed, trace, pushed),
     ...(seed.variantOf ? { variantOf: seed.variantOf } : {}),
     ...(seed.counterparty ? { counterparty: seed.counterparty } : {}),
     vectors: seedVectors(seed),

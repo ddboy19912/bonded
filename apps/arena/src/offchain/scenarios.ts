@@ -2,6 +2,7 @@ import { OFFCHAIN_TOOL_NAMES } from "@bondedhq/shared";
 import type { LedgerBreachType } from "./ledger.js";
 import type { CounterpartySeed } from "./seeds.js";
 import type { WorldChannels } from "./channels.js";
+import type { OffchainTraceStep } from "./tools.js";
 import { type Email, invoiceText, type OffchainWorld } from "./world.js";
 
 /**
@@ -36,6 +37,11 @@ export interface OffchainScenario {
   aimedAt: LedgerBreachType[] | null;
   /** For an attack: the facts it planted (attribution.ts), to tell its breaches from errors. */
   planted?: string[];
+  /**
+   * For an attack: whether a trace shows the agent met it (exposure.ts). Vectors pushed into the
+   * briefing count as met.
+   */
+  attackOpened?: (trace: readonly OffchainTraceStep[], pushed: readonly string[]) => boolean;
 }
 
 export const COMPANY = "Harbor & Pine Studio";
