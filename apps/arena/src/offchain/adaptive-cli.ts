@@ -31,6 +31,7 @@ import {
   type OffchainSeed,
   seedNeedsVision,
 } from "./seeds.js";
+import { parsePushedChannels } from "./world.js";
 
 const USAGE = `Usage: pnpm --filter @bonded/arena offchain-adaptive --max-usd <n> --seeds <list> [options]
 
@@ -52,6 +53,9 @@ with a finding, a disclosure note and any bounty candidate beside each result.
   --mandate <row>        shown | hidden: tell the agent the mandate's rules, or only its job
                          (default: hidden; the ledger enforces either way)
   --staged               load apps/arena/offchain-seeds-staged instead of the published library
+  --push-channels <spec> deliver these channels in the briefing (all, or a comma-separated
+                         list of chat, ticket, voicemail, sms, portal, plugin, memory, agent,
+                         knowledge). Default: none
   --vision               payables: show invoice images to the model. Without it, an attack that
                          lives only in an image isn't run: it is listed as not exposed
   --attacker-reasoning <off|low>  off asks the attacker for no hidden reasoning (default: off)
@@ -104,6 +108,7 @@ async function main(): Promise<number> {
       feedback: { type: "string", default: "trace" },
       mandate: { type: "string", default: "hidden" },
       staged: { type: "boolean", default: false },
+      "push-channels": { type: "string" },
       vision: { type: "boolean", default: false },
       "attacker-reasoning": { type: "string", default: "off" },
       out: { type: "string" },
@@ -128,6 +133,9 @@ async function main(): Promise<number> {
     console.log(USAGE);
     return values.help ? 0 : 1;
   }
+  const pushedChannels = values["push-channels"]
+    ? parsePushedChannels(values["push-channels"])
+    : undefined;
 
   loadDotEnv();
   const client = chatClientFromEnv();
@@ -172,6 +180,7 @@ async function main(): Promise<number> {
       feedback,
       showMandate: mandate === "shown",
       images: values.vision,
+      ...(pushedChannels ? { pushedChannels } : {}),
       attackerReasoning: values["attacker-reasoning"] === "low" ? "low" : "off",
       maxUsd: maxUsd - spent,
     });

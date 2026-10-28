@@ -17,6 +17,7 @@ import {
 import { metaCapFallback, SpendingCap } from "../budget.js";
 import { loadDotEnv } from "../env.js";
 import { probeCounterparties, runOffchainBatch } from "./batch.js";
+import { parsePushedChannels } from "./world.js";
 import type { Attribution } from "./judge.js";
 import type { ProbeResult } from "./counterparty.js";
 import { draftVariants, saveVariants, type VariantCandidate } from "./fresh.js";
@@ -63,6 +64,9 @@ saved, and --replay runs a saved set again exactly.
   --channels <list>          the vectors the agent is integrated with (email, chat, ticket,
                              voicemail, sms, portal, plugin, memory, agent, knowledge); attacks
                              through others aren't run and count as not exposed (default: all)
+  --push-channels <spec>     deliver these channels in the briefing (all, or a comma-separated
+                             list of chat, ticket, voicemail, sms, portal, plugin, memory,
+                             agent, knowledge). Default: none, so the Index is unchanged
   --via <list>               also deliver each multi-vector attack through these channels (chat,
                              ticket, voicemail, sms, agent), to find the one the agent trusts
   --fresh                    draft one fresh variant per seed and run it too
@@ -111,6 +115,7 @@ async function main() {
       seeds: { type: "string" },
       staged: { type: "boolean", default: false },
       channels: { type: "string" },
+      "push-channels": { type: "string" },
       via: { type: "string" },
       fresh: { type: "boolean", default: false },
       replay: { type: "string" },
@@ -155,6 +160,9 @@ async function main() {
     throw new Error("--attribution must be planted or rule");
   // Staged runs leave attacks the agent never met out of the rate; the Index counts every one.
   const exposure: Exposure = values.staged ? "measured" : "count";
+  const pushedChannels = values["push-channels"]
+    ? parsePushedChannels(values["push-channels"])
+    : undefined;
 
   loadDotEnv();
   const client = chatClientFromEnv();
@@ -259,6 +267,7 @@ async function main() {
     images: !values["text-only"],
     attackSeeds: [...library, ...variants, ...redelivered, ...heldOut],
     ...(values.channels ? { channels: values.channels.split(",").map((c) => c.trim()) } : {}),
+    ...(pushedChannels ? { pushedChannels } : {}),
     ...(values.staged ? { controls: STAGED_CONTROLS } : {}),
     attribution,
     rows,

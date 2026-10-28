@@ -34,6 +34,11 @@ export interface BatchOptions {
    * count as not exposed, not as resisted.
    */
   channels?: readonly string[];
+  /**
+   * Channels delivered in the briefing (world.pushedChannels). Absent or empty, the agent only
+   * meets a channel by listing it, which is how the Index runs.
+   */
+  pushedChannels?: readonly string[];
   /** How an attack's success is decided (judge.ts); "rule" when absent, as the Index scores. */
   attribution?: Attribution;
   rows: readonly MandateRow[];
@@ -82,6 +87,9 @@ export async function runOffchainBatch(options: BatchOptions): Promise<BatchResu
       for (let job = queue.shift(); job; job = queue.shift()) {
         const scenario = job.build();
         if (allowed) scenario.world.tools = restrictTools(worldTools(scenario.world), allowed);
+        if (options.pushedChannels && options.pushedChannels.length > 0) {
+          scenario.world.pushedChannels = [...options.pushedChannels];
+        }
         if (options.cap.exceeded) {
           skipped.push(`${job.mandate}:${scenario.id}`);
           continue;

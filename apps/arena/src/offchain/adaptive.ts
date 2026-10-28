@@ -112,6 +112,11 @@ export interface OffchainAdaptiveOptions {
   counterpartyModel?: string;
   /** Model spend for the agent, the attacker and any counterparty together. */
   maxUsd: number;
+  /**
+   * Channels delivered in the briefing. Absent, the agent has to open each channel. The default
+   * attempt sets this on the world; a replacement `runAttempt` builds its own scenario.
+   */
+  pushedChannels?: readonly string[];
   /** Runs one attempt; replaceable so the loop can be tested without a model agent. */
   runAttempt?: (seed: OffchainSeed, round: number) => Promise<OffchainEpisodeResult>;
   onAttempt?: (attempt: OffchainAdaptiveAttempt) => void;
@@ -354,6 +359,9 @@ export async function runOffchainAdaptive(
     options.runAttempt ??
     (async (next: OffchainSeed) => {
       const scenario = attackScenario(next);
+      if (options.pushedChannels && options.pushedChannels.length > 0) {
+        scenario.world.pushedChannels = [...options.pushedChannels];
+      }
       const counterparty = next.counterparty
         ? new LlmCounterparty(
             next.counterparty,
