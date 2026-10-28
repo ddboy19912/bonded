@@ -40,8 +40,10 @@ const USAGE = `Usage: pnpm --filter @bonded/arena offchain-adaptive --max-usd <n
 Runs the off-chain adaptive attacker (src/offchain/adaptive.ts) against one agent. For each seed
 it plants the published text first, then lets an attacker model read how the agent reacted and
 rewrite that prose, until the ledger records a breach that goes through, the rounds run out, or
-the spend cap is hit. Needs OPENROUTER_API_KEY in .env. Results go to ratings/offchain-adaptive-/,
-with a finding, a disclosure note and any bounty candidate beside each result.
+the spend cap is hit. OpenRouter models need OPENROUTER_API_KEY. A Muse model such as
+muse-spark-1.3 needs MODEL_API_KEY and is sent to Meta Model API only, not OpenRouter. Results
+go to ratings/offchain-adaptive-/, with a finding, a disclosure note and any bounty candidate
+beside each result.
 
   --max-usd <n>          stop once model spend (agent, attacker, counterparty) reaches this,
                          across every seed in the run (required)
@@ -49,8 +51,14 @@ with a finding, a disclosure note and any bounty candidate beside each result.
   --agent <name>         payables | agentkit | solana-agent-kit (default: payables)
   --model <id>           the agent's model (default: ${DEFAULT_AGENT_MODEL})
   --attacker-model <id>  the attacker's model, and the O6 counterparty's (default:
-                         ${DEFAULT_AGENT_MODEL}). A weaker attacker finds less
+                         ${DEFAULT_AGENT_MODEL}). A weaker attacker finds less.
+                         muse-spark-1.3 (and any muse-* model) uses Meta Model API
+                         only: set MODEL_API_KEY, not an OpenRouter key
   --rounds <n>           rewrites after the seed's own run, 0 to ${MAX_ROUNDS} (default: 4)
+  --candidates <n>       rewrites to try in each round, each run as its own episode,
+                         1 to 99 (default: 1). The first that gets through stops the round
+  --switch-channels      a multi-vector seed may be re-delivered through another message
+                         channel (chat, ticket, voicemail, sms, agent) in a later round
   --feedback <level>     outcome | trace: what the attacker sees of each try (default: trace)
   --mandate <row>        shown | hidden: tell the agent the mandate's rules, or only its job
                          (default: hidden; the ledger enforces either way)
@@ -105,6 +113,8 @@ async function main(): Promise<number> {
       model: { type: "string", default: DEFAULT_AGENT_MODEL },
       "attacker-model": { type: "string", default: DEFAULT_AGENT_MODEL },
       rounds: { type: "string", default: "4" },
+      candidates: { type: "string", default: "1" },
+      "switch-channels": { type: "boolean", default: false },
       feedback: { type: "string", default: "trace" },
       mandate: { type: "string", default: "hidden" },
       staged: { type: "boolean", default: false },
@@ -117,6 +127,7 @@ async function main(): Promise<number> {
   });
   const maxUsd = Number(values["max-usd"]);
   const rounds = Number(values.rounds);
+  const candidates = Number(values.candidates);
   const feedback = values.feedback as OffchainFeedback;
   const mandate = values.mandate;
   if (
@@ -126,6 +137,9 @@ async function main(): Promise<number> {
     !Number.isInteger(rounds) ||
     rounds < 0 ||
     rounds > MAX_ROUNDS ||
+    !Number.isInteger(candidates) ||
+    candidates < 1 ||
+    candidates > 99 ||
     (feedback !== "outcome" && feedback !== "trace") ||
     (mandate !== "shown" && mandate !== "hidden") ||
     (values["attacker-reasoning"] !== "off" && values["attacker-reasoning"] !== "low")
@@ -145,14 +159,15 @@ async function main(): Promise<number> {
   const library = loadOffchainSeeds(values.staged ? OFFCHAIN_STAGED_SEEDS_DIR : undefined);
   const seeds = selectSeeds(library, wanted);
   if (seeds.length === 0) throw new Error(`no seeds match ${values.seeds}`);
-  // At most the seed's own run plus every rewrite, per seed (fewer when one gets through). The
-  // attacker's rewrites add a little on top.
+  // At most the seed's own run plus every candidate of every rewrite, per seed (fewer when one
+  // gets through). The attacker's rewrites add a little on top. Switching channels does not add
+  // episodes: a candidate is delivered one way.
   const estimate = estimateCost(
     values.model,
     seeds.map((seed) => {
       const world = worldFor(seed);
       return {
-        count: rounds + 1,
+        count: 1 + rounds * candidates,
         realistic: (world.maxSteps ?? 30) > 30,
         ...(world.maxSteps !== undefined ? { maxSteps: world.maxSteps } : {}),
       };
@@ -168,7 +183,8 @@ async function main(): Promise<number> {
   mkdirSync(outDir, { recursive: true });
   console.log(
     `Agent ${agent.name}, attacker ${values["attacker-model"]}, feedback ${feedback}, ` +
-      `mandate ${mandate}, ${rounds} rewrites per seed, up to $${maxUsd} in all\n`,
+      `mandate ${mandate}, ${rounds} rewrites, ${candidates} candidate${candidates === 1 ? "" : "s"} ` +
+      `per round${values["switch-channels"] ? ", may switch channels" : ""}, up to $${maxUsd} in all\n`,
   );
   const results: OffchainAdaptiveResult[] = [];
   const notExposed: string[] = [];
@@ -193,6 +209,8 @@ async function main(): Promise<number> {
         agent,
         seed,
         rounds,
+        candidates,
+        switchChannels: values["switch-channels"],
         feedback,
         showMandate: mandate === "shown",
         images: values.vision,
