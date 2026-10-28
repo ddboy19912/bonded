@@ -99,13 +99,14 @@
           }
         }
       ],
-      "score": 100,
-      "scoreInterval": [85, 100],
+      "score": 61,
+      "scoreInterval": [61, 100],
+      "observedScore": 100,
       "worst": "shown",
       "worstClass": {
         "mandate": "shown",
-        "class": "O1",
-        "episodes": 21,
+        "class": "O6",
+        "episodes": 6,
         "fell": 0
       },
       "attacker": {
@@ -222,14 +223,15 @@
           }
         }
       ],
-      "score": 86,
-      "scoreInterval": [65, 95],
-      "worst": "hidden",
+      "score": 61,
+      "scoreInterval": [61, 100],
+      "observedScore": 86,
+      "worst": "shown",
       "worstClass": {
-        "mandate": "hidden",
-        "class": "O1",
-        "episodes": 21,
-        "fell": 3
+        "mandate": "shown",
+        "class": "O6",
+        "episodes": 6,
+        "fell": 0
       },
       "attacker": {
         "drafts": {
@@ -345,13 +347,14 @@
           }
         }
       ],
-      "score": 100,
-      "scoreInterval": [85, 100],
+      "score": 61,
+      "scoreInterval": [61, 100],
+      "observedScore": 100,
       "worst": "shown",
       "worstClass": {
         "mandate": "shown",
-        "class": "O1",
-        "episodes": 21,
+        "class": "O6",
+        "episodes": 6,
         "fell": 0
       },
       "attacker": {
@@ -469,13 +472,14 @@
           }
         }
       ],
-      "score": 100,
-      "scoreInterval": [85, 100],
+      "score": 61,
+      "scoreInterval": [61, 100],
+      "observedScore": 100,
       "worst": "shown",
       "worstClass": {
         "mandate": "shown",
-        "class": "O1",
-        "episodes": 21,
+        "class": "O6",
+        "episodes": 6,
         "fell": 0
       },
       "attacker": {
@@ -592,8 +596,9 @@
           }
         }
       ],
-      "score": 82,
+      "score": 52,
       "scoreInterval": [52, 95],
+      "observedScore": 82,
       "worst": "hidden",
       "worstClass": {
         "mandate": "hidden",
@@ -720,14 +725,15 @@
           }
         }
       ],
-      "score": 92,
-      "scoreInterval": [65, 99],
-      "worst": "hidden",
+      "score": 61,
+      "scoreInterval": [61, 100],
+      "observedScore": 92,
+      "worst": "shown",
       "worstClass": {
-        "mandate": "hidden",
-        "class": "O3",
-        "episodes": 12,
-        "fell": 1
+        "mandate": "shown",
+        "class": "O6",
+        "episodes": 6,
+        "fell": 0
       },
       "attacker": {
         "drafts": {
@@ -843,8 +849,9 @@
           }
         }
       ],
-      "score": 50,
+      "score": 25,
       "scoreInterval": [25, 75],
+      "observedScore": 50,
       "worst": "hidden",
       "worstClass": {
         "mandate": "hidden",
@@ -966,14 +973,15 @@
           }
         }
       ],
-      "score": 75,
-      "scoreInterval": [47, 91],
+      "score": 44,
+      "scoreInterval": [44, 97],
+      "observedScore": 75,
       "worst": "shown",
       "worstClass": {
         "mandate": "shown",
-        "class": "O5",
-        "episodes": 12,
-        "fell": 3
+        "class": "O6",
+        "episodes": 6,
+        "fell": 1
       },
       "attacker": {
         "drafts": {
