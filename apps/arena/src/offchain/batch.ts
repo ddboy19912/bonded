@@ -1,7 +1,8 @@
 import {
   type ArenaAgent,
   type ChatClient,
-  isOutOfCredits,
+  type ModelAccountStop,
+  modelAccountStop,
   type OffchainToolName,
 } from "@bondedhq/shared";
 import type { SpendingCap } from "../budget.js";
@@ -63,7 +64,12 @@ export interface BatchResult {
    * account ran out of credits, as row:scenario.
    */
   skipped: string[];
-  /** A model account ran out of credits (402): the batch stopped starting episodes. */
+  /**
+   * The model account refused a call (401 or 403) or ran out of credits (402). The batch stopped
+   * starting episodes. That episode is listed in `skipped`, not counted as the agent's error.
+   */
+  accountStop?: ModelAccountStop;
+  /** True when `accountStop` is set. Kept so a partial Index sweep is still not published. */
   outOfCredits: boolean;
   counterpartyTurns: { turns: number; refused: number };
 }
@@ -91,7 +97,7 @@ export async function runOffchainBatch(options: BatchOptions): Promise<BatchResu
     builders.flatMap((build) => Array.from({ length: options.runs }, () => ({ mandate, build }))),
   );
   const episodes: RowEpisode[] = [];
-  let outOfCredits = false;
+  let accountStop: ModelAccountStop | undefined;
   const skipped: string[] = [];
   await Promise.all(
     Array.from({ length: Math.min(options.parallel, queue.length) }, async () => {
@@ -101,7 +107,7 @@ export async function runOffchainBatch(options: BatchOptions): Promise<BatchResu
         if (options.pushedChannels && options.pushedChannels.length > 0) {
           scenario.world.pushedChannels = [...options.pushedChannels];
         }
-        if (options.cap.exceeded || outOfCredits) {
+        if (options.cap.exceeded || accountStop !== undefined) {
           skipped.push(`${job.mandate}:${scenario.id}`);
           continue;
         }
@@ -121,14 +127,14 @@ export async function runOffchainBatch(options: BatchOptions): Promise<BatchResu
           ...(counterparty ? { counterparty } : {}),
         });
         options.cap.add(result.agentSummary.usage);
-        // Out of credits isn't the agent's doing: the episode is skipped, not counted, and no
-        // more are started. What already ran is kept.
-        if (
-          result.agentSummary.stoppedBecause === "error" &&
-          !result.verdict.breached &&
-          isOutOfCredits(result.agentSummary.finalMessage)
-        ) {
-          outOfCredits = true;
+        // A refused key or an empty balance isn't the agent's doing: the episode is skipped,
+        // not counted, and no more are started. What already ran is kept.
+        const refused =
+          result.agentSummary.stoppedBecause === "error" && !result.verdict.breached
+            ? modelAccountStop(result.agentSummary.finalMessage)
+            : undefined;
+        if (refused) {
+          accountStop = refused;
           skipped.push(`${job.mandate}:${scenario.id}`);
           continue;
         }
@@ -142,7 +148,8 @@ export async function runOffchainBatch(options: BatchOptions): Promise<BatchResu
     summary: summarizeRows(episodes, options.rows),
     notShown,
     skipped,
-    outOfCredits,
+    ...(accountStop !== undefined ? { accountStop } : {}),
+    outOfCredits: accountStop !== undefined,
     counterpartyTurns: { turns: turns.length, refused: turns.filter((t) => t.refused).length },
   };
 }

@@ -172,14 +172,34 @@ const RETRYABLE = new Set([408, 409, 429, 500, 502, 503, 504]);
 /** The longest a provider's Retry-After is honoured, in ms. */
 const MAX_RETRY_AFTER_MS = 30_000;
 
+/** A model account refused the call. Retrying can't help; a run should stop and keep what it has. */
+export type ModelAccountStop = 401 | 402 | 403;
+
+/**
+ * 401 or 403: the key was rejected. 402: the account is out of credits. Either way the episode
+ * is not the agent's error.
+ */
+export function modelAccountStop(error: unknown): ModelAccountStop | undefined {
+  if (
+    error instanceof LlmError &&
+    (error.status === 401 || error.status === 402 || error.status === 403)
+  ) {
+    return error.status;
+  }
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const status = message.match(/\((401|402|403)\)/)?.[1];
+  if (status === "401") return 401;
+  if (status === "402") return 402;
+  if (status === "403") return 403;
+  return undefined;
+}
+
 /**
  * The request failed because the account is out of credits (402). Retrying can't help; a run
  * should stop starting new work and keep what it has.
  */
 export function isOutOfCredits(error: unknown): boolean {
-  if (error instanceof LlmError) return error.status === 402;
-  const message = error instanceof Error ? error.message : String(error ?? "");
-  return /\(402\)/.test(message);
+  return modelAccountStop(error) === 402;
 }
 
 export interface OpenAICompatibleClientOptions {

@@ -64,6 +64,8 @@ saved, and --replay runs a saved set again exactly.
   --staged                   run the staged attacks (offchain-seeds-staged/) instead of the
                              library, with the realistic job's control and the benign twins
                              for each channel attack alongside
+  --no-controls              with --staged, run the attack seeds only. The job and the benign
+                             twins are not checked
   --world busy               with --staged, plant each realistic-job seed (world v2) into the
                              busy Monday (world v3) instead of the quiet week. A seed that
                              cannot plant is skipped and listed
@@ -122,6 +124,7 @@ async function main() {
       ranking: { type: "boolean", default: false },
       seeds: { type: "string" },
       staged: { type: "boolean", default: false },
+      "no-controls": { type: "boolean", default: false },
       world: { type: "string" },
       channels: { type: "string" },
       "push-channels": { type: "string" },
@@ -175,6 +178,8 @@ async function main() {
     throw new Error(
       "--world busy plants staged seeds written for the realistic job; pass --staged",
     );
+  if (values["no-controls"] && !values.staged)
+    throw new Error("--no-controls skips the staged controls and twins; pass --staged");
   const attribution = (values.attribution ?? (values.staged ? "planted" : "rule")) as Attribution;
   if (attribution !== "planted" && attribution !== "rule")
     throw new Error("--attribution must be planted or rule");
@@ -306,7 +311,12 @@ async function main() {
     );
     if (planted === 0) throw new Error("no seed could plant in the busy world");
   }
-  const controls = values.staged ? STAGED_CONTROLS : [controlScenario, verifiedBankChangeTwin];
+  const controls = values["no-controls"]
+    ? []
+    : values.staged
+      ? STAGED_CONTROLS
+      : [controlScenario, verifiedBankChangeTwin];
+  if (values["no-controls"]) console.log("warning: --no-controls skips the job and twin checks");
   // Each scenario runs once per row and run. Its world sets the job, and so the cost.
   const perScenario = rows.length * runs;
   const estimate = estimateCost(
@@ -323,14 +333,14 @@ async function main() {
   );
   console.log(describeEstimate(estimate, maxUsd));
   if (values.estimate) return;
-  const { episodes, notShown, skipped, outOfCredits, counterpartyTurns } = await runOffchainBatch({
+  const { episodes, notShown, skipped, accountStop, counterpartyTurns } = await runOffchainBatch({
     agent: () => agentFor(values.agent, values.model, client, values.vision),
     seesImages: values.agent === "payables" && values.vision,
     images: !values["text-only"],
     attackSeeds,
     ...(values.channels ? { channels: values.channels.split(",").map((c) => c.trim()) } : {}),
     ...(pushedChannels ? { pushedChannels } : {}),
-    ...(values.staged ? { controls: STAGED_CONTROLS } : {}),
+    controls,
     attribution,
     rows,
     runs,
@@ -447,7 +457,13 @@ async function main() {
   }
   if (skipped.length) {
     console.log(
-      `skipped, ${outOfCredits ? "a model account ran out of credits (402); add credits and run again" : "the spending cap was reached"}: ${skipped.length} episodes`,
+      `skipped, ${
+        accountStop === 402
+          ? "a model account ran out of credits (402); add credits and run again"
+          : accountStop
+            ? `the model account refused the request (${accountStop})`
+            : "the spending cap was reached"
+      }: ${skipped.length} episodes`,
     );
   }
   if (notShown.length) console.log(`not run, the agent sees no images: ${notShown.join(", ")}`);

@@ -12,7 +12,7 @@ import {
   type ArenaAgent,
   type ChatClient,
   chatClientFromEnv,
-  isOutOfCredits,
+  modelAccountStop,
   llmConfigForModel,
 } from "@bondedhq/shared";
 import { OUT_OF_TOKENS, REFUSED } from "../adaptive.js";
@@ -222,7 +222,7 @@ async function main(): Promise<number> {
   const results: OffchainAdaptiveResult[] = [];
   const notExposed: string[] = [];
   const unrun: string[] = [];
-  let outOfCredits = false;
+  let accountStop: ReturnType<typeof modelAccountStop>;
   // One budget for the whole run: each seed gets what the earlier ones left.
   let spent = 0;
   for (const seed of seeds) {
@@ -230,7 +230,7 @@ async function main(): Promise<number> {
       notExposed.push(seed.id);
       continue;
     }
-    if (spent >= maxUsd || outOfCredits) {
+    if (spent >= maxUsd || accountStop !== undefined) {
       unrun.push(seed.id);
       continue;
     }
@@ -252,14 +252,21 @@ async function main(): Promise<number> {
         maxUsd: maxUsd - spent,
       });
     } catch (error) {
-      // A model account out of credits ends the run cleanly: finished seeds are already saved,
-      // and the rest are listed as not run. Anything else is a real failure.
-      if (!isOutOfCredits(error)) throw error;
-      outOfCredits = true;
+      // A refused key or an empty balance ends the run cleanly: finished seeds are already
+      // saved, and the rest are listed as not run. Anything else is a real failure.
+      const stop = modelAccountStop(error);
+      if (!stop) throw error;
+      accountStop = stop;
       unrun.push(seed.id);
       continue;
     }
     spent += result.spend.spentUsd;
+    if (result.stoppedBecause === "account") accountStop = result.accountStop ?? accountStop;
+    // Nothing finished is not a result: a refused first call must not be filed as a hold.
+    if (result.stoppedBecause === "account" && result.attempts.length === 0) {
+      unrun.push(seed.id);
+      continue;
+    }
     results.push(result);
     console.log(describe(result));
     if (result.note) console.log(`  ${result.note}`);
@@ -283,7 +290,13 @@ async function main(): Promise<number> {
     console.log(`not exposed (the agent sees no images): ${notExposed.join(", ")}`);
   if (unrun.length) {
     console.log(
-      `not run, ${outOfCredits ? "a model account ran out of credits (402)" : "the spending cap was reached"}: ${unrun.join(", ")}`,
+      `not run, ${
+        accountStop === 402
+          ? "a model account ran out of credits (402)"
+          : accountStop
+            ? `the model account refused the request (${accountStop})`
+            : "the spending cap was reached"
+      }: ${unrun.join(", ")}`,
     );
   }
   console.log(`spend $${spent.toFixed(4)} of $${maxUsd}`);

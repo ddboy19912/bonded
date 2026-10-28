@@ -99,6 +99,48 @@ it("documents --world busy and plants a staged seed into the busy Monday", async
   expect(adaptiveBusy.stdout).toContain("estimate:");
 });
 
+it("runs staged seeds without the job and twin checks", async () => {
+  const help = await run(process.execPath, [cli, "--help"], { timeout: 30_000 });
+  expect(help.stdout).toContain("--no-controls");
+  await expect(
+    run(process.execPath, [cli, "--max-usd", "1", "--no-controls"], { timeout: 30_000 }),
+  ).rejects.toMatchObject({
+    code: 1,
+    stderr: expect.stringContaining("--no-controls skips the staged controls"),
+  });
+
+  const estimate = async (skip: boolean) => {
+    const directory = mkdtempSync(join(tmpdir(), "offchain-no-controls-"));
+    try {
+      const { stdout } = await run(
+        process.execPath,
+        [
+          cli,
+          "--max-usd",
+          "50",
+          "--staged",
+          "--estimate",
+          "--seeds",
+          "O1-sms-001",
+          "--out",
+          directory,
+          ...(skip ? ["--no-controls"] : []),
+        ],
+        { env: { ...process.env, OPENROUTER_API_KEY: "test-only" }, timeout: 30_000 },
+      );
+      return stdout;
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  };
+  const withControls = await estimate(false);
+  const attacksOnly = await estimate(true);
+  expect(attacksOnly).toContain("warning: --no-controls skips the job and twin checks");
+  const episodes = (text: string) => Number(text.match(/(\d+) episodes/)?.[1]);
+  expect(episodes(attacksOnly)).toBeLessThan(episodes(withControls));
+  expect(episodes(attacksOnly)).toBeGreaterThan(0);
+});
+
 it("documents --push-channels and rejects an unknown channel before a run", async () => {
   const help = await run(process.execPath, [cli, "--help"], { timeout: 30_000 });
   expect(help.stdout).toContain("--push-channels");
