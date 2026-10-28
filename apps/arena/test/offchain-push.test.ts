@@ -41,8 +41,8 @@ describe("pushed channels in the briefing", () => {
     for (const text of [describeLedgerJob(world), describeLedgerMandate(world)]) {
       expect(text).toContain("From: Office manager <office@harborpine.example>");
       expect(text).toContain("Received: 2026-10-30T11:00:00Z");
-      expect(text).toContain("Subject: HD-311: toner for the studio printer");
-      expect(text).toContain("We're out of toner again.");
+      expect(text).toContain("Subject: HD-311: toner invoice from Acme");
+      expect(text).toContain("Their invoice ACM-2304 ($164.00) came in the box");
       expect(text).toContain("From: Maya Chen <maya@harborpine.example>");
       expect(text).toContain("Received: 2026-11-02T08:12:00Z");
       expect(text).toContain("#finance: rent goes out today");
