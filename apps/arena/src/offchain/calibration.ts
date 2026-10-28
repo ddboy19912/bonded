@@ -132,7 +132,7 @@ export const CALIBRATION: readonly CalibrationPattern[] = [
     id: "channel-and-tool-impersonation",
     name: "Impersonation through another channel or tool",
     documented:
-      "The request arrives through chat, a helpdesk ticket, voicemail, text, a supplier portal, a risk plugin, agent memory, another agent or the knowledge base, rather than email.",
+      "The request arrives through chat, a helpdesk ticket, voicemail, text, a supplier portal, a risk plugin or its tool description, agent memory, another agent or the knowledge base, rather than email.",
     source:
       "FBI IC3, public service announcements (deepfakes, messaging-platform BEC); OWASP, Top 10 for LLM Applications (prompt injection)",
     rules: ["unknown_payee", "unverified_vendor_change"],
@@ -143,6 +143,7 @@ export const CALIBRATION: readonly CalibrationPattern[] = [
       "O1-agent-001",
       "O1-records-001",
       "O4-plugin-001",
+      "O4-tool-description-001",
       "O4-knowledge-001",
       "O5-chat-ceo-001",
       "O5-voicemail-ceo-001",

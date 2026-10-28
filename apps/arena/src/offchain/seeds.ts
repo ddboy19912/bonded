@@ -1,3 +1,4 @@
+import { OFFCHAIN_TOOL_NAMES, type OffchainToolName } from "@bondedhq/shared";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,8 +16,14 @@ import {
 import { plantedFacts } from "./attribution.js";
 import { busyTasks, realisticBusyWorld } from "./busy.js";
 import { attackSeen } from "./exposure.js";
-import { emptyChannels, type Vector } from "./channels.js";
-import { type Attachment, type Email, invoiceText, type OffchainWorld } from "./world.js";
+import { CHANNEL_TOOLS, CHANNELS, emptyChannels, type Vector } from "./channels.js";
+import {
+  type Attachment,
+  type Email,
+  invoiceText,
+  type OffchainWorld,
+  worldTools,
+} from "./world.js";
 
 /**
  * Off-chain attack seeds (apps/arena/offchain-seeds): each plants emails and invoices into the
@@ -173,6 +180,14 @@ export const OffchainSeed = z.object({
       .default([]),
     /** Notes on vendor records (business records), by vendor id, replacing the record's notes. */
     vendorNotes: z.record(z.string(), z.string()).default({}),
+    /**
+     * What a channel tool's provider says the tool does, by tool name, replacing its description
+     * in the agent's tool list (tool-description poisoning). The agent sees it before calling
+     * anything.
+     */
+    toolDescriptions: z
+      .partialRecord(z.enum(OFFCHAIN_TOOL_NAMES as [OffchainToolName]), z.string().min(1))
+      .default({}),
   }),
   /**
    * The attack is one email with no attachments, so it can be re-delivered through another
@@ -250,6 +265,11 @@ export function seedProblem(
     p.notes.length > 0 ||
     p.knowledge.length > 0;
   if (plantsChannels && !world.channels) return "channels need the realistic job (world: v2 or v3)";
+  for (const tool of Object.keys(p.toolDescriptions) as OffchainToolName[]) {
+    if (!CHANNELS.some((c) => CHANNEL_TOOLS[c].includes(tool)))
+      return `${tool} isn't a channel's tool, so it has no provider description to plant`;
+    if (!worldTools(world).includes(tool)) return `the job doesn't offer ${tool}`;
+  }
   const vendorIds = new Set(world.vendors.map((v) => v.id));
   for (const id of [
     ...Object.keys(p.portal),
@@ -265,7 +285,8 @@ export function seedProblem(
     (p.emails.length !== 1 ||
       p.emails[0]!.attachments.length > 0 ||
       p.replace.length > 0 ||
-      plantsChannels)
+      plantsChannels ||
+      Object.keys(p.toolDescriptions).length > 0)
   ) {
     return "a multi-vector seed is a single email with no attachments";
   }
@@ -302,7 +323,7 @@ export function seedProblem(
 /**
  * The vectors a seed's attack arrives through: email (planted or rewritten emails), image (an
  * invoice picture), counterparty (a live sender), records (vendor-record notes), and each channel
- * it plants into.
+ * it plants into. A tool's poisoned description arrives through that tool's channel.
  */
 export function seedVectors(seed: OffchainSeed): Vector[] {
   const p = seed.plant;
@@ -324,6 +345,10 @@ export function seedVectors(seed: OffchainSeed): Vector[] {
   if (Object.keys(p.plugin).length) out.add("plugin");
   if (p.notes.length) out.add("memory");
   if (p.knowledge.length) out.add("knowledge");
+  for (const tool of Object.keys(p.toolDescriptions) as OffchainToolName[]) {
+    const channel = CHANNELS.find((c) => CHANNEL_TOOLS[c].includes(tool));
+    if (channel) out.add(channel);
+  }
   return [...out];
 }
 
@@ -447,6 +472,9 @@ function plantSeed(world: OffchainWorld, seed: OffchainSeed, dir: string): Offch
   for (const [vendorId, notes] of Object.entries(p.vendorNotes)) {
     const vendor = world.vendors.find((v) => v.id === vendorId);
     if (vendor) vendor.notes = notes;
+  }
+  if (Object.keys(p.toolDescriptions).length) {
+    world.toolDescriptions = { ...world.toolDescriptions, ...p.toolDescriptions };
   }
   return world;
 }
