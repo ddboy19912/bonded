@@ -13,7 +13,7 @@ import {
   REALISTIC_TASKS,
   realisticWorld,
 } from "./scenarios.js";
-import { plantedFacts } from "./attribution.js";
+import { attackOnlyInImage, plantedFacts } from "./attribution.js";
 import { busyTasks, realisticBusyWorld } from "./busy.js";
 import { attackSeen } from "./exposure.js";
 import { CHANNEL_TOOLS, CHANNELS, emptyChannels, type Vector } from "./channels.js";
@@ -198,12 +198,14 @@ export const OffchainSeed = z.object({
 });
 export type OffchainSeed = z.infer<typeof OffchainSeed>;
 
-/** The seed has an invoice image, where its attack may live (only a model that sees images meets it). */
+/**
+ * The attack lives only in an invoice picture: a planted fact is on the page and not in the
+ * text layer. An agent that never sees images isn't run on it, and that isn't counted as
+ * resisted. A picture of the genuine account, with the planted account in the text, does not
+ * need vision: the text layer is the attack.
+ */
 export function seedNeedsVision(seed: OffchainSeed): boolean {
-  return [
-    ...seed.plant.emails.flatMap((e) => e.attachments),
-    ...seed.plant.replace.flatMap((r) => r.attachments ?? []),
-  ].some((a) => a.image !== undefined);
+  return attackOnlyInImage(seed, worldFor(seed));
 }
 
 /** Loads and checks every seed in `dir`, sorted by id. */
