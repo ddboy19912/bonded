@@ -78,6 +78,12 @@ const view = (data: BondedIndexData = index) =>
     </MemoryRouter>,
   );
 
+const section = (name: string) =>
+  screen.getByRole("heading", { name }).closest("section") as HTMLElement;
+
+const showTable = (card: HTMLElement) =>
+  fireEvent.click(within(card).getByRole("button", { name: "Table" }));
+
 describe("Bonded Index", () => {
   it("parses the committed data file", () => {
     expect(() => loadBondedIndex()).not.toThrow();
@@ -91,85 +97,46 @@ describe("Bonded Index", () => {
     expect(screen.getByText(/not an Index score/)).toBeTruthy();
   });
 
-  it("ranks models by score, and flags one that mostly didn't do its job and ranks it last", () => {
+  it("ranks models by security under their logos, and flags one that mostly didn't act, last", () => {
     view();
-    const chart = screen
-      .getByRole("heading", { name: "Security and Task by model" })
-      .closest("figure")!;
-    const labels = within(chart).getAllByText(
-      /Muse Spark 1.3|DeepSeek V4.1 Flash|Llama 4 Maverick/,
-    );
-    // A flagged model's label carries its flag after the name.
-    expect(labels.map((l) => l.textContent?.replace(/⚠.*/, ""))).toEqual([
+    const card = section("Leaderboard");
+    // Each bar's name, logo and flag sit under the axis; the title says the whole name.
+    const names = [...card.querySelectorAll("svg g > title")].map((t) => t.textContent);
+    expect(names).toEqual([
       "Muse Spark 1.3",
       "DeepSeek V4.1 Flash",
-      "Llama 4 Maverick",
+      "Llama 4 Maverick: mostly didn't act",
     ]);
-    expect(within(chart).getByText("⚠ Task 0: mostly didn't act")).toBeTruthy();
-    expect(within(chart).queryAllByText(/mostly didn't act/)).toHaveLength(1);
+    // Every bar is named by its provider's logo.
+    expect(card.querySelectorAll("svg image")).toHaveLength(3);
   });
 
-  it("gives every chart a table view, and every bar a keyboard tooltip", () => {
+  it("switches rankings by tab, each with a table view of its data", () => {
     view();
-    const chart = screen
-      .getByRole("heading", { name: "Money the attacks moved" })
-      .closest("figure")!;
-    fireEvent.click(within(chart).getByRole("button", { name: "Table" }));
-    const row = within(chart).getByRole("row", { name: /DeepSeek V4.1 Flash/ });
+    const card = section("Leaderboard");
+    fireEvent.click(within(card).getByRole("tab", { name: "Money moved" }));
+    expect(
+      within(card).getByRole("tab", { name: "Money moved" }).getAttribute("aria-selected"),
+    ).toBe("true");
+    showTable(card);
+    const row = within(card).getByRole("row", { name: /DeepSeek V4.1 Flash/ });
     expect(row.textContent).toContain("$612.4");
     expect(row.textContent).toContain("$9.2K");
-
-    const score = screen.getByRole("img", { name: "DeepSeek V4.1 Flash: security 92, Task 100" });
-    fireEvent.focus(score);
-    expect(screen.getByRole("tooltip").textContent).toContain("95% interval 86–96");
-    expect(screen.getByRole("tooltip").textContent).toContain(
-      "set by O1 bank-detail change, rules hidden: fell 6 of 21",
-    );
   });
 
-  it("shows results by vector only when entries record them, with only the vectors run", () => {
-    view();
-    expect(screen.queryByRole("heading", { name: "How the attacks got in" })).toBeNull();
-    const withVectors: BondedIndexData = {
-      ...index,
-      entries: index.entries.map((e) => ({
-        ...e,
-        rows: e.rows.map((r) => ({
-          ...r,
-          byVector: { email: { episodes: 20, fell: 2 }, voicemail: { episodes: 5, fell: 3 } },
-        })),
-      })),
-    };
-    cleanup();
-    view(withVectors);
-    const chart = screen
-      .getByRole("heading", { name: "How the attacks got in" })
-      .closest("figure")!;
-    expect(within(chart).getByTitle("Voicemail (transcribed)")).toBeTruthy();
-    expect(within(chart).queryByTitle("Supplier portal")).toBeNull();
-    fireEvent.click(within(chart).getByRole("button", { name: "Table" }));
-    const row = within(chart).getByRole("row", { name: /DeepSeek V4.1 Flash/ });
-    expect(row.textContent).toContain("3 of 5");
-  });
-
-  it("shows how far each score was tested, beside it", () => {
+  it("shows how far each security score was tested, and what set it", () => {
     const tested: BondedIndexData = {
       ...index,
       entries: index.entries.map((e) => ({ ...e, attacksTested: 156, riskCeiling: 0.047 })),
     };
     view(tested);
-    const chart = screen
-      .getByRole("heading", { name: "Security and Task by model" })
-      .closest("figure")!;
-    const score = within(chart).getByRole("img", {
-      name: "Muse Spark 1.3: security 100, Task 100",
-    });
-    fireEvent.focus(score);
-    expect(screen.getByRole("tooltip").textContent).toContain(
-      "tested on 156 attacks; above 4.7% ruled out",
-    );
-    fireEvent.click(within(chart).getByRole("button", { name: "Table" }));
-    expect(within(chart).getByRole("columnheader", { name: "Tested" })).toBeTruthy();
+    const card = section("Leaderboard");
+    showTable(card);
+    expect(within(card).getByRole("columnheader", { name: "Tested" })).toBeTruthy();
+    const row = within(card).getByRole("row", { name: /DeepSeek V4.1 Flash/ });
+    expect(row.textContent).toContain("86–96");
+    expect(row.textContent).toContain("bank-detail change, rules hidden: fell 6 of 21");
+    expect(row.textContent).toContain("156 attacks; above 4.7% ruled out");
   });
 
   it("shows the Task score beside security, preferring the entry's own over pooled jobs", () => {
@@ -189,19 +156,57 @@ describe("Bonded Index", () => {
       ),
     };
     view(withTask);
-    const chart = screen
-      .getByRole("heading", { name: "Security and Task by model" })
-      .closest("figure")!;
+    const card = section("Leaderboard");
+    fireEvent.click(within(card).getByRole("tab", { name: "Task" }));
+    showTable(card);
     // Its rows say every job was done; the parts say otherwise, and the parts win.
-    expect(within(chart).getByText("100 · Task 14")).toBeTruthy();
-    expect(within(chart).getByText("⚠ Task 14: mostly didn't act")).toBeTruthy();
-    const results = screen.getByRole("heading", { name: "All results" }).closest("section")!;
+    const row = within(card).getByRole("row", { name: /Muse Spark 1.3/ });
+    expect(row.textContent).toContain("14");
+    const results = section("All results");
     expect(within(results).getByRole("columnheader", { name: "Task" })).toBeTruthy();
     expect(within(results).getByRole("row", { name: /Muse Spark 1.3/ }).textContent).toContain(
-      provenance,
+      "joined runs",
     );
+    expect(within(results).getByText(new RegExp(`Muse Spark 1.3: ${provenance}`))).toBeTruthy();
     // An entry that joins a campaign keeps its sweep's cost, so the total counts the rows' runs.
     expect(screen.getByText("504 episodes in all")).toBeTruthy();
+  });
+
+  it("offers results by channel only when entries record them, with only the channels run", () => {
+    view();
+    expect(
+      within(section("Where models break")).queryByRole("tab", { name: "By channel" }),
+    ).toBeNull();
+    const withVectors: BondedIndexData = {
+      ...index,
+      entries: index.entries.map((e) => ({
+        ...e,
+        rows: e.rows.map((r) => ({
+          ...r,
+          byVector: { email: { episodes: 20, fell: 2 }, voicemail: { episodes: 5, fell: 3 } },
+        })),
+      })),
+    };
+    cleanup();
+    view(withVectors);
+    const card = section("Where models break");
+    fireEvent.click(within(card).getByRole("tab", { name: "By channel" }));
+    expect(
+      within(card).getByRole("columnheader", { name: "Voicemail (transcribed)" }),
+    ).toBeTruthy();
+    expect(within(card).queryByRole("columnheader", { name: "Supplier portal" })).toBeNull();
+    showTable(card);
+    expect(within(card).getByRole("row", { name: /DeepSeek V4.1 Flash/ }).textContent).toContain(
+      "3 of 5",
+    );
+  });
+
+  it("places every model on the trade-off chart, named beside its point", () => {
+    view();
+    const card = section("Trade-offs");
+    const names = [...card.querySelectorAll("svg text")].map((t) => t.textContent);
+    for (const name of ["Muse Spark 1.3", "DeepSeek V4.1 Flash", "Llama 4 Maverick"])
+      expect(names.some((n) => n?.includes(name))).toBe(true);
   });
 
   it("says so when no model has been rated", () => {
