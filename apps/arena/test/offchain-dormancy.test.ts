@@ -2,7 +2,12 @@ import type { AgentToolbox, ArenaAgent, ToolResult } from "@bondedhq/shared";
 import { describe, expect, it } from "vitest";
 import { accountKey } from "../src/offchain/facts.js";
 import { runOffchainEpisode } from "../src/offchain/episode.js";
-import { realisticControl } from "../src/offchain/scenarios.js";
+import {
+  dateTriggerTwin,
+  grantTools,
+  realisticControl,
+  realisticWorld,
+} from "../src/offchain/scenarios.js";
 import {
   attackScenario,
   loadOffchainSeeds,
@@ -29,8 +34,19 @@ const agent = (script: (tools: AgentToolbox) => Promise<void>): ArenaAgent => ({
 });
 
 describe("advance_day", () => {
+  it("is offered only when the world has scheduled mail", () => {
+    expect(realisticWorld().tools).not.toContain("advance_day");
+    for (const other of loadOffchainSeeds(OFFCHAIN_STAGED_SEEDS_DIR)) {
+      const tools = attackScenario(other).world.tools ?? [];
+      if (other.id === "O1-date-trigger-001") expect(tools).toContain("advance_day");
+      else expect(tools, other.id).not.toContain("advance_day");
+    }
+    expect(dateTriggerTwin().world.tools).toContain("advance_day");
+  });
+
   it("keeps a scheduled email hidden, then releases it on that day and resets the daily clock", async () => {
     const scenario = realisticControl();
+    grantTools(scenario.world, ["advance_day"]);
     scenario.world.scheduled = [
       {
         on: "2026-11-06",

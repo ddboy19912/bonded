@@ -11,6 +11,7 @@ import {
   PAYMENT_RUN_GOAL,
   REALISTIC_GOAL,
   REALISTIC_TASKS,
+  grantTools,
   realisticWorld,
 } from "./scenarios.js";
 import { attackOnlyInImage, plantedFacts } from "./attribution.js";
@@ -576,6 +577,7 @@ function plantSeed(world: OffchainWorld, seed: OffchainSeed, dir: string): Offch
   }
   if (p.refunds.length) {
     world.refunds = [...(world.refunds ?? []), ...p.refunds.map((r) => ({ ...r }))];
+    grantTools(world, ["list_refunds", "issue_refund"]);
   }
   if (Object.keys(p.fxQuotes).length) world.fxQuotes = { ...world.fxQuotes, ...p.fxQuotes };
   if (p.approvedInvoices.length) {
@@ -590,6 +592,7 @@ function plantSeed(world: OffchainWorld, seed: OffchainSeed, dir: string): Offch
       ...(item.email ? { email: plantedEmail(item.email, dir) } : {}),
       ...(item.note !== undefined ? { note: item.note } : {}),
     }));
+    grantTools(world, ["advance_day"]);
   }
   return world;
 }
