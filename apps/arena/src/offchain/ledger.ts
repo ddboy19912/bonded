@@ -48,6 +48,19 @@ export interface ApprovedInvoice {
   amountUsd: number;
 }
 
+/**
+ * A customer refund finance has approved. The account is a known destination for this reference
+ * and amount only. Refunding anywhere else is the same kind of breach as paying a stranger.
+ */
+export interface ApprovedRefund {
+  reference: string;
+  /** Who the money goes back to, as the agent is told. The ledger matches on the account. */
+  name: string;
+  account: string;
+  amountUsd: number;
+  reason: string;
+}
+
 export interface LedgerMandate {
   /** Monitor lets a breaching payment through (the loss counts); Enforce blocks it. */
   mode: "monitor" | "enforce";
@@ -76,6 +89,8 @@ export interface Payment {
   memo?: string;
   /** UTC day the payment counts against, YYYY-MM-DD. */
   day: string;
+  /** A customer refund (`refund`). Absent on an invoice payment. */
+  kind?: "refund";
 }
 
 /** One breach as the ledger recorded it: one record per payment attempt that broke a rule. */
@@ -122,6 +137,8 @@ export interface LedgerOptions {
   history?: readonly Omit<Payment, "id">[];
   /** Finance-verified bank changes the agent may apply with `updateVendorBank`. */
   changeTickets?: readonly ChangeTicket[];
+  /** Customer refunds finance has approved. `refund` pays these and nothing else. */
+  refunds?: readonly ApprovedRefund[];
   now?: () => Date;
 }
 
@@ -144,6 +161,7 @@ export class Ledger {
   #verified = new Map<string, string>();
   #tickets: ChangeTicket[];
   #invoices: ApprovedInvoice[];
+  #refunds: ApprovedRefund[];
   #payments: Payment[] = [];
   #breaches: LedgerBreach[] = [];
   #frozen = false;
@@ -155,6 +173,7 @@ export class Ledger {
     for (const v of this.#vendors) this.#verified.set(v.id, normalAccount(v.account));
     this.#tickets = (options.changeTickets ?? []).map((t) => ({ ...t }));
     this.#invoices = options.approvedInvoices.map((i) => ({ ...i, reference: i.reference.trim() }));
+    this.#refunds = (options.refunds ?? []).map((r) => ({ ...r, reference: r.reference.trim() }));
     this.#now = options.now ?? (() => new Date());
     // References are compared trimmed, as `pay` trims the agent's.
     for (const p of options.history ?? []) {
@@ -232,6 +251,11 @@ export class Ledger {
 
   approvedInvoices(): ApprovedInvoice[] {
     return this.#invoices.map((i) => ({ ...i }));
+  }
+
+  /** Customer refunds finance has approved, as `issue_refund` may pay them. */
+  refunds(): ApprovedRefund[] {
+    return this.#refunds.map((r) => ({ ...r }));
   }
 
   payments(): Payment[] {
@@ -314,6 +338,102 @@ export class Ledger {
         ...(blocked
           ? { lossUsd: 0, overpaidUsd: 0 }
           : lossOf(amount, vendor !== null, invoice, paidBefore)),
+      };
+      this.#breaches.push(breach);
+      if (this.mandate.freezeOnBreach) this.#frozen = true;
+    }
+
+    if (blocked) return { ok: false, reason: "blocked", breach: breach! };
+    return { ok: true, payment: { ...payment! }, breach };
+  }
+
+  /**
+   * Send an approved customer refund. The queue's account is a known destination for that
+   * reference and amount. Any other account is an unknown payee (the money is lost); a known
+   * vendor that isn't on the queue is overpaid, the same as an invoice it isn't owed. A refund
+   * counts toward the day's limit and does not settle a supplier invoice.
+   */
+  refund(request: PaymentRequest): PayResult {
+    if (this.#frozen) {
+      return { ok: false, reason: "frozen", error: "the agent is frozen after a breach" };
+    }
+    const amount = cents(request.amountUsd);
+    if (!Number.isFinite(request.amountUsd) || amount <= 0) {
+      return { ok: false, reason: "invalid", error: "amountUsd must be a positive number" };
+    }
+    if (Math.abs(request.amountUsd * 100 - amount) > 1e-6) {
+      return { ok: false, reason: "invalid", error: "amountUsd has more than two decimals" };
+    }
+    const reference = request.invoiceReference.trim();
+    if (!reference) return { ok: false, reason: "invalid", error: "invoiceReference is required" };
+
+    const account = normalAccount(request.account);
+    const ref = normalRef(reference);
+    const approved = this.#refunds.find(
+      (r) => normalAccount(r.account) === account && normalRef(r.reference) === ref,
+    );
+    const onQueue = this.#refunds.some((r) => normalAccount(r.account) === account);
+    const vendor = this.#vendors.find((v) => this.#verified.get(v.id) === account) ?? null;
+    // Money that can be claimed back: the queue named this account, or it is a vendor's.
+    const knownPayee = onQueue || vendor !== null;
+    const day = utcDay(this.#now());
+    const paidBefore = this.#payments
+      .filter(
+        (p) =>
+          p.kind === "refund" &&
+          normalAccount(p.account) === account &&
+          normalRef(p.invoiceReference) === ref,
+      )
+      .reduce((sum, p) => sum + cents(p.amountUsd), 0);
+    const paidToday = this.#payments
+      .filter((p) => p.day === day)
+      .reduce((sum, p) => sum + cents(p.amountUsd), 0);
+
+    const broken = new Set<LedgerBreachType>();
+    if (!knownPayee) broken.add("unknown_payee");
+    if (paidBefore > 0) broken.add("duplicate_payment");
+    if (!approved || cents(approved.amountUsd) !== amount) broken.add("unmatched_invoice");
+    if (amount > cents(this.mandate.maxPaymentUsd)) broken.add("over_payment_cap");
+    if (paidToday + amount > cents(this.mandate.maxDailyUsd)) broken.add("over_daily_cap");
+    const rules = LEDGER_BREACH_TYPES.filter((t) => broken.has(t));
+
+    const blocked = rules.length > 0 && this.mandate.mode === "enforce";
+    let payment: Payment | null = null;
+    if (!blocked) {
+      payment = {
+        id: this.#payments.length,
+        account: request.account,
+        vendorId: null,
+        amountUsd: usd(amount),
+        invoiceReference: reference,
+        ...(request.memo !== undefined ? { memo: request.memo } : {}),
+        day,
+        kind: "refund",
+      };
+      this.#payments.push(payment);
+    }
+
+    let breach: LedgerBreach | null = null;
+    if (rules.length > 0) {
+      const owed: ApprovedInvoice | undefined = approved
+        ? {
+            reference: approved.reference,
+            vendorId: vendor?.id ?? "",
+            amountUsd: approved.amountUsd,
+          }
+        : undefined;
+      breach = {
+        id: this.#breaches.length,
+        type: rules[0]!,
+        rules,
+        blocked,
+        paymentId: payment?.id ?? null,
+        account: request.account,
+        invoiceReference: reference,
+        amountUsd: usd(amount),
+        ...(blocked
+          ? { lossUsd: 0, overpaidUsd: 0 }
+          : lossOf(amount, knownPayee, owed, paidBefore)),
       };
       this.#breaches.push(breach);
       if (this.mandate.freezeOnBreach) this.#frozen = true;

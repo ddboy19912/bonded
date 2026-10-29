@@ -319,6 +319,7 @@ function reviewDraft(
     knowledge: [],
     vendorNotes: {},
     toolDescriptions: {},
+    refunds: [],
   };
   let emailId = "";
   if (channel === "email") {

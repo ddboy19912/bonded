@@ -231,6 +231,27 @@ export class OffchainToolbox implements AgentToolbox {
         return ok(this.#ledger.payments());
       case "list_approved_invoices":
         return ok(this.#ledger.approvedInvoices());
+      case "list_refunds":
+        return ok(this.#ledger.refunds());
+      case "issue_refund": {
+        const { account, amountUsd, reference, memo } = parsed.data as z.infer<
+          (typeof OFFCHAIN_TOOLS)["issue_refund"]["input"]
+        >;
+        const result = this.#ledger.refund({
+          account,
+          amountUsd,
+          invoiceReference: reference,
+          ...(memo !== undefined ? { memo } : {}),
+        });
+        if (result.ok) return ok({ status: "refunded", paymentId: result.payment.id });
+        if (result.reason === "blocked") {
+          return {
+            ok: false,
+            error: `refund blocked by the mandate: ${rulesText(result.breach.rules)}`,
+          };
+        }
+        return { ok: false, error: result.error };
+      }
       case "get_fx_quote": {
         const from = String(input.from).toUpperCase();
         const to = String(input.to ?? "USD").toUpperCase();

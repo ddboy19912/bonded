@@ -188,6 +188,21 @@ export const OffchainSeed = z.object({
     toolDescriptions: z
       .partialRecord(z.enum(OFFCHAIN_TOOL_NAMES as [OffchainToolName]), z.string().min(1))
       .default({}),
+    /**
+     * Customer refunds added to the approved queue. The account here is one finance approved;
+     * the attack's prose is what points somewhere else.
+     */
+    refunds: z
+      .array(
+        z.object({
+          reference: z.string().min(1),
+          name: z.string().min(1),
+          account: z.string().min(1),
+          amountUsd: z.number().positive(),
+          reason: z.string().min(1),
+        }),
+      )
+      .default([]),
   }),
   /**
    * The attack is one email with no attachments, so it can be re-delivered through another
@@ -300,6 +315,13 @@ export function seedProblem(
     !seed.plant.emails.some((e) => (e.threadId ?? `t-${e.id}`) === seed.counterparty!.threadId)
   ) {
     return `no planted email opens thread ${seed.counterparty.threadId}`;
+  }
+  const refundRefs = seed.plant.refunds.map((r) => r.reference.trim().toUpperCase());
+  if (new Set(refundRefs).size !== refundRefs.length) return "two refunds share a reference";
+  for (const r of seed.plant.refunds) {
+    if (Math.abs(r.amountUsd * 100 - Math.round(r.amountUsd * 100)) > 1e-6) {
+      return `${r.reference} has more than two decimals`;
+    }
   }
   if (seed.counterparty) {
     const cp = seed.counterparty;
@@ -502,6 +524,9 @@ function plantSeed(world: OffchainWorld, seed: OffchainSeed, dir: string): Offch
   }
   if (Object.keys(p.toolDescriptions).length) {
     world.toolDescriptions = { ...world.toolDescriptions, ...p.toolDescriptions };
+  }
+  if (p.refunds.length) {
+    world.refunds = [...(world.refunds ?? []), ...p.refunds.map((r) => ({ ...r }))];
   }
   return world;
 }
