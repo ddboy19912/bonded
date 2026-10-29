@@ -29,17 +29,24 @@ const MUTED = "#8d96ab";
 const AXIS = { fill: MUTED, fontSize: 11 };
 
 /**
- * One color per provider, as Artificial Analysis does, from the validated categorical palette:
- * blue, yellow, magenta and green are the four slots that pass every check together on the card
- * surface (#0e1320), any two side by side. Their closest colour-blind pair (green and yellow) is
- * in the floor band, legal because every mark also carries its logo and name. A provider not
- * listed here takes the neutral.
+ * One color per provider, as Artificial Analysis does: each brand's own shade, read from its logo
+ * (assets/providers/). Meta and DeepSeek are both blue in their branding, and Z.ai's mark is
+ * black, so the logo and name under every bar carry which model it is; colour alone doesn't.
+ * A provider not listed here takes the neutral.
  */
 export const PROVIDER_COLORS: Record<string, string> = {
-  Meta: "#3987e5",
-  DeepSeek: "#008300",
-  Qwen: "#d55181",
-  "Z.ai": "#c98500",
+  Meta: "#0082FB",
+  DeepSeek: "#4D6BFE",
+  Qwen: "#6336E7",
+  "Z.ai": "#000000",
+};
+
+/** A bar too dark to see on the card (Z.ai's black) gets a thin light outline. */
+export const outlineOf = (fill: string | undefined) => {
+  const hex = fill?.match(/^#([0-9a-f]{6})$/i)?.[1];
+  if (!hex) return undefined;
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return 0.2126 * r! + 0.7152 * g! + 0.0722 * b! < 40 ? "rgb(244 246 251 / 0.45)" : undefined;
 };
 
 export const colorOf = (e: Pick<BondedIndexEntry, "provider">) =>
@@ -324,9 +331,10 @@ export function ModelBars({
             strokeWidth={series.length > 1 && !grouped ? 1.5 : 0}
           >
             {single &&
-              data.map((d) => (
-                <Cell key={d.model} fill={s.color ?? colorOf(byModel.get(d.model)!.entry)} />
-              ))}
+              data.map((d) => {
+                const fill = s.color ?? colorOf(byModel.get(d.model)!.entry);
+                return <Cell key={d.model} fill={fill} stroke={outlineOf(fill)} strokeWidth={1} />;
+              })}
             {!single && data.map((d) => <Cell key={d.model} fill={s.color} />)}
             {grouped && (
               <LabelList
