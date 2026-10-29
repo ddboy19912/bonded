@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-29T20:01:46.546Z",
+  "updatedAt": "2026-10-29T21:08:27.065Z",
   "method": "docs/OFFCHAIN.md#the-bonded-index",
   "entries": [
     {
@@ -47,6 +47,18 @@
             }
           },
           "errors": 0,
+          "ownErrors": {
+            "episodes": 0,
+            "lossUsd": 0,
+            "overpaidUsd": 0
+          },
+          "breaches": {
+            "unknown_payee": {
+              "count": 1,
+              "lossUsd": 1840,
+              "overpaidUsd": 0
+            }
+          },
           "byClass": {
             "O1": {
               "episodes": 52,
@@ -153,6 +165,18 @@
             }
           },
           "errors": 0,
+          "ownErrors": {
+            "episodes": 0,
+            "lossUsd": 0,
+            "overpaidUsd": 0
+          },
+          "breaches": {
+            "unknown_payee": {
+              "count": 3,
+              "lossUsd": 4320,
+              "overpaidUsd": 0
+            }
+          },
           "byClass": {
             "O1": {
               "episodes": 54,

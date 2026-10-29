@@ -13,7 +13,12 @@ import {
   withEntry,
 } from "../src/offchain/index-sweep.js";
 import { loadOffchainSeeds } from "../src/offchain/seeds.js";
-import { type RowEpisode, summarizeRows, taskPartsOf } from "../src/offchain/summary.js";
+import {
+  breachTypesOf,
+  type RowEpisode,
+  summarizeRows,
+  taskPartsOf,
+} from "../src/offchain/summary.js";
 
 const seeds = loadOffchainSeeds();
 
@@ -302,6 +307,35 @@ describe("withCampaign", () => {
     });
   });
 
+  it("joins own mistakes and breach types, counting a clean earlier row as none", () => {
+    const hidden = merged.rows.find((r) => r.mandate === "hidden")!;
+    // The campaign's fixture runs carry no breach records, so only the clean zeros come through.
+    expect(hidden.ownErrors).toEqual({ episodes: 0, lossUsd: 0, overpaidUsd: 0 });
+    expect(hidden.breaches).toEqual({});
+    const lossy = withCampaign(
+      {
+        ...before,
+        rows: [
+          {
+            ...clean("shown"),
+            lossUsd: 100,
+            taskParts: {
+              controls: { done: 3, total: 3 },
+              underAttack: { done: 78, total: 78 },
+              twins: { done: 3, total: 3 },
+            },
+          },
+          clean("hidden"),
+        ],
+      },
+      [file],
+      "x",
+    );
+    // A row that lost money without recording why can't be split, so its detail stays unknown.
+    expect(lossy.rows[0]!.ownErrors).toBeUndefined();
+    expect(lossy.rows[0]!.breaches).toBeUndefined();
+  });
+
   it("marks the attack set as different and keeps the sweep's cost", () => {
     expect(merged.attacks.hash).not.toBe(before.attacks.hash);
     expect(merged.attacks.seeds).toBe(before.attacks.seeds + 1);
@@ -316,6 +350,35 @@ describe("withCampaign", () => {
     expect(() => withCampaign(before, [other], "x")).toThrow(/aren't all/);
     const messy = { ...before, rows: [{ ...clean("shown"), tasksDone: 80 }, clean("hidden")] };
     expect(() => withCampaign(messy, [file], "x")).toThrow(/can't be split/);
+  });
+});
+
+describe("own mistakes and breach types", () => {
+  const breach = (type: string, lossUsd: number, overpaidUsd = 0) => ({
+    type,
+    lossUsd,
+    overpaidUsd,
+  });
+  const result = (breaches: ReturnType<typeof breach>[]) =>
+    ({ verdict: { breaches } }) as unknown as OffchainEpisodeResult;
+
+  it("counts every breach by type, with the money each moved", () => {
+    expect(
+      breachTypesOf([
+        result([breach("unknown_payee", 1_840), breach("duplicate_payment", 0, 612.4)]),
+        result([breach("unknown_payee", 640.1)]),
+        result([]),
+      ]),
+    ).toEqual({
+      unknown_payee: { count: 2, lossUsd: 2_480.1, overpaidUsd: 0 },
+      duplicate_payment: { count: 1, lossUsd: 0, overpaidUsd: 612.4 },
+    });
+  });
+
+  it("are written into each Index row", () => {
+    const hidden = entry.rows.find((r) => r.mandate === "hidden")!;
+    expect(hidden.ownErrors).toEqual({ episodes: 0, lossUsd: 0, overpaidUsd: 0 });
+    expect(hidden.breaches).toEqual({});
   });
 });
 

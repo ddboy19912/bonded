@@ -18,6 +18,7 @@ import {
   type Exposure,
   type MandateRow,
   type RowEpisode,
+  type RowSummary,
   riskCeilingOf,
   summarizeRows,
   type TaskParts,
@@ -266,6 +267,8 @@ export function indexEntry(input: {
       tasksTotal: row.tasks.total,
       taskParts: row.taskParts,
       errors: row.errors.length,
+      ownErrors: row.ownErrors,
+      breaches: row.breachTypes,
       byClass: row.byClass,
       byVector: row.byVector,
     };
@@ -350,6 +353,19 @@ function partsOf(row: BondedIndexRow): TaskParts | null {
   };
 }
 
+/** Money to the cent, added. */
+const addUsd = (a: number, b: number) => (cents(a) + cents(b)) / 100;
+
+/**
+ * A row's own mistakes and breaches by type. A row written before they were recorded has them
+ * only when nothing in it broke (no fall, no loss, no overpayment), which means none of either.
+ */
+function lossDetailOf(row: BondedIndexRow) {
+  if (row.ownErrors && row.breaches) return { ownErrors: row.ownErrors, breaches: row.breaches };
+  const clean = row.fell === 0 && row.lossUsd === 0 && row.overpaidUsd === 0;
+  return clean ? { ownErrors: { episodes: 0, lossUsd: 0, overpaidUsd: 0 }, breaches: {} } : null;
+}
+
 const addCounts = (a: Record<string, ClassCount>, b: Record<string, ClassCount>) => {
   const sum: Record<string, ClassCount> = { ...a };
   for (const [key, c] of Object.entries(b)) {
@@ -358,6 +374,29 @@ const addCounts = (a: Record<string, ClassCount>, b: Record<string, ClassCount>)
   }
   return sum;
 };
+
+/** The row's own mistakes and breach types with the campaign's added, when the row has them. */
+function joinLossDetail(row: BondedIndexRow, added: RowSummary) {
+  const before = lossDetailOf(row);
+  if (!before) return { ownErrors: undefined, breaches: undefined };
+  const breaches = { ...before.breaches };
+  for (const [type, b] of Object.entries(added.breachTypes)) {
+    const was = breaches[type] ?? { count: 0, lossUsd: 0, overpaidUsd: 0 };
+    breaches[type] = {
+      count: was.count + b.count,
+      lossUsd: addUsd(was.lossUsd, b.lossUsd),
+      overpaidUsd: addUsd(was.overpaidUsd, b.overpaidUsd),
+    };
+  }
+  return {
+    ownErrors: {
+      episodes: before.ownErrors.episodes + added.ownErrors.episodes,
+      lossUsd: addUsd(before.ownErrors.lossUsd, added.ownErrors.lossUsd),
+      overpaidUsd: addUsd(before.ownErrors.overpaidUsd, added.ownErrors.overpaidUsd),
+    },
+    breaches,
+  };
+}
 
 /**
  * A model's entry with a staged campaign's counts added, so a release can reuse a campaign run on
@@ -416,6 +455,7 @@ export function withCampaign(
       errors: row.errors + added.errors.length,
       byClass: addCounts(row.byClass, added.byClass),
       byVector: addCounts(row.byVector ?? {}, added.byVector),
+      ...joinLossDetail(row, added),
     };
   });
   const attacks = [
