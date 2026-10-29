@@ -1,8 +1,4 @@
-import type {
-  BondedIndex as BondedIndexData,
-  BondedIndexEntry,
-  BondedIndexRow,
-} from "@bondedhq/shared";
+import type { BondedIndex as BondedIndexData, BondedIndexEntry } from "@bondedhq/shared";
 import { useState } from "react";
 import { BenchComparisonCard } from "../components/bench-comparison";
 import { VIZ } from "../components/charts";
@@ -106,6 +102,7 @@ const LEADERBOARD_TABS = [
   { id: "security", label: "Security" },
   { id: "task", label: "Task" },
   { id: "loss", label: "Loss per 1,000 runs" },
+  { id: "own", label: "Own mistakes" },
   { id: "money", label: "Money moved" },
   { id: "tested", label: "How well tested" },
   { id: "briefing", label: "Rules shown vs hidden" },
@@ -117,6 +114,9 @@ type LeaderboardTab = (typeof LEADERBOARD_TABS)[number]["id"];
 /** Every per-model ranking on one card, one tab each. */
 function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
   const [tab, setTab] = useState<LeaderboardTab>("security");
+  // Own mistakes are recorded from the sweep that captures them on; until every model has them,
+  // the tab would compare recorded zeros with missing ones, so it waits.
+  const recordsOwnMistakes = entries.every((e) => e.rows.every((r) => r.ownErrors));
   const flag = (e: BondedIndexEntry) => (idle(e) ? IDLE_FLAG : undefined);
   // A flagged model ranks last on security: its score says it wasn't tricked, mostly because it
   // didn't act.
@@ -256,6 +256,61 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
               usd(perThousand(e)),
               usd(lostUsd(e)),
               usd(overpaidUsd(e)),
+              runsOf(e).toLocaleString("en-US"),
+            ])}
+          />
+        ),
+      };
+    })(),
+    own: (() => {
+      const own = (e: BondedIndexEntry) =>
+        e.rows.reduce(
+          (n, r) => n + (r.ownErrors?.lossUsd ?? 0) + (r.ownErrors?.overpaidUsd ?? 0),
+          0,
+        );
+      const per = (usdTotal: number, e: BondedIndexEntry) =>
+        runsOf(e) === 0 ? 0 : (usdTotal / runsOf(e)) * 1000;
+      const total = (e: BondedIndexEntry) => lostUsd(e) + overpaidUsd(e);
+      const sorted = [...entries].sort((a, b) => per(total(a), a) - per(total(b), b));
+      const ticks = niceTicks(Math.max(1, ...sorted.map((e) => per(total(e), e))));
+      return {
+        subtitle:
+          "Lower is better · loss per 1,000 runs, split into what attacks caused and the model's own mistakes",
+        bars: sorted.map((e) => ({
+          entry: e,
+          label: usd(per(total(e), e)),
+          values: { attack: per(total(e) - own(e), e), own: per(own(e), e) },
+          tip: (
+            <Tip e={e}>
+              <span>
+                Caused by attacks <b className="text-ink">{usd(total(e) - own(e))}</b>
+              </span>
+              <span>
+                Its own mistakes <b className="text-ink">{usd(own(e))}</b>
+              </span>
+              <span className="text-muted">over {runsOf(e).toLocaleString("en-US")} runs</span>
+            </Tip>
+          ),
+        })),
+        series: [
+          { key: "attack", label: "Caused by attacks", color: VIZ.lost },
+          { key: "own", label: "Own mistakes", color: VIZ.accentSoft },
+        ],
+        domain: [0, ticks[ticks.length - 1]!] as [number, number],
+        ticks,
+        format: usd,
+        legend: [
+          { color: VIZ.lost, label: "Caused by attacks" },
+          { color: VIZ.accentSoft, label: "Its own mistakes" },
+        ],
+        table: (
+          <DataTable
+            head={["Model", "Caused by attacks", "Own mistakes", "Runs with a mistake", "Runs"]}
+            rows={sorted.map((e) => [
+              <ModelName key={e.model} entry={e} />,
+              usd(total(e) - own(e)),
+              usd(own(e)),
+              e.rows.reduce((n, r) => n + (r.ownErrors?.episodes ?? 0), 0),
               runsOf(e).toLocaleString("en-US"),
             ])}
           />
@@ -455,7 +510,7 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
     <ChartCard
       title="Leaderboard"
       subtitle={view.subtitle}
-      tabs={LEADERBOARD_TABS}
+      tabs={LEADERBOARD_TABS.filter((t) => t.id !== "own" || recordsOwnMistakes)}
       tab={tab}
       onTab={(id) => setTab(id as LeaderboardTab)}
       table={view.table}
@@ -569,6 +624,16 @@ function Tradeoffs({ entries }: { entries: BondedIndexEntry[] }) {
   );
 }
 
+/** The ledger's breach types (ledger.ts), in plain words, most serious first. */
+const BREACH_NAMES: Record<string, string> = {
+  unknown_payee: "Paid an unknown account",
+  unverified_vendor_change: "Changed bank details unchecked",
+  duplicate_payment: "Paid twice",
+  unmatched_invoice: "Paid an unapproved invoice",
+  over_payment_cap: "Over the payment cap",
+  over_daily_cap: "Over the daily cap",
+};
+
 /** Versions compared numerically, part by part: 1.10 after 1.9. */
 const byVersion = (a: BondedIndexEntry, b: BondedIndexEntry) => {
   const pa = a.version.split(".").map(Number);
@@ -655,19 +720,44 @@ function WhereTheyBreak({ entries }: { entries: BondedIndexEntry[] }) {
       entries.some((e) => e.rows.some((r) => r.byVector?.[v])),
     ),
   );
+  // Breach types show once every model records them (the sweep that captures them on).
+  const recordsBreaches = entries.every((e) => e.rows.every((r) => r.breaches));
   const tabs = [
     { id: "class", label: "By attack type" },
     ...(Object.keys(vectors).length > 0 ? [{ id: "vector", label: "By channel" }] : []),
+    ...(recordsBreaches ? [{ id: "breach", label: "By breach type" }] : []),
   ];
   const [tab, setTab] = useState("class");
-  const names = tab === "vector" ? vectors : ATTACK_CLASS_NAMES;
-  const countsOf = (row: BondedIndexRow) => (tab === "vector" ? row.byVector : row.byClass);
+  const names =
+    tab === "vector"
+      ? vectors
+      : tab === "breach"
+        ? Object.fromEntries(
+            Object.entries(BREACH_NAMES).filter(([t]) =>
+              entries.some((e) => e.rows.some((r) => r.breaches?.[t])),
+            ),
+          )
+        : ATTACK_CLASS_NAMES;
+  // A cell: attacks that got through out of those run (worse briefing), or for breach types,
+  // breaches of that type over every run in both briefings.
+  const cellOf = (e: BondedIndexEntry, k: string) => {
+    if (tab !== "breach") {
+      const row = worstRow(e);
+      return (tab === "vector" ? row.byVector : row.byClass)?.[k];
+    }
+    const count = e.rows.reduce((n, r) => n + (r.breaches?.[k]?.count ?? 0), 0);
+    return { fell: count, episodes: runsOf(e) };
+  };
   const keys = Object.keys(names);
   const sorted = byScore(entries);
   return (
     <ChartCard
       title="Where models break"
-      subtitle="Share of attacks that got through, in the model's worse briefing · darker is worse · dashed: not run"
+      subtitle={
+        tab === "breach"
+          ? "Breaches of each type over every run, attack-caused or the model's own · darker is worse"
+          : "Share of attacks that got through, in the model's worse briefing · darker is worse · dashed: not run"
+      }
       tabs={tabs}
       tab={tab}
       onTab={setTab}
@@ -677,7 +767,7 @@ function WhereTheyBreak({ entries }: { entries: BondedIndexEntry[] }) {
           rows={sorted.map((e) => [
             <ModelName key={e.model} entry={e} />,
             ...keys.map((k) => {
-              const v = countsOf(worstRow(e))?.[k];
+              const v = cellOf(e, k);
               return v ? `${v.fell} of ${v.episodes}` : "not run";
             }),
           ])}
@@ -705,19 +795,24 @@ function WhereTheyBreak({ entries }: { entries: BondedIndexEntry[] }) {
           </thead>
           <tbody>
             {sorted.map((e) => {
-              const row = worstRow(e);
               return (
                 <tr key={e.model}>
                   <th scope="row" className="pr-2 text-left font-normal">
                     <ModelName entry={e} />
                   </th>
                   {keys.map((k) => {
-                    const v = countsOf(row)?.[k];
+                    const v = cellOf(e, k);
                     const rate = v && v.episodes > 0 ? v.fell / v.episodes : 0;
                     return (
                       <td
                         key={k}
-                        title={`${e.label}, ${names[k]}: ${v ? `fell ${v.fell} of ${v.episodes} (${pct(rate)})` : "not run"}`}
+                        title={`${e.label}, ${names[k]}: ${
+                          !v
+                            ? "not run"
+                            : tab === "breach"
+                              ? `${v.fell} breaches over ${v.episodes} runs`
+                              : `fell ${v.fell} of ${v.episodes} (${pct(rate)})`
+                        }`}
                         className={`h-9 rounded-md text-center tabular-nums ${v ? "text-ink" : "border border-dashed border-line-strong text-muted"}`}
                         style={
                           v

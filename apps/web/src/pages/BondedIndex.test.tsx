@@ -281,6 +281,51 @@ describe("Bonded Index", () => {
     expect(order).toEqual(["Muse Spark 1.1", "Muse Spark 1.2", "Muse Spark 1.3"]);
   });
 
+  it("splits loss into attacks and own mistakes, and breaches by type, once every model records them", () => {
+    view();
+    expect(within(section("Leaderboard")).queryByRole("tab", { name: "Own mistakes" })).toBeNull();
+    expect(
+      within(section("Where models break")).queryByRole("tab", { name: "By breach type" }),
+    ).toBeNull();
+    const recorded: BondedIndexData = {
+      ...index,
+      entries: index.entries.map((e) => ({
+        ...e,
+        rows: e.rows.map((r) => ({
+          ...r,
+          ownErrors:
+            e.model === "deepseek/deepseek-v4.1-flash" && r.mandate === "hidden"
+              ? { episodes: 2, lossUsd: 612.4, overpaidUsd: 0 }
+              : { episodes: 0, lossUsd: 0, overpaidUsd: 0 },
+          breaches:
+            r.lossUsd + r.overpaidUsd > 0
+              ? {
+                  unknown_payee: { count: 1, lossUsd: r.lossUsd, overpaidUsd: 0 },
+                  duplicate_payment: { count: 3, lossUsd: 0, overpaidUsd: r.overpaidUsd },
+                }
+              : {},
+        })),
+      })),
+    };
+    cleanup();
+    view(recorded);
+    const board = section("Leaderboard");
+    fireEvent.click(within(board).getByRole("tab", { name: "Own mistakes" }));
+    showTable(board);
+    const row = within(board).getByRole("row", { name: /DeepSeek V4.1 Flash/ });
+    // $9,812.40 in all: $612.40 its own, $9,200 caused by attacks.
+    expect(row.textContent).toContain("$9.2K");
+    expect(row.textContent).toContain("$612.4");
+    const breaks = section("Where models break");
+    fireEvent.click(within(breaks).getByRole("tab", { name: "By breach type" }));
+    expect(within(breaks).getByRole("columnheader", { name: "Paid twice" })).toBeTruthy();
+    expect(within(breaks).queryByRole("columnheader", { name: "Over the daily cap" })).toBeNull();
+    showTable(breaks);
+    expect(within(breaks).getByRole("row", { name: /DeepSeek V4.1 Flash/ }).textContent).toContain(
+      "3 of 168",
+    );
+  });
+
   it("says so when no model has been rated", () => {
     view({ ...index, entries: [] });
     expect(screen.getByText("No models have been rated yet.")).toBeTruthy();

@@ -25,6 +25,7 @@ const Interval = z.tuple([z.number().min(0), z.number().max(100)]);
 const Rate = z.tuple([z.number().min(0).max(1), z.number().min(0).max(1)]);
 
 const TaskPart = z.object({ done: z.number().int().min(0), total: z.number().int().min(0) });
+const Money = { lossUsd: z.number().min(0), overpaidUsd: z.number().min(0) };
 
 export const BondedIndexRow = z.object({
   /** Told the mandate's rules ("shown"), or only its job ("hidden"). */
@@ -47,6 +48,17 @@ export const BondedIndexRow = z.object({
    */
   taskParts: z.object({ controls: TaskPart, underAttack: TaskPart, twins: TaskPart }).optional(),
   errors: z.number().int().min(0),
+  /**
+   * The model's own mistakes: episodes with a breach that involved nothing an attack planted
+   * (judge.ts, `ownErrors`), and what those breaches cost. Losses, but not manipulation. Absent on
+   * entries rated before they were recorded.
+   */
+  ownErrors: z.object({ episodes: z.number().int().min(0), ...Money }).optional(),
+  /**
+   * Every breach by type (unknown_payee, duplicate_payment…), attack-caused or not: how many and
+   * the money they moved. Absent on entries rated before they were recorded.
+   */
+  breaches: z.record(z.string(), z.object({ count: z.number().int().min(0), ...Money })).optional(),
   /** Attack episodes and how many fell, by attack class (O1 to O6). */
   byClass: z.record(z.string(), z.object({ episodes: z.number().int(), fell: z.number().int() })),
   /**
