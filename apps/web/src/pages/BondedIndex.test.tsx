@@ -93,7 +93,9 @@ describe("Bonded Index", () => {
 
   it("ranks models by score, and flags one that mostly didn't do its job and ranks it last", () => {
     view();
-    const chart = screen.getByRole("heading", { name: "Bonded Score by model" }).closest("figure")!;
+    const chart = screen
+      .getByRole("heading", { name: "Security and Task by model" })
+      .closest("figure")!;
     const labels = within(chart).getAllByText(
       /Muse Spark 1.3|DeepSeek V4.1 Flash|Llama 4 Maverick/,
     );
@@ -103,8 +105,8 @@ describe("Bonded Index", () => {
       "DeepSeek V4.1 Flash",
       "Llama 4 Maverick",
     ]);
-    expect(within(chart).getByText("⚠ did 0% of its jobs")).toBeTruthy();
-    expect(within(chart).queryAllByText(/did \d+% of its jobs/)).toHaveLength(1);
+    expect(within(chart).getByText("⚠ Task 0: mostly didn't act")).toBeTruthy();
+    expect(within(chart).queryAllByText(/mostly didn't act/)).toHaveLength(1);
   });
 
   it("gives every chart a table view, and every bar a keyboard tooltip", () => {
@@ -117,7 +119,7 @@ describe("Bonded Index", () => {
     expect(row.textContent).toContain("$612.4");
     expect(row.textContent).toContain("$9.2K");
 
-    const score = screen.getByRole("img", { name: "DeepSeek V4.1 Flash: score 92" });
+    const score = screen.getByRole("img", { name: "DeepSeek V4.1 Flash: security 92, Task 100" });
     fireEvent.focus(score);
     expect(screen.getByRole("tooltip").textContent).toContain("95% interval 86–96");
     expect(screen.getByRole("tooltip").textContent).toContain(
@@ -156,14 +158,43 @@ describe("Bonded Index", () => {
       entries: index.entries.map((e) => ({ ...e, attacksTested: 156, riskCeiling: 0.047 })),
     };
     view(tested);
-    const chart = screen.getByRole("heading", { name: "Bonded Score by model" }).closest("figure")!;
-    const score = within(chart).getByRole("img", { name: "Muse Spark 1.3: score 100" });
+    const chart = screen
+      .getByRole("heading", { name: "Security and Task by model" })
+      .closest("figure")!;
+    const score = within(chart).getByRole("img", {
+      name: "Muse Spark 1.3: security 100, Task 100",
+    });
     fireEvent.focus(score);
     expect(screen.getByRole("tooltip").textContent).toContain(
       "tested on 156 attacks; above 4.7% ruled out",
     );
     fireEvent.click(within(chart).getByRole("button", { name: "Table" }));
     expect(within(chart).getByRole("columnheader", { name: "Tested" })).toBeTruthy();
+  });
+
+  it("shows the Task score beside security, preferring the entry's own over pooled jobs", () => {
+    const provenance =
+      "Library attacks: Index run of 26 Oct. New attacks: campaign of 29 Oct, three runs joined.";
+    const withTask: BondedIndexData = {
+      ...index,
+      entries: index.entries.map((e) =>
+        e.model === "muse-spark-1.3"
+          ? { ...e, task: { score: 14, source: "parts", part: "underAttack" }, provenance }
+          : e,
+      ),
+    };
+    view(withTask);
+    const chart = screen
+      .getByRole("heading", { name: "Security and Task by model" })
+      .closest("figure")!;
+    // Its rows say every job was done; the parts say otherwise, and the parts win.
+    expect(within(chart).getByText("100 · Task 14")).toBeTruthy();
+    expect(within(chart).getByText("⚠ Task 14: mostly didn't act")).toBeTruthy();
+    const results = screen.getByRole("heading", { name: "All results" }).closest("section")!;
+    expect(within(results).getByRole("columnheader", { name: "Task" })).toBeTruthy();
+    expect(within(results).getByRole("row", { name: /Muse Spark 1.3/ }).textContent).toContain(
+      provenance,
+    );
   });
 
   it("says so when no model has been rated", () => {

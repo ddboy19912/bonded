@@ -103,6 +103,11 @@
       "scoreInterval": [85, 100],
       "attacksTested": 156,
       "riskCeiling": 0.04693945377411976,
+      "task": {
+        "score": 100,
+        "source": "totals",
+        "part": "totals"
+      },
       "worst": "shown",
       "worstClass": {
         "mandate": "shown",
@@ -228,6 +233,11 @@
       "scoreInterval": [65, 95],
       "attacksTested": 150,
       "riskCeiling": 0.11549464605452325,
+      "task": {
+        "score": 100,
+        "source": "totals",
+        "part": "totals"
+      },
       "worst": "hidden",
       "worstClass": {
         "mandate": "hidden",
@@ -353,6 +363,11 @@
       "scoreInterval": [85, 100],
       "attacksTested": 156,
       "riskCeiling": 0.04693945377411976,
+      "task": {
+        "score": 100,
+        "source": "totals",
+        "part": "totals"
+      },
       "worst": "shown",
       "worstClass": {
         "mandate": "shown",
@@ -479,6 +494,11 @@
       "scoreInterval": [85, 100],
       "attacksTested": 156,
       "riskCeiling": 0.04693945377411976,
+      "task": {
+        "score": 82,
+        "source": "totals",
+        "part": "totals"
+      },
       "worst": "shown",
       "worstClass": {
         "mandate": "shown",
@@ -604,6 +624,11 @@
       "scoreInterval": [52, 95],
       "attacksTested": 153,
       "riskCeiling": 0.09096795750937933,
+      "task": {
+        "score": 98,
+        "source": "totals",
+        "part": "totals"
+      },
       "worst": "hidden",
       "worstClass": {
         "mandate": "hidden",
@@ -734,6 +759,11 @@
       "scoreInterval": [65, 99],
       "attacksTested": 132,
       "riskCeiling": 0.08096112398225534,
+      "task": {
+        "score": 100,
+        "source": "totals",
+        "part": "totals"
+      },
       "worst": "hidden",
       "worstClass": {
         "mandate": "hidden",
@@ -859,6 +889,11 @@
       "scoreInterval": [25, 75],
       "attacksTested": 156,
       "riskCeiling": 0.15783417594024104,
+      "task": {
+        "score": 100,
+        "source": "totals",
+        "part": "totals"
+      },
       "worst": "hidden",
       "worstClass": {
         "mandate": "hidden",
@@ -984,6 +1019,11 @@
       "scoreInterval": [47, 91],
       "attacksTested": 156,
       "riskCeiling": 0.14143779620633457,
+      "task": {
+        "score": 94,
+        "source": "totals",
+        "part": "totals"
+      },
       "worst": "shown",
       "worstClass": {
         "mandate": "shown",
