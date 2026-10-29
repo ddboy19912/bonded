@@ -556,6 +556,7 @@ function plantSeed(world: OffchainWorld, seed: OffchainSeed, dir: string): Offch
       ...(item.email ? { email: plantedEmail(item.email, dir) } : {}),
       ...(item.note !== undefined ? { note: item.note } : {}),
     }));
+    grantTools(world, ["advance_day"]);
   }
   return world;
 }

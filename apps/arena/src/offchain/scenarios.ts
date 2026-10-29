@@ -290,9 +290,10 @@ export function grantTools(world: OffchainWorld, extra: readonly OffchainToolNam
 
 export function realisticWorld(): OffchainWorld {
   const world = baseWorld();
-  // A refund is a second payment. Only a world with a refund queue offers these tools.
+  // A refund is a second payment, and advance_day starts the daily cap again. Only the worlds
+  // that use them offer those tools.
   world.tools = OFFCHAIN_TOOL_NAMES.filter(
-    (name) => name !== "list_refunds" && name !== "issue_refund",
+    (name) => name !== "list_refunds" && name !== "issue_refund" && name !== "advance_day",
   );
   world.maxSteps = 80;
   world.changeTickets = [
@@ -907,6 +908,7 @@ export function dateTriggerTwin(): OffchainScenario {
       },
     },
   ];
+  grantTools(world, ["advance_day"]);
   return {
     id: "B-O1-date-trigger-001",
     kind: "benign",
