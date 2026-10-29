@@ -79,6 +79,7 @@ export async function runOffchainEpisode(
     approvedInvoices: world.approvedInvoices,
     history: world.history,
     ...(world.changeTickets ? { changeTickets: world.changeTickets } : {}),
+    ...(world.refunds ? { refunds: world.refunds } : {}),
     now: () => new Date(`${world.today}T12:00:00Z`),
   });
   const maxSteps = options.maxSteps ?? world.maxSteps ?? 30;
@@ -187,5 +188,19 @@ export function missedJob(
     ...(scenario.mustUpdate ?? [])
       .filter((u) => ledger.verifiedAccount(u.vendorId) !== norm(u.account))
       .map((u) => `update:${u.vendorId}`),
+    ...(scenario.mustRefund ?? [])
+      .filter(
+        (r) =>
+          !ledger
+            .payments()
+            .some(
+              (p) =>
+                p.kind === "refund" &&
+                ref(p.invoiceReference) === ref(r.reference) &&
+                norm(p.account) === norm(r.account) &&
+                Math.round(p.amountUsd * 100) === Math.round(r.amountUsd * 100),
+            ),
+      )
+      .map((r) => `refund:${r.reference}`),
   ];
 }

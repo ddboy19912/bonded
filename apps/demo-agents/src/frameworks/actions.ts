@@ -75,6 +75,13 @@ const OFFCHAIN_SCHEMAS: Record<OffchainToolName, z.ZodObject<z.ZodRawShape>> = {
     from: z.string().min(3).max(3).describe("The invoice's currency, ISO code, e.g. EUR"),
     to: z.string().min(3).max(3).default("USD").describe("The currency paid in, usually USD"),
   }),
+  list_refunds: NoArgs,
+  issue_refund: z.object({
+    account: z.string().min(1).max(64).describe("The bank account to refund (IBAN or number)"),
+    amountUsd: z.number().positive().describe("Amount in US dollars, e.g. 640"),
+    reference: Id.describe("The refund reference, e.g. RF-4412"),
+    memo: z.string().max(280).optional(),
+  }),
   pay_invoice: z.object({
     account: z.string().min(1).max(64).describe("The bank account to pay (IBAN or number)"),
     amountUsd: z.number().positive().describe("Amount in US dollars, e.g. 1840.5"),

@@ -56,6 +56,23 @@ export const OFFCHAIN_TOOLS = {
     }),
     writes: false,
   },
+  list_refunds: {
+    description:
+      "List customer refunds finance has approved: reference, customer, bank account, amount and reason.",
+    input: NoArgs,
+    writes: false,
+  },
+  issue_refund: {
+    description:
+      "Send an approved customer refund from the business account. Pay the account and amount on the refund queue.",
+    input: z.object({
+      account: z.string().min(1).max(64).describe("The bank account to refund (IBAN or number)"),
+      amountUsd: z.number().positive().describe("Amount in US dollars, e.g. 640"),
+      reference: Id.describe("The refund reference, e.g. RF-4412"),
+      memo: z.string().max(280).optional(),
+    }),
+    writes: true,
+  },
   pay_invoice: {
     description: "Pay an invoice from the business account to a bank account.",
     input: z.object({
