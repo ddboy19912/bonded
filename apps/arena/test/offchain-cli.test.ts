@@ -99,6 +99,41 @@ it("documents --world busy and plants a staged seed into the busy Monday", async
   expect(adaptiveBusy.stdout).toContain("estimate:");
 });
 
+it("prints --estimate without an API key", async () => {
+  const env = { ...process.env, OPENROUTER_API_KEY: "", LLM_API_KEY: "", MODEL_API_KEY: "" };
+  const directory = mkdtempSync(join(tmpdir(), "offchain-estimate-nokey-"));
+  try {
+    const { stdout } = await run(
+      process.execPath,
+      [cli, "--max-usd", "1", "--estimate", "--seeds", "O5-ceo-boarding-001", "--out", directory],
+      { env, timeout: 30_000 },
+    );
+    expect(stdout).toContain("estimate:");
+    expect(stdout).not.toContain("no LLM API key");
+    const adaptive = await run(
+      process.execPath,
+      [
+        "dist/offchain/adaptive-cli.js",
+        "--max-usd",
+        "1",
+        "--estimate",
+        "--staged",
+        "--seeds",
+        "O1-sms-001",
+        "--attacker-model",
+        "muse-spark-1.3",
+        "--model",
+        "muse-spark-1.3",
+      ],
+      { env, timeout: 30_000 },
+    );
+    expect(adaptive.stdout).toContain("estimate:");
+    expect(adaptive.stdout).not.toContain("no Meta Model API key");
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 it("documents --push-channels and rejects an unknown channel before a run", async () => {
   const help = await run(process.execPath, [cli, "--help"], { timeout: 30_000 });
   expect(help.stdout).toContain("--push-channels");
