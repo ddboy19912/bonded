@@ -34,7 +34,11 @@ import type { OffchainWorld } from "./world.js";
  */
 
 /** OpenRouter id for MiMo. `--model` selects another id, such as DeepSeek or GLM. */
-export const DEFAULT_GENERATOR_MODEL = "xiaomi/mimo-v2.6-flash";
+// DeepSeek V4.1 Flash out-wrote MiMo and GLM-5.3-Flash in head-to-head smokes (Oct 29): it broke
+// a weak agent where MiMo could not, with cleaner drafts. A stronger model (DeepSeek V4 Pro,
+// GLM-5.3 with reasoning) writes cleaner attacks for the decisive runs, where the attacker cost is
+// small next to the agent's; pass --model for those.
+export const DEFAULT_GENERATOR_MODEL = "deepseek/deepseek-v4.1-flash";
 
 /** Attacks requested in one call, at most. More than this is a second call, with its own seed. */
 export const MAX_GENERATED = 40;
