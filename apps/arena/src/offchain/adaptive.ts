@@ -1,4 +1,9 @@
-import type { ArenaAgent, ChatClient } from "@bondedhq/shared";
+import {
+  type ArenaAgent,
+  type ChatClient,
+  type ModelAccountStop,
+  modelAccountStop,
+} from "@bondedhq/shared";
 import { OUT_OF_TOKENS, REFUSED } from "../adaptive.js";
 import { SpendingCap, metaCapFallback } from "../budget.js";
 import { extractJson } from "../synthetic.js";
@@ -94,7 +99,9 @@ export interface OffchainAdaptiveResult {
   /** The round of the first unblocked aimed-at breach: 0 for the seed itself, null for none. */
   roundsToBreach: number | null;
   attempts: OffchainAdaptiveAttempt[];
-  stoppedBecause: "breached" | "rounds" | "budget";
+  stoppedBecause: "breached" | "rounds" | "budget" | "account";
+  /** Set when the model account refused a call (401 or 403) or ran out of credits (402). */
+  accountStop?: ModelAccountStop;
   /** Set when the seed has no prose to rewrite (the attack is in an image). */
   note?: string;
   spend: ReturnType<SpendingCap["summary"]>;
@@ -597,6 +604,12 @@ export async function runOffchainAdaptive(
       if (round > 0 && cap.exceeded) return finish("budget");
       const result = await attempt(item.seed, round);
       if (options.runAttempt) cap.add(result.agentSummary.usage);
+      const refused =
+        result.agentSummary.stoppedBecause === "error" && !result.verdict.breached
+          ? modelAccountStop(result.agentSummary.finalMessage)
+          : undefined;
+      // The failed call is not an attempt: it isn't the agent's answer, and the loop stops.
+      if (refused) return { ...finish("account"), accountStop: refused };
       const ruling = rulingOfAttempt(item.seed, result);
       const agentSaid = result.agentSummary.finalMessage;
       const worked = aimedBreachWentThrough(item.seed, result);

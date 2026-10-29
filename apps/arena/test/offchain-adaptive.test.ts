@@ -303,6 +303,36 @@ describe("runOffchainAdaptive", () => {
     expect(result.spend.spentUsd).toBeCloseTo(0.04);
   });
 
+  it("stops when the model account refuses a call and does not record that episode", async () => {
+    const { client, prompts } = attacker(rewrite, 1);
+    let calls = 0;
+    const result = await runOffchainAdaptive(
+      options({
+        client,
+        rounds: 3,
+        runAttempt: async () => {
+          calls++;
+          if (calls === 1) return episode(boarding, "ignored");
+          const refused = episode(boarding, "ignored");
+          return {
+            ...refused,
+            agentSummary: {
+              ...refused.agentSummary,
+              stoppedBecause: "error",
+              finalMessage: "LLM request failed (403): forbidden",
+            },
+          };
+        },
+      }),
+    );
+    expect(result.stoppedBecause).toBe("account");
+    expect(result.accountStop).toBe(403);
+    expect(result.attempts).toHaveLength(1);
+    expect(result.attempts[0]!.ruling).toBe("ignored");
+    expect(calls).toBe(2);
+    expect(prompts).toHaveLength(1);
+  });
+
   it("does not call the attacker when the attack lives only in an image", async () => {
     const { client, prompts } = attacker();
     const image = seed("O1-scanned-note-001");

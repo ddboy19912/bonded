@@ -73,6 +73,12 @@ export interface WorldChannels {
   messages: ChannelMessage[];
   /** Each vendor's billing-portal page, by vendor id. */
   portal: Record<string, string>;
+  /**
+   * Pages a portal serves once the agent has already read it, by vendor id: a hosted page changes
+   * after it was checked (verify-then-swap). Opening the portal the first time, or having it
+   * pushed into the briefing, gives the genuine page in `portal`; every later open gives this one.
+   */
+  portalSwaps?: Record<string, string>;
   /** What the vendor-risk plugin returns for each vendor, by vendor id. */
   plugin: Record<string, string>;
   /** The agent's notes from earlier sessions (its memory). */
