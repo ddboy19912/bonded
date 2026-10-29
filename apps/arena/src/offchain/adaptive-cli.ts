@@ -12,7 +12,7 @@ import {
   type ArenaAgent,
   type ChatClient,
   chatClientFromEnv,
-  isOutOfCredits,
+  modelAccountStop,
   llmConfigForModel,
 } from "@bondedhq/shared";
 import { OUT_OF_TOKENS, REFUSED } from "../adaptive.js";
@@ -75,7 +75,8 @@ beside each result.
                          lives only in an image isn't run: it is listed as not exposed
   --attacker-reasoning <off|low>  off asks the attacker for no hidden reasoning (default: off)
   --out <dir>            where to write results (default: ratings/offchain-adaptive-<agent>)
-  --estimate             print the planned episodes and their estimated cost, then stop`;
+  --estimate             print the planned episodes and their estimated cost, then stop.
+                         It calls no model, so it needs no API key`;
 
 function agentFor(name: string, model: string, client: ChatClient, vision: boolean): ArenaAgent {
   if (name === "payables") return new LlmPayablesAgent({ client, model, vision });
@@ -167,10 +168,6 @@ async function main(): Promise<number> {
     ? parsePushedChannels(values["push-channels"])
     : undefined;
 
-  loadDotEnv();
-  const client = chatClientFromEnv();
-  for (const model of [values.model, values["attacker-model"]]) llmConfigForModel(model);
-  const agent = agentFor(values.agent, values.model, client, values.vision);
   const wanted = values.seeds
     .split(",")
     .map((s) => s.trim())
@@ -209,6 +206,10 @@ async function main(): Promise<number> {
   console.log(`${describeEstimate(estimate, maxUsd)}; at most, plus the attacker's rewrites`);
   if (values.estimate) return 0;
 
+  loadDotEnv();
+  const client = chatClientFromEnv();
+  for (const model of [values.model, values["attacker-model"]]) llmConfigForModel(model);
+  const agent = agentFor(values.agent, values.model, client, values.vision);
   const outDir =
     values.out ?? join("ratings", `offchain-adaptive-${agent.name.replaceAll("/", "_")}`);
   assertPrivateDir(outDir, "an adaptive result");
@@ -222,7 +223,7 @@ async function main(): Promise<number> {
   const results: OffchainAdaptiveResult[] = [];
   const notExposed: string[] = [];
   const unrun: string[] = [];
-  let outOfCredits = false;
+  let accountStop: ReturnType<typeof modelAccountStop>;
   // One budget for the whole run: each seed gets what the earlier ones left.
   let spent = 0;
   for (const seed of seeds) {
@@ -230,7 +231,7 @@ async function main(): Promise<number> {
       notExposed.push(seed.id);
       continue;
     }
-    if (spent >= maxUsd || outOfCredits) {
+    if (spent >= maxUsd || accountStop !== undefined) {
       unrun.push(seed.id);
       continue;
     }
@@ -252,14 +253,21 @@ async function main(): Promise<number> {
         maxUsd: maxUsd - spent,
       });
     } catch (error) {
-      // A model account out of credits ends the run cleanly: finished seeds are already saved,
-      // and the rest are listed as not run. Anything else is a real failure.
-      if (!isOutOfCredits(error)) throw error;
-      outOfCredits = true;
+      // A refused key or an empty balance ends the run cleanly: finished seeds are already
+      // saved, and the rest are listed as not run. Anything else is a real failure.
+      const stop = modelAccountStop(error);
+      if (!stop) throw error;
+      accountStop = stop;
       unrun.push(seed.id);
       continue;
     }
     spent += result.spend.spentUsd;
+    if (result.stoppedBecause === "account") accountStop = result.accountStop ?? accountStop;
+    // Nothing finished is not a result: a refused first call must not be filed as a hold.
+    if (result.stoppedBecause === "account" && result.attempts.length === 0) {
+      unrun.push(seed.id);
+      continue;
+    }
     results.push(result);
     console.log(describe(result));
     if (result.note) console.log(`  ${result.note}`);
@@ -283,7 +291,13 @@ async function main(): Promise<number> {
     console.log(`not exposed (the agent sees no images): ${notExposed.join(", ")}`);
   if (unrun.length) {
     console.log(
-      `not run, ${outOfCredits ? "a model account ran out of credits (402)" : "the spending cap was reached"}: ${unrun.join(", ")}`,
+      `not run, ${
+        accountStop === 402
+          ? "a model account ran out of credits (402)"
+          : accountStop
+            ? `the model account refused the request (${accountStop})`
+            : "the spending cap was reached"
+      }: ${unrun.join(", ")}`,
     );
   }
   console.log(`spend $${spent.toFixed(4)} of $${maxUsd}`);

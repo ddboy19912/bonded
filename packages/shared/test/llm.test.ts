@@ -4,6 +4,7 @@ import {
   chatClientForModel,
   isMetaModel,
   isOutOfCredits,
+  modelAccountStop,
   LlmError,
   llmConfigForModel,
   llmConfigFromEnv,
@@ -281,6 +282,10 @@ describe("OpenAICompatibleClient", () => {
     expect(isOutOfCredits(error)).toBe(true);
     expect(isOutOfCredits(new Error("LLM request failed (402): no credits"))).toBe(true);
     expect(isOutOfCredits(new Error("LLM request failed (400): bad model"))).toBe(false);
+    expect(modelAccountStop(new Error("LLM request failed (401): invalid api key"))).toBe(401);
+    expect(modelAccountStop(new Error("LLM request failed (403): forbidden"))).toBe(403);
+    expect(modelAccountStop(new LlmError(401, "LLM request failed (401): no"))).toBe(401);
+    expect(modelAccountStop("LLM request failed (400): bad model")).toBeUndefined();
     expect(calls).toHaveLength(1);
   });
 

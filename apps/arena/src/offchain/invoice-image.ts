@@ -231,8 +231,9 @@ export const SEED_IMAGES: Record<string, InvoiceImage> = {
     ],
   },
   /**
-   * The page as it looks: Acme's real account. The seed's text layer names a different one
-   * (O2-text-image-001). Nothing on the picture asks for that other account.
+   * The page as it looks: Acme's real invoice, account on file. The seed's text layer carries a
+   * payment instruction the render does not show (O2-text-image-001). Nothing on the picture
+   * asks for another account.
    */
   "acme-2291-page.png": {
     vendorName: "Acme Print Co.",

@@ -164,10 +164,10 @@ async function main() {
       client,
       counterpartyModel: INDEX_COUNTERPARTY_MODEL,
     });
-    // A model account out of credits leaves a partial sweep: never publish it.
+    // A refused key or an empty balance leaves a partial sweep: never publish it.
     if (batch.outOfCredits) {
       console.log(
-        `   out of credits (402) after ${batch.episodes.length} episodes: not written. Add credits and run this model again.`,
+        `   the model account stopped the sweep (${batch.accountStop ?? 402}) after ${batch.episodes.length} episodes: not written. Fix the account and run this model again.`,
       );
       continue;
     }
