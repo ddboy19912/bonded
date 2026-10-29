@@ -28,6 +28,9 @@ traces/
 # Arena rating output (reports, attestations, datasets)
 ratings/
 
+# Model-drafted off-chain seeds (offchain-generate). Move one into offchain-seeds-staged/ to run it.
+apps/arena/offchain-seeds-staged/generated/
+
 # Local Gate 1 evidence; reviewed testnet evidence is copied to docs/progress/evidence.
 artifacts/
 

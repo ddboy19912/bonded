@@ -13,7 +13,7 @@ import {
   REALISTIC_TASKS,
   realisticWorld,
 } from "./scenarios.js";
-import { plantedFacts } from "./attribution.js";
+import { attackOnlyInImage, plantedFacts } from "./attribution.js";
 import { busyTasks, realisticBusyWorld } from "./busy.js";
 import { attackSeen } from "./exposure.js";
 import { CHANNEL_TOOLS, CHANNELS, emptyChannels, type Vector } from "./channels.js";
@@ -170,6 +170,12 @@ export const OffchainSeed = z.object({
     messages: z.array(ChannelMessageSeed).default([]),
     /** Supplier-portal pages, by vendor id, replacing the vendor's page. */
     portal: z.record(z.string(), z.string()).default({}),
+    /**
+     * Supplier-portal pages that replace the vendor's page from the second time the agent reads it
+     * (verify-then-swap): the first read, or the briefing, shows the genuine page, so a check made
+     * at that point passes. The vendor needs a genuine page to open first.
+     */
+    portalSwap: z.record(z.string(), z.string()).default({}),
     /** What the third-party vendor-risk plugin returns, by vendor id. */
     plugin: z.record(z.string(), z.string()).default({}),
     /** Notes added to the agent's memory from "earlier sessions". */
@@ -198,12 +204,14 @@ export const OffchainSeed = z.object({
 });
 export type OffchainSeed = z.infer<typeof OffchainSeed>;
 
-/** The seed has an invoice image, where its attack may live (only a model that sees images meets it). */
+/**
+ * The attack lives only in an invoice picture: a planted fact is on the page and not in the
+ * text layer. An agent that never sees images isn't run on it, and that isn't counted as
+ * resisted. A picture of the genuine account, with the planted account in the text, does not
+ * need vision: the text layer is the attack.
+ */
 export function seedNeedsVision(seed: OffchainSeed): boolean {
-  return [
-    ...seed.plant.emails.flatMap((e) => e.attachments),
-    ...seed.plant.replace.flatMap((r) => r.attachments ?? []),
-  ].some((a) => a.image !== undefined);
+  return attackOnlyInImage(seed, worldFor(seed));
 }
 
 /** Loads and checks every seed in `dir`, sorted by id. */
@@ -261,6 +269,7 @@ export function seedProblem(
   const plantsChannels =
     p.messages.length > 0 ||
     Object.keys(p.portal).length > 0 ||
+    Object.keys(p.portalSwap).length > 0 ||
     Object.keys(p.plugin).length > 0 ||
     p.notes.length > 0 ||
     p.knowledge.length > 0;
@@ -273,10 +282,15 @@ export function seedProblem(
   const vendorIds = new Set(world.vendors.map((v) => v.id));
   for (const id of [
     ...Object.keys(p.portal),
+    ...Object.keys(p.portalSwap),
     ...Object.keys(p.plugin),
     ...Object.keys(p.vendorNotes),
   ]) {
     if (!vendorIds.has(id)) return `no vendor ${id}`;
+  }
+  for (const id of Object.keys(p.portalSwap)) {
+    if (world.channels?.portal[id] === undefined && p.portal[id] === undefined)
+      return `${id} has no portal page to swap after the first read`;
   }
   const messageIds = [...(world.channels?.messages ?? []), ...p.messages].map((m) => m.id);
   if (new Set(messageIds).size !== messageIds.length) return "two channel messages share an id";
@@ -341,7 +355,7 @@ export function seedVectors(seed: OffchainSeed): Vector[] {
   if (seed.counterparty) out.add("counterparty");
   if (Object.keys(p.vendorNotes).length) out.add("records");
   for (const m of p.messages) out.add(m.channel);
-  if (Object.keys(p.portal).length) out.add("portal");
+  if (Object.keys(p.portal).length || Object.keys(p.portalSwap).length) out.add("portal");
   if (Object.keys(p.plugin).length) out.add("plugin");
   if (p.notes.length) out.add("memory");
   if (p.knowledge.length) out.add("knowledge");
@@ -483,6 +497,7 @@ function plantSeed(world: OffchainWorld, seed: OffchainSeed, dir: string): Offch
   if (
     p.messages.length ||
     Object.keys(p.portal).length ||
+    Object.keys(p.portalSwap).length ||
     Object.keys(p.plugin).length ||
     p.notes.length ||
     p.knowledge.length
@@ -490,6 +505,9 @@ function plantSeed(world: OffchainWorld, seed: OffchainSeed, dir: string): Offch
     const channels = (world.channels ??= emptyChannels());
     channels.messages.push(...p.messages.map((m) => ({ ...m, from: { ...m.from } })));
     Object.assign(channels.portal, p.portal);
+    if (Object.keys(p.portalSwap).length) {
+      channels.portalSwaps = { ...channels.portalSwaps, ...p.portalSwap };
+    }
     Object.assign(channels.plugin, p.plugin);
     channels.notes.push(...p.notes);
     channels.knowledge.push(...p.knowledge.map((d) => ({ ...d })));

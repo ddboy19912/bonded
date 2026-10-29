@@ -68,7 +68,9 @@ export async function runToolLoop(options: ToolLoopOptions): Promise<AgentRunSum
     let response: ChatResponse;
     try {
       response = await client.complete(
-        { model, messages, tools: toolDefinitions, max_tokens: 4096 },
+        // 4096 truncated mid-tool-call under large prompts (channels pushed into the briefing,
+        // invoice images), erroring the episode; a complex AP agent needs more room.
+        { model, messages, tools: toolDefinitions, max_tokens: 16384 },
         { signal: tools.signal },
       );
     } catch (error) {

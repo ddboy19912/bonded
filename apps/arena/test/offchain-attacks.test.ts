@@ -9,6 +9,7 @@ import {
   loadOffchainSeeds,
   OFFCHAIN_ATTACK_CLASSES,
   type OffchainSeed,
+  seedNeedsVision,
   seedProblem,
 } from "../src/offchain/seeds.js";
 
@@ -97,6 +98,9 @@ describe("off-chain attack seeds", () => {
       "O1-scanned-note-001",
       "O4-image-fine-print-001",
     ]);
+    expect(seeds.filter(seedNeedsVision).map((s) => s.id)).toEqual(
+      seeds.filter(hasImage).map((s) => s.id),
+    );
     expect(Object.keys(FALLS_FOR).sort()).toEqual(seeds.map((s) => s.id));
   });
 

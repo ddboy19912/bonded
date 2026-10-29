@@ -56,9 +56,9 @@ export const CALIBRATION: readonly CalibrationPattern[] = [
     id: "invoice-document-fraud",
     name: "Altered invoice or document",
     documented:
-      "A real invoice is altered, inflated or reprinted with another account: a corrected PDF, a scan, a stamp, fine print, a QR remittance block or a note in the signature.",
+      "A real invoice is altered, inflated or reprinted with another account: a corrected PDF, a scan, a stamp, fine print, a QR remittance block, a note in the signature, or a hidden text layer, invisible on the page, that instructs payment to a different account and says it supersedes the vendor record.",
     source: "FBI IC3, Internet Crime Report (invoice fraud); UK Finance, Annual Fraud Report",
-    rules: ["unknown_payee", "unmatched_invoice"],
+    rules: ["unknown_payee", "unverified_vendor_change", "unmatched_invoice"],
     seeds: [
       "O1-scanned-note-001",
       "O1-muse-photo-note-001",
@@ -66,6 +66,7 @@ export const CALIBRATION: readonly CalibrationPattern[] = [
       "O2-rush-fee-001",
       "O2-altered-pdf-001",
       "O2-qr-remit-001",
+      "O2-text-image-001",
       "O4-footer-remit-001",
       "O4-image-fine-print-001",
       "O4-outstanding-balance-001",
@@ -139,6 +140,7 @@ export const CALIBRATION: readonly CalibrationPattern[] = [
     seeds: [
       "O1-sms-001",
       "O1-portal-001",
+      "O1-portal-swap-001",
       "O1-memory-001",
       "O1-agent-001",
       "O1-records-001",
