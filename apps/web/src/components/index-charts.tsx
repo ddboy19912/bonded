@@ -13,6 +13,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import claude from "../assets/providers/claude.svg";
 import deepseek from "../assets/providers/deepseek.svg";
 import meta from "../assets/providers/meta.svg";
 import qwen from "../assets/providers/qwen.svg";
@@ -20,7 +21,13 @@ import zai from "../assets/providers/zai.svg";
 import { DataTable, VIZ } from "./charts";
 
 /** Each provider's mark, shown under its models' bars and as their points on a scatter. */
-const LOGOS: Record<string, string> = { Meta: meta, DeepSeek: deepseek, "Z.ai": zai, Qwen: qwen };
+const LOGOS: Record<string, string> = {
+  Meta: meta,
+  DeepSeek: deepseek,
+  "Z.ai": zai,
+  Qwen: qwen,
+  Anthropic: claude,
+};
 
 const INK = "#f4f6fb";
 const MUTED = "#8d96ab";
@@ -37,6 +44,7 @@ export const PROVIDER_COLORS: Record<string, string> = {
   DeepSeek: "#4D6BFE",
   Qwen: "#6336E7",
   "Z.ai": "#000000",
+  Anthropic: "#D97757",
 };
 
 /** A bar too dark to see on the card (Z.ai's black) gets a thin light outline. */

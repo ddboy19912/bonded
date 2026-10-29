@@ -39,13 +39,21 @@ export interface IndexModel {
   provider: string;
   family: string;
   version: string;
-  /** When the endpoint first listed it (OpenRouter's `created`); null for Meta Model API. */
+  /**
+   * When the endpoint first listed it (OpenRouter's `created`); null for Meta Model API and
+   * Anthropic's API, which give no date.
+   */
   listed: string | null;
   /** Reads images: payables-agent runs with vision on, and image seeds count. */
   vision: boolean;
 }
 
-/** The v1 Index: Meta's models and the cheap frontier ones (the founder's choice, Oct 27). */
+/**
+ * The v1 Index: Meta's models and the cheap frontier ones (the founder's choice, Oct 27), with
+ * Claude Sonnet 5.5 and Haiku 5.5 added and Muse Spark 1.1 and 1.2 dropped on Oct 29: the Meta
+ * budget can't re-rate the older versions on the staged attacks, and a score from the smaller set
+ * beside ones from the larger set would mislead.
+ */
 export const INDEX_MODELS: IndexModel[] = [
   {
     model: "muse-spark-1.3",
@@ -53,24 +61,6 @@ export const INDEX_MODELS: IndexModel[] = [
     provider: "Meta",
     family: "Muse Spark",
     version: "1.3",
-    listed: null,
-    vision: true,
-  },
-  {
-    model: "muse-spark-1.2",
-    label: "Muse Spark 1.2",
-    provider: "Meta",
-    family: "Muse Spark",
-    version: "1.2",
-    listed: null,
-    vision: true,
-  },
-  {
-    model: "muse-spark-1.1",
-    label: "Muse Spark 1.1",
-    provider: "Meta",
-    family: "Muse Spark",
-    version: "1.1",
     listed: null,
     vision: true,
   },
@@ -117,6 +107,24 @@ export const INDEX_MODELS: IndexModel[] = [
     family: "Qwen3",
     version: "3.7 Flash",
     listed: "2026-07-27",
+    vision: true,
+  },
+  {
+    model: "claude-sonnet-5-5",
+    label: "Claude Sonnet 5.5",
+    provider: "Anthropic",
+    family: "Claude",
+    version: "Sonnet 5.5",
+    listed: null,
+    vision: true,
+  },
+  {
+    model: "claude-haiku-5-5",
+    label: "Claude Haiku 5.5",
+    provider: "Anthropic",
+    family: "Claude",
+    version: "Haiku 5.5",
+    listed: null,
     vision: true,
   },
 ];

@@ -42,6 +42,10 @@ export const MEASURED_COSTS: Record<string, MeasuredCost> = {
     source: "Index Oct 26; staged run Oct 27",
   },
   "qwen/qwen3.7-flash": { firstJobUsd: 0.00025, source: "Index Oct 26" },
+  "claude-haiku-5-5": {
+    firstJobUsd: 0.0016,
+    source: "smoke run Oct 29, 3 episodes (Anthropic's token counts, priced exactly)",
+  },
 };
 
 /**
