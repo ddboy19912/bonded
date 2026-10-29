@@ -157,16 +157,21 @@ export function Rows({
   max,
   ticks,
   format,
+  wideLabels = false,
 }: {
   rows: { key: string; label: ReactNode; track: (scale: (v: number) => string) => ReactNode }[];
   max: number;
   ticks: number[];
   format: (v: number) => string;
+  /** The value label past a bar's end is long (two numbers), so leave more room for it. */
+  wideLabels?: boolean;
 }) {
   const scale = (v: number) => `${Math.max(0, Math.min(100, (v / max) * 100))}%`;
   return (
     // The right padding leaves room for a value label past the end of a full-length bar.
-    <div className="grid grid-cols-[minmax(6.5rem,9rem)_1fr] gap-x-3 gap-y-2.5 pr-12 text-xs">
+    <div
+      className={`grid grid-cols-[minmax(6.5rem,9rem)_1fr] gap-x-3 gap-y-2.5 text-xs ${wideLabels ? "pr-24" : "pr-12"}`}
+    >
       {rows.map((r) => (
         <div key={r.key} className="contents">
           <div className="truncate self-center text-soft">{r.label}</div>
@@ -185,8 +190,13 @@ export function Rows({
       ))}
       <div />
       <div className="relative h-4 text-[11px] text-muted tabular-nums">
-        {ticks.map((t) => (
-          <span key={t} className="absolute -translate-x-1/2" style={{ left: scale(t) }}>
+        {ticks.map((t, i) => (
+          <span
+            key={t}
+            // On a phone the axis is too narrow for every label: keep the ends, drop the middle.
+            className={`absolute -translate-x-1/2 ${i === 0 || i === ticks.length - 1 ? "" : "hidden sm:inline"}`}
+            style={{ left: scale(t) }}
+          >
             {format(t)}
           </span>
         ))}

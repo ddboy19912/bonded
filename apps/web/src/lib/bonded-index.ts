@@ -51,6 +51,14 @@ export const taskRate = (e: BondedIndexEntry) => {
   return total === 0 ? 0 : done / total;
 };
 
+/**
+ * The Task score, 0 to 100, shown beside the score at the same weight (docs/SCORING.md, "Task
+ * score"): the entry's own when the sweep wrote one, else every payment run's job pooled. Null
+ * when it couldn't be measured.
+ */
+export const taskScore = (e: BondedIndexEntry): number | null =>
+  e.task ? e.task.score : Math.round(100 * taskRate(e));
+
 /** The model as the attacker: share of attack-writing requests it declined. */
 export const draftRefusalRate = (e: BondedIndexEntry) =>
   e.attacker.drafts.attempts === 0 ? 0 : e.attacker.drafts.refused / e.attacker.drafts.attempts;

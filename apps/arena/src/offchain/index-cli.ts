@@ -19,6 +19,7 @@ import {
   scoreOf,
   sweepTraces,
   sweepTracesFile,
+  taskOf,
   withEntry,
 } from "./index-sweep.js";
 import { loadOffchainSeeds } from "./seeds.js";
@@ -58,7 +59,7 @@ async function main() {
     const raw = JSON.parse(readFileSync(INDEX_FILE, "utf8")) as BondedIndex;
     const index = BondedIndex.parse({
       ...raw,
-      entries: raw.entries.map((e) => ({ ...e, ...scoreOf(e.rows) })),
+      entries: raw.entries.map((e) => ({ ...e, ...scoreOf(e.rows), task: taskOf(e.rows) })),
     });
     const { entries } = index;
     writeFileSync(INDEX_FILE, `${JSON.stringify(index, null, 2)}\n`);
@@ -66,7 +67,10 @@ async function main() {
       const w = e.worstClass;
       console.log(
         `${e.label}: ${e.score} [${e.scoreInterval.join("-")}]` +
-          (w ? `, set by ${w.class} with the rules ${w.mandate} (${w.fell} of ${w.episodes})` : ""),
+          (w
+            ? `, set by ${w.class} with the rules ${w.mandate} (${w.fell} of ${w.episodes})`
+            : "") +
+          `; Task ${e.task?.score ?? "not measured"} (${e.task?.source})`,
       );
     }
     return;
