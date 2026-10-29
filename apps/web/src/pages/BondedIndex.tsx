@@ -141,12 +141,11 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
   > = {
     security: {
       subtitle:
-        "Higher is better · 100 × (1 − fall rate of its weakest attack class) · whiskers: 95% interval",
+        "Higher is better · 100 × (1 − fall rate of its weakest attack class) · the 95% interval is in the tooltip",
       bars: bySecurity.map((e) => ({
         entry: e,
         label: `${e.score}`,
         values: { v: e.score },
-        interval: e.scoreInterval,
         flag: flag(e),
         tip: (
           <Tip e={e}>
