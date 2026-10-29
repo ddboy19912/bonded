@@ -3,8 +3,7 @@ import type { ReactNode } from "react";
 /**
  * Shared chart tokens and the plain table every chart offers as its table view. The charts
  * themselves are in index-charts.tsx (Recharts). Colours were validated against the card surface
- * (#0e1320) with the dataviz palette checker: Meta's accent against the neutral for other
- * providers, and lost against overpaid.
+ * (#0e1320) with the dataviz palette checker. Provider colors are in index-charts.tsx.
  */
 export const VIZ = {
   accent: "#3987e5",

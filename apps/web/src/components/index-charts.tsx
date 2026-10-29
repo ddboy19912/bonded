@@ -27,9 +27,22 @@ const INK = "#f4f6fb";
 const MUTED = "#8d96ab";
 const AXIS = { fill: MUTED, fontSize: 11 };
 
-/** Meta's models in the accent, every other provider in one neutral; the logo says which. */
+/**
+ * One color per provider, as Artificial Analysis does, from the validated categorical palette:
+ * blue, yellow, magenta and green are the four slots that pass every check together on the card
+ * surface (#0e1320), any two side by side. Their closest colour-blind pair (green and yellow) is
+ * in the floor band, legal because every mark also carries its logo and name. A provider not
+ * listed here takes the neutral.
+ */
+export const PROVIDER_COLORS: Record<string, string> = {
+  Meta: "#3987e5",
+  DeepSeek: "#008300",
+  Qwen: "#d55181",
+  "Z.ai": "#c98500",
+};
+
 export const colorOf = (e: Pick<BondedIndexEntry, "provider">) =>
-  e.provider === "Meta" ? VIZ.accent : VIZ.other;
+  PROVIDER_COLORS[e.provider] ?? VIZ.other;
 
 export function ProviderLogo({ provider, size = 18 }: { provider: string; size?: number }) {
   const src = LOGOS[provider];

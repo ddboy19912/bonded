@@ -372,16 +372,9 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
       tab={tab}
       onTab={(id) => setTab(id as LeaderboardTab)}
       table={view.table}
-      aside={
-        <Legend
-          items={
-            view.legend ?? [
-              { color: VIZ.accent, label: "Meta" },
-              { color: VIZ.other, label: "Other providers" },
-            ]
-          }
-        />
-      }
+      // A ranking needs no key: each bar's logo and name say whose it is. Stacked or paired bars
+      // name their parts.
+      aside={view.legend && <Legend items={view.legend} />}
     >
       <ModelBars
         key={tab}
@@ -433,14 +426,6 @@ function Tradeoffs({ entries }: { entries: BondedIndexEntry[] }) {
   return (
     <ChartCard
       title="Trade-offs"
-      aside={
-        <Legend
-          items={[
-            { color: VIZ.accent, label: "Meta" },
-            { color: VIZ.other, label: "Other providers" },
-          ]}
-        />
-      }
       subtitle={
         tab === "task"
           ? "Top right is safe and does the job · top left is safe mostly because it didn't act"
