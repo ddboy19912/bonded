@@ -15,7 +15,6 @@ import {
   ModelName,
   ModelScatter,
   ProviderLogo,
-  VersionLines,
   niceTicks,
 } from "../components/index-charts";
 import { Card, Page, linkClass } from "../components/ui";
@@ -568,85 +567,6 @@ function Tradeoffs({ entries }: { entries: BondedIndexEntry[] }) {
   );
 }
 
-/** Versions compared numerically, part by part: 1.10 after 1.9. */
-const byVersion = (a: BondedIndexEntry, b: BondedIndexEntry) => {
-  const pa = a.version.split(".").map(Number);
-  const pb = b.version.split(".").map(Number);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
-    if (d !== 0) return d;
-  }
-  return 0;
-};
-
-/** Each model family with more than one version rated, its versions in order. */
-function AcrossVersions({ entries }: { entries: BondedIndexEntry[] }) {
-  // Only numbered releases make a line: "5.3 Flash" is a different tier of 5.3, not a later one.
-  const numbered = entries.filter((e) => /^\d+(\.\d+)*$/.test(e.version));
-  const families = [...new Set(numbered.map((e) => e.family))]
-    .map((family) => numbered.filter((e) => e.family === family).sort(byVersion))
-    .filter((versions) => versions.length > 1);
-  if (families.length === 0) return null;
-  return (
-    <ChartCard
-      title="Across versions"
-      subtitle="Higher is better · solid: security · dashed: Task"
-      table={
-        <DataTable
-          head={["Model", "Security", "Task", "Attacks run"]}
-          rows={families
-            .flat()
-            .map((e) => [
-              <ModelName key={e.model} entry={e} />,
-              e.score,
-              taskText(e),
-              (e.attacksTested ?? 0).toLocaleString("en-US"),
-            ])}
-        />
-      }
-    >
-      <div className={`grid gap-6 ${families.length > 1 ? "lg:grid-cols-2" : ""}`}>
-        {families.map((versions) => {
-          // Versions that met a different attack set from the family's first aren't like for like.
-          const differ = versions.filter((e) => e.attacks.hash !== versions[0]!.attacks.hash);
-          return (
-            <figure key={versions[0]!.family} className="min-w-0">
-              <figcaption className="flex items-center gap-2 text-sm font-medium text-soft">
-                <ProviderLogo provider={versions[0]!.provider} size={16} />
-                {versions[0]!.family}
-              </figcaption>
-              <VersionLines
-                points={versions.map((e) => ({
-                  entry: e,
-                  security: e.score,
-                  task: taskScore(e),
-                  tip: (
-                    <Tip e={e}>
-                      <span>
-                        Security <b className="text-ink">{e.score}</b> · Task{" "}
-                        <b className={idle(e) ? "text-warn" : "text-ink"}>{taskText(e)}</b>
-                      </span>
-                      <span className="text-muted">
-                        {(e.attacksTested ?? 0).toLocaleString("en-US")} attacks run
-                      </span>
-                    </Tip>
-                  ),
-                }))}
-              />
-              {differ.length > 0 && (
-                <p className="text-xs text-muted">
-                  {differ.map((e) => e.label).join(" and ")} met more attacks than{" "}
-                  {versions[0]!.label}, so the line isn't like for like.
-                </p>
-              )}
-            </figure>
-          );
-        })}
-      </div>
-    </ChartCard>
-  );
-}
-
 /** Each model's fall rate per attack class or channel, in its worse briefing. */
 function WhereTheyBreak({ entries }: { entries: BondedIndexEntry[] }) {
   const vectors = Object.fromEntries(
@@ -871,7 +791,6 @@ export function BondedIndexView({ index }: { index: BondedIndexData }) {
 
       <Leaderboard entries={entries} />
       <Tradeoffs entries={entries} />
-      <AcrossVersions entries={entries} />
       <WhereTheyBreak entries={entries} />
       <BenchComparisonCard />
       <Results entries={entries} />

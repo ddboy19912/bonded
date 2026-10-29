@@ -6,8 +6,6 @@ import {
   CartesianGrid,
   Cell,
   LabelList,
-  Line,
-  LineChart,
   ReferenceArea,
   Scatter,
   ScatterChart,
@@ -696,117 +694,6 @@ function LogoPoint({
         </text>
       )}
     </g>
-  );
-}
-
-/** One version of a model family on the across-versions chart. */
-export interface VersionPoint {
-  entry: BondedIndexEntry;
-  security: number;
-  task: number | null;
-  tip: ReactNode;
-}
-
-/**
- * A family's versions in order, its security score as a solid line and its Task score as a
- * dashed one, both in the provider's color and both on the same 0-100 scale. Each point is
- * labelled with its value.
- */
-export function VersionLines({
-  points,
-  height = 260,
-}: {
-  points: readonly VersionPoint[];
-  height?: number;
-}) {
-  const { ref, width } = useWidth(360);
-  const color = colorOf(points[0]!.entry);
-  const data = points.map((p) => ({
-    version: p.entry.version,
-    model: p.entry.model,
-    security: p.security,
-    task: p.task,
-  }));
-  const byModel = new Map(points.map((p) => [p.entry.model, p]));
-  // Each point's value goes on the side away from the other line: above for the higher of the
-  // two scores at that version, below for the lower, so crossing lines don't print over each other.
-  const sideLabel =
-    (key: "security" | "task", fill: string) =>
-    (props: { x?: number | string; y?: number | string; index?: number; value?: unknown }) => {
-      const d = props.index === undefined ? undefined : data[props.index];
-      if (!d || props.value === null || props.value === undefined) return null;
-      const other = key === "security" ? d.task : d.security;
-      const mine = key === "security" ? d.security : d.task;
-      const above = other === null || (mine ?? 0) >= other;
-      return (
-        <text
-          x={Number(props.x)}
-          y={Number(props.y) + (above ? -10 : 18)}
-          textAnchor="middle"
-          fill={fill}
-          fontSize={11}
-        >
-          {String(props.value)}
-        </text>
-      );
-    };
-  return (
-    <div ref={ref} className="w-full min-w-0 overflow-hidden">
-      <LineChart
-        width={width}
-        height={height}
-        data={data}
-        margin={{ top: 22, right: 24, bottom: 4, left: -8 }}
-        accessibilityLayer
-      >
-        <CartesianGrid vertical={false} stroke={VIZ.grid} strokeDasharray="3 4" />
-        <XAxis
-          dataKey="version"
-          tick={AXIS}
-          tickLine={false}
-          axisLine={{ stroke: "rgb(255 255 255 / 0.16)" }}
-          padding={{ left: 24, right: 24 }}
-        />
-        <YAxis
-          domain={[0, 100]}
-          ticks={[0, 25, 50, 75, 100]}
-          tick={AXIS}
-          axisLine={false}
-          tickLine={false}
-          width={48}
-        />
-        <Tooltip
-          cursor={{ stroke: "rgb(255 255 255 / 0.16)", strokeDasharray: "3 3" }}
-          content={({ active, payload }) => {
-            const model = payload?.[0]?.payload?.model as string | undefined;
-            const point = model ? byModel.get(model) : undefined;
-            return active && point ? <TipCard>{point.tip}</TipCard> : null;
-          }}
-        />
-        <Line
-          dataKey="security"
-          name="Security"
-          stroke={color}
-          strokeWidth={2}
-          dot={{ r: 4, fill: color, stroke: "#0e1320", strokeWidth: 2 }}
-          isAnimationActive={false}
-        >
-          <LabelList dataKey="security" content={sideLabel("security", INK)} />
-        </Line>
-        <Line
-          dataKey="task"
-          name="Task"
-          stroke={color}
-          strokeWidth={2}
-          strokeDasharray="5 4"
-          dot={{ r: 4, fill: "#0e1320", stroke: color, strokeWidth: 2 }}
-          connectNulls
-          isAnimationActive={false}
-        >
-          <LabelList dataKey="task" content={sideLabel("task", MUTED)} />
-        </Line>
-      </LineChart>
-    </div>
   );
 }
 
