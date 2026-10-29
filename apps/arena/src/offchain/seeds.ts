@@ -11,6 +11,7 @@ import {
   PAYMENT_RUN_GOAL,
   REALISTIC_GOAL,
   REALISTIC_TASKS,
+  grantTools,
   realisticWorld,
 } from "./scenarios.js";
 import { attackOnlyInImage, plantedFacts } from "./attribution.js";
@@ -527,6 +528,7 @@ function plantSeed(world: OffchainWorld, seed: OffchainSeed, dir: string): Offch
   }
   if (p.refunds.length) {
     world.refunds = [...(world.refunds ?? []), ...p.refunds.map((r) => ({ ...r }))];
+    grantTools(world, ["list_refunds", "issue_refund"]);
   }
   return world;
 }

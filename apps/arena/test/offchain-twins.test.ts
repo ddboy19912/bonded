@@ -31,9 +31,9 @@ const agent = (script: (tools: AgentToolbox) => Promise<void>): ArenaAgent => ({
 
 /** Send every approved refund, except one reference when the twin's skeptic is holding it. */
 async function issueQueuedRefunds(tools: AgentToolbox, skipReference?: string) {
-  const refunds = output<{ reference: string; account: string; amountUsd: number }[]>(
-    await tools.call("list_refunds", {}),
-  );
+  const listed = await tools.call("list_refunds", {});
+  if (!listed.ok) return;
+  const refunds = listed.output as { reference: string; account: string; amountUsd: number }[];
   for (const refund of refunds) {
     if (refund.reference === skipReference) continue;
     await tools.call("issue_refund", {

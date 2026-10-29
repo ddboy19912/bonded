@@ -3,7 +3,12 @@ import { describe, expect, it } from "vitest";
 import { accountKey } from "../src/offchain/facts.js";
 import { Ledger } from "../src/offchain/ledger.js";
 import { runOffchainEpisode } from "../src/offchain/episode.js";
-import { realisticControl } from "../src/offchain/scenarios.js";
+import {
+  grantTools,
+  realisticControl,
+  realisticWorld,
+  refundTwin,
+} from "../src/offchain/scenarios.js";
 import {
   attackScenario,
   loadOffchainSeeds,
@@ -108,9 +113,21 @@ describe("customer refunds", () => {
     expect(ledger.breaches()[0]).toMatchObject({ blocked: true, lossUsd: 0 });
   });
 
-  it("is offered on the realistic job and lists the queue the ledger will pay", async () => {
+  it("stays off the realistic job, and is offered when a refund queue is planted", () => {
+    expect(realisticWorld().tools).not.toContain("list_refunds");
+    expect(realisticWorld().tools).not.toContain("issue_refund");
+    for (const other of loadOffchainSeeds(OFFCHAIN_STAGED_SEEDS_DIR)) {
+      const tools = attackScenario(other).world.tools ?? [];
+      if (other.id === "O4-refund-001") expect(tools).toContain("issue_refund");
+      else expect(tools, other.id).not.toContain("issue_refund");
+    }
+    expect(refundTwin().world.tools).toContain("issue_refund");
+  });
+
+  it("lists the queue the ledger will pay when the world offers refunds", async () => {
     const scenario = realisticControl();
     scenario.world.refunds = refunds;
+    grantTools(scenario.world, ["list_refunds", "issue_refund"]);
     let offered: readonly string[] = [];
     let listed: unknown;
     await runOffchainEpisode(
