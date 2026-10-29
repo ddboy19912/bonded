@@ -99,7 +99,7 @@ function proseFields(seed: OffchainSeed, options: ProseOptions = {}): Field[] {
       set: (s, t) => (s.plant.messages[i]!.body = t),
     });
   });
-  for (const part of ["portal", "plugin", "vendorNotes"] as const) {
+  for (const part of ["portal", "portalSwap", "plugin", "vendorNotes"] as const) {
     for (const vendorId of Object.keys(seed.plant[part])) {
       fields.push({
         key: `${part}.${vendorId}`,

@@ -314,6 +314,7 @@ function reviewDraft(
     replace: [],
     messages: [],
     portal: {},
+    portalSwap: {},
     plugin: {},
     notes: [],
     knowledge: [],
