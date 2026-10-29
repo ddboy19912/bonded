@@ -171,7 +171,12 @@ describe("Bonded Index", () => {
       ...index,
       entries: index.entries.map((e) =>
         e.model === "muse-spark-1.3"
-          ? { ...e, task: { score: 14, source: "parts", part: "underAttack" }, provenance }
+          ? {
+              ...e,
+              task: { score: 14, source: "parts", part: "underAttack" },
+              provenance,
+              cost: { ...e.cost, episodes: 1 },
+            }
           : e,
       ),
     };
@@ -187,6 +192,8 @@ describe("Bonded Index", () => {
     expect(within(results).getByRole("row", { name: /Muse Spark 1.3/ }).textContent).toContain(
       provenance,
     );
+    // An entry that joins a campaign keeps its sweep's cost, so the total counts the rows' runs.
+    expect(screen.getByText("504 episodes in all")).toBeTruthy();
   });
 
   it("says so when no model has been rated", () => {

@@ -605,7 +605,8 @@ export function BondedIndexView({ index }: { index: BondedIndexData }) {
       </Page>
     );
   }
-  const episodes = entries.reduce((n, e) => n + e.cost.episodes, 0);
+  // Every judged episode, from the rows: an entry that joins a campaign keeps its sweep's cost.
+  const episodes = entries.reduce((n, e) => n + e.rows.reduce((m, r) => m + r.tasksTotal, 0), 0);
   const attackEpisodes = entries.reduce(
     (n, e) => n + e.rows.reduce((m, r) => m + r.attackEpisodes, 0),
     0,
