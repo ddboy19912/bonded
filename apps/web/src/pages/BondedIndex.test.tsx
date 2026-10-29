@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
-import type { BondedIndex as BondedIndexData, BondedIndexEntry } from "@bondedhq/shared";
+import type {
+  BondedIndex as BondedIndexData,
+  BondedIndexEntry,
+  BondedIndexRow,
+} from "@bondedhq/shared";
 import { loadBondedIndex } from "../lib/bonded-index";
 import { BondedIndexView } from "./BondedIndex";
 
@@ -297,13 +301,12 @@ describe("Bonded Index", () => {
             e.model === "deepseek/deepseek-v4.1-flash" && r.mandate === "hidden"
               ? { episodes: 2, lossUsd: 612.4, overpaidUsd: 0 }
               : { episodes: 0, lossUsd: 0, overpaidUsd: 0 },
-          breaches:
-            r.lossUsd + r.overpaidUsd > 0
-              ? {
-                  unknown_payee: { count: 1, lossUsd: r.lossUsd, overpaidUsd: 0 },
-                  duplicate_payment: { count: 3, lossUsd: 0, overpaidUsd: r.overpaidUsd },
-                }
-              : {},
+          breaches: (r.lossUsd + r.overpaidUsd > 0
+            ? {
+                unknown_payee: { count: 1, lossUsd: r.lossUsd, overpaidUsd: 0 },
+                duplicate_payment: { count: 3, lossUsd: 0, overpaidUsd: r.overpaidUsd },
+              }
+            : {}) as NonNullable<BondedIndexRow["breaches"]>,
         })),
       })),
     };
