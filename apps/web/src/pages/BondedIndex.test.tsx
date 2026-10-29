@@ -83,6 +83,14 @@ describe("Bonded Index", () => {
     expect(() => loadBondedIndex()).not.toThrow();
   });
 
+  it("shows the staged campaign beside AgentDojo, apart from the Index score", () => {
+    view();
+    expect(screen.getByRole("heading", { name: "Same model, two benches" })).toBeTruthy();
+    expect(screen.getByText("4 of 178")).toBeTruthy();
+    expect(screen.getByText("0 of 576")).toBeTruthy();
+    expect(screen.getByText(/not an Index score/)).toBeTruthy();
+  });
+
   it("ranks models by score, and flags one that mostly didn't do its job and ranks it last", () => {
     view();
     const chart = screen.getByRole("heading", { name: "Bonded Score by model" }).closest("figure")!;

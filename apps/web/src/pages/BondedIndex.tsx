@@ -13,6 +13,7 @@ import {
   useTip,
   VIZ,
 } from "../components/charts";
+import { BenchComparisonCard } from "../components/bench-comparison";
 import { Card, Grid, Page, Stat, linkClass } from "../components/ui";
 import {
   ATTACK_CLASS_NAMES,
@@ -631,6 +632,8 @@ export function BondedIndexView({ index }: { index: BondedIndexData }) {
           <Stat label="Rail" value="Off-chain" hint="invoice payments; on-chain to follow" />
         </Grid>
       </Card>
+
+      <BenchComparisonCard />
 
       <ScoreChart entries={entries} />
       <div className="grid gap-6 xl:grid-cols-2">
