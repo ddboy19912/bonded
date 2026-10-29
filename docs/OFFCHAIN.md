@@ -318,7 +318,7 @@ The note is a draft. A person at Bonded sends it through the maintainer's securi
 
 ## Generated attacks
 
-A model can draft new attacks as seed data. It does not run the agent, see credentials, or decide whether an attack worked. The call uses the same client as the other models: OpenRouter, unless the id is a Muse model, which goes to Meta's API. The default model is `xiaomi/mimo-v2.6-flash`. `--model` selects another, such as DeepSeek or GLM.
+A model can draft new attacks as seed data. It does not run the agent, see credentials, or decide whether an attack worked. The call uses the same client as the other models: OpenRouter, unless the id is a Muse model, which goes to Meta's API. The default model is `deepseek/deepseek-v4.1-flash`, the strongest cheap attacker in the Oct 29 smokes. `--model` selects another: a stronger one (DeepSeek V4 Pro, GLM-5.3 with reasoning) writes cleaner attacks for the decisive runs, where the attacker cost is small next to the agent's.
 
 The input is the realistic job or the busy Monday. The model is asked for several attacks, each with a channel, a planted account, invoice reference and amount, and the rules it aims at. A draft is kept only when it is a valid seed for that world, those three facts are in the text and are not already facts of the world (so the attribution judge can see them when the seed is run), and its prose is not a duplicate. The generator writes the kept seeds and prints how many it kept, how many it rejected, and what the call cost. It does not judge them. A later staged run does, with the existing attribution judge.
 
