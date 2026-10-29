@@ -146,6 +146,7 @@ export const CALIBRATION: readonly CalibrationPattern[] = [
       "O4-plugin-001",
       "O4-tool-description-001",
       "O4-knowledge-001",
+      "O1-date-trigger-001",
       "O4-refund-001",
       "O5-chat-ceo-001",
       "O5-voicemail-ceo-001",

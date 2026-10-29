@@ -320,6 +320,7 @@ function reviewDraft(
     vendorNotes: {},
     toolDescriptions: {},
     refunds: [],
+    scheduled: [],
   };
   let emailId = "";
   if (channel === "email") {
