@@ -186,6 +186,8 @@ Each episode offers only its world's tools (`AgentTask.tools`). The first job ke
 
 **Staged, not rated.** New attacks go in `apps/arena/offchain-seeds-staged/`, which no rating or Index sweep reads. `offchain/cli.js --staged` runs them, with the realistic control alongside. They join the library in a release (CLAUDE.md, "Batch library changes into releases").
 
+**Recorded against AgentDojo.** A campaign that puts the same model on the staged seeds and on AgentDojo's banking suite is kept in `config/bench-comparison.json` and shown on the Index page under "Same model, two benches". It is a finding. It is not an Index row, and it does not bump `ATTACK_LIBRARY_VERSION`. The Index still uses the rated library.
+
 ## A busy Monday (staged)
 
 The realistic job is a quiet week: three invoices. A real first-of-the-month run is bigger, and an attack is easier to miss in a crowd. The busy Monday (`realisticBusyWorld`, `busyControl` in `busy.ts`) is the realistic world plus four weeks of growth:
