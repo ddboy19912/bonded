@@ -209,6 +209,78 @@ describe("Bonded Index", () => {
       expect(names.some((n) => n?.includes(name))).toBe(true);
   });
 
+  it("ranks loss per 1,000 runs, from every run the model did", () => {
+    view();
+    const card = section("Leaderboard");
+    fireEvent.click(within(card).getByRole("tab", { name: "Loss per 1,000 runs" }));
+    showTable(card);
+    // DeepSeek: $612.40 lost plus $9,200 overpaid over 168 runs.
+    const row = within(card).getByRole("row", { name: /DeepSeek V4.1 Flash/ });
+    expect(row.textContent).toContain("$58K");
+    expect(row.textContent).toContain("168");
+  });
+
+  it("shows how far each score has been tested, by the fall rate it rules out", () => {
+    const tested: BondedIndexData = {
+      ...index,
+      entries: index.entries.map((e, i) => ({
+        ...e,
+        attacksTested: 156 * (i + 1),
+        riskCeiling: 0.047 / (i + 1),
+      })),
+    };
+    view(tested);
+    const card = section("Leaderboard");
+    fireEvent.click(within(card).getByRole("tab", { name: "How well tested" }));
+    showTable(card);
+    const rows = within(card).getAllByRole("row").slice(1);
+    // The tightest bound first.
+    expect(rows[0]!.textContent).toContain("Llama 4 Maverick");
+    expect(rows[0]!.textContent).toContain("1.6%");
+    expect(rows[0]!.textContent).toContain("468");
+  });
+
+  it("draws a family's numbered versions in order, and says when they met different attacks", () => {
+    const family = (version: string, hash: string, score: number) =>
+      entry({
+        model: `muse-spark-${version}`,
+        label: `Muse Spark ${version}`,
+        provider: "Meta",
+        family: "Muse Spark",
+        version,
+        score,
+        attacks: { seeds: 17, variants: 11, hash, notShown: [] },
+      });
+    view({
+      ...index,
+      entries: [
+        family("1.3", "ffffffffffffffff", 96),
+        family("1.1", "abcdef0123456789", 100),
+        family("1.2", "abcdef0123456789", 86),
+        // A tier, not a later version: left off the line.
+        entry({
+          model: "z-ai/glm-5.3-flash",
+          label: "GLM-5.3 Flash",
+          family: "GLM-5",
+          version: "5.3 Flash",
+        }),
+        entry({ model: "z-ai/glm-5.3", label: "GLM-5.3", family: "GLM-5", version: "5.3" }),
+      ],
+    });
+    const card = section("Across versions");
+    expect(within(card).getByText("Muse Spark")).toBeTruthy();
+    expect(within(card).queryByText("GLM-5")).toBeNull();
+    expect(
+      within(card).getByText(/Muse Spark 1.3 met more attacks than Muse Spark 1.1/),
+    ).toBeTruthy();
+    showTable(card);
+    const order = within(card)
+      .getAllByRole("row")
+      .slice(1)
+      .map((r) => r.querySelector("td")?.textContent);
+    expect(order).toEqual(["Muse Spark 1.1", "Muse Spark 1.2", "Muse Spark 1.3"]);
+  });
+
   it("says so when no model has been rated", () => {
     view({ ...index, entries: [] });
     expect(screen.getByText("No models have been rated yet.")).toBeTruthy();

@@ -15,6 +15,7 @@ import {
   ModelName,
   ModelScatter,
   ProviderLogo,
+  VersionLines,
   niceTicks,
 } from "../components/index-charts";
 import { Card, Page, linkClass } from "../components/ui";
@@ -34,6 +35,9 @@ import {
 } from "../lib/bonded-index";
 
 const DOCS_OFFCHAIN = "https://github.com/ddboy19912/bonded/blob/main/docs/OFFCHAIN.md";
+
+/** Every judged run of a model, attacked or not: its rows' jobs, since each run has one. */
+const runsOf = (e: BondedIndexEntry) => e.rows.reduce((n, r) => n + r.tasksTotal, 0);
 
 /** The Task score in words: the number, or why there isn't one. */
 const taskText = (e: BondedIndexEntry) => {
@@ -101,7 +105,9 @@ function Tip({ e, children }: { e: BondedIndexEntry; children: React.ReactNode }
 const LEADERBOARD_TABS = [
   { id: "security", label: "Security" },
   { id: "task", label: "Task" },
+  { id: "loss", label: "Loss per 1,000 runs" },
   { id: "money", label: "Money moved" },
+  { id: "tested", label: "How well tested" },
   { id: "briefing", label: "Rules shown vs hidden" },
   { id: "attacker", label: "Will it red-team?" },
 ] as const;
@@ -208,6 +214,87 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
               taskText(e),
               taskSetBy(e) ?? "—",
               e.score,
+            ])}
+          />
+        ),
+      };
+    })(),
+    loss: (() => {
+      const perThousand = (e: BondedIndexEntry) => {
+        const runs = runsOf(e);
+        return runs === 0 ? 0 : ((lostUsd(e) + overpaidUsd(e)) / runs) * 1000;
+      };
+      const sorted = [...entries].sort((a, b) => perThousand(a) - perThousand(b));
+      const ticks = niceTicks(Math.max(1, ...sorted.map(perThousand)));
+      return {
+        subtitle:
+          "Lower is better · lost plus overpaid, per 1,000 of the model's runs, attacked or not",
+        bars: sorted.map((e) => ({
+          entry: e,
+          label: usd(perThousand(e)),
+          values: { v: perThousand(e) },
+          tip: (
+            <Tip e={e}>
+              <span>
+                <b className="text-ink">{usd(perThousand(e))}</b> per 1,000 runs
+              </span>
+              <span className="text-muted">
+                {usd(lostUsd(e) + overpaidUsd(e))} over {runsOf(e).toLocaleString("en-US")} runs
+              </span>
+            </Tip>
+          ),
+        })),
+        series: [{ key: "v", label: "Loss per 1,000 runs" }],
+        domain: [0, ticks[ticks.length - 1]!] as [number, number],
+        ticks,
+        format: usd,
+        table: (
+          <DataTable
+            head={["Model", "Per 1,000 runs", "Lost", "Overpaid", "Runs"]}
+            rows={sorted.map((e) => [
+              <ModelName key={e.model} entry={e} />,
+              usd(perThousand(e)),
+              usd(lostUsd(e)),
+              usd(overpaidUsd(e)),
+              runsOf(e).toLocaleString("en-US"),
+            ])}
+          />
+        ),
+      };
+    })(),
+    tested: (() => {
+      const ceiling = (e: BondedIndexEntry) => e.riskCeiling ?? 1;
+      const sorted = [...entries].sort((a, b) => ceiling(a) - ceiling(b));
+      const ticks = niceTicks(Math.max(0.05, ...sorted.map(ceiling)));
+      return {
+        subtitle:
+          "Lower is better · the highest fall rate its runs can't yet rule out, at 95%: more attacks run, a tighter bound",
+        bars: sorted.map((e) => ({
+          entry: e,
+          label: pct(ceiling(e), 1),
+          values: { v: ceiling(e) },
+          tip: (
+            <Tip e={e}>
+              <span>
+                A fall rate above <b className="text-ink">{pct(ceiling(e), 1)}</b> is ruled out
+              </span>
+              <span className="text-muted">
+                on {(e.attacksTested ?? 0).toLocaleString("en-US")} attacks
+              </span>
+            </Tip>
+          ),
+        })),
+        series: [{ key: "v", label: "Fall rate not ruled out" }],
+        domain: [0, ticks[ticks.length - 1]!] as [number, number],
+        ticks,
+        format: (v: number) => pct(v, v > 0 && v < 0.1 ? 1 : 0),
+        table: (
+          <DataTable
+            head={["Model", "Ruled out above", "Attacks run"]}
+            rows={sorted.map((e) => [
+              <ModelName key={e.model} entry={e} />,
+              e.riskCeiling === undefined ? "—" : pct(e.riskCeiling, 1),
+              (e.attacksTested ?? 0).toLocaleString("en-US"),
             ])}
           />
         ),
@@ -482,6 +569,85 @@ function Tradeoffs({ entries }: { entries: BondedIndexEntry[] }) {
   );
 }
 
+/** Versions compared numerically, part by part: 1.10 after 1.9. */
+const byVersion = (a: BondedIndexEntry, b: BondedIndexEntry) => {
+  const pa = a.version.split(".").map(Number);
+  const pb = b.version.split(".").map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+};
+
+/** Each model family with more than one version rated, its versions in order. */
+function AcrossVersions({ entries }: { entries: BondedIndexEntry[] }) {
+  // Only numbered releases make a line: "5.3 Flash" is a different tier of 5.3, not a later one.
+  const numbered = entries.filter((e) => /^\d+(\.\d+)*$/.test(e.version));
+  const families = [...new Set(numbered.map((e) => e.family))]
+    .map((family) => numbered.filter((e) => e.family === family).sort(byVersion))
+    .filter((versions) => versions.length > 1);
+  if (families.length === 0) return null;
+  return (
+    <ChartCard
+      title="Across versions"
+      subtitle="Higher is better · solid: security · dashed: Task"
+      table={
+        <DataTable
+          head={["Model", "Security", "Task", "Attacks run"]}
+          rows={families
+            .flat()
+            .map((e) => [
+              <ModelName key={e.model} entry={e} />,
+              e.score,
+              taskText(e),
+              (e.attacksTested ?? 0).toLocaleString("en-US"),
+            ])}
+        />
+      }
+    >
+      <div className={`grid gap-6 ${families.length > 1 ? "lg:grid-cols-2" : ""}`}>
+        {families.map((versions) => {
+          // Versions that met a different attack set from the family's first aren't like for like.
+          const differ = versions.filter((e) => e.attacks.hash !== versions[0]!.attacks.hash);
+          return (
+            <figure key={versions[0]!.family} className="min-w-0">
+              <figcaption className="flex items-center gap-2 text-sm font-medium text-soft">
+                <ProviderLogo provider={versions[0]!.provider} size={16} />
+                {versions[0]!.family}
+              </figcaption>
+              <VersionLines
+                points={versions.map((e) => ({
+                  entry: e,
+                  security: e.score,
+                  task: taskScore(e),
+                  tip: (
+                    <Tip e={e}>
+                      <span>
+                        Security <b className="text-ink">{e.score}</b> · Task{" "}
+                        <b className={idle(e) ? "text-warn" : "text-ink"}>{taskText(e)}</b>
+                      </span>
+                      <span className="text-muted">
+                        {(e.attacksTested ?? 0).toLocaleString("en-US")} attacks run
+                      </span>
+                    </Tip>
+                  ),
+                }))}
+              />
+              {differ.length > 0 && (
+                <p className="text-xs text-muted">
+                  {differ.map((e) => e.label).join(" and ")} met more attacks than{" "}
+                  {versions[0]!.label}, so the line isn't like for like.
+                </p>
+              )}
+            </figure>
+          );
+        })}
+      </div>
+    </ChartCard>
+  );
+}
+
 /** Each model's fall rate per attack class or channel, in its worse briefing. */
 function WhereTheyBreak({ entries }: { entries: BondedIndexEntry[] }) {
   const vectors = Object.fromEntries(
@@ -679,7 +845,7 @@ export function BondedIndexView({ index }: { index: BondedIndexData }) {
     );
   }
   // Every judged episode, from the rows: an entry that joins a campaign keeps its sweep's cost.
-  const episodes = entries.reduce((n, e) => n + e.rows.reduce((m, r) => m + r.tasksTotal, 0), 0);
+  const episodes = entries.reduce((n, e) => n + runsOf(e), 0);
   const attackEpisodes = entries.reduce(
     (n, e) => n + e.rows.reduce((m, r) => m + r.attackEpisodes, 0),
     0,
@@ -706,6 +872,7 @@ export function BondedIndexView({ index }: { index: BondedIndexData }) {
 
       <Leaderboard entries={entries} />
       <Tradeoffs entries={entries} />
+      <AcrossVersions entries={entries} />
       <WhereTheyBreak entries={entries} />
       <BenchComparisonCard />
       <Results entries={entries} />
