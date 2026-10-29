@@ -5,7 +5,6 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  ErrorBar,
   LabelList,
   Line,
   LineChart,
@@ -195,8 +194,6 @@ export interface ModelBar {
   /** Shown above the bar. */
   label: string;
   values: Record<string, number>;
-  /** Low and high of a 95% interval, drawn as a thin whisker on the first series. */
-  interval?: [number, number];
   /** A warning shown under the model's name, such as a Task score under 50. */
   flag?: string;
   tip: ReactNode;
@@ -231,12 +228,6 @@ export function ModelBars({
     model: b.entry.model,
     ...b.values,
     label: b.label,
-    err: b.interval
-      ? [
-          Math.max(0, (b.values[series[0]!.key] ?? 0) - b.interval[0]),
-          Math.max(0, b.interval[1] - (b.values[series[0]!.key] ?? 0)),
-        ]
-      : undefined,
   }));
   const byModel = new Map(bars.map((b) => [b.entry.model, b]));
   const single = series.length === 1;
@@ -337,9 +328,6 @@ export function ModelBars({
                 <Cell key={d.model} fill={s.color ?? colorOf(byModel.get(d.model)!.entry)} />
               ))}
             {!single && data.map((d) => <Cell key={d.model} fill={s.color} />)}
-            {i === 0 && data.some((d) => d.err) && (
-              <ErrorBar dataKey="err" width={4} stroke="rgb(244 246 251 / 0.45)" strokeWidth={1} />
-            )}
             {grouped && (
               <LabelList
                 dataKey={s.key}
