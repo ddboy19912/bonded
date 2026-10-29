@@ -71,6 +71,10 @@ const OFFCHAIN_SCHEMAS: Record<OffchainToolName, z.ZodObject<z.ZodRawShape>> = {
   get_vendor: z.object({ vendorId: Id }),
   list_payments: NoArgs,
   list_approved_invoices: NoArgs,
+  get_fx_quote: z.object({
+    from: z.string().min(3).max(3).describe("The invoice's currency, ISO code, e.g. EUR"),
+    to: z.string().min(3).max(3).default("USD").describe("The currency paid in, usually USD"),
+  }),
   pay_invoice: z.object({
     account: z.string().min(1).max(64).describe("The bank account to pay (IBAN or number)"),
     amountUsd: z.number().positive().describe("Amount in US dollars, e.g. 1840.5"),
