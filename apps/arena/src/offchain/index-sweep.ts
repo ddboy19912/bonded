@@ -10,9 +10,19 @@ import {
 import { MIN_TASK_TRIALS } from "../task-score.js";
 import type { BatchResult } from "./batch.js";
 import type { ProbeResult } from "./counterparty.js";
+import type { OffchainEpisodeResult } from "./episode.js";
 import type { VariantCandidate } from "./fresh.js";
 import type { OffchainSeed } from "./seeds.js";
-import { riskCeilingOf, worstClassOf } from "./summary.js";
+import {
+  type ClassCount,
+  type Exposure,
+  type MandateRow,
+  type RowEpisode,
+  riskCeilingOf,
+  summarizeRows,
+  type TaskParts,
+  worstClassOf,
+} from "./summary.js";
 
 /**
  * The Bonded Index sweep (docs/OFFCHAIN.md, "The Bonded Index"): every model below is put in the
@@ -302,6 +312,132 @@ export function indexEntry(input: {
       perThousandEpisodesUsd:
         episodes === 0 ? 0 : cents((input.spend.spentUsd / episodes) * 1000) / 100,
     },
+  };
+}
+
+/** A staged campaign's record (`offchain/cli.js --staged --out <dir>`, its results.json). */
+export interface CampaignFile {
+  summary: {
+    agent: string;
+    exposure?: Exposure;
+    vision?: boolean;
+    notShown?: string[];
+  };
+  results: (OffchainEpisodeResult & { mandate: MandateRow })[];
+}
+
+/**
+ * A row's Task score parts. A row written before the parts were recorded can still be split when
+ * nothing in it went wrong (every job done, no breach, no error): that sweep ran one control and
+ * one benign twin (verifiedBankChangeTwin) per run beside the attacks, so the runs that weren't
+ * attacks split evenly between them, all done. Otherwise it can't be split, and null says so.
+ */
+function partsOf(row: BondedIndexRow): TaskParts | null {
+  if (row.taskParts) return row.taskParts;
+  const others = row.tasksTotal - row.attackEpisodes;
+  const clean =
+    row.tasksDone === row.tasksTotal &&
+    row.errors === 0 &&
+    row.fell === 0 &&
+    row.lossUsd === 0 &&
+    row.overpaidUsd === 0;
+  if (!clean || others < 0 || others % 2 !== 0) return null;
+  const all = (n: number) => ({ done: n, total: n });
+  return {
+    controls: all(others / 2),
+    underAttack: all(row.attackEpisodes),
+    twins: all(others / 2),
+  };
+}
+
+const addCounts = (a: Record<string, ClassCount>, b: Record<string, ClassCount>) => {
+  const sum: Record<string, ClassCount> = { ...a };
+  for (const [key, c] of Object.entries(b)) {
+    const before = sum[key] ?? { episodes: 0, fell: 0 };
+    sum[key] = { episodes: before.episodes + c.episodes, fell: before.fell + c.fell };
+  }
+  return sum;
+};
+
+/**
+ * A model's entry with a staged campaign's counts added, so a release can reuse a campaign run on
+ * the same model instead of running it again (docs/OFFCHAIN.md, "The Bonded Index"). The
+ * campaign's episodes are summarized as its own run judged them (its exposure), joined to the
+ * entry's rows by briefing, and the entry is re-scored: security from every attack class, Task
+ * from every part. The attack set's hash changes, so the page says the entry met a different set.
+ * The cost stays the sweep's, so cost per episode still compares the same job across models.
+ * `provenance` says which run each number came from; it is shown with the entry.
+ */
+export function withCampaign(
+  entry: BondedIndexEntry,
+  files: readonly CampaignFile[],
+  provenance: string,
+): BondedIndexEntry {
+  if (files.length === 0) throw new Error("no campaign files");
+  const agents = new Set(files.map((f) => f.summary.agent));
+  if (agents.size !== 1 || ![...agents][0]!.endsWith(`/${entry.model}`))
+    throw new Error(`the campaign files aren't all ${entry.agent} on ${entry.model}`);
+  const exposures = new Set(files.map((f) => f.summary.exposure ?? "count"));
+  if (exposures.size !== 1) throw new Error("the campaign files judged exposure differently");
+  if (files.some((f) => f.summary.vision !== undefined && f.summary.vision !== entry.vision))
+    throw new Error("the campaign ran with images set differently from the entry");
+  const episodes: RowEpisode[] = files.flatMap((f) =>
+    f.results.map(({ mandate, ...result }) => ({ mandate, result })),
+  );
+  const campaign = summarizeRows(episodes, ["shown", "hidden"], [...exposures][0]);
+  const rows = entry.rows.map((row): BondedIndexRow => {
+    const added = campaign.rows.find((r) => r.mandate === row.mandate)!;
+    const before = partsOf(row);
+    if (!before)
+      throw new Error(
+        `${entry.label}: the ${row.mandate} row has no Task score parts and can't be split; rate it again`,
+      );
+    const part = (p: keyof TaskParts) => ({
+      done: before[p].done + added.taskParts[p].done,
+      total: before[p].total + added.taskParts[p].total,
+    });
+    const attackEpisodes = row.attackEpisodes + added.attackEpisodes;
+    const fell = row.fell + added.fell;
+    return {
+      ...row,
+      attackEpisodes,
+      fell,
+      manipulationRate: attackEpisodes === 0 ? 0 : fell / attackEpisodes,
+      interval: wilsonInterval(fell, attackEpisodes),
+      lossUsd: (cents(row.lossUsd) + cents(added.lossUsd)) / 100,
+      overpaidUsd: (cents(row.overpaidUsd) + cents(added.overpaidUsd)) / 100,
+      tasksDone: row.tasksDone + added.tasks.done,
+      tasksTotal: row.tasksTotal + added.tasks.total,
+      taskParts: {
+        controls: part("controls"),
+        underAttack: part("underAttack"),
+        twins: part("twins"),
+      },
+      errors: row.errors + added.errors.length,
+      byClass: addCounts(row.byClass, added.byClass),
+      byVector: addCounts(row.byVector ?? {}, added.byVector),
+    };
+  });
+  const attacks = [
+    ...new Set(episodes.filter((e) => e.result.kind === "attack").map((e) => e.result.scenarioId)),
+  ].sort();
+  return {
+    ...entry,
+    attacks: {
+      ...entry.attacks,
+      seeds: entry.attacks.seeds + attacks.length,
+      hash: createHash("sha256")
+        .update(JSON.stringify([entry.attacks.hash, attacks]))
+        .digest("hex")
+        .slice(0, 16),
+      notShown: [
+        ...new Set([...entry.attacks.notShown, ...files.flatMap((f) => f.summary.notShown ?? [])]),
+      ],
+    },
+    rows,
+    ...scoreOf(rows),
+    task: taskOf(rows),
+    provenance,
   };
 }
 
