@@ -82,7 +82,7 @@ cp .env.example .env   # then fill in what you need; the file explains every set
 - **Git:** `.env` is git-ignored, so it never gets committed.
 - **Local runs:** step 3's commands ignore `.env` completely.
 
-**Language models.** Set `OPENROUTER_API_KEY` (one key reaches hundreds of models), or point `LLM_BASE_URL` at any OpenAI-compatible endpoint, such as a local Ollama. Meta's models (`muse-spark-1.3` and the other `muse-` ids) always go to Meta Model API with `MODEL_API_KEY`, so an agent on Muse Spark and an attacker on OpenRouter can run in the same rating. Then:
+**Language models.** Set `OPENROUTER_API_KEY` (one key reaches hundreds of models), or point `LLM_BASE_URL` at any OpenAI-compatible endpoint, such as a local Ollama. Meta's models (`muse-spark-1.3` and the other `muse-` ids) always go to Meta Model API with `MODEL_API_KEY`, so an agent on Muse Spark and an attacker on OpenRouter can run in the same rating. Claude models (`claude-` ids) always go to Anthropic's API with `ANTHROPIC_API_KEY`, through Anthropic's SDK (`packages/shared/src/anthropic.ts`): it keeps each turn's thinking for the next request, prices each call from its token counts, and runs the model as shipped (its default thinking, no sampling settings, no fallback to another model). Then:
 
 ```bash
 pnpm arena rate --brain llm --model deepseek/deepseek-v4.1-flash --max-usd 2

@@ -22,7 +22,9 @@ const providerOf = (model: string) =>
         ? "DeepSeek"
         : model.startsWith("qwen")
           ? "Qwen"
-          : model;
+          : model.startsWith("claude")
+            ? "Anthropic"
+            : model;
 
 function Bench({
   name,
