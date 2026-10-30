@@ -101,6 +101,14 @@ describe("listedModelPrice", () => {
       inputPerMillion: 4,
       outputPerMillion: 20,
     });
+    // Muse Spark Open on Baseten, by Baseten's id: Baseten's list price, no lookup.
+    expect(await listedModelPrice("meta-models/muse-spark-open", { fetch })).toEqual({
+      inputPerMillion: 1.25,
+      outputPerMillion: 4.25,
+    });
+    expect(metaCapFallback("meta-models/muse-spark-open")).toEqual({
+      fallbackPrice: { inputPerMillion: 1.25, outputPerMillion: 4.25 },
+    });
     expect(lookups).toBe(0);
   });
 

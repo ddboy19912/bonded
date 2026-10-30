@@ -28,6 +28,18 @@ export function isClaudeModel(model: string): boolean {
 
 export const ANTHROPIC_BASE_URL = "https://api.anthropic.com";
 
+/** Baseten's Model APIs (OpenAI-compatible), which serve Meta's open-weight Muse Spark Open. */
+export const BASETEN_BASE_URL = "https://inference.baseten.co/v1";
+
+/**
+ * Whether a model id names a Meta open-weight model on Baseten (`meta-models/muse-spark-open`).
+ * Baseten keeps Meta's models under `meta-models/`; the hosted Muse models (`muse-spark-1.3`) go
+ * to Meta Model API instead.
+ */
+export function isBasetenModel(model: string): boolean {
+  return /^meta-models\//.test(model);
+}
+
 export interface ToolCall {
   id: string;
   type: "function";
@@ -85,7 +97,7 @@ export interface LlmConfig {
    * The endpoint is Meta Model API, which takes `reasoning_effort`. Set by `llmConfigForModel`,
    * so a META_MODEL_API_BASE_URL proxy keeps Meta's request format; inferred from the URL if unset.
    */
-  provider?: "meta" | "anthropic";
+  provider?: "meta" | "anthropic" | "baseten";
 }
 
 /**
@@ -104,7 +116,8 @@ export function llmConfigFromEnv(env: Record<string, string | undefined> = proce
 /**
  * The endpoint and key for one model. Claude models go to Anthropic's API with ANTHROPIC_API_KEY;
  * Meta's models go to Meta Model API with MODEL_API_KEY (META_MODEL_API_BASE_URL overrides the
- * URL); every other model uses `llmConfigFromEnv`.
+ * URL); Meta's open-weight models go to Baseten with BASETEN_API_KEY (BASETEN_BASE_URL overrides
+ * the URL); every other model uses `llmConfigFromEnv`.
  */
 export function llmConfigForModel(
   model: string,
@@ -114,6 +127,12 @@ export function llmConfigForModel(
     const apiKey = env.ANTHROPIC_API_KEY;
     if (!apiKey) throw new Error(`no Anthropic API key for ${model}: set ANTHROPIC_API_KEY`);
     return { baseUrl: ANTHROPIC_BASE_URL, apiKey, provider: "anthropic" };
+  }
+  if (isBasetenModel(model)) {
+    const apiKey = env.BASETEN_API_KEY;
+    if (!apiKey) throw new Error(`no Baseten API key for ${model}: set BASETEN_API_KEY`);
+    const baseUrl = env.BASETEN_BASE_URL ?? BASETEN_BASE_URL;
+    return { baseUrl: baseUrl.replace(/\/+$/, ""), apiKey, provider: "baseten" };
   }
   if (!isMetaModel(model)) return llmConfigFromEnv(env);
   const apiKey = env.MODEL_API_KEY;
