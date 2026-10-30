@@ -2,7 +2,7 @@
 
 > **Don't cage your agent. Bond it.**
 
-**Bonded measures how much money an AI agent can be tricked into losing, and stops it.** AI agents now move real money, and a poisoned token description, a fake "admin" message or a forged invoice can talk one into sending it to the wrong place. Bonded attacks each agent before attackers do and scores it 0 to 100, enforces its rules on chain so a tricked agent can't move money it shouldn't, and watches it live. Then we put money behind the score: a bond and a cover pool pay back losses automatically. **Payouts are decided by the agent's vault on chain, never by an AI.** Off chain, where agents pay invoices, agents are rated, not insured.
+**Bonded measures how much money an AI agent can be tricked into losing, and stops it.** AI agents now move real money, and a poisoned token description, a fake "admin" message or a forged invoice can talk one into sending it to the wrong place. Bonded attacks each agent before attackers do and scores it 0 to 100, enforces its rules on chain so a tricked agent can't move money it shouldn't, and watches it live. Then we put money behind the score: a bond and a cover pool pay back losses automatically. **Payouts are decided by the agent's vault on chain, never by an AI.**
 
 Runs on **Robinhood Chain**, with scores readable on **Arbitrum, Ethereum and Solana**.
 
@@ -38,7 +38,7 @@ It starts a local chain, the API, keeper and rating worker; rates Agent A and Ag
 4. **Monitoring.** An optional real-time guard, an open-source decision model trained on attack data, flags manipulated actions before they reach the vault. It is advisory; payouts never depend on it.
 5. **Money behind the score.** Breach losses become an expected loss, a premium and an **insurance score** (tiers AAA to CCC), which decides cover; S1 and memory never enter it (Solana carries the insurance score only, for now). The agent's operator stakes a bond that pays first, underwriters fund a pool that pays the rest, and depositors buy cover priced from the insurance score. When the vault records a breach, the keeper files the claim within seconds: the contract slashes the bond, then the pool pays, and the money goes back into the vault.
 
-**The Bonded Index** rates AI models the same way: every model runs inside the same payments agent and meets the same attacks (forged invoices, bank-detail changes, fake executives, poisoned portals), and the [Index](https://www.bondedhq.xyz/index) shows how often each is tricked into paying the wrong account, and whether it still does the job. Off-chain models are rated, not insured. Details: [docs/OFFCHAIN.md](docs/OFFCHAIN.md).
+**The Bonded Index** rates AI models the same way: every model runs inside the same payments agent and meets the same attacks (forged invoices, bank-detail changes, fake executives, poisoned portals), and the [Index](https://www.bondedhq.xyz/index) shows how often each is tricked into paying the wrong account, and whether it still does the job. Details: [docs/OFFCHAIN.md](docs/OFFCHAIN.md).
 
 How the parts fit together: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). What each agent is: [docs/AGENTS.md](docs/AGENTS.md). How Bonded relates to the trading bots, wallet copilots and other agents people already use: [docs/YOUR-AGENTS.md](docs/YOUR-AGENTS.md). The full product specification: [docs/SPECIFICATION.md](docs/SPECIFICATION.md).
 
