@@ -3,10 +3,13 @@ import {
   type BondedIndexEntry,
   OFFCHAIN_LIBRARY_VERSION,
 } from "@bondedhq/shared";
-import { useState } from "react";
+import * as Popover from "@radix-ui/react-popover";
+import { useRef, useState } from "react";
 import { Link } from "react-router";
 import { BenchComparisonCard } from "../components/bench-comparison";
 import { VIZ } from "../components/charts";
+import { CodeBlock } from "../components/code-block";
+import { InfoPanel } from "../components/overlay";
 import {
   ChartCard,
   DataTable,
@@ -33,6 +36,9 @@ import {
   lostUsd,
   overpaidUsd,
   pct,
+  reproduceCapUsd,
+  reproduceCommand,
+  reproduceKeys,
   rowOf,
   runsOf,
   setBy,
@@ -722,7 +728,73 @@ function WhereTheyBreak({ entries }: { entries: BondedIndexEntry[] }) {
   );
 }
 
+/** In the rerun panel: the commands that rerun one row, and what they need and spend. */
+function Reproduce({ e }: { e: BondedIndexEntry }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <CodeBlock label={`Rerun ${e.label}`} code={reproduceCommand(e)} />
+      <p className="text-xs leading-relaxed text-muted">
+        Needs {reproduceKeys(e.model).join(" and ")} in .env. Last run cost {usd(e.cost.spentUsd)}
+        {e.cost.estimated ? " (estimated)" : ""}; this one stops at ${reproduceCapUsd(e)}.
+        {versionOf(e) < OFFCHAIN_LIBRARY_VERSION &&
+          " Rated on an earlier library, so a rerun won't match it."}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * A row's "⋯" menu. Picking an action closes the menu and hands it to the table. The menu keeps
+ * focus where it is on close after a pick, or handing it back to "⋯" would close the new dialog.
+ */
+function RowActions({ e, onReproduce }: { e: BondedIndexEntry; onReproduce: () => void }) {
+  const [open, setOpen] = useState(false);
+  const picked = useRef(false);
+  return (
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Trigger
+        aria-label={`Actions for ${e.label}`}
+        aria-haspopup="menu"
+        className="flex size-8 items-center justify-center rounded-full text-muted hover:bg-white/[0.06] hover:text-ink focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none data-[state=open]:bg-white/[0.06] data-[state=open]:text-ink"
+      >
+        <svg viewBox="0 0 24 24" className="size-4" fill="currentColor" aria-hidden>
+          <circle cx="5" cy="12" r="1.75" />
+          <circle cx="12" cy="12" r="1.75" />
+          <circle cx="19" cy="12" r="1.75" />
+        </svg>
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
+          role="menu"
+          onCloseAutoFocus={(ev) => {
+            if (picked.current) ev.preventDefault();
+            picked.current = false;
+          }}
+          align="end"
+          sideOffset={6}
+          collisionPadding={16}
+          className="z-50 min-w-44 rounded-xl border border-line-strong bg-raised p-1 text-sm shadow-(--shadow-raised) outline-none [animation:pop_.15s_ease_both]"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              picked.current = true;
+              setOpen(false);
+              onReproduce();
+            }}
+            className="w-full rounded-lg px-3 py-2 text-left text-soft hover:bg-white/[0.06] hover:text-ink focus-visible:bg-white/[0.06] focus-visible:text-ink focus-visible:outline-none"
+          >
+            Reproduce this row
+          </button>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
+  );
+}
+
 function Results({ entries }: { entries: BondedIndexEntry[] }) {
+  const [rerun, setRerun] = useState<BondedIndexEntry | null>(null);
   const fell = (e: BondedIndexEntry, m: "shown" | "hidden") => {
     const r = rowOf(e, m);
     return r ? `${r.fell}/${r.attackEpisodes}` : "—";
@@ -746,9 +818,10 @@ function Results({ entries }: { entries: BondedIndexEntry[] }) {
                 "Lost",
                 "Overpaid",
                 "Cost",
+                "",
               ].map((h) => (
                 <th key={h} scope="col" className="px-4 py-3 font-medium">
-                  {h}
+                  {h || <span className="sr-only">Actions</span>}
                 </th>
               ))}
             </tr>
@@ -789,6 +862,9 @@ function Results({ entries }: { entries: BondedIndexEntry[] }) {
                   {usd(e.cost.spentUsd)}
                   {e.cost.estimated ? " est." : ""}
                 </td>
+                <td className="px-2 py-2 text-right">
+                  <RowActions e={e} onReproduce={() => setRerun(e)} />
+                </td>
               </tr>
             ))}
           </tbody>
@@ -801,6 +877,14 @@ function Results({ entries }: { entries: BondedIndexEntry[] }) {
             † {e.label}: {e.provenance}
           </p>
         ))}
+      <InfoPanel
+        open={rerun !== null}
+        onOpenChange={(o) => !o && setRerun(null)}
+        title={rerun ? `Reproduce ${rerun.label}` : "Reproduce"}
+        description="Runs the public attacks against this model on your own machine."
+      >
+        {rerun && <Reproduce e={rerun} />}
+      </InfoPanel>
     </section>
   );
 }

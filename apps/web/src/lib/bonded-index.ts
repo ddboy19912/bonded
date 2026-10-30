@@ -2,6 +2,9 @@ import {
   BondedIndex,
   type BondedIndexEntry,
   type BondedIndexRow,
+  isBasetenModel,
+  isClaudeModel,
+  isMetaModel,
   indexModelSlug,
   lossPerThousandRuns,
 } from "@bondedhq/shared";
@@ -87,6 +90,46 @@ export const usd = (n: number) =>
 /** Entries by score, best first; ties keep the Index's order. */
 export const byScore = (entries: readonly BondedIndexEntry[]) =>
   [...entries].sort((a, b) => b.score - a.score);
+
+/** Where a copied Index command is run from: a clone of the public repo. */
+export const REPO_URL = "https://github.com/ddboy19912/bonded";
+
+/**
+ * The API keys a rerun of one model's row needs, by name. O6's counterparty is always DeepSeek on
+ * OpenRouter, so every rerun needs OPENROUTER_API_KEY; the model may need its own provider's key
+ * (llmConfigForModel in packages/shared/src/llm.ts).
+ */
+export function reproduceKeys(model: string): string[] {
+  const own = isMetaModel(model)
+    ? ["MODEL_API_KEY"]
+    : isBasetenModel(model)
+      ? ["BASETEN_API_KEY"]
+      : isClaudeModel(model)
+        ? ["ANTHROPIC_API_KEY"]
+        : [];
+  return ["OPENROUTER_API_KEY", ...own];
+}
+
+/**
+ * The spending cap a copied command sets: four times what the published run cost (at least $2),
+ * since the library has grown since most rows ran. The sweep stops starting episodes at the cap.
+ */
+export const reproduceCapUsd = (e: BondedIndexEntry) => Math.max(2, Math.ceil(e.cost.spentUsd * 4));
+
+/**
+ * The commands that rerun one model's Index row from the public attacks (the library seeds and
+ * the committed variants): clone, build the Arena, run the sweep for that model alone. The sweep
+ * reads the keys from .env at the repo root or from the environment, and writes the new row over
+ * the model's entry in config/bonded-index.json, so `git diff` shows the two side by side.
+ */
+export function reproduceCommand(e: BondedIndexEntry): string {
+  return [
+    `git clone ${REPO_URL} && cd bonded`,
+    'pnpm install && pnpm --filter "@bonded/arena..." build',
+    `node apps/arena/dist/offchain/index-cli.js --models ${e.model} --max-usd ${reproduceCapUsd(e)}` +
+      (e.runsPerScenario === 3 ? "" : ` --runs ${e.runsPerScenario}`),
+  ].join("\n");
+}
 
 /** The off-chain library version a model was rated on; entries from before versions were recorded were 1. */
 export const versionOf = (e: BondedIndexEntry) => e.libraryVersion ?? 1;

@@ -20,7 +20,8 @@ export function useMediaQuery(query: string) {
 /**
  * Extra detail that readers open only when they want it: a centred dialog on wide screens and a
  * drawer from the bottom on phones (the shadcn/ui "responsive dialog" pattern, on Radix Dialog
- * and Vaul). `trigger` must be a single focusable element, such as a button.
+ * and Vaul). `trigger` must be a single focusable element, such as a button. Leave it out when
+ * something else opens the panel, such as a row's action menu; then set `open` and `onOpenChange`.
  */
 export function InfoPanel({
   trigger,
@@ -30,7 +31,7 @@ export function InfoPanel({
   open,
   onOpenChange,
 }: {
-  trigger: ReactNode;
+  trigger?: ReactNode;
   title: ReactNode;
   description?: ReactNode;
   children: ReactNode;
@@ -43,7 +44,7 @@ export function InfoPanel({
   if (wide)
     return (
       <Dialog.Root {...control}>
-        <Dialog.Trigger asChild>{trigger}</Dialog.Trigger>
+        {trigger && <Dialog.Trigger asChild>{trigger}</Dialog.Trigger>}
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm [animation:fade_.2s_ease_both]" />
           <Dialog.Content className="panel fixed top-1/2 left-1/2 z-50 flex max-h-[85vh] w-[min(640px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col bg-raised shadow-(--shadow-raised) outline-none [animation:pop_.2s_ease_both]">
@@ -82,7 +83,7 @@ export function InfoPanel({
     );
   return (
     <Drawer.Root {...control}>
-      <Drawer.Trigger asChild>{trigger}</Drawer.Trigger>
+      {trigger && <Drawer.Trigger asChild>{trigger}</Drawer.Trigger>}
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 z-50 bg-black/70" />
         <Drawer.Content className="fixed inset-x-0 bottom-0 z-50 flex max-h-[90vh] flex-col rounded-t-[26px] border-t border-line-strong bg-raised outline-none">
