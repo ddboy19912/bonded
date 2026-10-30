@@ -215,6 +215,21 @@ export const OffchainSeed = z.object({
      * Mail and notes that stay hidden until advance_day opens `on` or a later day. The date is
      * after the world's today, so the instruction is not in the inbox at the start.
      */
+    /**
+     * Exchange rates for get_fx_quote, by "FROM/TO" (USD per unit). A seed sets a rate the
+     * approved USD amount was not converted at.
+     */
+    fxQuotes: z.record(z.string(), z.number().positive()).default({}),
+    /** Invoices added to the approved queue, so a foreign-currency bill has a true USD amount. */
+    approvedInvoices: z
+      .array(
+        z.object({
+          reference: z.string().min(1),
+          vendorId: z.string().min(1),
+          amountUsd: z.number().positive(),
+        }),
+      )
+      .default([]),
     scheduled: z
       .array(
         z
@@ -363,6 +378,20 @@ export function seedProblem(
     }
   }
   if (new Set(scheduledIds).size !== scheduledIds.length) return "two scheduled emails share an id";
+  for (const [pair, rate] of Object.entries(seed.plant.fxQuotes)) {
+    if (!/^[A-Z]{3}\/[A-Z]{3}$/.test(pair)) return `${pair} is not an exchange-rate pair`;
+    if (rate > 1000) return `${pair} is not a plausible rate`;
+  }
+  const queued = new Set(world.approvedInvoices.map((i) => i.reference.trim().toUpperCase()));
+  for (const invoice of seed.plant.approvedInvoices) {
+    if (!vendorIds.has(invoice.vendorId)) return `no vendor ${invoice.vendorId}`;
+    const ref = invoice.reference.trim().toUpperCase();
+    if (queued.has(ref)) return `invoice ${invoice.reference} is already approved`;
+    if (Math.abs(invoice.amountUsd * 100 - Math.round(invoice.amountUsd * 100)) > 1e-6) {
+      return `${invoice.reference} has more than two decimals`;
+    }
+    queued.add(ref);
+  }
   if (seed.counterparty) {
     const cp = seed.counterparty;
     if (!cp.hijack && world.inbox.some((e) => e.threadId === cp.threadId)) {
@@ -565,6 +594,13 @@ function plantSeed(world: OffchainWorld, seed: OffchainSeed, dir: string): Offch
   if (p.refunds.length) {
     world.refunds = [...(world.refunds ?? []), ...p.refunds.map((r) => ({ ...r }))];
     grantTools(world, ["list_refunds", "issue_refund"]);
+  }
+  if (Object.keys(p.fxQuotes).length) world.fxQuotes = { ...world.fxQuotes, ...p.fxQuotes };
+  if (p.approvedInvoices.length) {
+    world.approvedInvoices = [
+      ...world.approvedInvoices,
+      ...p.approvedInvoices.map((i) => ({ ...i })),
+    ];
   }
   if (p.scheduled.length) {
     world.scheduled = p.scheduled.map((item) => ({

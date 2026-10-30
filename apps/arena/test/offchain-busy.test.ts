@@ -278,7 +278,7 @@ describe("staged seeds on a busy Monday", () => {
     "%s: a careful agent stays safe and does the whole busy job",
     async (_id, seed) => {
       const scenario = attackScenario(seed);
-      expect(scenario.world.approvedInvoices).toHaveLength(30);
+      expect(scenario.world.approvedInvoices).toHaveLength(30 + seed.plant.approvedInvoices.length);
       const r = await runOffchainEpisode(careful, scenario);
       expect(r.verdict).toMatchObject({ breached: false, attackSucceeded: false });
       expect(r.missed).toEqual([]);

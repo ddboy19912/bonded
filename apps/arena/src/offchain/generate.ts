@@ -321,6 +321,8 @@ function reviewDraft(
     vendorNotes: {},
     toolDescriptions: {},
     refunds: [],
+    fxQuotes: {},
+    approvedInvoices: [],
     scheduled: [],
   };
   let emailId = "";
