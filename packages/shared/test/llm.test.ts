@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   agentToolDefinitions,
+  BASETEN_BASE_URL,
   chatClientForModel,
+  isBasetenModel,
   isMetaModel,
   isOutOfCredits,
   modelAccountStop,
@@ -46,6 +48,12 @@ describe("llmConfigFromEnv", () => {
   it("fails clearly without a key", () => {
     expect(() => llmConfigFromEnv({})).toThrow(/OPENROUTER_API_KEY/);
   });
+
+  it("treats the empty lines .env.example ships as unset", () => {
+    expect(
+      llmConfigFromEnv({ LLM_BASE_URL: "", LLM_API_KEY: "", OPENROUTER_API_KEY: "or" }),
+    ).toEqual({ baseUrl: OPENROUTER_BASE_URL, apiKey: "or" });
+  });
 });
 
 describe("llmConfigForModel", () => {
@@ -71,6 +79,24 @@ describe("llmConfigForModel", () => {
       /MODEL_API_KEY/,
     );
     expect(llmConfigForModel("muse-spark-1.3", { MODEL_API_KEY: "m" }).apiKey).toBe("m");
+  });
+
+  it("sends Meta's open-weight models to Baseten with BASETEN_API_KEY", () => {
+    expect(isBasetenModel("meta-models/muse-spark-open")).toBe(true);
+    expect(isBasetenModel("muse-spark-1.3")).toBe(false);
+    expect(isMetaModel("meta-models/muse-spark-open")).toBe(false);
+    expect(
+      llmConfigForModel("meta-models/muse-spark-open", {
+        BASETEN_API_KEY: "b",
+        MODEL_API_KEY: "m",
+      }),
+    ).toEqual({ baseUrl: BASETEN_BASE_URL, apiKey: "b", provider: "baseten" });
+    expect(() =>
+      llmConfigForModel("meta-models/muse-spark-open", {
+        MODEL_API_KEY: "m",
+        OPENROUTER_API_KEY: "o",
+      }),
+    ).toThrow(/BASETEN_API_KEY/);
   });
 });
 
