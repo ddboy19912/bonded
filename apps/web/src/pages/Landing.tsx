@@ -75,8 +75,7 @@ function Hero() {
           <em className="text-accent">Bond it.</em>
         </h1>
         <p className="mx-auto mt-7 max-w-[580px] text-lg leading-relaxed text-muted">
-          We send a red team after every agent before it holds your money. If one is ever tricked
-          into breaking its rules, the contracts pay you back. No forms. No AI deciding.
+          Bonded measures how much money an AI agent can be tricked into losing, and stops it.
         </p>
         <div className="mt-9 flex flex-wrap justify-center gap-3">
           <a href="#how" className={buttonClass("primary", "lg")}>
@@ -95,7 +94,7 @@ function Hero() {
   );
 }
 
-/** The product in motion: an agent's score, the Arena feed, a vault blocking a transfer, a claim. */
+/** The product in motion: an agent's score, the live attack feed, a vault blocking a transfer, a claim. */
 function HeroProduct() {
   const agents = useAgents();
   const claims = useClaims();
@@ -118,7 +117,7 @@ function HeroProduct() {
       <div className="hero-tilt">
         <div className="pane pane-feed">
           <div className="mb-2.5 flex items-center justify-between">
-            <span className="eyebrow">Arena · live</span>
+            <span className="eyebrow">Attacks · live</span>
             <span className="flex items-center gap-1.5 text-[11px] text-breach">
               <span className="size-1.5 rounded-full bg-breach-solid shadow-[0_0_8px_#ff5c3a]" />
               Red team attacking
@@ -611,8 +610,8 @@ function FinalCta() {
           See every agent's score, live.
         </h2>
         <p className="relative mx-auto mt-4 max-w-xl text-lg text-muted">
-          One scale for every agent, so the score can be the bar. Browse the leaderboard and the
-          Arena without a wallet. Connect one when you're ready to deposit, onboard an agent or
+          One scale for every agent, so the score can be the bar. Browse the leaderboard and live
+          attacks without a wallet. Connect one when you're ready to deposit, onboard an agent or
           underwrite.
         </p>
         <div className="relative mt-8 flex justify-center">

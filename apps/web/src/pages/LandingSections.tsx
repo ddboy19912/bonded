@@ -193,8 +193,9 @@ export function BringYourAgent() {
           </h2>
           <p className="mt-6 max-w-lg text-lg leading-relaxed text-muted">
             Connect it by its HTTPS address, or with a small runner next to it that connects out to
-            the Arena. A connection check tells you what to fix before any rating, and the report
-            shows, for each breach, what the agent read, what it did and what would have stopped it.
+            our attack sandbox. A connection check tells you what to fix before any rating, and the
+            report shows, for each breach, what the agent read, what it did and what would have
+            stopped it.
           </p>
           <div className="mt-8 max-w-lg">
             <CopyBlock label="Wire it into a Node agent" text="npx @bondedhq/runner init" />
@@ -235,7 +236,7 @@ const QUESTIONS: { id: string; q: string; a: string }[] = [
   {
     id: "scope",
     q: "Is Bonded only for trading agents?",
-    a: "No. It is for any AI agent that can move money: trading bots, wallet copilots, yield and rebalancing agents, assistants that can pay for things, and agents that pay other agents. They share one weakness: an agent that reads outside text and can also sign transactions can be talked into sending funds where it shouldn't. The Arena's tasks today are trading ones, such as rebalancing a portfolio, and an agent that can't touch funds has nothing for a vault to guard.",
+    a: "No. It is for any AI agent that can move money: trading bots, wallet copilots, yield and rebalancing agents, assistants that can pay for things, and agents that pay other agents. They share one weakness: an agent that reads outside text and can also sign transactions can be talked into sending funds where it shouldn't. Our on-chain attacks use trading tasks today, such as rebalancing a portfolio, and the Bonded Index tests agents that pay invoices. An agent that can't touch funds has nothing for a vault to guard.",
   },
   {
     id: "red-team",

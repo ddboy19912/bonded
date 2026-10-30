@@ -117,7 +117,7 @@ function SentinelFlow() {
 
         <Track moving={shown === 1} done={shown >= 2} tone="bg-accent" />
 
-        <FlowCard title="Sentinel" tag="v5 · on Laya" lit={shown >= 2} accent>
+        <FlowCard title="Live guard" tag="v5" lit={shown >= 2} accent>
           <ul className="grid gap-2 text-sm">
             {["Mandate", "Proposed action", "Untrusted input"].map((field, i) => (
               <li
@@ -172,7 +172,7 @@ function SentinelFlow() {
               </p>
             </div>
           ) : (
-            <p className="text-sm text-muted">Waiting for Sentinel…</p>
+            <p className="text-sm text-muted">Waiting for the guard…</p>
           )}
         </FlowCard>
       </div>
@@ -265,20 +265,19 @@ export function LandingSentinel() {
     >
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
         <div>
-          <p className="eyebrow !text-accent">Sentinel · Bonded's own guard</p>
+          <p className="eyebrow !text-accent">Monitoring · Bonded's own guard</p>
           <h2 className="mt-3 font-serif text-5xl leading-none">
             Catch the trick before the trade.
           </h2>
           <p className="mt-5 max-w-[62ch] text-lg leading-relaxed text-muted">
-            Sentinel is the guard we built for Bonded, powered by Laya: an open-source decision
-            model fast enough to run inline before every trade, and fine-tuned on attacks from our
-            own Arena. It reads the mandate, the proposed action, and what the agent saw in real
-            time, then blocks the trade when outside text is pulling the strings. The vault on chain
-            stays the backstop.
+            Our live guard runs an open-source decision model fast enough to check every trade
+            before it happens, trained on our own attacks. It reads the mandate, the proposed
+            action, and what the agent saw in real time, then blocks the trade when outside text is
+            pulling the strings. The vault on chain stays the backstop.
           </p>
         </div>
         <Link to="/sentinel" className={buttonClass("secondary", "lg")}>
-          See Sentinel live <span aria-hidden>→</span>
+          See the guard live <span aria-hidden>→</span>
         </Link>
       </div>
 

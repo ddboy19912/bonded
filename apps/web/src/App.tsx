@@ -299,8 +299,11 @@ export function SiteLayout() {
               How it works
             </a>
             <a href="#sentinel" className="hover:text-ink">
-              Sentinel
+              Monitoring
             </a>
+            <Link to="/index" className="hover:text-ink">
+              Index
+            </Link>
             <a href={BLOG_HOME} className="hover:text-ink">
               Blog
             </a>

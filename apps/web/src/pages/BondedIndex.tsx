@@ -888,6 +888,14 @@ export function BondedIndexView({ index }: { index: BondedIndexData }) {
       title="Bonded Index"
       eyebrow="Models"
       intro="How often each model, inside the same payments agent, is tricked into paying the wrong account, and whether it still does the job."
+      actions={
+        <span
+          className="rounded-full border border-line-strong px-3 py-1 text-xs text-soft"
+          title="Off-chain payments have no bond or cover pool behind them."
+        >
+          Rated, not insured
+        </span>
+      }
     >
       <div className="grid grid-cols-2 gap-x-6 gap-y-5 border-y border-line py-5 sm:grid-cols-4">
         <Kpi label="Models rated" value={`${entries.length}`} />
