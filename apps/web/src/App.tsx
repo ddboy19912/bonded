@@ -299,8 +299,11 @@ export function SiteLayout() {
               How it works
             </a>
             <a href="#sentinel" className="hover:text-ink">
-              Sentinel
+              Monitoring
             </a>
+            <Link to="/index" className="hover:text-ink">
+              Index
+            </Link>
             <a href={BLOG_HOME} className="hover:text-ink">
               Blog
             </a>
@@ -318,7 +321,7 @@ export function SiteLayout() {
           <div className="flex flex-col items-start gap-3">
             <Logo className="h-9" />
             <p className="max-w-sm text-sm text-muted">
-              Don't cage your agent. Bond it. Running on {networkName}, with test tokens only.
+              Tested. Guarded. Backed. Running on {networkName}, with test tokens only.
             </p>
           </div>
           <div className="flex gap-5 text-sm text-muted">
