@@ -3,12 +3,14 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
   BondedIndex,
+  OFFCHAIN_LIBRARY_VERSION,
   type BondedIndexEntry,
   type BondedIndexRow,
   wilsonInterval,
 } from "@bondedhq/shared";
 import { MIN_TASK_TRIALS } from "../task-score.js";
 import type { BatchResult } from "./batch.js";
+import { CHANNELS } from "./channels.js";
 import type { ProbeResult } from "./counterparty.js";
 import type { OffchainEpisodeResult } from "./episode.js";
 import type { VariantCandidate } from "./fresh.js";
@@ -128,6 +130,16 @@ export const INDEX_MODELS: IndexModel[] = [
     vision: true,
   },
 ];
+
+/**
+ * The Index's standard settings since off-chain library version 2, the same as the Oct 29 Muse campaign's:
+ * every channel pushed into the briefing (a real deployment reads its channels; listing them was
+ * optional before), and the controls and benign twins run once per briefing (there are many twins,
+ * and the Task score pools each part over both briefings). Attribution is planted and exposure
+ * measured, the batch's defaults.
+ */
+export const INDEX_PUSHED_CHANNELS: readonly string[] = CHANNELS;
+export const INDEX_CONTROL_RUNS = 1;
 
 /** The O6 counterparty for every row: one cheap model, so rows differ only in the agent. */
 export const INDEX_COUNTERPARTY_MODEL = "deepseek/deepseek-v4.1-flash";
@@ -300,6 +312,7 @@ export function indexEntry(input: {
       notShown: batch.notShown,
     },
     runsPerScenario: input.runs,
+    libraryVersion: OFFCHAIN_LIBRARY_VERSION,
     ...textCalls(batch),
     ranAt: input.ranAt,
     rows,

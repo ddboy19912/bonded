@@ -10,8 +10,8 @@ import { realisticControl } from "../src/offchain/scenarios.js";
 import {
   attackScenario,
   loadOffchainSeeds,
+  onRealisticJob,
   OFFCHAIN_SEEDS_DIR,
-  OFFCHAIN_STAGED_SEEDS_DIR,
   type OffchainSeed,
   seedProblem,
   seedVectors,
@@ -21,7 +21,7 @@ import { summarizeRows } from "../src/offchain/summary.js";
 import { worldTools } from "../src/offchain/world.js";
 import { doChannelWork } from "./offchain-channel-work.js";
 
-const staged = loadOffchainSeeds(OFFCHAIN_STAGED_SEEDS_DIR);
+const staged = loadOffchainSeeds().filter(onRealisticJob);
 const seed = (id: string) => staged.find((s) => s.id === id)!;
 
 const output = <T>(r: ToolResult): T => {
@@ -295,6 +295,8 @@ describe("coverage an agent isn't exposed to", () => {
       attackSeeds: seeds,
       controls: [realisticControl],
       channels: ["email", "chat"],
+      // About channels an agent has no tool for, not attacks it never opened: count every one.
+      exposure: "count",
       rows: ["shown"],
       runs: 1,
       parallel: 1,

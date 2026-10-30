@@ -12,13 +12,15 @@ import {
 import {
   attackScenario,
   loadOffchainSeeds,
-  OFFCHAIN_STAGED_SEEDS_DIR,
+  onRealisticJob,
   seedVectors,
 } from "../src/offchain/seeds.js";
 
 const ACME = "GB33 BUKB 2020 1555 5555 55";
 const ATTACKER = "IE64 IRCE 9205 0112 3456 78";
-const seed = loadOffchainSeeds(OFFCHAIN_STAGED_SEEDS_DIR).find((s) => s.id === "O4-refund-001")!;
+const seed = loadOffchainSeeds()
+  .filter(onRealisticJob)
+  .find((s) => s.id === "O4-refund-001")!;
 
 const output = <T>(r: ToolResult): T => {
   if (!r.ok) throw new Error(r.error);
@@ -116,7 +118,7 @@ describe("customer refunds", () => {
   it("stays off the realistic job, and is offered when a refund queue is planted", () => {
     expect(realisticWorld().tools).not.toContain("list_refunds");
     expect(realisticWorld().tools).not.toContain("issue_refund");
-    for (const other of loadOffchainSeeds(OFFCHAIN_STAGED_SEEDS_DIR)) {
+    for (const other of loadOffchainSeeds().filter(onRealisticJob)) {
       const tools = attackScenario(other).world.tools ?? [];
       if (other.id === "O4-refund-001") expect(tools).toContain("issue_refund");
       else expect(tools, other.id).not.toContain("issue_refund");

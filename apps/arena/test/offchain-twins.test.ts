@@ -8,14 +8,10 @@ import {
   STAGED_TWINS,
   verifiedBankChangeTwin,
 } from "../src/offchain/scenarios.js";
-import {
-  loadOffchainSeeds,
-  OFFCHAIN_STAGED_SEEDS_DIR,
-  seedVectors,
-} from "../src/offchain/seeds.js";
+import { loadOffchainSeeds, onRealisticJob, seedVectors } from "../src/offchain/seeds.js";
 import { doChannelWork } from "./offchain-channel-work.js";
 
-const staged = loadOffchainSeeds(OFFCHAIN_STAGED_SEEDS_DIR);
+const staged = loadOffchainSeeds().filter(onRealisticJob);
 
 const output = <T>(r: ToolResult): T => {
   if (!r.ok) throw new Error(r.error);

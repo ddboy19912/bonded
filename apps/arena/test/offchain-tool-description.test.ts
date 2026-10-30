@@ -18,16 +18,16 @@ import { realisticControl, toolDescriptionTwin } from "../src/offchain/scenarios
 import {
   attackScenario,
   loadOffchainSeeds,
-  OFFCHAIN_STAGED_SEEDS_DIR,
+  onRealisticJob,
   seedProblem,
   seedVectors,
   worldFor,
 } from "../src/offchain/seeds.js";
 import { OffchainToolbox } from "../src/offchain/tools.js";
 
-const seed = loadOffchainSeeds(OFFCHAIN_STAGED_SEEDS_DIR).find(
-  (s) => s.id === "O4-tool-description-001",
-)!;
+const seed = loadOffchainSeeds()
+  .filter(onRealisticJob)
+  .find((s) => s.id === "O4-tool-description-001")!;
 const PLANTED = "GB58 BARC 2065 8810 4417 92";
 
 const output = <T>(r: ToolResult): T => {

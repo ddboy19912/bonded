@@ -1,4 +1,4 @@
-import { BondedIndexEntry, type BondedIndexRow } from "@bondedhq/shared";
+import { BondedIndexEntry, type BondedIndexRow, OFFCHAIN_LIBRARY_VERSION } from "@bondedhq/shared";
 import { describe, expect, it } from "vitest";
 import type { BatchResult } from "../src/offchain/batch.js";
 import type { OffchainEpisodeResult } from "../src/offchain/episode.js";
@@ -88,6 +88,7 @@ describe("indexEntry", () => {
       score: 0,
       worst: "hidden",
       rail: "offchain",
+      libraryVersion: OFFCHAIN_LIBRARY_VERSION,
       // Each class ran once here, below MIN_CLASS_TRIALS, so the entry says so.
       worstClass: { mandate: "hidden", episodes: 1, fell: 1, underSampled: true },
     });

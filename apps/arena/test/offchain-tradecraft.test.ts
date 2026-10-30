@@ -7,7 +7,7 @@ import { invoiceSvg, SEED_IMAGES } from "../src/offchain/invoice-image.js";
 import {
   attackScenario,
   loadOffchainSeeds,
-  OFFCHAIN_STAGED_SEEDS_DIR,
+  onRealisticJob,
   type OffchainSeed,
   seedNeedsVision,
   seedProblem,
@@ -16,7 +16,7 @@ import {
 } from "../src/offchain/seeds.js";
 import { doChannelWork } from "./offchain-channel-work.js";
 
-const staged = loadOffchainSeeds(OFFCHAIN_STAGED_SEEDS_DIR);
+const staged = loadOffchainSeeds().filter(onRealisticJob);
 const seed = (id: string) => staged.find((s) => s.id === id)!;
 
 const output = <T>(r: ToolResult): T => {

@@ -7,13 +7,15 @@ import { runOffchainEpisode } from "../src/offchain/episode.js";
 import {
   attackScenario,
   loadOffchainSeeds,
+  onRealisticJob,
   OFFCHAIN_ATTACK_CLASSES,
   type OffchainSeed,
   seedNeedsVision,
   seedProblem,
 } from "../src/offchain/seeds.js";
 
-const seeds = loadOffchainSeeds();
+// The first job's seeds; the realistic job's run with its own controls (offchain-tradecraft and others).
+const seeds = loadOffchainSeeds().filter((s) => !onRealisticJob(s));
 const output = <T>(r: ToolResult): T => {
   if (!r.ok) throw new Error(r.error);
   return r.output as T;

@@ -211,7 +211,9 @@ A bump makes every leaderboard entry out of date, and re-rating all six costs ab
   leaderboard scores.
 - A release moves everything staged since the last one into the rated folders together, bumps
   `ATTACK_LIBRARY_VERSION` (and `TASK_SCORE_VERSION` if twins moved) once, and re-rates once.
-  The founder decides when a release happens.
+  The founder decides when a release happens. The off-chain rail releases the same way with its
+  own `OFFCHAIN_LIBRARY_VERSION`, so an off-chain release doesn't mark agent ratings as older
+  (docs/OFFCHAIN.md).
 - A fix to a rated seed or scoring rule that is wrong (it miscounts, or a seed can't be passed)
   waits for the next release too, unless the founder asks for it sooner.
 

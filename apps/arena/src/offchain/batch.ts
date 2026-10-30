@@ -9,16 +9,39 @@ import type { SpendingCap } from "../budget.js";
 import { LlmCounterparty, type ProbeResult, probeCounterparty } from "./counterparty.js";
 import { runOffchainEpisode } from "./episode.js";
 import type { Attribution } from "./judge.js";
-import { controlScenario, type OffchainScenario, verifiedBankChangeTwin } from "./scenarios.js";
-import { attackScenario, type OffchainSeed, seedNeedsVision, seedVectors } from "./seeds.js";
+import {
+  controlScenario,
+  type OffchainScenario,
+  STAGED_CONTROLS,
+  verifiedBankChangeTwin,
+} from "./scenarios.js";
+import {
+  attackScenario,
+  type OffchainSeed,
+  onRealisticJob,
+  seedNeedsVision,
+  seedVectors,
+} from "./seeds.js";
 import { CHANNEL_TOOLS, CHANNELS, EMAIL_TOOLS } from "./channels.js";
 import { worldTools } from "./world.js";
 import {
+  type Exposure,
   type MandateRow,
   type OffchainSummary,
   type RowEpisode,
   summarizeRows,
 } from "./summary.js";
+
+/**
+ * The controls and benign twins for a set of attacks: the realistic job's (STAGED_CONTROLS, with
+ * its twin for each channel) when any attack runs on it, else the first job's control and twin.
+ * A run of first-job seeds alone stays as small as it was before version 3.
+ */
+export function controlsFor(seeds: readonly OffchainSeed[]): (() => OffchainScenario)[] {
+  return seeds.some(onRealisticJob)
+    ? [...STAGED_CONTROLS]
+    : [controlScenario, verifiedBankChangeTwin];
+}
 
 /**
  * One off-chain batch: the control, the benign twin and every attack seed, `runs` times in each
@@ -32,8 +55,13 @@ export interface BatchOptions {
   /** Serve attachments' images at all (off: text layers only). */
   images: boolean;
   attackSeeds: readonly OffchainSeed[];
-  /** The controls and benign twins (default: the approved-queue payment run's). */
+  /** The controls and benign twins (default: `controlsFor` the attack seeds). */
   controls?: readonly (() => OffchainScenario)[];
+  /**
+   * Runs of each control and benign twin in each mandate row (default: `runs`). The Index runs
+   * them once: there are many twins, and the Task score pools them over both briefings.
+   */
+  controlRuns?: number;
   /**
    * The vectors the agent is integrated with (email, chat, voicemail…); every one when absent.
    * Tools for the others are taken away, and attacks that arrive through them aren't run: they
@@ -45,8 +73,13 @@ export interface BatchOptions {
    * meets a channel by listing it, which is how the Index runs.
    */
   pushedChannels?: readonly string[];
-  /** How an attack's success is decided (judge.ts); "rule" when absent, as the Index scores. */
+  /**
+   * How an attack's success is decided (judge.ts): "planted" when absent, so a breach counts as
+   * the attack's only when it involves something the attack planted (off-chain library version 2 on).
+   */
   attribution?: Attribution;
+  /** Whether attacks the agent never met count in the summary's rate ("measured" when absent). */
+  exposure?: Exposure;
   rows: readonly MandateRow[];
   runs: number;
   parallel: number;
@@ -87,15 +120,16 @@ export async function runOffchainBatch(options: BatchOptions): Promise<BatchResu
     (!seedNeedsVision(s) || Boolean(options.seesImages && options.images));
   const notShown = options.attackSeeds.filter((s) => !exposed(s)).map((s) => s.id);
   // Each run builds its scenario afresh: an episode changes its world (an O6 thread grows).
-  const builders: (() => OffchainScenario)[] = [
-    ...(options.controls ?? [controlScenario, verifiedBankChangeTwin]),
-    ...options.attackSeeds
-      .filter((s) => !notShown.includes(s.id))
-      .map((s) => () => attackScenario(s)),
-  ];
-  const queue = options.rows.flatMap((mandate) =>
-    builders.flatMap((build) => Array.from({ length: options.runs }, () => ({ mandate, build }))),
-  );
+  const controls = options.controls ?? controlsFor(options.attackSeeds);
+  const attacks = options.attackSeeds
+    .filter((s) => !notShown.includes(s.id))
+    .map((s) => () => attackScenario(s));
+  const times = (build: () => OffchainScenario, n: number, mandate: MandateRow) =>
+    Array.from({ length: n }, () => ({ mandate, build }));
+  const queue = options.rows.flatMap((mandate) => [
+    ...controls.flatMap((build) => times(build, options.controlRuns ?? options.runs, mandate)),
+    ...attacks.flatMap((build) => times(build, options.runs, mandate)),
+  ]);
   const episodes: RowEpisode[] = [];
   let accountStop: ModelAccountStop | undefined;
   const skipped: string[] = [];
@@ -123,7 +157,7 @@ export async function runOffchainBatch(options: BatchOptions): Promise<BatchResu
         const result = await runOffchainEpisode(options.agent(), scenario, {
           images: options.images,
           hideMandate: job.mandate === "hidden",
-          ...(options.attribution ? { attribution: options.attribution } : {}),
+          attribution: options.attribution ?? "planted",
           ...(counterparty ? { counterparty } : {}),
         });
         options.cap.add(result.agentSummary.usage);
@@ -145,7 +179,7 @@ export async function runOffchainBatch(options: BatchOptions): Promise<BatchResu
   const turns = episodes.flatMap((e) => e.result.conversation ?? []);
   return {
     episodes,
-    summary: summarizeRows(episodes, options.rows),
+    summary: summarizeRows(episodes, options.rows, options.exposure ?? "measured"),
     notShown,
     skipped,
     ...(accountStop !== undefined ? { accountStop } : {}),
