@@ -9,10 +9,13 @@ import type { SpendingCap } from "../budget.js";
 import { LlmCounterparty, type ProbeResult, probeCounterparty } from "./counterparty.js";
 import { runOffchainEpisode } from "./episode.js";
 import type { Attribution } from "./judge.js";
+import { BUSY_CHANNEL_WORK } from "./busy.js";
 import {
+  CHANNEL_WORK,
   controlScenario,
   type OffchainScenario,
   STAGED_CONTROLS,
+  TWIN_VECTOR,
   verifiedBankChangeTwin,
 } from "./scenarios.js";
 import {
@@ -33,14 +36,74 @@ import {
 } from "./summary.js";
 
 /**
+ * Whether an agent integrated with `allowed` can meet this vector. Vendor-record notes reach
+ * every agent. Invoice images and live counterparties arrive by email. Same rule as the attacks
+ * a batch skips (`runOffchainBatch`).
+ */
+function vectorSeen(vector: string, allowed: ReadonlySet<string>): boolean {
+  if (vector === "records") return true;
+  if (vector === "image" || vector === "counterparty") return allowed.has("email");
+  return allowed.has(vector);
+}
+
+/**
+ * Task keys that live only on a channel the agent has no tool for (`CHANNEL_WORK`,
+ * `BUSY_CHANNEL_WORK`). A reply also needs the inbox tools, so every reply drops when email
+ * isn't integrated.
+ */
+function dropUnreachableWork(
+  scenario: OffchainScenario,
+  allowed: ReadonlySet<string>,
+): OffchainScenario {
+  const drop = new Set<string>();
+  for (const [channel, key] of [
+    ...Object.entries(CHANNEL_WORK),
+    ...Object.entries(BUSY_CHANNEL_WORK),
+  ]) {
+    if (!allowed.has(channel)) drop.add(key);
+  }
+  const mustReply = (scenario.mustReply ?? []).filter(
+    (id) => allowed.has("email") && !drop.has(`reply:${id}`),
+  );
+  const mustRoute = (scenario.mustRoute ?? []).filter((id) => !drop.has(`approval:${id}`));
+  return {
+    ...scenario,
+    ...(scenario.mustReply ? { mustReply } : {}),
+    ...(scenario.mustRoute ? { mustRoute } : {}),
+  };
+}
+
+/**
+ * Controls the agent can finish with `channels`. A twin whose vector isn't integrated is left
+ * out. Channel work the agent can't see is taken off the controls that remain, so a missed
+ * channel isn't scored as a failed job.
+ */
+function fitToChannels(
+  controls: readonly (() => OffchainScenario)[],
+  channels: readonly string[],
+): (() => OffchainScenario)[] {
+  const allowed = new Set(channels);
+  return controls.flatMap((build) => {
+    const vector = TWIN_VECTOR[build().id];
+    if (vector && !vectorSeen(vector, allowed)) return [];
+    return [() => dropUnreachableWork(build(), allowed)];
+  });
+}
+
+/**
  * The controls and benign twins for a set of attacks: the realistic job's (STAGED_CONTROLS, with
  * its twin for each channel) when any attack runs on it, else the first job's control and twin.
- * A run of first-job seeds alone stays as small as it was before version 3.
+ * A run of first-job seeds alone stays as small as it was before this release. `channels`, when
+ * set, keeps only the controls that the agent can complete (see `fitToChannels`).
  */
-export function controlsFor(seeds: readonly OffchainSeed[]): (() => OffchainScenario)[] {
-  return seeds.some(onRealisticJob)
+export function controlsFor(
+  seeds: readonly OffchainSeed[],
+  channels?: readonly string[],
+): (() => OffchainScenario)[] {
+  const selected = seeds.some(onRealisticJob)
     ? [...STAGED_CONTROLS]
     : [controlScenario, verifiedBankChangeTwin];
+  return channels ? fitToChannels(selected, channels) : selected;
 }
 
 /**
@@ -70,7 +133,7 @@ export interface BatchOptions {
   channels?: readonly string[];
   /**
    * Channels delivered in the briefing (world.pushedChannels). Absent or empty, the agent only
-   * meets a channel by listing it, which is how the Index runs.
+   * meets a channel by listing it. The Index passes every channel (INDEX_PUSHED_CHANNELS).
    */
   pushedChannels?: readonly string[];
   /**
@@ -113,14 +176,15 @@ export async function runOffchainBatch(options: BatchOptions): Promise<BatchResu
   // Likewise an attack through a channel the agent isn't integrated with (`channels`). Invoice
   // images and counterparties arrive by email; vendor-record notes reach every agent.
   const allowed = options.channels ? new Set(options.channels) : null;
-  const sees = (v: string) =>
-    v === "records" || !allowed || allowed.has(v === "image" || v === "counterparty" ? "email" : v);
   const exposed = (s: OffchainSeed) =>
-    seedVectors(s).every(sees) &&
+    seedVectors(s).every((v) => !allowed || vectorSeen(v, allowed)) &&
     (!seedNeedsVision(s) || Boolean(options.seesImages && options.images));
   const notShown = options.attackSeeds.filter((s) => !exposed(s)).map((s) => s.id);
   // Each run builds its scenario afresh: an episode changes its world (an O6 thread grows).
-  const controls = options.controls ?? controlsFor(options.attackSeeds);
+  const selected = options.controls ?? controlsFor(options.attackSeeds);
+  // A caller may pass controls chosen before `channels` was applied (the CLI estimates cost
+  // from them). Fit again here so the episodes match the tools the batch actually leaves.
+  const controls = options.channels ? fitToChannels(selected, options.channels) : selected;
   const attacks = options.attackSeeds
     .filter((s) => !notShown.includes(s.id))
     .map((s) => () => attackScenario(s));

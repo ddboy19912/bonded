@@ -339,10 +339,15 @@ export function indexEntry(input: {
   };
 }
 
-/** A staged campaign's record (`offchain/cli.js --staged --out <dir>`, its results.json). */
+/**
+ * A campaign's record (`offchain/cli.js --out <dir>`, its results.json). `libraryVersion` is the
+ * off-chain library the run used. A file written before versions were recorded has none, which
+ * counts as version 1.
+ */
 export interface CampaignFile {
   summary: {
     agent: string;
+    libraryVersion?: number;
     exposure?: Exposure;
     vision?: boolean;
     notShown?: string[];
@@ -426,7 +431,9 @@ function joinLossDetail(row: BondedIndexRow, added: RowSummary) {
  * entry's rows by briefing, and the entry is re-scored: security from every attack class, Task
  * from every part. The attack set's hash changes, so the page says the entry met a different set.
  * The cost stays the sweep's, so cost per episode still compares the same job across models.
- * `provenance` says which run each number came from; it is shown with the entry.
+ * `provenance` says which run each number came from; it is shown with the entry. The campaign
+ * and the entry must be the same off-chain library version (a missing version counts as 1),
+ * in either direction: mixed versions would be labeled as one rating.
  */
 export function withCampaign(
   entry: BondedIndexEntry,
@@ -441,6 +448,16 @@ export function withCampaign(
   if (exposures.size !== 1) throw new Error("the campaign files judged exposure differently");
   if (files.some((f) => f.summary.vision !== undefined && f.summary.vision !== entry.vision))
     throw new Error("the campaign ran with images set differently from the entry");
+  const libraryVersionOf = (version: number | undefined) => version ?? 1;
+  const campaignVersions = new Set(files.map((f) => libraryVersionOf(f.summary.libraryVersion)));
+  const entryVersion = libraryVersionOf(entry.libraryVersion);
+  if (campaignVersions.size !== 1)
+    throw new Error("the campaign files aren't all the same off-chain library version");
+  const campaignVersion = [...campaignVersions][0]!;
+  if (campaignVersion !== entryVersion)
+    throw new Error(
+      `the campaign is off-chain library v${campaignVersion}; the entry is v${entryVersion}`,
+    );
   const episodes: RowEpisode[] = files.flatMap((f) =>
     f.results.map(({ mandate, ...result }) => ({ mandate, result })),
   );

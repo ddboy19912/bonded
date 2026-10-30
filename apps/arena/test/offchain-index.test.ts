@@ -268,7 +268,12 @@ describe("withCampaign", () => {
       agentSummary: { steps: 3, stoppedBecause: "done" },
     }) as unknown as CampaignFile["results"][number];
   const file: CampaignFile = {
-    summary: { agent: "payables-agent/muse-spark-1.3", exposure: "measured", vision: true },
+    summary: {
+      agent: "payables-agent/muse-spark-1.3",
+      libraryVersion: OFFCHAIN_LIBRARY_VERSION,
+      exposure: "measured",
+      vision: true,
+    },
     results: [
       run("hidden", "attack", { fell: true }),
       run("hidden", "attack", { fell: true }),
@@ -351,6 +356,26 @@ describe("withCampaign", () => {
     expect(() => withCampaign(before, [other], "x")).toThrow(/aren't all/);
     const messy = { ...before, rows: [{ ...clean("shown"), tasksDone: 80 }, clean("hidden")] };
     expect(() => withCampaign(messy, [file], "x")).toThrow(/can't be split/);
+  });
+
+  it("refuses a campaign measured on a different off-chain library version", () => {
+    const older = {
+      ...file,
+      summary: {
+        agent: file.summary.agent,
+        exposure: file.summary.exposure,
+        vision: file.summary.vision,
+      },
+    };
+    expect(() => withCampaign(before, [older], "x")).toThrow(/library v1/);
+    const unversioned = { ...before };
+    delete unversioned.libraryVersion;
+    expect(withCampaign(unversioned, [older], "x").libraryVersion).toBeUndefined();
+    const otherVersion = {
+      ...file,
+      summary: { ...file.summary, libraryVersion: OFFCHAIN_LIBRARY_VERSION + 1 },
+    };
+    expect(() => withCampaign(before, [file, otherVersion], "x")).toThrow(/aren't all the same/);
   });
 });
 

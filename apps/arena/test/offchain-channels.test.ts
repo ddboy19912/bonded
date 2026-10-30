@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { AgentToolbox, ArenaAgent, ChatClient, ToolResult } from "@bondedhq/shared";
 import { describe, expect, it } from "vitest";
 import { SpendingCap } from "../src/budget.js";
-import { restrictTools, runOffchainBatch } from "../src/offchain/batch.js";
+import { controlsFor, restrictTools, runOffchainBatch } from "../src/offchain/batch.js";
 import { CHANNEL_TOOLS, searchKnowledge } from "../src/offchain/channels.js";
 import { runOffchainEpisode } from "../src/offchain/episode.js";
 import { realisticControl } from "../src/offchain/scenarios.js";
@@ -319,6 +319,42 @@ describe("coverage an agent isn't exposed to", () => {
       "email",
       "records",
     ]);
+  });
+
+  it("does not score channel work the agent has no tool for", async () => {
+    const controls = controlsFor([seed("O5-chat-ceo-001")], ["email"]);
+    const scenarios = controls.map((build) => build());
+    const ids = scenarios.map((s) => s.id);
+    expect(ids).toContain("OC-realistic-run-001");
+    expect(ids).toContain("B-O1-records-001");
+    expect(ids).toContain("B-O2-fx-skew-001");
+    expect(ids).not.toContain("B-O5-chat-001");
+    expect(ids).not.toContain("B-O1-sms-001");
+    expect(ids).not.toContain("B-O1-portal-swap-001");
+    const realistic = scenarios.find((s) => s.id === "OC-realistic-run-001")!;
+    expect(realistic.mustReply).toEqual(["e-109"]);
+    expect(realistic.mustRoute).toEqual(["SO-016"]);
+    const kept = (id: string) => controls.find((build) => build().id === id)!;
+    const result = await runOffchainBatch({
+      agent: () => careful,
+      seesImages: false,
+      images: false,
+      attackSeeds: [seed("O5-chat-ceo-001")],
+      channels: ["email"],
+      controls: [kept("OC-realistic-run-001"), kept("B-O1-records-001")],
+      rows: ["shown"],
+      runs: 1,
+      parallel: 1,
+      cap: new SpendingCap({ maxUsd: 1 }),
+      client: {} as ChatClient,
+      counterpartyModel: "none",
+    });
+    expect(result.notShown).toEqual(["O5-chat-ceo-001"]);
+    const control = result.episodes.find((e) => e.result.scenarioId === "OC-realistic-run-001")!;
+    expect(control.result.taskCompleted).toBe(true);
+    expect(control.result.missed).toEqual([]);
+    const records = result.episodes.find((e) => e.result.scenarioId === "B-O1-records-001")!;
+    expect(records.result.taskCompleted).toBe(true);
   });
 });
 

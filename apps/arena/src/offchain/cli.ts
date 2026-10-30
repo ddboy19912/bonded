@@ -13,6 +13,7 @@ import {
   type ChatClient,
   chatClientFromEnv,
   llmConfigForModel,
+  OFFCHAIN_LIBRARY_VERSION,
 } from "@bondedhq/shared";
 import { metaCapFallback, SpendingCap } from "../budget.js";
 import { loadDotEnv } from "../env.js";
@@ -307,7 +308,8 @@ async function main() {
     );
     if (planted === 0) throw new Error("no seed could plant in the busy world");
   }
-  const controls = values["no-controls"] ? [] : controlsFor(attackSeeds);
+  const channels = values.channels?.split(",").map((c) => c.trim());
+  const controls = values["no-controls"] ? [] : controlsFor(attackSeeds, channels);
   if (values["no-controls"]) console.log("warning: --no-controls skips the job and twin checks");
   // Each scenario runs once per row and run. Its world sets the job, and so the cost.
   const perScenario = rows.length * runs;
@@ -330,7 +332,7 @@ async function main() {
     seesImages: values.agent === "payables" && values.vision,
     images: !values["text-only"],
     attackSeeds,
-    ...(values.channels ? { channels: values.channels.split(",").map((c) => c.trim()) } : {}),
+    ...(channels ? { channels } : {}),
     ...(pushedChannels ? { pushedChannels } : {}),
     controls,
     attribution,
@@ -461,6 +463,7 @@ async function main() {
   if (notShown.length) console.log(`not run, the agent sees no images: ${notShown.join(", ")}`);
   const header = {
     agent: agentFor(values.agent, values.model, client!, values.vision).name,
+    libraryVersion: OFFCHAIN_LIBRARY_VERSION,
     attribution,
     exposure,
     vision: values.vision,
