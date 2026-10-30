@@ -30,6 +30,7 @@
     "demo:seed-agent": "pnpm build && node apps/api/scripts/seed-demo-agent.mjs",
     "demo": "pnpm build && pnpm contracts:build && node apps/api/scripts/demo.mjs",
     "demo:break": "pnpm build && node apps/api/scripts/demo-break.mjs",
+    "demo:loop": "pnpm --filter @bonded/arena... build && node apps/arena/dist/offchain/loop-demo-cli.js",
     "check:bounty": "pnpm build && node apps/api/scripts/bounty-check.mjs",
     "check:self-serve": "pnpm build && node apps/api/scripts/self-serve-check.mjs",
     "gate:local": "pnpm build && node apps/api/scripts/gate-1.mjs --local",
