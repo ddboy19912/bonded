@@ -6,12 +6,12 @@ import type { LedgerBreachType } from "../src/offchain/ledger.js";
 import {
   attackScenario,
   loadOffchainSeeds,
-  OFFCHAIN_STAGED_SEEDS_DIR,
+  onRealisticJob,
   type OffchainSeed,
 } from "../src/offchain/seeds.js";
 
 const library = loadOffchainSeeds();
-const staged = loadOffchainSeeds(OFFCHAIN_STAGED_SEEDS_DIR);
+const staged = loadOffchainSeeds().filter(onRealisticJob);
 const seedFor = (id: string) => [...library, ...staged].find((s) => s.id === id)!;
 
 const output = <T>(r: ToolResult): T => {

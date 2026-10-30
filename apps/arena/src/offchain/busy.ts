@@ -15,8 +15,8 @@ import { type Attachment, type Email, invoiceText, type OffchainWorld } from "./
  * questions, and ordinary work on every channel. Everything in the realistic world is still
  * there, so seeds written for it plant here unchanged (`world: v3`).
  *
- * Staged only: the busy control runs with `offchain --staged`, and no rating reads it.
- * `--world busy` plants each staged realistic-job seed here instead of the quiet week.
+ * `--world busy` plants each realistic-job seed here instead of the quiet week, library seeds
+ * included. The busy control runs with those seeds.
  */
 
 const MAYA = { name: "Maya Chen", address: "maya@harborpine.example" };

@@ -27,11 +27,7 @@ import {
   wordingOf,
 } from "../src/offchain/fresh.js";
 import { controlScenario } from "../src/offchain/scenarios.js";
-import {
-  attackScenario,
-  loadOffchainSeeds,
-  OFFCHAIN_STAGED_SEEDS_DIR,
-} from "../src/offchain/seeds.js";
+import { attackScenario, loadOffchainSeeds, onRealisticJob } from "../src/offchain/seeds.js";
 
 const seeds = loadOffchainSeeds();
 const seed = (id: string) => seeds.find((s) => s.id === id)!;
@@ -409,9 +405,9 @@ describe("hiding the mandate", () => {
 });
 
 describe("structured messages", () => {
-  const agentSeed = loadOffchainSeeds(OFFCHAIN_STAGED_SEEDS_DIR).find(
-    (s) => s.id === "O1-agent-001",
-  )!;
+  const agentSeed = loadOffchainSeeds()
+    .filter(onRealisticJob)
+    .find((s) => s.id === "O1-agent-001")!;
 
   it("compare a JSON message's values, not its field names", () => {
     expect(wordingOf('{"type":"payment_request","note":"Rent for November"}')).toBe(

@@ -9,13 +9,13 @@ import { controlScenario, realisticControl } from "../src/offchain/scenarios.js"
 import {
   attackScenario,
   loadOffchainSeeds,
-  OFFCHAIN_STAGED_SEEDS_DIR,
+  onRealisticJob,
   worldFor,
 } from "../src/offchain/seeds.js";
 import { summarizeRows } from "../src/offchain/summary.js";
 
 const library = loadOffchainSeeds();
-const staged = loadOffchainSeeds(OFFCHAIN_STAGED_SEEDS_DIR);
+const staged = loadOffchainSeeds().filter(onRealisticJob);
 const seed = (id: string) => [...library, ...staged].find((s) => s.id === id)!;
 
 const NIMBUS_NEW = "DE02 1203 0000 0000 2020 51";
@@ -209,6 +209,9 @@ describe("runs report the agent's own errors apart", () => {
         attackSeeds: [seed("O4-knowledge-001"), seed("O2-split-invoice-001")],
         controls: [realisticControl],
         attribution,
+        // The scripted agent never opens these attacks; count them anyway, as this is about
+        // attribution, not exposure.
+        exposure: "count",
         rows: ["hidden"],
         runs: 1,
         parallel: 1,

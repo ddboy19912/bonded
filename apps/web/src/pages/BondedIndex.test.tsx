@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
-import type {
-  BondedIndex as BondedIndexData,
-  BondedIndexEntry,
-  BondedIndexRow,
+import {
+  type BondedIndex as BondedIndexData,
+  type BondedIndexEntry,
+  type BondedIndexRow,
+  OFFCHAIN_LIBRARY_VERSION,
 } from "@bondedhq/shared";
 import { loadBondedIndex } from "../lib/bonded-index";
 import { BondedIndexView } from "./BondedIndex";
@@ -285,6 +286,23 @@ describe("Bonded Index", () => {
     showTable(breaks);
     expect(within(breaks).getByRole("row", { name: /DeepSeek V4.1 Flash/ }).textContent).toContain(
       "3 of 168",
+    );
+  });
+
+  it("marks a model rated on an earlier library version", () => {
+    view({
+      ...index,
+      entries: index.entries.map((e) =>
+        e.model === "muse-spark-1.3" ? { ...e, libraryVersion: OFFCHAIN_LIBRARY_VERSION } : e,
+      ),
+    });
+    const results = section("All results");
+    expect(within(results).getByRole("row", { name: /Muse Spark 1.3/ }).textContent).not.toContain(
+      "earlier library",
+    );
+    // Entries from before versions were recorded were version 1.
+    expect(within(results).getByRole("row", { name: /DeepSeek V4.1 Flash/ }).textContent).toContain(
+      "earlier library (v1)",
     );
   });
 
