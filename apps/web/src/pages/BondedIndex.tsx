@@ -4,7 +4,7 @@ import {
   OFFCHAIN_LIBRARY_VERSION,
 } from "@bondedhq/shared";
 import * as Popover from "@radix-ui/react-popover";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { BenchComparisonCard } from "../components/bench-comparison";
 import { VIZ } from "../components/charts";
 import { CodeBlock } from "../components/code-block";
@@ -795,9 +795,13 @@ function Reproduce({ e }: { e: BondedIndexEntry }) {
   );
 }
 
-/** A row's "⋯" menu. Picking an action closes the menu and hands it to the table. */
+/**
+ * A row's "⋯" menu. Picking an action closes the menu and hands it to the table. The menu keeps
+ * focus where it is on close after a pick, or handing it back to "⋯" would close the new dialog.
+ */
 function RowActions({ e, onReproduce }: { e: BondedIndexEntry; onReproduce: () => void }) {
   const [open, setOpen] = useState(false);
+  const picked = useRef(false);
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger
@@ -814,6 +818,10 @@ function RowActions({ e, onReproduce }: { e: BondedIndexEntry; onReproduce: () =
       <Popover.Portal>
         <Popover.Content
           role="menu"
+          onCloseAutoFocus={(ev) => {
+            if (picked.current) ev.preventDefault();
+            picked.current = false;
+          }}
           align="end"
           sideOffset={6}
           collisionPadding={16}
@@ -823,6 +831,7 @@ function RowActions({ e, onReproduce }: { e: BondedIndexEntry; onReproduce: () =
             type="button"
             role="menuitem"
             onClick={() => {
+              picked.current = true;
               setOpen(false);
               onReproduce();
             }}
