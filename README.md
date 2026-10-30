@@ -30,6 +30,8 @@ pnpm demo
 
 It starts a local chain, the API, keeper and rating worker; rates Agent A and Agent B; buys cover for both; plants an address-poisoning attack that Agent A falls for; shows the claim paying (operator's bond first, then the pool); and serves the web app at http://localhost:5180.
 
+To see the whole loop in about a minute (rate an agent, find the hole, enforce its rules, watch what they block, fix it and rate again), with no chain, keys or cost: `pnpm demo:loop`.
+
 ## How it works
 
 1. **Attacks.** AI attacker scenarios are planted in the agent's world inside a sandbox: a copy of the chain with the same contracts. Three batteries run in every rating of Bonded's own and leaderboard agents (operator-run agents and previews run the main library only, for now): the main attack library (10 classes: prompt injection, fake news and posts, poisoned prices, lookalike tokens and addresses, social engineering, hostile counterparty agents…), whose verdict is the vault's breach log; the **S1 market-data battery** (false news, prices and numbers that push a trade inside the rules), judged by comparing the agent against a clean run of the same world; and, for agents that keep memory Bonded can read and reset, a **memory battery** that plants a lie on day 1 and checks whether it changes a trade on day 2. Your own agent can be rated where it runs: Bonded calls its HTTPS endpoint, or a small runner next to it connects out to the sandbox, which attacks it over MCP, HTTP or its own signed transactions. A free preview rating needs only a wallet sign-in.
