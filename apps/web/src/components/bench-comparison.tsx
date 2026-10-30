@@ -2,7 +2,7 @@ import { type ReactNode, useState } from "react";
 import bondedMark from "../assets/benches/bonded.svg";
 import spylabMark from "../assets/benches/spylab.png";
 import { DataTable } from "./charts";
-import { ChartCard, Legend, ProviderLogo } from "./index-charts";
+import { ChartCard, ProviderLogo } from "./index-charts";
 import {
   attackExecuted,
   directAskOf,
@@ -64,58 +64,46 @@ function BenchMark({ bench, size = 20 }: { bench: BenchKey; size?: number }) {
   );
 }
 
-/** The two benches face to face: who made each, the question it asks, and its answer here. */
+/** The two benches face to face: who made each, and what each found across the recorded models. */
 function Versus({ rows }: { rows: BenchComparison[] }) {
   const fell = rows.reduce((n, row) => n + row.bonded.fell, 0);
   const met = rows.reduce((n, row) => n + row.bonded.countedEpisodes, 0);
   const moved = rows.reduce((n, row) => n + row.bonded.lossUsd + row.bonded.overpaidUsd, 0);
   const ran = rows.reduce((n, row) => n + attackExecuted(row.agentdojo), 0);
   const pairs = rows.reduce((n, row) => n + pairsOf(row.agentdojo), 0);
-  const side = (
-    bench: BenchKey,
-    maker: string,
-    question: string,
-    answer: string,
-    detail: ReactNode,
-  ) => (
-    <div
-      className="flex min-w-0 flex-1 flex-col gap-3 rounded-xl bg-sunken/60 p-4 ring-1 ring-line"
-      style={{ boxShadow: `inset 0 3px 0 ${BENCH[bench].color}` }}
-    >
-      <div className="flex items-center gap-3">
-        <BenchMark bench={bench} size={40} />
-        <div className="min-w-0">
-          <p className="font-semibold text-ink">{BENCH[bench].name}</p>
+  const side = (bench: BenchKey, maker: string, answer: string, detail: ReactNode) => (
+    <div className="min-w-0">
+      <div className="flex items-center gap-2.5">
+        <BenchMark bench={bench} size={32} />
+        <div className="min-w-0 leading-tight">
+          <p className="text-sm font-semibold text-ink">{BENCH[bench].name}</p>
           <p className="text-[11px] text-muted">{maker}</p>
         </div>
       </div>
-      <div>
-        <p className="text-xs text-soft">{question}</p>
-        <p className="mt-1 text-2xl font-semibold text-ink tabular-nums">{answer}</p>
-        <p className="text-xs text-muted">{detail}</p>
-      </div>
+      <p className="mt-4 text-4xl font-semibold tracking-tight text-ink tabular-nums">{answer}</p>
+      <p className="mt-1 text-sm text-soft">{detail}</p>
     </div>
   );
   return (
-    <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+    <div className="grid grid-cols-1 gap-6 border-b border-line pt-1 pb-6 sm:grid-cols-[1fr_auto_1fr] sm:gap-8">
       {side(
         "bonded",
         "Payment attacks on a payables job",
-        "Did the attack move money?",
         `${fell} of ${met}`,
         <>
-          attacks got through · <span className="text-breach">{money(moved)}</span> moved
+          attacks moved money · <span className="text-breach">{money(moved)}</span>
         </>,
       )}
-      <span className="self-center text-xs font-semibold tracking-widest text-muted uppercase">
-        vs
-      </span>
+      <div aria-hidden className="hidden flex-col items-center sm:flex">
+        <span className="w-px flex-1 bg-line" />
+        <span className="py-2 text-[11px] text-muted">vs</span>
+        <span className="w-px flex-1 bg-line" />
+      </div>
       {side(
         "agentdojo",
         "ETH Zurich SPY Lab · banking suite",
-        "Did the hidden instruction run?",
         `${ran} of ${pairs}`,
-        "hidden instructions carried out · money not measured",
+        "hidden instructions carried out",
       )}
     </div>
   );
@@ -197,37 +185,41 @@ function barsFor(row: BenchComparison, tab: Tab): BenchBar[] {
 /** One model's two bars on a 0–100% track, each named by its bench's logo and value. */
 function ModelPair({ row, bars }: { row: BenchComparison; bars: BenchBar[] }) {
   return (
-    <div className="flex flex-col gap-2">
-      <p className="flex items-center gap-2 text-sm font-medium text-ink">
+    <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[11rem_1fr] sm:items-center sm:gap-4">
+      <div className="flex items-center gap-2 sm:items-start">
         <ProviderLogo provider={providerOf(row.model)} size={18} />
-        {row.label}
-        {!row.headline && <span className="text-xs font-normal text-muted">smaller check</span>}
-      </p>
-      {bars.map((bar) => (
-        <div
-          key={bar.bench}
-          className="group relative flex items-center gap-2"
-          aria-label={`${row.label}, ${BENCH[bar.bench].name}: ${pctLabel(bar.value)}, ${bar.count}`}
-        >
-          <BenchMark bench={bar.bench} size={18} />
-          <div className="h-6 flex-1 rounded-[4px] bg-white/[0.04]">
-            <div
-              className="h-full rounded-[4px]"
-              style={{ width: `max(${bar.value}%, 2px)`, background: BENCH[bar.bench].color }}
-            />
-          </div>
-          <span className="w-28 shrink-0 text-right text-xs tabular-nums">
-            <span className="font-semibold text-ink">{pctLabel(bar.value)}</span>{" "}
-            <span className="text-muted">{bar.count}</span>
-          </span>
-          <div
-            role="tooltip"
-            className="pointer-events-none absolute bottom-full left-8 z-10 mb-1 hidden max-w-72 rounded-lg border border-line-strong bg-raised px-3 py-2 text-xs text-soft shadow-xl group-hover:block"
-          >
-            {bar.tip}
-          </div>
+        <div className="leading-tight">
+          <p className="text-sm font-medium text-ink">{row.label}</p>
+          {!row.headline && <p className="text-[11px] text-muted">smaller check</p>}
         </div>
-      ))}
+      </div>
+      <div className="flex flex-col gap-1.5">
+        {bars.map((bar) => (
+          <div
+            key={bar.bench}
+            className="group relative flex items-center gap-2"
+            aria-label={`${row.label}, ${BENCH[bar.bench].name}: ${pctLabel(bar.value)}, ${bar.count}`}
+          >
+            <BenchMark bench={bar.bench} size={18} />
+            <div className="h-5 flex-1 rounded-[4px] bg-white/[0.03]">
+              <div
+                className="h-full rounded-[4px]"
+                style={{ width: `max(${bar.value}%, 2px)`, background: BENCH[bar.bench].color }}
+              />
+            </div>
+            <span className="w-28 shrink-0 text-right text-xs tabular-nums">
+              <span className="font-semibold text-ink">{pctLabel(bar.value)}</span>{" "}
+              <span className="text-muted">{bar.count}</span>
+            </span>
+            <div
+              role="tooltip"
+              className="pointer-events-none absolute bottom-full left-8 z-10 mb-1 hidden max-w-72 rounded-lg border border-line-strong bg-raised px-3 py-2 text-xs text-soft shadow-xl group-hover:block"
+            >
+              {bar.tip}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -310,12 +302,6 @@ export function BenchComparisonCard() {
       }
     >
       <div className="flex flex-col gap-5">
-        <Legend
-          items={[
-            { color: BENCH.bonded.color, label: "Bonded" },
-            { color: BENCH.agentdojo.color, label: "AgentDojo" },
-          ]}
-        />
         {rows.map((row) => (
           <ModelPair key={row.model} row={row} bars={barsFor(row, tab)} />
         ))}
