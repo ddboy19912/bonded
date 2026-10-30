@@ -17,6 +17,7 @@ import {
 } from "@bondedhq/shared";
 import { metaCapFallback, SpendingCap } from "../budget.js";
 import { loadDotEnv } from "../env.js";
+import { assertHeldOutOffMetaApi } from "../held-out-guard.js";
 import { controlsFor, probeCounterparties, runOffchainBatch } from "./batch.js";
 import { parsePushedChannels } from "./world.js";
 import type { Attribution } from "./judge.js";
@@ -26,6 +27,7 @@ import {
   assertHeldOutDir,
   defaultHeldOutDir,
   draftHeldOut,
+  isHeldOutSetDir,
   markSpent,
   RANKING_RUNS,
   unspentHeldOut,
@@ -87,7 +89,9 @@ saved, and --replay runs a saved set again exactly.
                              ~/.config/bonded/offchain-held-out). Refused if the directory is a
                              published seed folder or anywhere in the repo outside ratings/.
                              Variants an agent has already met are skipped, then the ones run
-                             are marked as met
+                             are marked as met. Refused if the agent, the drafter or the
+                             counterparty is a muse-* model: held-out attacks never go to Meta
+                             Model API (meta-models/... on Baseten is allowed)
   --reuse-held-out           run the held-out variants an agent already met too (to replay a
                              rating exactly); nothing new is marked
   --draft-held-out <n>       draft <n> new variants of each seed into the held-out directory
@@ -190,6 +194,20 @@ async function main() {
     ...(draftCount !== undefined ? [values["generator-model"]] : []),
     values["counterparty-model"],
   ];
+  // Held-out text never goes to Meta Model API (held-out-guard.ts): not to the agent, the
+  // drafter or O6's counterparty. Refused before any key is read or model called.
+  const sendsHeldOut =
+    draftCount !== undefined ||
+    values["held-out"] !== undefined ||
+    (values.replay !== undefined && isHeldOutSetDir(values.replay));
+  if (sendsHeldOut)
+    assertHeldOutOffMetaApi([
+      { role: "the agent", model: values.model },
+      ...(draftCount !== undefined || (values.fresh && !values.replay)
+        ? [{ role: "the variant drafter", model: values["generator-model"] }]
+        : []),
+      { role: "O6's counterparty", model: values["counterparty-model"] },
+    ]);
   let client: ChatClient | undefined;
   if (!values.estimate) {
     loadDotEnv();

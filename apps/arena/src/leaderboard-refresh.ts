@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ATTACK_LIBRARY_VERSION, type LeaderboardEntry } from "@bondedhq/shared";
+import { assertHeldOutOffMetaApi } from "./held-out-guard.js";
 import type { AddRatingResult, EntryMeta } from "./leaderboard-add.js";
 import { loadRating, unpublishableReason } from "./leaderboard.js";
 import type { RatingReport } from "./rate.js";
@@ -205,12 +206,18 @@ export function pickEntries(
 
 /**
  * A held-out set is needed only when the plan rates something: a refresh with every entry
- * current runs on a machine without one. Throws when a rating needs one and none was found.
+ * current runs on a machine without one. Throws when a rating needs one and none was found, and
+ * when a rating with one would send it to Meta Model API (held-out-guard.ts), before any runs.
  */
 export function checkHeldOut(plan: RefreshPlan, heldOut: string | null, noHeldOut: boolean): void {
-  if (heldOut === null && !noHeldOut && plan.jobs.some((j) => j.action === "rate"))
+  const rated = plan.jobs.filter((j) => j.action === "rate");
+  if (heldOut === null && !noHeldOut && rated.length > 0)
     throw new Error(
       "no held-out set found in ~/.config/bonded/held-out: pass --held-out <dir>, or --no-held-out",
+    );
+  if (heldOut !== null)
+    assertHeldOutOffMetaApi(
+      rated.map((j) => ({ role: `${j.entry.slug}'s agent`, model: j.target.model ?? undefined })),
     );
 }
 

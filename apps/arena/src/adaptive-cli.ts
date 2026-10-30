@@ -13,6 +13,9 @@ import {
   runAdaptive,
 } from "./adaptive.js";
 import { loadAttackLibrary } from "./attacks.js";
+import { budgetModels } from "./budget-models.js";
+import { isHeldOutSpec } from "./held-out.js";
+import { assertHeldOutOffMetaApi } from "./held-out-guard.js";
 import { runMemoryAttempt } from "./memory-attempt.js";
 import { buildTarget } from "./targets.js";
 import { BENIGN_GOALS } from "./episode.js";
@@ -140,6 +143,14 @@ async function main(): Promise<number> {
       )
     : library.filter((seed, index) => library.findIndex((s) => s.class === seed.class) === index);
   if (seeds.length === 0) throw new Error(`no seeds match ${values.seeds}`);
+  // A --seeds-dir can hold a held-out set, which never reaches Meta Model API (held-out-guard.ts).
+  if (seeds.some(isHeldOutSpec))
+    assertHeldOutOffMetaApi([
+      ...budgetModels({ agent: values.agent, brain: values.brain, model: values.model }).map(
+        (model) => ({ role: "the agent", model }),
+      ),
+      { role: "the attacker", model: values["attacker-model"] },
+    ]);
 
   const outDir = values.out ?? join("ratings", `adaptive-${agent.name.replaceAll("/", "_")}`);
   mkdirSync(outDir, { recursive: true });

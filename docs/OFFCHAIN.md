@@ -365,6 +365,8 @@ pnpm --filter @bonded/arena offchain -- --max-usd 1 --draft-held-out 100 --draft
 
 `--held-out <dir>` runs a set that was drafted earlier; a directory that doesn't exist is refused. The results folder (`--out`) is checked the same way as the held-out directory, before anything is drafted, because the results record the planted text. Those episodes are printed, and counted on their own line. They are not in the provisional score, so the score still matches the Index's published set. The Index sweep does not read this directory.
 
+Held-out attacks never go to Meta Model API while Bonded runs on Meta's free credits. A run that would send them to a `muse-*` model, as the agent, the drafter or O6's counterparty, stops before it calls any model; on chain the same check covers the rated agent, its Sentinel guard, `heldout:generate`, the adaptive attacker, the leaderboard refresh and the API's `HELD_OUT_MODEL`. Muse Spark Open on Baseten (`meta-models/muse-spark-open`) is allowed, because that request goes to Baseten, not to Meta.
+
 **More runs.** The Index stays at 3 runs per briefing, so the rows already published stay comparable. A run meant to rank models, where the interval has to be narrower than 6 episodes can make it, passes `--ranking` (15 runs per briefing, 30 episodes a seed) or an explicit `--runs`. `--runs` wins when both are set.
 
 ## Disclosure and publication

@@ -18,6 +18,7 @@ import {
   validateBounty,
 } from "./bounty.js";
 import type { Sandbox } from "./sandbox.js";
+import { assertHeldOutOffMetaApi } from "./held-out-guard.js";
 import { extractJson } from "./synthetic.js";
 
 /**
@@ -40,6 +41,10 @@ export function heldOutId(attackClass: string, payloadTemplate: string): string 
 }
 
 export const isHeldOutId = (id: string) => /^A(10|[1-9])-held-out-[0-9a-f]{8}$/.test(id);
+
+/** A held-out attack, by its id or its tag (specFromDraft sets both). */
+export const isHeldOutSpec = (spec: Pick<AttackSpec, "id" | "tags">) =>
+  isHeldOutId(spec.id) || spec.tags.includes("held-out");
 
 /** The messages asking a model for one new attack in the seed's class. */
 export function draftPrompt(seed: AttackSpec) {
@@ -144,6 +149,8 @@ export interface GenerateOptions {
 
 /** Draft, check and keep new attacks. Returns the kept specs and every candidate's outcome. */
 export async function generateHeldOut(options: GenerateOptions) {
+  // What the drafter writes is the held-out set: it never goes to Meta Model API.
+  assertHeldOutOffMetaApi([{ role: "the held-out drafter", model: options.model }]);
   const cap = new SpendingCap({ maxUsd: options.maxUsd, ...metaCapFallback(options.model) });
   const kept: AttackSpec[] = [];
   const existing = options.existing ?? [];
