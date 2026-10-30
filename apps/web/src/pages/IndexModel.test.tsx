@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router";
 import {
   type BondedIndex as BondedIndexData,
@@ -7,6 +8,7 @@ import {
   OFFCHAIN_LIBRARY_VERSION,
 } from "@bondedhq/shared";
 import { loadBondedIndex, modelPath, modelSlug } from "../lib/bonded-index";
+import { api, type LeaderboardRecord } from "../lib/api";
 import { IndexModelView } from "./IndexModel";
 
 const row = (mandate: "shown" | "hidden", o1Fell: number, o4Fell: number) => ({
@@ -74,7 +76,21 @@ const index: BondedIndexData = {
   entries: [muse, maverick],
 };
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
+
+/** A leaderboard agent: only the fields the page reads. */
+const agent = (slug: string, model: string | undefined, grade: number, agentId: number) =>
+  ({
+    slug,
+    name: `Agent ${slug}`,
+    framework: `Framework ${slug}`,
+    model,
+    securityGrade: grade,
+    onchain: { agentId },
+  }) as unknown as LeaderboardRecord;
 
 const view = (slug: string, data: BondedIndexData = index) =>
   render(
@@ -161,15 +177,50 @@ describe("a model's result page", () => {
     );
   });
 
-  it("reads the model from the address", async () => {
-    const { IndexModel } = await import("./IndexModel");
+  it("lists the on-chain agents built on the same model, best first, linked to their pages", () => {
     render(
-      <MemoryRouter initialEntries={["/index/muse-spark-1.3"]}>
-        <Routes>
-          <Route path="/index/:model" element={<IndexModel />} />
-        </Routes>
+      <MemoryRouter>
+        <IndexModelView
+          index={index}
+          slug="llama-4-maverick"
+          leaderboard={[
+            agent("low", "meta-llama/llama-4-maverick", 11, 5),
+            agent("other", "z-ai/glm-5.3-flash", 90, 6),
+            agent("high", "meta-llama/llama-4-maverick", 33, 7),
+          ]}
+        />
       </MemoryRouter>,
     );
+    const card = screen.getByRole("heading", { name: "Also rated on chain" }).closest("section")!;
+    const links = within(card).getAllByRole("link");
+    expect(links.map((l) => l.textContent)).toEqual(["Agent high", "Agent low"]);
+    expect(links[0]!.getAttribute("href")).toBe("/agents/7");
+    expect(within(card).getByText("33")).toBeTruthy();
+    expect(within(card).queryByText("Agent other")).toBeNull();
+  });
+
+  it("leaves the on-chain section out when no agent uses the model", () => {
+    view("muse-spark-1.3");
+    expect(screen.queryByRole("heading", { name: "Also rated on chain" })).toBeNull();
+  });
+
+  it("reads the model from the address, and the agents from the leaderboard", async () => {
+    vi.spyOn(api, "leaderboard").mockResolvedValue({
+      entries: [agent("live", "muse-spark-1.3", 40, 3)],
+    } as Awaited<ReturnType<typeof api.leaderboard>>);
+    const { IndexModel } = await import("./IndexModel");
+    render(
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <MemoryRouter initialEntries={["/index/muse-spark-1.3"]}>
+          <Routes>
+            <Route path="/index/:model" element={<IndexModel />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
     expect(screen.getByRole("heading", { level: 1, name: "Muse Spark 1.3" })).toBeTruthy();
+    expect(await screen.findByRole("link", { name: "Agent live" })).toBeTruthy();
   });
 });

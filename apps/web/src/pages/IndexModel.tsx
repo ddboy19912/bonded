@@ -1,5 +1,6 @@
 import { type BondedIndex as BondedIndexData, type BondedIndexEntry } from "@bondedhq/shared";
-import { useParams } from "react-router";
+import { useQuery } from "@tanstack/react-query";
+import { Link, useParams } from "react-router";
 import { ChartCard, DataTable, ProviderLogo, fallFill } from "../components/index-charts";
 import { EmptyState, LinkButton, Page } from "../components/ui";
 import {
@@ -16,6 +17,8 @@ import {
   usd,
   versionOf,
 } from "../lib/bonded-index";
+import { api, type LeaderboardRecord } from "../lib/api";
+import { gradeTone } from "../lib/security";
 import { Kpi } from "./BondedIndex";
 
 const BACK = { to: "/index", label: "Bonded Index" };
@@ -107,8 +110,69 @@ function AttackClasses({ e }: { e: BondedIndexEntry }) {
   );
 }
 
+/**
+ * Leaderboard agents built on this model: the same model rated on chain, inside someone else's
+ * trading agent. Hidden when there are none, or while the leaderboard loads.
+ */
+function OnChain({ agents }: { agents: LeaderboardRecord[] }) {
+  if (agents.length === 0) return null;
+  return (
+    <section aria-labelledby="index-model-onchain" className="flex flex-col gap-3">
+      <div>
+        <h2 id="index-model-onchain" className="text-lg font-semibold text-ink">
+          Also rated on chain
+        </h2>
+        <p className="mt-0.5 text-sm text-muted">Trading agents built on this model.</p>
+      </div>
+      <ul className="overflow-hidden rounded-2xl border border-line bg-surface/70">
+        {agents.map((a) => (
+          <li
+            key={a.slug}
+            className="relative flex items-center justify-between gap-4 border-t border-line px-5 py-4 first:border-t-0 hover:bg-white/[0.025]"
+          >
+            <span className="min-w-0">
+              <span className="block truncate font-semibold text-ink">
+                {a.onchain ? (
+                  <Link
+                    to={`/agents/${a.onchain.agentId}`}
+                    className="after:absolute after:inset-0 hover:text-accent"
+                  >
+                    {a.name}
+                  </Link>
+                ) : (
+                  a.name
+                )}
+              </span>
+              <span className="block truncate text-xs text-muted">{a.framework}</span>
+            </span>
+            {a.securityGrade !== undefined && (
+              <span className="shrink-0 text-right">
+                <span className="block text-[11px] uppercase tracking-wider text-muted">
+                  Security
+                </span>
+                <span className={`font-serif text-3xl leading-none ${gradeTone(a.securityGrade)}`}>
+                  {a.securityGrade}
+                </span>
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 /** One model's result: its two scores, the money at risk, what broke it, and what it was rated on. */
-export function IndexModelView({ index, slug }: { index: BondedIndexData; slug: string }) {
+export function IndexModelView({
+  index,
+  slug,
+  leaderboard = [],
+}: {
+  index: BondedIndexData;
+  slug: string;
+  /** The on-chain leaderboard, to link agents built on this model. */
+  leaderboard?: LeaderboardRecord[];
+}) {
   const e = entryBySlug(index.entries, slug);
   if (!e) {
     return (
@@ -180,6 +244,12 @@ export function IndexModelView({ index, slug }: { index: BondedIndexData; slug: 
 
       <AttackClasses e={e} />
 
+      <OnChain
+        agents={leaderboard
+          .filter((a) => a.model === e.model)
+          .sort((a, b) => (b.securityGrade ?? -1) - (a.securityGrade ?? -1))}
+      />
+
       {e.provenance && (
         <p className="max-w-3xl text-xs text-muted">
           Where these numbers come from: {e.provenance}
@@ -191,5 +261,8 @@ export function IndexModelView({ index, slug }: { index: BondedIndexData; slug: 
 
 export function IndexModel() {
   const { model = "" } = useParams();
-  return <IndexModelView index={loadBondedIndex()} slug={model} />;
+  const board = useQuery({ queryKey: ["leaderboard"], queryFn: api.leaderboard });
+  return (
+    <IndexModelView index={loadBondedIndex()} slug={model} leaderboard={board.data?.entries} />
+  );
 }
