@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import {
@@ -88,6 +88,15 @@ const section = (name: string) =>
 
 const showTable = (card: HTMLElement) =>
   fireEvent.click(within(card).getByRole("button", { name: "Table" }));
+
+// The rerun command opens in a dialog, which asks the screen's width.
+beforeEach(() => {
+  vi.stubGlobal("matchMedia", () => ({
+    matches: true,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+});
 
 describe("Bonded Index", () => {
   it("parses the committed data file", () => {
@@ -325,7 +334,7 @@ describe("Bonded Index", () => {
     );
   });
 
-  it("gives each result row the command that reruns it, with its keys and spend", () => {
+  it("opens a row's rerun command in a dialog from its actions menu", () => {
     view({
       ...index,
       entries: index.entries.map((e) =>
@@ -339,30 +348,29 @@ describe("Bonded Index", () => {
       ),
     });
     const results = section("All results");
-    const toggle = within(results).getByRole("button", { name: "Command to rerun Muse Spark 1.3" });
-    expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    expect(within(results).queryByText(/index-cli\.js/)).toBeNull();
-    fireEvent.click(toggle);
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
-    const code = within(results).getByRole("figure").textContent;
-    expect(code).toContain(
+    expect(screen.queryByText(/index-cli\.js/)).toBeNull();
+    fireEvent.click(within(results).getByRole("button", { name: "Actions for Muse Spark 1.3" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Reproduce this row" }));
+    expect(screen.queryByRole("menu")).toBeNull();
+    const dialog = screen.getByRole("dialog", { name: "Reproduce Muse Spark 1.3" });
+    expect(within(dialog).getByRole("figure").textContent).toContain(
       "node apps/arena/dist/offchain/index-cli.js --models muse-spark-1.3 --max-usd 27",
     );
-    const note = within(results).getByText(/spends model credits/).textContent;
+    const note = within(dialog).getByText(/in \.env/).textContent;
     expect(note).toContain("Needs OPENROUTER_API_KEY and MODEL_API_KEY in .env");
-    expect(note).toContain("cost $6.55 (estimated), and it stops at $27.");
+    expect(note).toContain("Last run cost $6.55 (estimated); this one stops at $27.");
     expect(note).not.toContain("earlier library");
-    // One row open at a time; a row on an older library says a rerun won't match it.
+    fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    // A row on an older library says a rerun won't match it.
     fireEvent.click(
-      within(results).getByRole("button", { name: "Command to rerun DeepSeek V4.1 Flash" }),
+      within(results).getByRole("button", { name: "Actions for DeepSeek V4.1 Flash" }),
     );
-    expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    expect(within(results).getByText(/spends model credits/).textContent).toContain(
-      "Needs OPENROUTER_API_KEY in .env",
-    );
-    expect(within(results).getByText(/spends model credits/).textContent).toContain(
-      "won't match it",
-    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Reproduce this row" }));
+    const older = screen.getByRole("dialog", { name: "Reproduce DeepSeek V4.1 Flash" });
+    const olderNote = within(older).getByText(/in \.env/).textContent;
+    expect(olderNote).toContain("Needs OPENROUTER_API_KEY in .env");
+    expect(olderNote).toContain("won't match it");
   });
 
   it("says so when no model has been rated", () => {
