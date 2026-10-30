@@ -1,5 +1,6 @@
 import type { BondedIndexEntry } from "@bondedhq/shared";
 import { type ReactNode, useId, useLayoutEffect, useRef, useState } from "react";
+import { Link } from "react-router";
 import {
   Bar,
   BarChart,
@@ -18,6 +19,7 @@ import deepseek from "../assets/providers/deepseek.svg";
 import meta from "../assets/providers/meta.svg";
 import qwen from "../assets/providers/qwen.svg";
 import zai from "../assets/providers/zai.svg";
+import { modelPath } from "../lib/bonded-index";
 import { DataTable, VIZ } from "./charts";
 
 /** Each provider's mark, shown under its models' bars and as their points on a scatter. */
@@ -709,7 +711,16 @@ function LogoPoint({
   );
 }
 
-/** A model's name with its logo, for tables and lists. */
+/**
+ * A heatmap cell's fill for a fall rate: a faint neutral at zero, then the loss colour, stronger as
+ * more attacks got through.
+ */
+export const fallFill = (rate: number) =>
+  rate === 0
+    ? "rgb(255 255 255 / 0.035)"
+    : `color-mix(in oklab, ${VIZ.lost} ${Math.round(30 + rate * 70)}%, #0e1320)`;
+
+/** A model's name with its logo, for tables and lists, linked to the model's own page. */
 export function ModelName({ entry, note }: { entry: BondedIndexEntry; note?: ReactNode }) {
   return (
     <span className="flex items-start gap-2">
@@ -717,7 +728,12 @@ export function ModelName({ entry, note }: { entry: BondedIndexEntry; note?: Rea
         <ProviderLogo provider={entry.provider} />
       </span>
       <span className="min-w-0">
-        <span className="text-ink">{entry.label}</span>
+        <Link
+          to={modelPath(entry)}
+          className="text-ink underline-offset-4 decoration-ink/30 hover:underline"
+        >
+          {entry.label}
+        </Link>
         {note && <span className="block max-w-xs text-[10px] leading-snug text-muted">{note}</span>}
       </span>
     </span>

@@ -15,28 +15,34 @@ import {
   ModelName,
   ModelScatter,
   ProviderLogo,
+  fallFill,
   niceTicks,
 } from "../components/index-charts";
 import { Card, Page, linkClass } from "../components/ui";
 import {
   ATTACK_CLASS_NAMES,
+  IDLE_FLAG,
   VECTOR_NAMES,
   byScore,
   draftRefusalRate,
+  idle,
   loadBondedIndex,
+  lossPerThousand,
   lostUsd,
   overpaidUsd,
   pct,
   rowOf,
+  runsOf,
+  setBy,
   taskScore,
+  taskSetBy,
+  taskText,
   usd,
+  versionOf,
   worstRow,
 } from "../lib/bonded-index";
 
 const DOCS_OFFCHAIN = "https://github.com/ddboy19912/bonded/blob/main/docs/OFFCHAIN.md";
-
-/** The off-chain library version a model was rated on; entries from before versions were recorded were 1. */
-const versionOf = (e: BondedIndexEntry) => e.libraryVersion ?? 1;
 
 /** Under a model's name in the results: joined runs, and an older library, when they apply. */
 const resultNote = (e: BondedIndexEntry) => {
@@ -47,59 +53,11 @@ const resultNote = (e: BondedIndexEntry) => {
   return notes.length > 0 ? notes.join(" · ") : undefined;
 };
 
-/** Every judged run of a model, attacked or not: its rows' jobs, since each run has one. */
-const runsOf = (e: BondedIndexEntry) => e.rows.reduce((n, r) => n + r.tasksTotal, 0);
-
-/** The Task score in words: the number, or why there isn't one. */
-const taskText = (e: BondedIndexEntry) => {
-  const t = taskScore(e);
-  return t === null ? "not measured" : `${t}`;
-};
-
-/**
- * A model whose Task score is under 50: its security score says it wasn't tricked, but mostly
- * because it didn't act. Flagged under its name and ranked last.
- */
-const idle = (e: BondedIndexEntry) => {
-  const t = taskScore(e);
-  return t !== null && t < 50;
-};
-
-const IDLE_FLAG = "mostly didn't act";
-
 /** How far a score has been tested: attacks measured, and the fall rate ruled out at 95%. */
 const tested = (e: BondedIndexEntry) =>
   e.attacksTested === undefined || e.riskCeiling === undefined
     ? "—"
     : `${e.attacksTested} attacks; above ${(e.riskCeiling * 100).toFixed(1)}% ruled out`;
-
-const setBy = (e: BondedIndexEntry) => {
-  const w = e.worstClass;
-  if (!w) return "no attacks measured";
-  const name = ATTACK_CLASS_NAMES[w.class] ?? w.class;
-  return `${name.toLowerCase()}, rules ${w.mandate}: fell ${w.fell} of ${w.episodes}${w.underSampled ? " (few runs)" : ""}`;
-};
-
-const PART_NAMES = {
-  controls: "runs with no attack",
-  underAttack: "attacks it resisted",
-  twins: "benign twins",
-  totals: "every run",
-} as const;
-
-/** The part that set a Task score, with its counts when the rows recorded them. */
-const taskSetBy = (e: BondedIndexEntry) => {
-  const part = e.task?.part;
-  if (!part) return null;
-  if (part === "totals") {
-    const done = e.rows.reduce((n, r) => n + r.tasksDone, 0);
-    const total = e.rows.reduce((n, r) => n + r.tasksTotal, 0);
-    return `${PART_NAMES.totals}: ${done} of ${total} done`;
-  }
-  const done = e.rows.reduce((n, r) => n + (r.taskParts?.[part].done ?? 0), 0);
-  const total = e.rows.reduce((n, r) => n + (r.taskParts?.[part].total ?? 0), 0);
-  return `${PART_NAMES[part]}: ${done} of ${total} done`;
-};
 
 function Tip({ e, children }: { e: BondedIndexEntry; children: React.ReactNode }) {
   return (
@@ -234,10 +192,7 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
       };
     })(),
     loss: (() => {
-      const perThousand = (e: BondedIndexEntry) => {
-        const runs = runsOf(e);
-        return runs === 0 ? 0 : ((lostUsd(e) + overpaidUsd(e)) / runs) * 1000;
-      };
+      const perThousand = lossPerThousand;
       const sorted = [...entries].sort((a, b) => perThousand(a) - perThousand(b));
       const ticks = niceTicks(Math.max(1, ...sorted.map(perThousand)));
       return {
@@ -749,16 +704,7 @@ function WhereTheyBreak({ entries }: { entries: BondedIndexEntry[] }) {
                               : `fell ${v.fell} of ${v.episodes} (${pct(rate)})`
                         }`}
                         className={`h-9 rounded-md text-center tabular-nums ${v ? "text-ink" : "border border-dashed border-line-strong text-muted"}`}
-                        style={
-                          v
-                            ? {
-                                background:
-                                  rate === 0
-                                    ? "rgb(255 255 255 / 0.035)"
-                                    : `color-mix(in oklab, ${VIZ.lost} ${Math.round(30 + rate * 70)}%, #0e1320)`,
-                              }
-                            : undefined
-                        }
+                        style={v ? { background: fallFill(rate) } : undefined}
                       >
                         {v ? `${v.fell}/${v.episodes}` : "—"}
                       </td>
@@ -853,7 +799,7 @@ function Results({ entries }: { entries: BondedIndexEntry[] }) {
   );
 }
 
-function Kpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
+export function Kpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="min-w-0">
       <p className="text-[11px] uppercase tracking-wider text-muted">{label}</p>

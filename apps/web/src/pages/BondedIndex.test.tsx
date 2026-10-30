@@ -325,6 +325,17 @@ describe("Bonded Index", () => {
     );
   });
 
+  it("links each model's name to its own result page", () => {
+    view();
+    const results = section("All results");
+    expect(within(results).getByRole("link", { name: "Muse Spark 1.3" }).getAttribute("href")).toBe(
+      "/index/muse-spark-1.3",
+    );
+    expect(
+      within(results).getByRole("link", { name: "Llama 4 Maverick" }).getAttribute("href"),
+    ).toBe("/index/llama-4-maverick");
+  });
+
   it("says so when no model has been rated", () => {
     view({ ...index, entries: [] });
     expect(screen.getByText("No models have been rated yet.")).toBeTruthy();
