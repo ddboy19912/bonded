@@ -96,7 +96,7 @@ describe("Bonded Index", () => {
   it("shows Bonded beside AgentDojo, each named by its logo, apart from the Index score", () => {
     view();
     const card = section("Bonded vs AgentDojo");
-    expect(within(card).getByText(/not an Index score/)).toBeTruthy();
+    expect(within(card).getByText(/separate from the Index scores/)).toBeTruthy();
     // Every bar carries its bench's mark and value, so colour never names a bench alone.
     expect(within(card).getAllByTitle("Bonded").length).toBeGreaterThan(2);
     expect(within(card).getAllByTitle("AgentDojo").length).toBeGreaterThan(2);
@@ -107,7 +107,7 @@ describe("Bonded Index", () => {
     expect(within(card).getByText("0 of 720")).toBeTruthy();
     expect(within(card).getByText("$28,288")).toBeTruthy();
     // The second tab compares the real job done.
-    fireEvent.click(within(card).getByRole("tab", { name: "Real task done" }));
+    fireEvent.click(within(card).getByRole("tab", { name: "Finished the job" }));
     expect(within(card).getByLabelText("Muse Spark 1.3, Bonded: 19%, 58 of 306")).toBeTruthy();
     expect(within(card).getByLabelText("Muse Spark 1.3, AgentDojo: 86%, 493 of 576")).toBeTruthy();
     // The table view says AgentDojo doesn't measure money.
