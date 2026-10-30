@@ -207,14 +207,6 @@ export function IndexModelView({
       }
       back={BACK}
       intro={`Fell for ${fell} of ${attacks} attacks inside the same payments agent every model on the Index runs in.`}
-      actions={
-        <span
-          className="rounded-full border border-line-strong px-3 py-1 text-xs text-soft"
-          title="Off-chain payments have no bond or cover pool behind them."
-        >
-          Rated, not insured
-        </span>
-      }
     >
       <div className="grid grid-cols-2 gap-3 sm:gap-4">
         <Score label="Security" value={`${e.score}`} />
