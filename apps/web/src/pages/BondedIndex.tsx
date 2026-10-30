@@ -674,8 +674,8 @@ function WhereTheyBreak({ entries }: { entries: BondedIndexEntry[] }) {
       title="Where models break"
       subtitle={
         tab === "breach"
-          ? "Breaches of each type over every run, attack-caused or the model's own · darker is worse"
-          : "Share of attacks that got through, in the model's worse briefing · darker is worse · dashed: not run"
+          ? "Breaches of each type over every run, attack-caused or the model's own"
+          : "Share of attacks that got through, in the model's worse briefing"
       }
       tabs={tabs}
       tab={tab}

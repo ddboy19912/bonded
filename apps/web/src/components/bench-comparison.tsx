@@ -42,15 +42,6 @@ const ATTACK_NAMES: Record<string, string> = {
 
 const attackName = (id: string) => ATTACK_NAMES[id] ?? id.replaceAll("_", " ");
 
-/** "2026-10-29" as "29 Oct 2026". */
-const dateOf = (iso: string) =>
-  new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-
 const pct = (part: number, whole: number) => (whole > 0 ? (100 * part) / whole : 0);
 
 const pctLabel = (v: number) => `${v > 0 && v < 10 ? v.toFixed(1) : Math.round(v)}%`;
@@ -286,7 +277,7 @@ export function BenchComparisonCard() {
   return (
     <ChartCard
       title="Bonded vs AgentDojo"
-      subtitle={`Same models, two attack tests · ${dateOf(data.recordedOn)}`}
+      subtitle="Same models, two attack tests"
       tabs={TABS}
       tab={tab}
       onTab={(id) => setTab(id as Tab)}
