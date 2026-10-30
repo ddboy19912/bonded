@@ -16,6 +16,7 @@ import { deployment } from "../config";
 import { downloadReportJson, downloadReportPdf, type ReportContext } from "../lib/report";
 import { ApiError, api, type SelfAgentRecord } from "../lib/api";
 import { liveCheckView, teeView } from "../lib/tee";
+import { RAIL_HINT, RAIL_LABEL } from "../lib/rails";
 import { isRpcUnavailable } from "../lib/errors";
 import { apiLookups, isRegistered } from "../lib/agent";
 import { moduleCoverNote, useAgents } from "../lib/chain";
@@ -218,6 +219,9 @@ export function Agent() {
       }
     >
       <div className="-mt-2 flex flex-wrap gap-2">
+        <span title={RAIL_HINT.onchain}>
+          <Badge>{RAIL_LABEL.onchain}</Badge>
+        </span>
         {tier && <Badge tone={tone}>Insurance tier {tier}</Badge>}
         {rated &&
           (fresh?.result ? (
