@@ -40,8 +40,8 @@ export interface IndexModel {
   family: string;
   version: string;
   /**
-   * When the endpoint first listed it (OpenRouter's `created`); null for Meta Model API and
-   * Anthropic's API, which give no date.
+   * When the endpoint first listed it (OpenRouter's `created`); null for Meta Model API,
+   * Anthropic's API and Baseten, which give no date.
    */
   listed: string | null;
   /** Reads images: payables-agent runs with vision on, and image seeds count. */
@@ -52,7 +52,9 @@ export interface IndexModel {
  * The v1 Index: Meta's models and the cheap frontier ones (the founder's choice, Oct 27), with
  * Claude Sonnet 5.5 and Haiku 5.5 added and Muse Spark 1.1 and 1.2 dropped on Oct 29: the Meta
  * budget can't re-rate the older versions on the staged attacks, and a score from the smaller set
- * beside ones from the larger set would mislead.
+ * beside ones from the larger set would mislead. Muse Spark Open, Meta's open-weight Muse Spark,
+ * was added on Oct 30, served by Baseten. It was tried first as the O6 counterparty, but it
+ * declines to write the supplier's emails at every reasoning setting, so it is rated as a model.
  */
 export const INDEX_MODELS: IndexModel[] = [
   {
@@ -61,6 +63,15 @@ export const INDEX_MODELS: IndexModel[] = [
     provider: "Meta",
     family: "Muse Spark",
     version: "1.3",
+    listed: null,
+    vision: true,
+  },
+  {
+    model: "meta-models/muse-spark-open",
+    label: "Muse Spark Open",
+    provider: "Meta",
+    family: "Muse Spark",
+    version: "Open",
     listed: null,
     vision: true,
   },

@@ -104,13 +104,14 @@ export interface LlmConfig {
  * Reads the endpoint and key from the environment:
  * - LLM_BASE_URL: any OpenAI-compatible endpoint (default: OpenRouter)
  * - LLM_API_KEY, or OPENROUTER_API_KEY
+ * An empty value counts as unset, as .env.example leaves these lines.
  */
 export function llmConfigFromEnv(env: Record<string, string | undefined> = process.env): LlmConfig {
-  const apiKey = env.LLM_API_KEY ?? env.OPENROUTER_API_KEY;
+  const apiKey = env.LLM_API_KEY || env.OPENROUTER_API_KEY;
   if (!apiKey) {
     throw new Error("no LLM API key: set OPENROUTER_API_KEY (or LLM_API_KEY with LLM_BASE_URL)");
   }
-  return { baseUrl: (env.LLM_BASE_URL ?? OPENROUTER_BASE_URL).replace(/\/+$/, ""), apiKey };
+  return { baseUrl: (env.LLM_BASE_URL || OPENROUTER_BASE_URL).replace(/\/+$/, ""), apiKey };
 }
 
 /**

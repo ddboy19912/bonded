@@ -48,6 +48,12 @@ describe("llmConfigFromEnv", () => {
   it("fails clearly without a key", () => {
     expect(() => llmConfigFromEnv({})).toThrow(/OPENROUTER_API_KEY/);
   });
+
+  it("treats the empty lines .env.example ships as unset", () => {
+    expect(
+      llmConfigFromEnv({ LLM_BASE_URL: "", LLM_API_KEY: "", OPENROUTER_API_KEY: "or" }),
+    ).toEqual({ baseUrl: OPENROUTER_BASE_URL, apiKey: "or" });
+  });
 });
 
 describe("llmConfigForModel", () => {
