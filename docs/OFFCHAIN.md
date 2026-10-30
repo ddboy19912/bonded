@@ -193,7 +193,7 @@ Each episode offers only its world's tools (`AgentTask.tools`). The first job ke
 
 **Staged, not rated.** New attacks go in `apps/arena/offchain-seeds-staged/`, which no rating or Index sweep reads. `offchain/cli.js --staged` runs them, with the realistic control alongside. They join the library in a release, with one `OFFCHAIN_LIBRARY_VERSION` bump and one re-rate (CLAUDE.md, "Batch library changes into releases"). The first release (version 2, Oct 30) moved the 31 attacks staged until then; the realistic-job seeds now sit in `offchain-seeds/` beside the first job's, marked by their `world`.
 
-**Recorded against AgentDojo.** A campaign that puts the same model on the staged seeds and on AgentDojo's banking suite is kept in `config/bench-comparison.json` and shown on the Index page under "Same model, two benches". It is a finding. It is not an Index row, and it does not bump `OFFCHAIN_LIBRARY_VERSION`. The Index uses the rated library.
+**Recorded against AgentDojo.** A campaign that puts the same model on the staged seeds and on AgentDojo's banking suite is kept in `config/bench-comparison.json` and shown on the Index page under "Bonded vs AgentDojo". It is a finding. It is not an Index row, and it does not bump `OFFCHAIN_LIBRARY_VERSION`. The Index uses the rated library.
 
 ## A busy Monday
 
