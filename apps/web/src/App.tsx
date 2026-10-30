@@ -321,7 +321,7 @@ export function SiteLayout() {
           <div className="flex flex-col items-start gap-3">
             <Logo className="h-9" />
             <p className="max-w-sm text-sm text-muted">
-              Tested. Guarded. Backed. Running on {networkName}, with test tokens only.
+              Don't cage your agent. Bond it. Running on {networkName}, with test tokens only.
             </p>
           </div>
           <div className="flex gap-5 text-sm text-muted">

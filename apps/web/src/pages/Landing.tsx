@@ -67,12 +67,12 @@ function Hero() {
       <div className="mx-auto max-w-[880px] text-center">
         <p className="inline-flex items-center gap-2 rounded-full border border-line-strong px-3.5 py-1.5 text-[13px] text-soft">
           <span className="size-1.5 rounded-full bg-held" aria-hidden />
-          For AI agents that move money
+          Safety ratings and automatic cover for AI trading agents
         </p>
         <h1 className="mt-6 font-serif text-[56px] leading-[0.96] tracking-tight sm:text-[104px]">
-          Tested. Guarded.
+          Don't cage your agent.
           <br />
-          <em className="text-accent">Backed.</em>
+          <em className="text-accent">Bond it.</em>
         </h1>
         <p className="mx-auto mt-7 max-w-[580px] text-lg leading-relaxed text-muted">
           Bonded measures how much money an AI agent can be tricked into losing, and stops it.
