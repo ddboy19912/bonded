@@ -96,7 +96,7 @@ describe("Bonded Index", () => {
   it("shows Bonded beside AgentDojo, each named by its logo, apart from the Index score", () => {
     view();
     const card = section("Bonded vs AgentDojo");
-    expect(within(card).getByText(/separate from the Index scores/)).toBeTruthy();
+    expect(within(card).getByText(/Same models, two attack tests/)).toBeTruthy();
     // Every bar carries its bench's mark and value, so colour never names a bench alone.
     expect(within(card).getAllByTitle("Bonded").length).toBeGreaterThan(2);
     expect(within(card).getAllByTitle("AgentDojo").length).toBeGreaterThan(2);

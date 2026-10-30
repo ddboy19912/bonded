@@ -106,11 +106,10 @@ function Versus({ rows }: { rows: BenchComparison[] }) {
     <div className="grid grid-cols-1 gap-6 border-b border-line pt-1 pb-6 sm:grid-cols-[1fr_auto_1fr] sm:gap-6">
       {side(
         "bonded",
-        "Attacks on an AI that pays supplier invoices",
+        "Payment attacks",
         `${fell} of ${met}`,
         <>
-          attacks got money out · <span className="text-breach">{money(moved)}</span> lost or
-          overpaid
+          attacks worked · <span className="text-breach">{money(moved)}</span> paid wrongly
         </>,
       )}
       {/* A hairline between the benches, with a round "VS" badge on it at the middle. */}
@@ -120,12 +119,7 @@ function Versus({ rows }: { rows: BenchComparison[] }) {
           VS
         </span>
       </div>
-      {side(
-        "agentdojo",
-        "ETH Zurich's prompt-injection benchmark · banking",
-        `${ran} of ${pairs}`,
-        "planted instructions the AI followed",
-      )}
+      {side("agentdojo", "ETH Zurich benchmark", `${ran} of ${pairs}`, "attacks worked")}
     </div>
   );
 }
@@ -152,8 +146,7 @@ function barsFor(row: BenchComparison, tab: Tab): BenchBar[] {
           <>
             <p className="font-medium text-ink">{b.suite}</p>
             <p>
-              {b.fell} of {b.countedEpisodes} attacks got the AI to pay wrongly: {money(b.lossUsd)}{" "}
-              sent to an attacker
+              {money(b.lossUsd)} lost
               {b.overpaidUsd > 0 ? `, ${money(b.overpaidUsd)} overpaid` : ""}.
             </p>
           </>
@@ -167,8 +160,7 @@ function barsFor(row: BenchComparison, tab: Tab): BenchBar[] {
           <>
             <p className="font-medium text-ink">AgentDojo · {d.suite}</p>
             <p>
-              The AI followed the planted instruction in {attackExecuted(d)} of {pairs} tests,
-              across {d.attacks.length} attack style{d.attacks.length === 1 ? "" : "s"}.
+              {d.attacks.length} attack style{d.attacks.length === 1 ? "" : "s"}.
             </p>
           </>
         ),
@@ -183,10 +175,7 @@ function barsFor(row: BenchComparison, tab: Tab): BenchBar[] {
       tip: (
         <>
           <p className="font-medium text-ink">Bonded</p>
-          <p>
-            Jobs finished. Some are genuine changes the AI should act on, so refusing everything
-            doesn't score well.
-          </p>
+          <p>Includes real changes the AI should act on.</p>
         </>
       ),
     },
@@ -197,7 +186,7 @@ function barsFor(row: BenchComparison, tab: Tab): BenchBar[] {
       tip: (
         <>
           <p className="font-medium text-ink">AgentDojo</p>
-          <p>The user's real request completed, with the planted instruction present.</p>
+          <p>The user's request, done despite the attack.</p>
         </>
       ),
     },
@@ -250,28 +239,22 @@ function Detail({ row }: { row: BenchComparison }) {
   const ask = directAskOf(row.agentdojo);
   return (
     <details className="border-t border-line pt-3 text-xs">
-      <summary className="cursor-pointer text-muted hover:text-ink">
-        {row.label}: what was tested
-      </summary>
+      <summary className="cursor-pointer text-muted hover:text-ink">{row.label}: details</summary>
       <div className="mt-3 flex flex-col gap-3">
         {row.scope && <p className="text-muted">{row.scope}</p>}
         {row.bonded.falls.length > 0 && (
           <DataTable
-            head={["Bonded attack that worked", "Payment rules", "Worked", "Lost"]}
+            head={["Bonded attack", "Rules given", "Worked", "Lost"]}
             rows={row.bonded.falls.map((fall) => [
               fall.name,
-              fall.mandate === "shown" ? "given to the AI" : "not given",
+              fall.mandate === "shown" ? "yes" : "no",
               `${fall.fell} of ${fall.runs}`,
               money(fall.lossUsd),
             ])}
           />
         )}
         <DataTable
-          head={[
-            "AgentDojo attack style",
-            "Followed the planted instruction",
-            "Finished the request",
-          ]}
+          head={["AgentDojo attack", "Worked", "Job done"]}
           rows={row.agentdojo.attacks.map((attack) => [
             attackName(attack.id),
             `${attack.attackExecuted} of ${attack.pairs}`,
@@ -279,11 +262,10 @@ function Detail({ row }: { row: BenchComparison }) {
           ])}
         />
         <ul className="flex max-w-3xl list-disc flex-col gap-1.5 pl-5 text-muted">
-          <li>How Bonded tested it: {row.bonded.conditions.join(", ")}.</li>
+          <li>Bonded: {row.bonded.conditions.join(", ")}.</li>
           {ask.total > 0 && (
             <li>
-              Asked openly for AgentDojo's planted goals, as the user's own request, the AI did{" "}
-              {ask.done} of {ask.total}. It can do them; it just didn't when they were hidden.
+              Asked openly, it did {ask.done} of {ask.total} of AgentDojo's attack goals.
             </li>
           )}
           {[...row.bonded.notes, ...row.agentdojo.notes].map((note) => (
@@ -304,7 +286,7 @@ export function BenchComparisonCard() {
   return (
     <ChartCard
       title="Bonded vs AgentDojo"
-      subtitle={`We ran the same AI models through two attack tests: Bonded's payment attacks, and AgentDojo, a widely used academic benchmark. Tested ${dateOf(data.recordedOn)}, separate from the Index scores above.`}
+      subtitle={`Same models, two attack tests · ${dateOf(data.recordedOn)}`}
       tabs={TABS}
       tab={tab}
       onTab={(id) => setTab(id as Tab)}
@@ -333,8 +315,7 @@ export function BenchComparisonCard() {
         ))}
         {tab === "task" && (
           <p className="text-xs text-soft">
-            Bonded's jobs are harder to finish on purpose: some messages are real changes the AI
-            must act on, so an AI can't look safe just by refusing everything.
+            Bonded's jobs include real changes, so refusing everything scores badly.
           </p>
         )}
         <div className="flex flex-col gap-3">
