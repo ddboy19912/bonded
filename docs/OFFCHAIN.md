@@ -337,6 +337,18 @@ The note never carries the prose, the agent's messages or the transcript. The ca
 
 The note is a draft. A person at Bonded sends it through the maintainer's security policy, a security advisory or a private email. The tooling never contacts anyone. The policy is [Off-chain disclosure and publication policy](disclosures/OFFCHAIN.md).
 
+## Blocks become seeds
+
+In Enforce mode the ledger stops a payment that breaks the mandate. What the agent read before that payment is what talked it into trying, so a block can become a new attack seed:
+
+```bash
+pnpm --filter @bonded/arena incident-seed -- --results ratings/offchain-<agent>-<time>/results.json
+```
+
+For every blocked attempt in a run made with `--enforce`, plain code (no model) plants whatever the agent read that the genuine world doesn't have (a new email, a changed vendor note, a chat message), aimed at the rules the attempt broke. A candidate is kept only if it is a valid seed for its job and the attribution judge would credit the same breach to it. A block that follows only genuine content is the agent's own error, and one whose text is already a seed is a copy; neither is kept. `--block <file>` takes a saved block instead, and `--dry-run` writes nothing.
+
+Candidates go to `offchain-seeds-staged/incidents/`, which nothing rates and `--staged` doesn't read. They are findings, not scores: a person reviews one, adds its benign twin and moves it up into `offchain-seeds-staged/`, and a release moves it into the library. Sentinel blocks on chain work the same way (docs/SENTINEL.md, "Blocks become attacks").
+
 ## Generated attacks
 
 A model can draft new attacks as seed data. It does not run the agent, see credentials, or decide whether an attack worked. The call uses the same client as the other models: OpenRouter, unless the id is a Muse model, which goes to Meta's API. The default model is `deepseek/deepseek-v4.1-flash`, the strongest cheap attacker in the Oct 29 smokes. `--model` selects another: a stronger one (DeepSeek V4 Pro, GLM-5.3 with reasoning) writes cleaner attacks for the decisive runs, where the attacker cost is small next to the agent's.
