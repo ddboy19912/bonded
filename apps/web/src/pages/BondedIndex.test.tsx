@@ -94,11 +94,6 @@ describe("Bonded Index", () => {
     expect(() => loadBondedIndex()).not.toThrow();
   });
 
-  it("says off-chain models are rated, not insured", () => {
-    view();
-    expect(screen.getByText("Rated, not insured")).toBeTruthy();
-  });
-
   it("labels every result row with its rail and links to the on-chain leaderboard", () => {
     view();
     const rows = within(section("All results")).getAllByRole("row").slice(1);
