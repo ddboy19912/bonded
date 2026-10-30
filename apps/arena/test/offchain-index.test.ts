@@ -435,6 +435,13 @@ describe("withEntry", () => {
       ["deepseek/deepseek-v4.1-flash", 91],
     ]);
   });
+
+  it("refuses a model whose site address another model already has", () => {
+    const index = withEntry(undefined, entry);
+    expect(() =>
+      withEntry(index, { ...entry, model: "other-provider/deepseek-v4.1-flash" }),
+    ).toThrow(/would share the address \/index\/deepseek-v4.1-flash/);
+  });
 });
 
 describe("attackSetHash", () => {

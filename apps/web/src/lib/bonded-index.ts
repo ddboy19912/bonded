@@ -1,4 +1,9 @@
-import { BondedIndex, type BondedIndexEntry, type BondedIndexRow } from "@bondedhq/shared";
+import {
+  BondedIndex,
+  type BondedIndexEntry,
+  type BondedIndexRow,
+  indexModelSlug,
+} from "@bondedhq/shared";
 import raw from "../../../../config/bonded-index.json?raw";
 
 /**
@@ -147,8 +152,7 @@ export const taskSetBy = (e: BondedIndexEntry) => {
  * A model's address on the site: the last part of its id, so `meta-llama/llama-4-maverick` is
  * `llama-4-maverick` and `muse-spark-1.3` stays as it is.
  */
-export const modelSlug = (e: Pick<BondedIndexEntry, "model">) =>
-  e.model.split("/").pop()!.toLowerCase();
+export const modelSlug = (e: Pick<BondedIndexEntry, "model">) => indexModelSlug(e.model);
 
 /** The model's own result page. */
 export const modelPath = (e: Pick<BondedIndexEntry, "model">) => `/index/${modelSlug(e)}`;

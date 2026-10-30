@@ -6,6 +6,7 @@ import {
   OFFCHAIN_LIBRARY_VERSION,
   type BondedIndexEntry,
   type BondedIndexRow,
+  indexModelSlug,
   wilsonInterval,
 } from "@bondedhq/shared";
 import { MIN_TASK_TRIALS } from "../task-score.js";
@@ -533,6 +534,11 @@ export function withCampaign(
 /** The Index with `entry` added, replacing any earlier entry for the same model. */
 export function withEntry(index: BondedIndex | undefined, entry: BondedIndexEntry): BondedIndex {
   const others = (index?.entries ?? []).filter((e) => e.model !== entry.model);
+  const clash = others.find((e) => indexModelSlug(e.model) === indexModelSlug(entry.model));
+  if (clash)
+    throw new Error(
+      `${entry.model} and ${clash.model} would share the address /index/${indexModelSlug(entry.model)}`,
+    );
   const order = (model: string) => {
     const i = INDEX_MODELS.findIndex((m) => m.model === model);
     return i < 0 ? INDEX_MODELS.length : i;
