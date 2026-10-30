@@ -184,6 +184,7 @@ export {
   defaultHeldOutDir,
   draftHeldOut,
   FileProseLedger,
+  isHeldOutSetDir,
   markSpent,
   MAX_PER_SEED,
   proseHash,
@@ -481,7 +482,19 @@ export {
   offGoalTrade,
   tradedToken,
 } from "./memory-observations.js";
-export { generateHeldOut, heldOutId, isHeldOutId, specFromDraft } from "./held-out.js";
+export {
+  generateHeldOut,
+  heldOutId,
+  isHeldOutId,
+  isHeldOutSpec,
+  specFromDraft,
+} from "./held-out.js";
+export {
+  assertHeldOutOffMetaApi,
+  HeldOutToMetaError,
+  metaApiModels,
+  type RunModel,
+} from "./held-out-guard.js";
 export {
   FileHeldOutLedger,
   freshHeldOut,
