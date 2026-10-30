@@ -120,18 +120,27 @@ const PART_NAMES = {
   totals: "every run",
 } as const;
 
-/** The part that set a Task score, with its counts when the rows recorded them. */
-export const taskSetBy = (e: BondedIndexEntry) => {
+/** The part that set a Task score, and how many of its jobs were done. */
+export const taskCounts = (e: BondedIndexEntry) => {
   const part = e.task?.part;
   if (!part) return null;
-  if (part === "totals") {
-    const done = e.rows.reduce((n, r) => n + r.tasksDone, 0);
-    const total = e.rows.reduce((n, r) => n + r.tasksTotal, 0);
-    return `${PART_NAMES.totals}: ${done} of ${total} done`;
-  }
-  const done = e.rows.reduce((n, r) => n + (r.taskParts?.[part].done ?? 0), 0);
-  const total = e.rows.reduce((n, r) => n + (r.taskParts?.[part].total ?? 0), 0);
-  return `${PART_NAMES[part]}: ${done} of ${total} done`;
+  if (part === "totals")
+    return {
+      part,
+      done: e.rows.reduce((n, r) => n + r.tasksDone, 0),
+      total: e.rows.reduce((n, r) => n + r.tasksTotal, 0),
+    };
+  return {
+    part,
+    done: e.rows.reduce((n, r) => n + (r.taskParts?.[part].done ?? 0), 0),
+    total: e.rows.reduce((n, r) => n + (r.taskParts?.[part].total ?? 0), 0),
+  };
+};
+
+/** The part that set a Task score, with its counts when the rows recorded them. */
+export const taskSetBy = (e: BondedIndexEntry) => {
+  const c = taskCounts(e);
+  return c && `${PART_NAMES[c.part]}: ${c.done} of ${c.total} done`;
 };
 
 /**

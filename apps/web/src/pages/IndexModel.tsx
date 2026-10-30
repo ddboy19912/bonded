@@ -1,9 +1,11 @@
 import { type BondedIndex as BondedIndexData, type BondedIndexEntry } from "@bondedhq/shared";
+import * as Popover from "@radix-ui/react-popover";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
 import { ChartCard, DataTable, ProviderLogo, fallFill } from "../components/index-charts";
 import { EmptyState, LinkButton, Page } from "../components/ui";
 import {
+  ATTACK_CLASS_NAMES,
   classResults,
   entryBySlug,
   idle,
@@ -13,6 +15,7 @@ import {
   overpaidUsd,
   pct,
   runsOf,
+  taskCounts,
   taskText,
   usd,
   versionOf,
@@ -23,16 +26,92 @@ import { Kpi } from "./BondedIndex";
 
 const BACK = { to: "/index", label: "Bonded Index" };
 
-/** One of the two headline scores. Both always show, at the same size. */
-function Score({ label, value, warn = false }: { label: string; value: string; warn?: boolean }) {
+/** What set the Security score, in plain words, for its info popover. */
+function securityDetail(e: BondedIndexEntry): string[] {
+  const w = e.worstClass;
+  const lines = ["Out of 100. Higher means harder to trick."];
+  if (!w) return [...lines, "No attacks measured yet."];
+  const name = ATTACK_CLASS_NAMES[w.class] ?? w.class;
+  const briefing =
+    w.mandate === "shown" ? "with the payment rules spelled out" : "with only the job described";
+  lines.push(
+    `Set by its weakest attack type, ${name.toLowerCase()}: tricked ${w.fell} of ${w.episodes} times ${briefing}.`,
+  );
+  if (w.underSampled) lines.push("That attack had few runs, so treat the score as rough.");
+  lines.push(`Likely range: ${e.scoreInterval[0]} to ${e.scoreInterval[1]}.`);
+  return lines;
+}
+
+const TASK_PART = {
+  controls: "Lowest on runs with no attack",
+  underAttack: "Lowest on attacks it turned down",
+  twins: "Lowest on genuine requests that look like attacks, such as a real bank change",
+  totals: "Across every run",
+} as const;
+
+/** What set the Task score, in plain words, for its info popover. */
+function taskDetail(e: BondedIndexEntry): string[] {
+  const lines = [
+    "Out of 100. Higher means it got more of the work done, like paying real invoices.",
+  ];
+  const c = taskCounts(e);
+  if (c) lines.push(`${TASK_PART[c.part]}: did the job ${c.done} of ${c.total} times.`);
+  if (idle(e))
+    lines.push("It often did nothing. That keeps money safe, but the work doesn't get done.");
+  return lines;
+}
+
+/** One of the two headline scores, with a one-line meaning and the detail in a popover. */
+function Score({
+  label,
+  value,
+  meaning,
+  detail,
+  warn = false,
+}: {
+  label: string;
+  value: string;
+  meaning: string;
+  detail: string[];
+  warn?: boolean;
+}) {
   return (
     <div className="min-w-0 rounded-2xl border border-line bg-surface/70 p-4 sm:p-6">
-      <p className="text-[11px] uppercase tracking-wider text-muted">{label}</p>
+      <div className="flex items-center gap-1.5">
+        <p className="text-[11px] uppercase tracking-wider text-muted">{label}</p>
+        <Popover.Root>
+          <Popover.Trigger
+            aria-label={`About the ${label} score`}
+            className="flex size-5 items-center justify-center rounded-full text-muted hover:text-ink focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none data-[state=open]:text-ink"
+          >
+            <span
+              aria-hidden
+              className="flex size-3.5 items-center justify-center rounded-full border border-current text-[9px] leading-none"
+            >
+              i
+            </span>
+          </Popover.Trigger>
+          <Popover.Portal>
+            <Popover.Content
+              align="start"
+              sideOffset={8}
+              collisionPadding={16}
+              className="z-50 flex w-72 flex-col gap-2 rounded-xl border border-line-strong bg-raised p-4 text-xs leading-relaxed text-soft shadow-(--shadow-raised) outline-none [animation:pop_.15s_ease_both]"
+            >
+              <p className="font-medium text-ink">{label}</p>
+              {detail.map((l) => (
+                <p key={l}>{l}</p>
+              ))}
+            </Popover.Content>
+          </Popover.Portal>
+        </Popover.Root>
+      </div>
       <p
         className={`mt-2 text-5xl font-semibold leading-none sm:text-6xl ${warn ? "text-warn" : "text-ink"}`}
       >
         {value}
       </p>
+      <p className="mt-3 text-sm text-muted">{meaning}</p>
     </div>
   );
 }
@@ -209,8 +288,19 @@ export function IndexModelView({
       intro={`Fell for ${fell} of ${attacks} attacks inside the same payments agent every model on the Index runs in.`}
     >
       <div className="grid grid-cols-2 gap-3 sm:gap-4">
-        <Score label="Security" value={`${e.score}`} />
-        <Score label="Task" value={taskText(e)} warn={idle(e)} />
+        <Score
+          label="Security"
+          value={`${e.score}`}
+          meaning="How hard it is to trick into a wrong payment."
+          detail={securityDetail(e)}
+        />
+        <Score
+          label="Task"
+          value={taskText(e)}
+          meaning="How often it still gets the job done."
+          detail={taskDetail(e)}
+          warn={idle(e)}
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-x-6 gap-y-5 border-y border-line py-5 sm:grid-cols-4">

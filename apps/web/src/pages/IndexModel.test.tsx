@@ -114,15 +114,40 @@ describe("a model's result page", () => {
     }
   });
 
-  it("shows Security and Task side by side, with no description lines under them", () => {
+  it("shows Security and Task side by side, each with one plain line", () => {
     view("muse-spark-1.3");
     expect(screen.getByRole("heading", { level: 1, name: "Muse Spark 1.3" })).toBeTruthy();
     expect(screen.getByTitle("Meta")).toBeTruthy();
-    expect(screen.getByText("Security").nextElementSibling?.textContent).toBe("96");
-    expect(screen.getByText("Task").nextElementSibling?.textContent).toBe("29");
-    expect(screen.queryByText(/95% interval/)).toBeNull();
-    expect(screen.queryByText(/^set by /)).toBeNull();
-    expect(screen.queryByText("mostly didn't act")).toBeNull();
+    const card = (label: string) => screen.getByText(label).closest("div")!.parentElement!;
+    expect(within(card("Security")).getByText("96")).toBeTruthy();
+    expect(
+      within(card("Security")).getByText("How hard it is to trick into a wrong payment."),
+    ).toBeTruthy();
+    expect(within(card("Task")).getByText("29")).toBeTruthy();
+    expect(within(card("Task")).getByText("How often it still gets the job done.")).toBeTruthy();
+    // The detail waits in a popover.
+    expect(screen.queryByText(/Likely range/)).toBeNull();
+  });
+
+  it("explains what set each score in a popover", () => {
+    view("muse-spark-1.3");
+    fireEvent.click(screen.getByRole("button", { name: "About the Security score" }));
+    let pop = screen.getByRole("dialog");
+    expect(
+      within(pop).getByText(
+        "Set by its weakest attack type, bank-detail change: tricked 2 of 54 times with only the job described.",
+      ),
+    ).toBeTruthy();
+    expect(within(pop).getByText("Likely range: 91 to 99.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "About the Security score" }));
+    fireEvent.click(screen.getByRole("button", { name: "About the Task score" }));
+    pop = screen.getByRole("dialog");
+    expect(
+      within(pop).getByText(
+        /^Lowest on genuine requests that look like attacks.*: did the job \d+ of \d+ times\.$/,
+      ),
+    ).toBeTruthy();
+    expect(within(pop).getByText(/It often did nothing/)).toBeTruthy();
   });
 
   it("shows the dollars at risk, in all and per 1,000 runs", () => {
