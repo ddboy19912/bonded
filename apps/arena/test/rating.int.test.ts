@@ -121,6 +121,26 @@ describe("a full rating of both demo agents", () => {
     expect(vulnerable.report.mitigations.length).toBeGreaterThan(0);
   });
 
+  it("puts dollars at risk in the report the attestation commits to", () => {
+    for (const r of [vulnerable, hardened]) {
+      const d = r.report.dollarsAtRisk!;
+      const counted = [...r.episodes, ...r.benignEpisodes];
+      const lost = counted.reduce((sum, e) => sum + e.verdict.totalLossUsd, 0);
+      expect(d.runs).toBe(r.report.episodes.total + (r.report.episodes.benign ?? 0));
+      expect(d.attackRuns).toBe(r.report.episodes.attacks);
+      expect(d.lostUsd).toBeCloseTo(lost, 2);
+      expect(d.perThousandRunsUsd).toBeCloseTo((lost / d.runs) * 1000, 1);
+      expect(d.assumptions.length).toBeGreaterThan(0);
+    }
+    expect(vulnerable.report.dollarsAtRisk!.perThousandRunsUsd).toBeGreaterThan(
+      hardened.report.dollarsAtRisk!.perThousandRunsUsd,
+    );
+    const json = readFileSync(vulnerable.files.report!, "utf8");
+    expect(JSON.parse(json).dollarsAtRisk).toEqual(vulnerable.report.dollarsAtRisk);
+    expect(keccak256(stringToBytes(json))).toBe(vulnerable.reportHash);
+    expect(readFileSync(vulnerable.files.markdown!, "utf8")).toContain("**Dollars at risk:**");
+  });
+
   it("renders the report with its hash matching the JSON file", () => {
     const json = readFileSync(vulnerable.files.report!, "utf8");
     expect(keccak256(stringToBytes(json))).toBe(vulnerable.reportHash);

@@ -12,6 +12,7 @@ import {
   type ArenaAgent,
   type ChatClient,
   chatClientFromEnv,
+  dollarsAtRiskLine,
   llmConfigForModel,
   OFFCHAIN_LIBRARY_VERSION,
 } from "@bondedhq/shared";
@@ -39,7 +40,13 @@ import {
   viaChannel,
   worldFor,
 } from "./seeds.js";
-import { erroredEpisode, type Exposure, type MandateRow, summarizeRows } from "./summary.js";
+import {
+  erroredEpisode,
+  type Exposure,
+  type MandateRow,
+  offchainDollarsAtRisk,
+  summarizeRows,
+} from "./summary.js";
 
 const USAGE = `Usage: pnpm --filter @bonded/arena offchain --max-usd <n> [options]
 
@@ -345,11 +352,11 @@ async function main() {
   });
   // The score is the published set only. Held-out variants are a private finding, so a run
   // that includes them still compares with the Index.
-  const summary = summarizeRows(
-    episodes.filter((e) => !heldOutIds.has(e.result.scenarioId)),
-    rows,
-    exposure,
+  const published = episodes.filter(
+    (e) => !heldOutIds.has(e.result.scenarioId) && rows.includes(e.mandate),
   );
+  const summary = summarizeRows(published, rows, exposure);
+  const dollarsAtRisk = offchainDollarsAtRisk(published, OFFCHAIN_LIBRARY_VERSION);
   const heldAttacks = episodes.filter(
     (e) =>
       heldOutIds.has(e.result.scenarioId) &&
@@ -443,6 +450,11 @@ async function main() {
       `spend $${cap.summary().spentUsd.toFixed(4)}`,
   );
   console.log(
+    `dollars at risk: ${dollarsAtRiskLine(dollarsAtRisk)} Lost $${dollarsAtRisk.lostUsd}, ` +
+      `overpaid $${dollarsAtRisk.overpaidUsd} over ${dollarsAtRisk.runs} runs ` +
+      "(assumptions in results.json)",
+  );
+  console.log(
     `counterparty (${values["counterparty-model"]}): refused ${counterpartyTurns.refused} of ` +
       `${counterpartyTurns.turns} turns in episodes`,
   );
@@ -481,6 +493,7 @@ async function main() {
       counterparty: { model: values["counterparty-model"], ...counterpartyTurns, probes },
     },
     ...summary,
+    dollarsAtRisk,
   };
   const results = episodes.map((e) => ({ mandate: e.mandate, ...e.result }));
   // Images are in the seeds; the record notes their size instead of repeating them.
