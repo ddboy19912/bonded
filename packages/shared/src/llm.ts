@@ -21,6 +21,13 @@ export function isMetaModel(model: string): boolean {
   return /^muse-/.test(model);
 }
 
+/** Whether a model id names a Claude model, which goes to Anthropic's API (anthropic.ts). */
+export function isClaudeModel(model: string): boolean {
+  return /^claude-/.test(model);
+}
+
+export const ANTHROPIC_BASE_URL = "https://api.anthropic.com";
+
 export interface ToolCall {
   id: string;
   type: "function";
@@ -78,7 +85,7 @@ export interface LlmConfig {
    * The endpoint is Meta Model API, which takes `reasoning_effort`. Set by `llmConfigForModel`,
    * so a META_MODEL_API_BASE_URL proxy keeps Meta's request format; inferred from the URL if unset.
    */
-  provider?: "meta";
+  provider?: "meta" | "anthropic";
 }
 
 /**
@@ -95,13 +102,19 @@ export function llmConfigFromEnv(env: Record<string, string | undefined> = proce
 }
 
 /**
- * The endpoint and key for one model. Meta's models go to Meta Model API with MODEL_API_KEY
- * (META_MODEL_API_BASE_URL overrides the URL); every other model uses `llmConfigFromEnv`.
+ * The endpoint and key for one model. Claude models go to Anthropic's API with ANTHROPIC_API_KEY;
+ * Meta's models go to Meta Model API with MODEL_API_KEY (META_MODEL_API_BASE_URL overrides the
+ * URL); every other model uses `llmConfigFromEnv`.
  */
 export function llmConfigForModel(
   model: string,
   env: Record<string, string | undefined> = process.env,
 ): LlmConfig {
+  if (isClaudeModel(model)) {
+    const apiKey = env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new Error(`no Anthropic API key for ${model}: set ANTHROPIC_API_KEY`);
+    return { baseUrl: ANTHROPIC_BASE_URL, apiKey, provider: "anthropic" };
+  }
   if (!isMetaModel(model)) return llmConfigFromEnv(env);
   const apiKey = env.MODEL_API_KEY;
   if (!apiKey) throw new Error(`no Meta Model API key for ${model}: set MODEL_API_KEY`);
@@ -115,24 +128,36 @@ export function llmConfigForModel(
  * on first use: a run that only calls Meta's models needs no OpenRouter key.
  */
 export class RoutingChatClient implements ChatClient {
-  private readonly clients = new Map<string, OpenAICompatibleClient>();
+  private readonly clients = new Map<string, ChatClient>();
 
   constructor(
     private readonly env: Record<string, string | undefined> = process.env,
     private readonly options: OpenAICompatibleClientOptions = {},
   ) {}
 
-  complete(request: ChatRequest, options?: { signal?: AbortSignal }): Promise<ChatResponse> {
+  async complete(request: ChatRequest, options?: { signal?: AbortSignal }): Promise<ChatResponse> {
     const config = llmConfigForModel(request.model, this.env);
     // Two routes can share a URL (a gateway) with different keys and request formats.
     const key = JSON.stringify([config.baseUrl, config.apiKey, config.provider ?? null]);
     let client = this.clients.get(key);
     if (!client) {
-      client = new OpenAICompatibleClient(config, this.options);
+      client =
+        config.provider === "anthropic"
+          ? await anthropicClient(config.apiKey, this.options.maxRetries)
+          : new OpenAICompatibleClient(config, this.options);
       this.clients.set(key, client);
     }
     return client.complete(request, options);
   }
+}
+
+/**
+ * Claude's client (anthropic.ts), loaded when a Claude model is first called, so the Anthropic SDK
+ * stays out of everything that never calls one (the web app among them).
+ */
+async function anthropicClient(apiKey: string, maxRetries?: number): Promise<ChatClient> {
+  const { AnthropicChatClient } = await import("./anthropic.js");
+  return new AnthropicChatClient({ apiKey, ...(maxRetries !== undefined ? { maxRetries } : {}) });
 }
 
 /**
@@ -172,14 +197,34 @@ const RETRYABLE = new Set([408, 409, 429, 500, 502, 503, 504]);
 /** The longest a provider's Retry-After is honoured, in ms. */
 const MAX_RETRY_AFTER_MS = 30_000;
 
+/** A model account refused the call. Retrying can't help; a run should stop and keep what it has. */
+export type ModelAccountStop = 401 | 402 | 403;
+
+/**
+ * 401 or 403: the key was rejected. 402: the account is out of credits. Either way the episode
+ * is not the agent's error.
+ */
+export function modelAccountStop(error: unknown): ModelAccountStop | undefined {
+  if (
+    error instanceof LlmError &&
+    (error.status === 401 || error.status === 402 || error.status === 403)
+  ) {
+    return error.status;
+  }
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const status = message.match(/\((401|402|403)\)/)?.[1];
+  if (status === "401") return 401;
+  if (status === "402") return 402;
+  if (status === "403") return 403;
+  return undefined;
+}
+
 /**
  * The request failed because the account is out of credits (402). Retrying can't help; a run
  * should stop starting new work and keep what it has.
  */
 export function isOutOfCredits(error: unknown): boolean {
-  if (error instanceof LlmError) return error.status === 402;
-  const message = error instanceof Error ? error.message : String(error ?? "");
-  return /\(402\)/.test(message);
+  return modelAccountStop(error) === 402;
 }
 
 export interface OpenAICompatibleClientOptions {

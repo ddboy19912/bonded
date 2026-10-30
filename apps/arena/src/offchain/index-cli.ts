@@ -9,6 +9,7 @@ import { loadDotEnv } from "../env.js";
 import { probeCounterparties, runOffchainBatch } from "./batch.js";
 import { draftVariants, saveVariants } from "./fresh.js";
 import {
+  type CampaignFile,
   INDEX_COUNTERPARTY_MODEL,
   INDEX_FILE,
   INDEX_MODELS,
@@ -19,6 +20,8 @@ import {
   scoreOf,
   sweepTraces,
   sweepTracesFile,
+  taskOf,
+  withCampaign,
   withEntry,
 } from "./index-sweep.js";
 import { loadOffchainSeeds } from "./seeds.js";
@@ -38,7 +41,11 @@ Each model's entry is written to config/bonded-index.json as soon as it finishes
   --traces <dir>         where to save every episode's trace (default: apps/arena/ratings/
                          index-traces, gitignored), so each fall can be audited later
   --rescore              re-score the entries already in the file from their per-class counts,
-                         without running anything (after a scoring change); --max-usd not needed`;
+                         without running anything (after a scoring change); --max-usd not needed
+  --merge-campaign <list>  add a staged campaign's counts (comma-separated results.json files or
+                         their folders, from offchain/cli.js --staged --out) to one model's entry
+                         and re-score it, without running anything. Needs --models with that one
+                         model and --provenance, the line that says where the numbers came from`;
 
 async function main() {
   const { values } = parseArgs({
@@ -49,6 +56,8 @@ async function main() {
       parallel: { type: "string", default: "6" },
       "make-variants": { type: "string" },
       rescore: { type: "boolean", default: false },
+      "merge-campaign": { type: "string" },
+      provenance: { type: "string" },
       traces: { type: "string", default: INDEX_TRACES_DIR },
       help: { type: "boolean", default: false },
     },
@@ -58,7 +67,7 @@ async function main() {
     const raw = JSON.parse(readFileSync(INDEX_FILE, "utf8")) as BondedIndex;
     const index = BondedIndex.parse({
       ...raw,
-      entries: raw.entries.map((e) => ({ ...e, ...scoreOf(e.rows) })),
+      entries: raw.entries.map((e) => ({ ...e, ...scoreOf(e.rows), task: taskOf(e.rows) })),
     });
     const { entries } = index;
     writeFileSync(INDEX_FILE, `${JSON.stringify(index, null, 2)}\n`);
@@ -66,9 +75,42 @@ async function main() {
       const w = e.worstClass;
       console.log(
         `${e.label}: ${e.score} [${e.scoreInterval.join("-")}]` +
-          (w ? `, set by ${w.class} with the rules ${w.mandate} (${w.fell} of ${w.episodes})` : ""),
+          (w
+            ? `, set by ${w.class} with the rules ${w.mandate} (${w.fell} of ${w.episodes})`
+            : "") +
+          `; Task ${e.task?.score ?? "not measured"} (${e.task?.source})`,
       );
     }
+    return;
+  }
+  if (values["merge-campaign"]) {
+    const model = values.models?.trim();
+    if (!model || model.includes(",") || !values.provenance)
+      throw new Error("--merge-campaign needs --models <one model> and --provenance <text>");
+    const index = readIndex();
+    const entry = index?.entries.find((e) => e.model === model);
+    if (!index || !entry) throw new Error(`${model} has no Index entry to add the campaign to`);
+    const files = values["merge-campaign"].split(",").map((path) => {
+      const file = path.trim().endsWith(".json") ? path.trim() : join(path.trim(), "results.json");
+      return JSON.parse(readFileSync(file, "utf8")) as CampaignFile;
+    });
+    const merged = withCampaign(entry, files, values.provenance);
+    const updated = BondedIndex.parse({
+      ...index,
+      updatedAt: new Date().toISOString(),
+      entries: index.entries.map((e) => (e.model === model ? merged : e)),
+    });
+    writeFileSync(INDEX_FILE, `${JSON.stringify(updated, null, 2)}\n`);
+    const w = merged.worstClass;
+    console.log(
+      `${merged.label}: security ${entry.score} -> ${merged.score}` +
+        (w ? ` (set by ${w.class}, rules ${w.mandate}: ${w.fell} of ${w.episodes})` : "") +
+        `; Task ${entry.task?.score ?? "-"} -> ${merged.task?.score ?? "not measured"}` +
+        ` (${merged.task?.part}); ${merged.attacksTested} attacks tested`,
+    );
+    console.log(
+      "Run npx prettier --write config/bonded-index.json so the file passes the format check.",
+    );
     return;
   }
   if (values.help || values["max-usd"] === undefined) {
@@ -122,10 +164,10 @@ async function main() {
       client,
       counterpartyModel: INDEX_COUNTERPARTY_MODEL,
     });
-    // A model account out of credits leaves a partial sweep: never publish it.
+    // A refused key or an empty balance leaves a partial sweep: never publish it.
     if (batch.outOfCredits) {
       console.log(
-        `   out of credits (402) after ${batch.episodes.length} episodes: not written. Add credits and run this model again.`,
+        `   the model account stopped the sweep (${batch.accountStop ?? 402}) after ${batch.episodes.length} episodes: not written. Fix the account and run this model again.`,
       );
       continue;
     }

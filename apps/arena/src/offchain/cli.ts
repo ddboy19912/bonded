@@ -64,6 +64,8 @@ saved, and --replay runs a saved set again exactly.
   --staged                   run the staged attacks (offchain-seeds-staged/) instead of the
                              library, with the realistic job's control and the benign twins
                              for each channel attack alongside
+  --no-controls              with --staged, run the attack seeds only. The job and the benign
+                             twins are not checked
   --world busy               with --staged, plant each realistic-job seed (world v2) into the
                              busy Monday (world v3) instead of the quiet week. A seed that
                              cannot plant is skipped and listed
@@ -91,7 +93,7 @@ saved, and --replay runs a saved set again exactly.
   --draft-held-out <n>       draft <n> new variants of each seed into the held-out directory
                              first (at most 200 per seed). The spending cap stops the drafting
   --estimate                 print the planned episodes and their estimated cost, from measured
-                             per-episode costs, then stop without running anything
+                             per-episode costs, then stop. It calls no model, so it needs no API key
   --draft-only               stop after drafting the held-out variants: print the spend and run no
                              episodes. Needs --draft-held-out, and can't be combined with --fresh
                              or --replay
@@ -122,6 +124,7 @@ async function main() {
       ranking: { type: "boolean", default: false },
       seeds: { type: "string" },
       staged: { type: "boolean", default: false },
+      "no-controls": { type: "boolean", default: false },
       world: { type: "string" },
       channels: { type: "string" },
       "push-channels": { type: "string" },
@@ -175,6 +178,8 @@ async function main() {
     throw new Error(
       "--world busy plants staged seeds written for the realistic job; pass --staged",
     );
+  if (values["no-controls"] && !values.staged)
+    throw new Error("--no-controls skips the staged controls and twins; pass --staged");
   const attribution = (values.attribution ?? (values.staged ? "planted" : "rule")) as Attribution;
   if (attribution !== "planted" && attribution !== "rule")
     throw new Error("--attribution must be planted or rule");
@@ -184,16 +189,19 @@ async function main() {
     ? parsePushedChannels(values["push-channels"])
     : undefined;
 
-  loadDotEnv();
-  const client = chatClientFromEnv();
-  // Meta's models go to Meta Model API: check every model's key now, before anything runs.
+  // An estimate is a local sum. Keys are checked only when a run will call a model.
   const models = [
     values.model,
     ...(values.fresh && !values.replay ? [values["generator-model"]] : []),
     ...(draftCount !== undefined ? [values["generator-model"]] : []),
     values["counterparty-model"],
   ];
-  for (const model of models) llmConfigForModel(model);
+  let client: ChatClient | undefined;
+  if (!values.estimate) {
+    loadDotEnv();
+    for (const model of models) llmConfigForModel(model);
+    client = chatClientFromEnv();
+  }
   const cap = new SpendingCap({ maxUsd, ...metaCapFallback(...models) });
   const out =
     values.out ??
@@ -227,7 +235,7 @@ async function main() {
   } else if (values.fresh) {
     ({ variants, candidates } = await draftVariants({
       seeds: library,
-      client,
+      client: client!,
       model: values["generator-model"],
       onUsage: (u) => cap.add(u),
     }));
@@ -253,7 +261,7 @@ async function main() {
       const drafted = await draftHeldOut({
         seeds: library,
         perSeed: draftCount,
-        client,
+        client: client!,
         model: values["generator-model"],
         dir,
         onUsage: (u) => cap.add(u),
@@ -306,7 +314,12 @@ async function main() {
     );
     if (planted === 0) throw new Error("no seed could plant in the busy world");
   }
-  const controls = values.staged ? STAGED_CONTROLS : [controlScenario, verifiedBankChangeTwin];
+  const controls = values["no-controls"]
+    ? []
+    : values.staged
+      ? STAGED_CONTROLS
+      : [controlScenario, verifiedBankChangeTwin];
+  if (values["no-controls"]) console.log("warning: --no-controls skips the job and twin checks");
   // Each scenario runs once per row and run. Its world sets the job, and so the cost.
   const perScenario = rows.length * runs;
   const estimate = estimateCost(
@@ -323,20 +336,20 @@ async function main() {
   );
   console.log(describeEstimate(estimate, maxUsd));
   if (values.estimate) return;
-  const { episodes, notShown, skipped, outOfCredits, counterpartyTurns } = await runOffchainBatch({
-    agent: () => agentFor(values.agent, values.model, client, values.vision),
+  const { episodes, notShown, skipped, accountStop, counterpartyTurns } = await runOffchainBatch({
+    agent: () => agentFor(values.agent, values.model, client!, values.vision),
     seesImages: values.agent === "payables" && values.vision,
     images: !values["text-only"],
     attackSeeds,
     ...(values.channels ? { channels: values.channels.split(",").map((c) => c.trim()) } : {}),
     ...(pushedChannels ? { pushedChannels } : {}),
-    ...(values.staged ? { controls: STAGED_CONTROLS } : {}),
+    controls,
     attribution,
     rows,
     runs,
     parallel,
     cap,
-    client,
+    client: client!,
     counterpartyModel: values["counterparty-model"],
   });
   // The score is the published set only. Held-out variants are a private finding, so a run
@@ -373,7 +386,7 @@ async function main() {
   const probes: Record<string, ProbeResult> = values["probe-counterparty"]
     ? await probeCounterparties({
         seeds: library,
-        client,
+        client: client!,
         model: values["counterparty-model"],
         cap,
       })
@@ -447,12 +460,18 @@ async function main() {
   }
   if (skipped.length) {
     console.log(
-      `skipped, ${outOfCredits ? "a model account ran out of credits (402); add credits and run again" : "the spending cap was reached"}: ${skipped.length} episodes`,
+      `skipped, ${
+        accountStop === 402
+          ? "a model account ran out of credits (402); add credits and run again"
+          : accountStop
+            ? `the model account refused the request (${accountStop})`
+            : "the spending cap was reached"
+      }: ${skipped.length} episodes`,
     );
   }
   if (notShown.length) console.log(`not run, the agent sees no images: ${notShown.join(", ")}`);
   const header = {
-    agent: agentFor(values.agent, values.model, client, values.vision).name,
+    agent: agentFor(values.agent, values.model, client!, values.vision).name,
     attribution,
     exposure,
     vision: values.vision,
