@@ -72,10 +72,11 @@ function Versus({ rows }: { rows: BenchComparison[] }) {
   const ran = rows.reduce((n, row) => n + attackExecuted(row.agentdojo), 0);
   const pairs = rows.reduce((n, row) => n + pairsOf(row.agentdojo), 0);
   const side = (bench: BenchKey, maker: string, answer: string, detail: ReactNode) => (
-    <div className="min-w-0">
+    // Centred in its half on wide screens, so both benches sit the same distance from the badge.
+    <div className="flex min-w-0 flex-col sm:items-center sm:text-center">
       <div className="flex items-center gap-2.5">
         <BenchMark bench={bench} size={32} />
-        <div className="min-w-0 leading-tight">
+        <div className="min-w-0 text-left leading-tight">
           <p className="text-sm font-semibold text-ink">{BENCH[bench].name}</p>
           <p className="text-[11px] text-muted">{maker}</p>
         </div>
@@ -85,7 +86,7 @@ function Versus({ rows }: { rows: BenchComparison[] }) {
     </div>
   );
   return (
-    <div className="grid grid-cols-1 gap-6 border-b border-line pt-1 pb-6 sm:grid-cols-[1fr_auto_1fr] sm:gap-8">
+    <div className="grid grid-cols-1 gap-6 border-b border-line pt-1 pb-6 sm:grid-cols-[1fr_auto_1fr] sm:gap-6">
       {side(
         "bonded",
         "Payment attacks on a payables job",
@@ -97,7 +98,7 @@ function Versus({ rows }: { rows: BenchComparison[] }) {
       {/* A hairline between the benches, with a round "VS" badge on it at the middle. */}
       <div aria-hidden className="relative hidden w-9 sm:block">
         <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-line" />
-        <span className="absolute top-1/2 left-1/2 grid size-9 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-raised text-[10px] font-semibold tracking-[0.12em] text-soft ring-1 ring-line-strong">
+        <span className="absolute top-1/2 left-1/2 grid size-9 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-raised pl-[0.12em] text-[10px] font-semibold tracking-[0.12em] text-soft ring-1 ring-line-strong">
           VS
         </span>
       </div>
