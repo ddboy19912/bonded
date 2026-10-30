@@ -5,7 +5,6 @@ import { ATTACK_LIBRARY_VERSION, libraryVersionStatus } from "@bondedhq/shared";
 import { api, type LeaderboardRecord } from "../lib/api";
 import { CLASSES, classResults } from "../lib/class-tracks";
 import { Square } from "../components/class-squares";
-import { RailTag } from "../components/rail-tag";
 import { DOCS_DISCLOSURES, DOCS_SCORING } from "../lib/routes";
 import { GRADE_BANDS, gradeTone } from "../lib/security";
 import { taskLine, taskWorstLine } from "../lib/task-score";
@@ -199,9 +198,7 @@ export function Leaderboard() {
                           e.name
                         )}
                       </span>
-                      <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted">
-                        {/* The board lists on-chain ratings only; off-chain ones are on the Index. */}
-                        <RailTag rail="onchain" />
+                      <span className="mt-0.5 flex min-w-0 gap-1.5 text-xs text-muted">
                         <span className="truncate">
                           {e.model ? `${e.model.split("/").pop()} · ${e.framework}` : e.framework}
                         </span>

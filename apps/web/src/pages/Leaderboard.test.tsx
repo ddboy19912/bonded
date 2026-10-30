@@ -93,9 +93,9 @@ describe("leaderboard rankings", () => {
     expect(docs.getAttribute("rel")).toBe("noreferrer");
   });
 
-  it("labels every row with its rail and links to the Index for off-chain ratings", async () => {
+  it("links to the Index for off-chain ratings, with no rail tag on the rows", async () => {
     const row = await renderBoard([entry("A", 50, 90), entry("B", 50, 80)]);
-    for (const name of ["A", "B"]) expect(within(row(name)).getByText("On chain")).toBeTruthy();
+    for (const name of ["A", "B"]) expect(within(row(name)).queryByText("On chain")).toBeNull();
     expect(screen.getByRole("link", { name: "Bonded Index" }).getAttribute("href")).toBe("/index");
   });
 
