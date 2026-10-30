@@ -94,12 +94,26 @@ describe("Bonded Index", () => {
     expect(() => loadBondedIndex()).not.toThrow();
   });
 
-  it("shows the staged campaign beside AgentDojo, apart from the Index score", () => {
+  it("shows Bonded beside AgentDojo, each named by its logo, apart from the Index score", () => {
     view();
-    expect(screen.getByRole("heading", { name: "Same model, two benches" })).toBeTruthy();
-    expect(screen.getByText("4 of 178")).toBeTruthy();
-    expect(screen.getByText("0 of 576")).toBeTruthy();
-    expect(screen.getByText(/not an Index score/)).toBeTruthy();
+    const card = section("Bonded vs AgentDojo");
+    expect(within(card).getByText(/Same models, two attack tests/)).toBeTruthy();
+    // Every bar carries its bench's mark and value, so colour never names a bench alone.
+    expect(within(card).getAllByTitle("Bonded").length).toBeGreaterThan(2);
+    expect(within(card).getAllByTitle("AgentDojo").length).toBeGreaterThan(2);
+    expect(within(card).getByLabelText("Muse Spark 1.3, Bonded: 2.2%, 4 of 178")).toBeTruthy();
+    expect(within(card).getByLabelText("Muse Spark 1.3, AgentDojo: 0%, 0 of 576")).toBeTruthy();
+    // The face-off: each bench's answer across every model in the record.
+    expect(within(card).getByText("22 of 214")).toBeTruthy();
+    expect(within(card).getByText("0 of 720")).toBeTruthy();
+    expect(within(card).getByText("$28,288")).toBeTruthy();
+    // The second tab compares the real job done.
+    fireEvent.click(within(card).getByRole("tab", { name: "Finished the job" }));
+    expect(within(card).getByLabelText("Muse Spark 1.3, Bonded: 19%, 58 of 306")).toBeTruthy();
+    expect(within(card).getByLabelText("Muse Spark 1.3, AgentDojo: 86%, 493 of 576")).toBeTruthy();
+    // The table view says AgentDojo doesn't measure money.
+    showTable(card);
+    expect(within(card).getAllByText("not measured")).toHaveLength(2);
   });
 
   it("ranks models by security under their logos, and flags one that mostly didn't act, last", () => {
