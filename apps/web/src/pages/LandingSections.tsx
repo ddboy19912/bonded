@@ -236,7 +236,7 @@ const QUESTIONS: { id: string; q: string; a: string }[] = [
   {
     id: "scope",
     q: "Is Bonded only for trading agents?",
-    a: "No. It is for any AI agent that can move money: trading bots, wallet copilots, yield and rebalancing agents, assistants that can pay for things, and agents that pay other agents. They share one weakness: an agent that reads outside text and can also sign transactions can be talked into sending funds where it shouldn't. Our on-chain attacks use trading tasks today, such as rebalancing a portfolio, and the Bonded Index tests agents that pay invoices. An agent that can't touch funds has nothing for a vault to guard.",
+    a: "No. It is for any AI agent that can move money: trading bots, wallet copilots, yield and rebalancing agents, assistants that can pay for things, and agents that pay other agents. That includes agents that pay through Visa Intelligent Commerce, Mastercard Agent Pay and x402. They share one weakness: an agent that reads outside text and can also sign transactions can be talked into sending funds where it shouldn't. Our on-chain attacks use trading tasks today, such as rebalancing a portfolio, and the Bonded Index tests agents that pay invoices. An agent that can't touch funds has nothing for a vault to guard.",
   },
   {
     id: "red-team",
