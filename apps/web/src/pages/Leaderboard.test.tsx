@@ -93,6 +93,12 @@ describe("leaderboard rankings", () => {
     expect(docs.getAttribute("rel")).toBe("noreferrer");
   });
 
+  it("labels every row with its rail and links to the Index for off-chain ratings", async () => {
+    const row = await renderBoard([entry("A", 50, 90), entry("B", 50, 80)]);
+    for (const name of ["A", "B"]) expect(within(row(name)).getByText("On chain")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Bonded Index" }).getAttribute("href")).toBe("/index");
+  });
+
   it("keeps the colour key in a popover until it's opened", async () => {
     await renderBoard([entry("A", 50, 90)]);
     expect(screen.queryByText("80–100: resisted")).toBeNull();

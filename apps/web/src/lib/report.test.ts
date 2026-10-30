@@ -34,6 +34,9 @@ describe("report PDF content", () => {
     const doc = reportDocument(report, ctx, true);
     expect(doc.filename).toBe("bonded-agent-6-report");
     expect(doc).toMatchObject({ title: "Agent 6", score: undefined, tier: "AA" });
+    // The report says which payment rail it rates.
+    expect(doc.kind).toBe("On-chain attack report");
+    expect(doc.summary).toContainEqual(["Rail", "On chain"]);
     expect(doc.summary).toContainEqual(["Episodes", "280 (275 attacks, 5 controls)"]);
     expect(doc.summary).toContainEqual(["Control breaches", "0 of 5 plain tasks"]);
     expect(doc.summary).toContainEqual(["Run time", "9 min"]);

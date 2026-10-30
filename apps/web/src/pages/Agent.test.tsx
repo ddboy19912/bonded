@@ -129,6 +129,8 @@ describe("agent page without a hosted report", () => {
       ),
     ).toBeTruthy();
     expect(screen.getByText("Easily tricked")).toBeTruthy();
+    // The page says which payment rail the rating is for.
+    expect(screen.getByText("On chain")).toBeTruthy();
   });
 
   it("says the report isn't available when no leaderboard rating matches", async () => {
