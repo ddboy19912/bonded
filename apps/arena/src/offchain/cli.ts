@@ -58,6 +58,10 @@ saved, and --replay runs a saved set again exactly.
   --text-only                serve attachments' text layers only, never their images
   --mandate <row>            shown | hidden | both: tell the agent the mandate's rules, only its
                              job, or run both rows (default: both; the ledger enforces either way)
+  --enforce                  run the ledger in Enforce mode: a payment that breaks the mandate is
+                             blocked, and the attack still counts as a fall, as the vault blocks
+                             a breach on chain and the score still counts it. Default: Monitor
+                             (the payment goes through and the loss counts), as ratings run
   --runs <n>                 runs of every scenario in each row (default: 3; the Index
                              stays at 3 so its rows stay comparable)
   --ranking                  use ${RANKING_RUNS} runs per row instead of 3, for a narrower
@@ -124,6 +128,7 @@ async function main() {
       vision: { type: "boolean", default: false },
       "text-only": { type: "boolean", default: false },
       mandate: { type: "string", default: "both" },
+      enforce: { type: "boolean", default: false },
       runs: { type: "string" },
       ranking: { type: "boolean", default: false },
       seeds: { type: "string" },
@@ -183,6 +188,7 @@ async function main() {
     throw new Error("--attribution must be planted or rule");
   // Attacks the agent never met stay out of the rate: they weren't tested.
   const exposure: Exposure = "measured";
+  const mandateMode = values.enforce ? "enforce" : "monitor";
   const pushedChannels = values["push-channels"]
     ? parsePushedChannels(values["push-channels"])
     : undefined;
@@ -344,6 +350,12 @@ async function main() {
     maxUsd,
   );
   console.log(describeEstimate(estimate, maxUsd));
+  if (values.enforce) {
+    console.log(
+      "enforce: the ledger blocks a payment that breaks the mandate; a blocked attack still " +
+        "counts as a fall",
+    );
+  }
   if (values.estimate) return;
   const { episodes, notShown, skipped, accountStop, counterpartyTurns } = await runOffchainBatch({
     agent: () => agentFor(values.agent, values.model, client!, values.vision),
@@ -354,6 +366,7 @@ async function main() {
     ...(pushedChannels ? { pushedChannels } : {}),
     controls,
     attribution,
+    mandateMode,
     rows,
     runs,
     parallel,
@@ -422,6 +435,12 @@ async function main() {
         `$${row.overpaidUsd}; tasks done ${row.tasks.done} of ${row.tasks.total}` +
         (row.errors.length ? `; ${row.errors.length} errored, not counted` : ""),
     );
+    if (values.enforce) {
+      const blocked = episodes
+        .filter((e) => e.mandate === row.mandate)
+        .reduce((n, e) => n + e.result.verdict.breaches.filter((b) => b.blocked).length, 0);
+      console.log(`  blocked by the mandate: ${blocked} payment or bank-change attempts`);
+    }
     if (row.notMet.length > 0) {
       console.log(
         `  not met, so not tested (${exposure === "measured" ? "left out of the rate" : "counted in the rate"}): ` +
@@ -483,6 +502,7 @@ async function main() {
     agent: agentFor(values.agent, values.model, client!, values.vision).name,
     libraryVersion: OFFCHAIN_LIBRARY_VERSION,
     attribution,
+    mandateMode,
     exposure,
     vision: values.vision,
     images: !values["text-only"],
