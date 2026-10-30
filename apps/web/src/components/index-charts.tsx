@@ -107,6 +107,7 @@ export function ChartCard({
   table,
   children,
   aside,
+  intro,
 }: {
   title: string;
   subtitle?: ReactNode;
@@ -116,6 +117,8 @@ export function ChartCard({
   table?: ReactNode;
   children: ReactNode;
   aside?: ReactNode;
+  /** Shown under the title, above the tabs, in the chart and table views alike. */
+  intro?: ReactNode;
 }) {
   const [showTable, setShowTable] = useState(false);
   const id = useId();
@@ -143,6 +146,7 @@ export function ChartCard({
           </button>
         )}
       </div>
+      {intro && <div className="mt-4">{intro}</div>}
       {tabs && (
         <div role="tablist" aria-label={title} className="mt-4 flex gap-1 overflow-x-auto">
           {tabs.map((t) => (

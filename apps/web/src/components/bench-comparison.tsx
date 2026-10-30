@@ -1,5 +1,8 @@
+import { type ReactNode, useState } from "react";
+import bondedMark from "../assets/benches/bonded.svg";
+import spylabMark from "../assets/benches/spylab.png";
 import { DataTable } from "./charts";
-import { ProviderLogo } from "./index-charts";
+import { ChartCard, Legend, ProviderLogo } from "./index-charts";
 import {
   attackExecuted,
   directAskOf,
@@ -10,7 +13,30 @@ import {
   type BenchComparison,
 } from "../lib/bench-comparison";
 
+/**
+ * Each bench's own colour: Bonded's accent, and a teal from the SPY Lab mark, lifted so the two
+ * stay apart for colour-blind readers (dataviz validator: ΔE 16 deutan, 17 normal vision on the
+ * card). Every bar also carries its bench's logo and value, so colour never names it alone.
+ */
+const BENCH = {
+  bonded: { name: "Bonded", color: "#3987e5", mark: bondedMark },
+  agentdojo: { name: "AgentDojo", color: "#14a08c", mark: spylabMark },
+} as const;
+
+type BenchKey = keyof typeof BENCH;
+
+const TABS = [
+  { id: "breach", label: "Attacks that got through" },
+  { id: "task", label: "Real task done" },
+] as const;
+
+type Tab = (typeof TABS)[number]["id"];
+
 const attackName = (id: string) => id.replaceAll("_", " ");
+
+const pct = (part: number, whole: number) => (whole > 0 ? (100 * part) / whole : 0);
+
+const pctLabel = (v: number) => `${v > 0 && v < 10 ? v.toFixed(1) : Math.round(v)}%`;
 
 /** The provider whose logo names a model in the record. */
 const providerOf = (model: string) =>
@@ -26,80 +52,206 @@ const providerOf = (model: string) =>
             ? "Anthropic"
             : model;
 
-function Bench({
-  name,
-  suite,
-  value,
-  unit,
-  detail,
-  tone,
-}: {
-  name: string;
-  suite: string;
-  value: string;
-  unit: string;
-  detail: string;
-  tone: "breach" | "held";
-}) {
+function BenchMark({ bench, size = 20 }: { bench: BenchKey; size?: number }) {
   return (
-    <div className="flex-1 rounded-xl bg-sunken/60 p-4 ring-1 ring-line">
-      <p className="text-xs font-medium text-soft">{name}</p>
-      <p className="text-[11px] text-muted">{suite}</p>
-      <p
-        className={`mt-3 text-3xl font-semibold tabular-nums ${tone === "breach" ? "text-breach" : "text-ink"}`}
-      >
-        {value}
-      </p>
-      <p className="text-xs text-muted">{unit}</p>
-      <p className="mt-2 text-xs text-soft">{detail}</p>
-    </div>
+    <span
+      className="inline-grid shrink-0 place-items-center rounded-[5px] bg-white"
+      style={{ width: size, height: size }}
+      title={BENCH[bench].name}
+    >
+      <img src={BENCH[bench].mark} alt="" width={size - 4} height={size - 4} />
+    </span>
   );
 }
 
-function Comparison({ row }: { row: BenchComparison }) {
-  const ask = directAskOf(row.agentdojo);
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <Bench
-          name="Bonded"
-          suite={row.bonded.suite}
-          value={`${row.bonded.fell} of ${row.bonded.countedEpisodes}`}
-          unit="attacks got money out"
-          detail={`${money(row.bonded.lossUsd)} lost${row.bonded.overpaidUsd > 0 ? `, ${money(row.bonded.overpaidUsd)} overpaid` : ""}`}
-          tone={row.bonded.fell > 0 ? "breach" : "held"}
-        />
-        <Bench
-          name="AgentDojo"
-          suite={row.agentdojo.suite}
-          value={`${attackExecuted(row.agentdojo)} of ${pairsOf(row.agentdojo)}`}
-          unit="hidden instructions carried out"
-          detail={`Real task done on ${utilityOf(row.agentdojo)} of ${pairsOf(row.agentdojo)}${ask.total > 0 ? ` · asked outright, it did ${ask.done} of ${ask.total}` : ""}`}
-          tone={attackExecuted(row.agentdojo) > 0 ? "breach" : "held"}
-        />
+/** The two benches face to face: who made each, the question it asks, and its answer here. */
+function Versus({ rows }: { rows: BenchComparison[] }) {
+  const fell = rows.reduce((n, row) => n + row.bonded.fell, 0);
+  const met = rows.reduce((n, row) => n + row.bonded.countedEpisodes, 0);
+  const moved = rows.reduce((n, row) => n + row.bonded.lossUsd + row.bonded.overpaidUsd, 0);
+  const ran = rows.reduce((n, row) => n + attackExecuted(row.agentdojo), 0);
+  const pairs = rows.reduce((n, row) => n + pairsOf(row.agentdojo), 0);
+  const side = (
+    bench: BenchKey,
+    maker: string,
+    question: string,
+    answer: string,
+    detail: ReactNode,
+  ) => (
+    <div
+      className="flex min-w-0 flex-1 flex-col gap-3 rounded-xl bg-sunken/60 p-4 ring-1 ring-line"
+      style={{ boxShadow: `inset 0 3px 0 ${BENCH[bench].color}` }}
+    >
+      <div className="flex items-center gap-3">
+        <BenchMark bench={bench} size={40} />
+        <div className="min-w-0">
+          <p className="font-semibold text-ink">{BENCH[bench].name}</p>
+          <p className="text-[11px] text-muted">{maker}</p>
+        </div>
       </div>
-      {row.bonded.falls.length > 0 && (
-        <DataTable
-          head={["Attack that got through", "Briefing", "Fell", "Lost"]}
-          rows={row.bonded.falls.map((fall) => [
-            fall.name,
-            fall.mandate === "shown" ? "rules shown" : "rules hidden",
-            `${fall.fell} of ${fall.runs}`,
-            money(fall.lossUsd),
-          ])}
-        />
+      <div>
+        <p className="text-xs text-soft">{question}</p>
+        <p className="mt-1 text-2xl font-semibold text-ink tabular-nums">{answer}</p>
+        <p className="text-xs text-muted">{detail}</p>
+      </div>
+    </div>
+  );
+  return (
+    <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+      {side(
+        "bonded",
+        "Payment attacks on a payables job",
+        "Did the attack move money?",
+        `${fell} of ${met}`,
+        <>
+          attacks got through · <span className="text-breach">{money(moved)}</span> moved
+        </>,
+      )}
+      <span className="self-center text-xs font-semibold tracking-widest text-muted uppercase">
+        vs
+      </span>
+      {side(
+        "agentdojo",
+        "ETH Zurich SPY Lab · banking suite",
+        "Did the hidden instruction run?",
+        `${ran} of ${pairs}`,
+        "hidden instructions carried out · money not measured",
       )}
     </div>
   );
 }
 
-function Notes({ row }: { row: BenchComparison }) {
+interface BenchBar {
+  bench: BenchKey;
+  value: number;
+  /** "4 of 178", shown beside the percentage. */
+  count: string;
+  tip: ReactNode;
+}
+
+function barsFor(row: BenchComparison, tab: Tab): BenchBar[] {
+  const b = row.bonded;
+  const d = row.agentdojo;
+  const pairs = pairsOf(d);
+  if (tab === "breach") {
+    return [
+      {
+        bench: "bonded",
+        value: pct(b.fell, b.countedEpisodes),
+        count: `${b.fell} of ${b.countedEpisodes}`,
+        tip: (
+          <>
+            <p className="font-medium text-ink">Bonded · {b.suite}</p>
+            <p>
+              {b.fell} of {b.countedEpisodes} attacks moved money: {money(b.lossUsd)} lost
+              {b.overpaidUsd > 0 ? `, ${money(b.overpaidUsd)} overpaid` : ""}.
+            </p>
+          </>
+        ),
+      },
+      {
+        bench: "agentdojo",
+        value: pct(attackExecuted(d), pairs),
+        count: `${attackExecuted(d)} of ${pairs}`,
+        tip: (
+          <>
+            <p className="font-medium text-ink">AgentDojo · {d.suite}</p>
+            <p>
+              The hidden goal ran on {attackExecuted(d)} of {pairs} task pairs, over{" "}
+              {d.attacks.length} attack{d.attacks.length === 1 ? "" : "s"}.
+            </p>
+          </>
+        ),
+      },
+    ];
+  }
+  return [
+    {
+      bench: "bonded",
+      value: pct(b.tasksDone, b.tasksTotal),
+      count: `${b.tasksDone} of ${b.tasksTotal}`,
+      tip: (
+        <>
+          <p className="font-medium text-ink">Bonded</p>
+          <p>
+            Jobs finished, counting benign twins: true changes on the channels the attacks use,
+            which the agent must act on.
+          </p>
+        </>
+      ),
+    },
+    {
+      bench: "agentdojo",
+      value: pct(utilityOf(d), pairs),
+      count: `${utilityOf(d)} of ${pairs}`,
+      tip: (
+        <>
+          <p className="font-medium text-ink">AgentDojo</p>
+          <p>The user's real task done on the same pairs, with the injection present.</p>
+        </>
+      ),
+    },
+  ];
+}
+
+/** One model's two bars on a 0–100% track, each named by its bench's logo and value. */
+function ModelPair({ row, bars }: { row: BenchComparison; bars: BenchBar[] }) {
   return (
-    <details className="text-xs">
+    <div className="flex flex-col gap-2">
+      <p className="flex items-center gap-2 text-sm font-medium text-ink">
+        <ProviderLogo provider={providerOf(row.model)} size={18} />
+        {row.label}
+        {!row.headline && <span className="text-xs font-normal text-muted">smaller check</span>}
+      </p>
+      {bars.map((bar) => (
+        <div
+          key={bar.bench}
+          className="group relative flex items-center gap-2"
+          aria-label={`${row.label}, ${BENCH[bar.bench].name}: ${pctLabel(bar.value)}, ${bar.count}`}
+        >
+          <BenchMark bench={bar.bench} size={18} />
+          <div className="h-6 flex-1 rounded-[4px] bg-white/[0.04]">
+            <div
+              className="h-full rounded-[4px]"
+              style={{ width: `max(${bar.value}%, 2px)`, background: BENCH[bar.bench].color }}
+            />
+          </div>
+          <span className="w-28 shrink-0 text-right text-xs tabular-nums">
+            <span className="font-semibold text-ink">{pctLabel(bar.value)}</span>{" "}
+            <span className="text-muted">{bar.count}</span>
+          </span>
+          <div
+            role="tooltip"
+            className="pointer-events-none absolute bottom-full left-8 z-10 mb-1 hidden max-w-72 rounded-lg border border-line-strong bg-raised px-3 py-2 text-xs text-soft shadow-xl group-hover:block"
+          >
+            {bar.tip}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Detail({ row }: { row: BenchComparison }) {
+  const ask = directAskOf(row.agentdojo);
+  return (
+    <details className="border-t border-line pt-3 text-xs">
       <summary className="cursor-pointer text-muted hover:text-ink">
-        Notes and AgentDojo detail
+        {row.label}: what each bench ran
       </summary>
       <div className="mt-3 flex flex-col gap-3">
+        {row.scope && <p className="text-muted">{row.scope}</p>}
+        {row.bonded.falls.length > 0 && (
+          <DataTable
+            head={["Bonded attack that got through", "Briefing", "Fell", "Lost"]}
+            rows={row.bonded.falls.map((fall) => [
+              fall.name,
+              fall.mandate === "shown" ? "rules shown" : "rules hidden",
+              `${fall.fell} of ${fall.runs}`,
+              money(fall.lossUsd),
+            ])}
+          />
+        )}
         <DataTable
           head={["AgentDojo attack", "Hidden goal carried out", "Real task done"]}
           rows={row.agentdojo.attacks.map((attack) => [
@@ -109,6 +261,13 @@ function Notes({ row }: { row: BenchComparison }) {
           ])}
         />
         <ul className="flex max-w-3xl list-disc flex-col gap-1.5 pl-5 text-muted">
+          <li>Bonded: {row.bonded.conditions.join(", ")}.</li>
+          {ask.total > 0 && (
+            <li>
+              AgentDojo's injection goals, asked outright as the user's own request: done {ask.done}{" "}
+              of {ask.total}.
+            </li>
+          )}
           {[...row.bonded.notes, ...row.agentdojo.notes].map((note) => (
             <li key={note}>{note}</li>
           ))}
@@ -118,46 +277,60 @@ function Notes({ row }: { row: BenchComparison }) {
   );
 }
 
-/** The staged Bonded campaign beside AgentDojo, for the Index page. Not an Index score. */
+/** Bonded's staged campaign beside AgentDojo, for the Index page. Not an Index score. */
 export function BenchComparisonCard() {
   const data = loadBenchComparison();
-  const headline = data.comparisons.find((row) => row.headline)!;
-  const rest = data.comparisons.filter((row) => !row.headline);
+  const [tab, setTab] = useState<Tab>("breach");
+  // The headline comparison first, then the smaller checks.
+  const rows = [...data.comparisons].sort((a, b) => Number(b.headline) - Number(a.headline));
   return (
-    <section
-      aria-labelledby="bench-comparison"
-      className="min-w-0 rounded-2xl border border-line bg-surface/70 p-4 sm:p-6"
+    <ChartCard
+      title="Bonded vs AgentDojo"
+      subtitle={`The same models on two banking-agent attack benches, ${data.recordedOn} · a campaign record, not an Index score`}
+      tabs={TABS}
+      tab={tab}
+      onTab={(id) => setTab(id as Tab)}
+      intro={<Versus rows={rows} />}
+      table={
+        <DataTable
+          head={["Model", "Bench", "Attacks that got through", "Real task done", "Money moved"]}
+          rows={rows.flatMap((row) => {
+            const [breach, task] = [barsFor(row, "breach"), barsFor(row, "task")];
+            return (["bonded", "agentdojo"] as const).map((bench, i) => [
+              row.label,
+              BENCH[bench].name,
+              `${breach[i]!.count} (${pctLabel(breach[i]!.value)})`,
+              `${task[i]!.count} (${pctLabel(task[i]!.value)})`,
+              bench === "bonded"
+                ? money(row.bonded.lossUsd + row.bonded.overpaidUsd)
+                : "not measured",
+            ]);
+          })}
+        />
+      }
     >
-      <h2 id="bench-comparison" className="flex items-center gap-2 text-lg font-semibold text-ink">
-        <span aria-hidden className="size-2.5 rounded-[2px] bg-[#3987e5]" />
-        Same model, two benches
-      </h2>
-      <p className="mt-1 text-xs text-muted">
-        <span className="mr-1.5 inline-block align-[-4px]">
-          <ProviderLogo provider={providerOf(headline.model)} size={16} />
-        </span>
-        {headline.label} on Bonded's payment attacks and AgentDojo's banking suite,{" "}
-        {data.recordedOn} · a campaign record, not an Index score
-      </p>
-      <div className="mt-4 flex flex-col gap-4">
-        <Comparison row={headline} />
-        <Notes row={headline} />
-        {rest.map((row) => (
-          <details key={row.model} className="border-t border-line pt-4 text-sm">
-            <summary className="cursor-pointer font-medium text-soft hover:text-ink">
-              <span className="inline-flex items-center gap-2 align-middle">
-                <ProviderLogo provider={providerOf(row.model)} size={16} />
-                {row.label}, the smaller check
-              </span>
-            </summary>
-            <div className="mt-4 flex flex-col gap-4">
-              {row.scope && <p className="text-xs text-muted">{row.scope}</p>}
-              <Comparison row={row} />
-              <Notes row={row} />
-            </div>
-          </details>
+      <div className="flex flex-col gap-5">
+        <Legend
+          items={[
+            { color: BENCH.bonded.color, label: "Bonded" },
+            { color: BENCH.agentdojo.color, label: "AgentDojo" },
+          ]}
+        />
+        {rows.map((row) => (
+          <ModelPair key={row.model} row={row} bars={barsFor(row, tab)} />
         ))}
+        {tab === "task" && (
+          <p className="text-xs text-soft">
+            Bonded's job is harder to finish on purpose: it includes true changes the agent must act
+            on, so an agent can't stay safe by refusing everything.
+          </p>
+        )}
+        <div className="flex flex-col gap-3">
+          {rows.map((row) => (
+            <Detail key={row.model} row={row} />
+          ))}
+        </div>
       </div>
-    </section>
+    </ChartCard>
   );
 }
