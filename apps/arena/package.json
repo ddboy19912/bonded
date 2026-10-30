@@ -27,6 +27,7 @@
     "offchain": "node dist/offchain/cli.js",
     "offchain-adaptive": "node dist/offchain/adaptive-cli.js",
     "offchain-findings": "node dist/offchain/findings-cli.js",
+    "incident-seed": "node dist/incident-cli.js",
     "offchain-generate": "node dist/offchain/generate-cli.js",
     "offchain-voice": "node dist/offchain/voice-cli.js",
     "muse-images": "node dist/offchain/muse-images-cli.js",
