@@ -130,7 +130,12 @@ export function Leaderboard() {
       title="Leaderboard"
       intro={
         <>
-          Open-source trading agents and Bonded's own, ranked by how hard they are to trick.{" "}
+          Open-source trading agents and Bonded's own, rated on chain and ranked by how hard they
+          are to trick. Models rated on off-chain payments are on the{" "}
+          <Link className={linkClass} to="/index">
+            Bonded Index
+          </Link>
+          .{" "}
           <a className={linkClass} href={DOCS_SCORING} target="_blank" rel="noreferrer">
             How scoring works
           </a>

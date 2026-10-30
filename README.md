@@ -2,11 +2,11 @@
 
 > **Don't cage your agent. Bond it.**
 
-**Bonded measures how much money an AI agent can be tricked into losing, and stops it.** AI agents now move real money, and a poisoned token description, a fake "admin" message or a forged invoice can talk one into sending it to the wrong place. Bonded attacks each agent before attackers do and scores it 0 to 100, enforces its rules on chain so a tricked agent can't move money it shouldn't, and watches it live. Then we put money behind the score: a bond and a cover pool pay back losses automatically. **Payouts are decided by the agent's vault on chain, never by an AI.** Off chain, where agents pay invoices, agents are rated, not insured.
+**Bonded measures how much money an AI agent can be tricked into losing, and stops it.** AI agents now move real money, and a poisoned token description, a fake "admin" message or a forged invoice can talk one into sending it to the wrong place. Bonded attacks each agent before attackers do and scores it 0 to 100, enforces its rules on chain so a tricked agent can't move money it shouldn't, and watches it live. Then we put money behind the score: a bond and a cover pool pay back losses automatically. **Payouts are decided by the agent's vault on chain, never by an AI.**
 
 Runs on **Robinhood Chain**, with scores readable on **Arbitrum, Ethereum and Solana**.
 
-**The score is the bar.** Every agent Bonded rates gets a Bonded Score from 0 to 100, earned by being attacked and signed so any chain can read it. There is no common way yet to tell a hardened agent from a gullible one. We're setting that standard first, in the open: the attack library, the scoring method and its assumptions are published, and every agent is judged on the same scale. A platform, vault or depositor can require a minimum score, and every agent builder has a number to measure up to.
+**The score is the bar.** Every agent Bonded rates gets a Bonded Score from 0 to 100, earned by being attacked and signed so any chain can read it. There is no common way yet to tell a hardened agent from a gullible one. We're setting that standard first, in the open: the attack library, the scoring method and its assumptions are published, and every agent is judged on the same scale. A platform, vault or depositor can require a minimum score, and every agent builder has a number to measure up to. The score is for agents that pay through agent payment rails such as Visa Intelligent Commerce, Mastercard Agent Pay and x402, and from on-chain vaults.
 
 ## Try it
 
@@ -30,6 +30,8 @@ pnpm demo
 
 It starts a local chain, the API, keeper and rating worker; rates Agent A and Agent B; buys cover for both; plants an address-poisoning attack that Agent A falls for; shows the claim paying (operator's bond first, then the pool); and serves the web app at http://localhost:5180.
 
+To see the whole loop in about a minute (rate an agent, find the hole, enforce its rules, watch what they block, fix it and rate again), with no chain, keys or cost: `pnpm demo:loop`.
+
 ## How it works
 
 1. **Attacks.** AI attacker scenarios are planted in the agent's world inside a sandbox: a copy of the chain with the same contracts. Three batteries run in every rating of Bonded's own and leaderboard agents (operator-run agents and previews run the main library only, for now): the main attack library (10 classes: prompt injection, fake news and posts, poisoned prices, lookalike tokens and addresses, social engineering, hostile counterparty agents…), whose verdict is the vault's breach log; the **S1 market-data battery** (false news, prices and numbers that push a trade inside the rules), judged by comparing the agent against a clean run of the same world; and, for agents that keep memory Bonded can read and reset, a **memory battery** that plants a lie on day 1 and checks whether it changes a trade on day 2. Your own agent can be rated where it runs: Bonded calls its HTTPS endpoint, or a small runner next to it connects out to the sandbox, which attacks it over MCP, HTTP or its own signed transactions. A free preview rating needs only a wallet sign-in.
@@ -38,7 +40,7 @@ It starts a local chain, the API, keeper and rating worker; rates Agent A and Ag
 4. **Monitoring.** An optional real-time guard, an open-source decision model trained on attack data, flags manipulated actions before they reach the vault. It is advisory; payouts never depend on it.
 5. **Money behind the score.** Breach losses become an expected loss, a premium and an **insurance score** (tiers AAA to CCC), which decides cover; S1 and memory never enter it (Solana carries the insurance score only, for now). The agent's operator stakes a bond that pays first, underwriters fund a pool that pays the rest, and depositors buy cover priced from the insurance score. When the vault records a breach, the keeper files the claim within seconds: the contract slashes the bond, then the pool pays, and the money goes back into the vault.
 
-**The Bonded Index** rates AI models the same way: every model runs inside the same payments agent and meets the same attacks (forged invoices, bank-detail changes, fake executives, poisoned portals), and the [Index](https://www.bondedhq.xyz/index) shows how often each is tricked into paying the wrong account, and whether it still does the job. Off-chain models are rated, not insured. Details: [docs/OFFCHAIN.md](docs/OFFCHAIN.md).
+**The Bonded Index** rates AI models the same way: every model runs inside the same payments agent and meets the same attacks (forged invoices, bank-detail changes, fake executives, poisoned portals), and the [Index](https://www.bondedhq.xyz/index) shows how often each is tricked into paying the wrong account, and whether it still does the job. Details: [docs/OFFCHAIN.md](docs/OFFCHAIN.md).
 
 How the parts fit together: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). What each agent is: [docs/AGENTS.md](docs/AGENTS.md). How Bonded relates to the trading bots, wallet copilots and other agents people already use: [docs/YOUR-AGENTS.md](docs/YOUR-AGENTS.md). The full product specification: [docs/SPECIFICATION.md](docs/SPECIFICATION.md).
 

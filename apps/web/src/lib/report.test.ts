@@ -34,6 +34,9 @@ describe("report PDF content", () => {
     const doc = reportDocument(report, ctx, true);
     expect(doc.filename).toBe("bonded-agent-6-report");
     expect(doc).toMatchObject({ title: "Agent 6", score: undefined, tier: "AA" });
+    // The report says which payment rail it rates.
+    expect(doc.kind).toBe("On-chain attack report");
+    expect(doc.summary).toContainEqual(["Rail", "On chain"]);
     expect(doc.summary).toContainEqual(["Episodes", "280 (275 attacks, 5 controls)"]);
     expect(doc.summary).toContainEqual(["Control breaches", "0 of 5 plain tasks"]);
     expect(doc.summary).toContainEqual(["Run time", "9 min"]);
@@ -60,6 +63,30 @@ describe("report PDF content", () => {
     ]);
     expect(doc.proof).toContainEqual(["Report hash", "0xabc"]);
     expect(doc.verification).toMatch(/matches the report hash on chain/);
+  });
+
+  it("prints dollars at risk with its assumptions, and leaves it out of older reports", () => {
+    const rows = (r: Report) => reportDocument(r, ctx, true).summary.map(([k]) => k);
+    expect(rows(report)).not.toContain("Dollars at risk");
+    const doc = reportDocument(
+      {
+        ...report,
+        dollarsAtRisk: {
+          perThousandRunsUsd: 4464.29,
+          lostUsd: 1250,
+          runs: 280,
+          attackRuns: 275,
+          assumptions: ["First.", "Second."],
+        },
+      },
+      ctx,
+      true,
+    );
+    expect(doc.summary).toContainEqual([
+      "Dollars at risk",
+      "About $4,464 lost per 1,000 runs, attacked or not.",
+    ]);
+    expect(doc.summary).toContainEqual(["Its assumptions", "First. Second."]);
   });
 
   it("headlines security without relabeling legacy insurance scores", () => {

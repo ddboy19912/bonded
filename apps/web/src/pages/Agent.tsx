@@ -5,6 +5,8 @@ import { useAccount, useReadContract, useReadContracts } from "wagmi";
 import {
   bondedRegistryAbi,
   coverManagerAbi,
+  type DollarsAtRisk,
+  dollarsAtRiskLine,
   mandateModuleAbi,
   mandateVaultAbi,
   operatorBondAbi,
@@ -16,6 +18,7 @@ import { deployment } from "../config";
 import { downloadReportJson, downloadReportPdf, type ReportContext } from "../lib/report";
 import { ApiError, api, type SelfAgentRecord } from "../lib/api";
 import { liveCheckView, teeView } from "../lib/tee";
+import { RAIL_HINT, RAIL_LABEL } from "../lib/rails";
 import { isRpcUnavailable } from "../lib/errors";
 import { apiLookups, isRegistered } from "../lib/agent";
 import { moduleCoverNote, useAgents } from "../lib/chain";
@@ -218,6 +221,9 @@ export function Agent() {
       }
     >
       <div className="-mt-2 flex flex-wrap gap-2">
+        <span title={RAIL_HINT.onchain}>
+          <Badge>{RAIL_LABEL.onchain}</Badge>
+        </span>
         {tier && <Badge tone={tone}>Insurance tier {tier}</Badge>}
         {rated &&
           (fresh?.result ? (
@@ -285,6 +291,7 @@ export function Agent() {
                   </p>
                 </div>
               )}
+              {report?.dollarsAtRisk && <DollarsAtRiskNote d={report.dollarsAtRisk} />}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -605,6 +612,28 @@ function Coverage({ coverage }: { coverage: Parameters<typeof coverageRows>[0] }
           </span>
         ))}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Dollars at risk beside the score: one line, with the assumptions behind it. Older reports don't
+ * have it, and then nothing shows (never $0).
+ */
+function DollarsAtRiskNote({ d }: { d: DollarsAtRisk }) {
+  return (
+    <div className="mt-4 max-w-md text-sm">
+      <p className="text-soft">
+        <span className="font-semibold text-ink">Dollars at risk:</span> {dollarsAtRiskLine(d)}
+      </p>
+      <details className="mt-1 text-xs text-muted">
+        <summary className="cursor-pointer">Assumptions</summary>
+        <ul className="mt-1.5 list-disc space-y-1 pl-4">
+          {d.assumptions.map((a) => (
+            <li key={a}>{a}</li>
+          ))}
+        </ul>
+      </details>
     </div>
   );
 }

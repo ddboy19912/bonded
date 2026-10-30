@@ -103,6 +103,16 @@ describe("Bonded Index", () => {
     expect(() => loadBondedIndex()).not.toThrow();
   });
 
+  it("labels every result row with its rail and links to the on-chain leaderboard", () => {
+    view();
+    const rows = within(section("All results")).getAllByRole("row").slice(1);
+    expect(rows).toHaveLength(index.entries.length);
+    for (const r of rows) expect(within(r).getByText("Off chain")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Leaderboard" }).getAttribute("href")).toBe(
+      "/leaderboard",
+    );
+  });
+
   it("shows Bonded beside AgentDojo, each named by its logo, apart from the Index score", () => {
     view();
     const card = section("Bonded vs AgentDojo");
@@ -366,6 +376,17 @@ describe("Bonded Index", () => {
     const olderNote = within(older).getByText(/in \.env/).textContent;
     expect(olderNote).toContain("Needs OPENROUTER_API_KEY in .env");
     expect(olderNote).toContain("won't match it");
+  });
+
+  it("links each model's name to its own result page", () => {
+    view();
+    const results = section("All results");
+    expect(within(results).getByRole("link", { name: "Muse Spark 1.3" }).getAttribute("href")).toBe(
+      "/index/muse-spark-1.3",
+    );
+    expect(
+      within(results).getByRole("link", { name: "Llama 4 Maverick" }).getAttribute("href"),
+    ).toBe("/index/llama-4-maverick");
   });
 
   it("says so when no model has been rated", () => {

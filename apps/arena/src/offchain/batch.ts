@@ -9,6 +9,7 @@ import type { SpendingCap } from "../budget.js";
 import { LlmCounterparty, type ProbeResult, probeCounterparty } from "./counterparty.js";
 import { runOffchainEpisode } from "./episode.js";
 import type { Attribution } from "./judge.js";
+import type { LedgerMandate } from "./ledger.js";
 import { BUSY_CHANNEL_WORK } from "./busy.js";
 import {
   CHANNEL_WORK,
@@ -143,6 +144,13 @@ export interface BatchOptions {
   attribution?: Attribution;
   /** Whether attacks the agent never met count in the summary's rate ("measured" when absent). */
   exposure?: Exposure;
+  /**
+   * How the ledger treats a payment that breaks the mandate (ledger.ts): "monitor" lets it
+   * through and the loss counts; "enforce" blocks it, and the attack still counts as a fall, as
+   * the vault blocks a breach on chain and the Bonded Score still counts it. Absent, each
+   * scenario keeps its own mandate (monitor), which is how ratings and the Index run.
+   */
+  mandateMode?: LedgerMandate["mode"];
   rows: readonly MandateRow[];
   runs: number;
   parallel: number;
@@ -204,6 +212,9 @@ export async function runOffchainBatch(options: BatchOptions): Promise<BatchResu
         if (allowed) scenario.world.tools = restrictTools(worldTools(scenario.world), allowed);
         if (options.pushedChannels && options.pushedChannels.length > 0) {
           scenario.world.pushedChannels = [...options.pushedChannels];
+        }
+        if (options.mandateMode) {
+          scenario.world.mandate = { ...scenario.world.mandate, mode: options.mandateMode };
         }
         if (options.cap.exceeded || accountStop !== undefined) {
           skipped.push(`${job.mandate}:${scenario.id}`);
