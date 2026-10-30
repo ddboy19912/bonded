@@ -98,15 +98,15 @@ describe("a model's result page", () => {
     }
   });
 
-  it("shows Security and Task side by side, and flags a model that mostly didn't act", () => {
+  it("shows Security and Task side by side, with no description lines under them", () => {
     view("muse-spark-1.3");
     expect(screen.getByRole("heading", { level: 1, name: "Muse Spark 1.3" })).toBeTruthy();
     expect(screen.getByTitle("Meta")).toBeTruthy();
     expect(screen.getByText("Security").nextElementSibling?.textContent).toBe("96");
     expect(screen.getByText("Task").nextElementSibling?.textContent).toBe("29");
-    expect(screen.getByText("95% interval 91–99")).toBeTruthy();
-    expect(screen.getByText("set by bank-detail change, rules hidden: fell 2 of 54")).toBeTruthy();
-    expect(screen.getByText("mostly didn't act")).toBeTruthy();
+    expect(screen.queryByText(/95% interval/)).toBeNull();
+    expect(screen.queryByText(/^set by /)).toBeNull();
+    expect(screen.queryByText("mostly didn't act")).toBeNull();
   });
 
   it("shows the dollars at risk, in all and per 1,000 runs", () => {
@@ -135,18 +135,15 @@ describe("a model's result page", () => {
     expect(live.textContent).toContain("0 of 6 (0.0%)");
   });
 
-  it("says which library version it was rated on, and when that's not the current one", () => {
+  it("says which library version it was rated on, with no date line under it", () => {
     view("muse-spark-1.3");
     expect(screen.getByText("Attack library").nextElementSibling?.textContent).toBe("v1");
-    expect(
-      screen.getByText(`rated 2026-10-26 · current is v${OFFCHAIN_LIBRARY_VERSION}`),
-    ).toBeTruthy();
+    expect(screen.queryByText(/^rated 2026/)).toBeNull();
     expect(
       screen.getByText(/Where these numbers come from: Library attacks: Index run of 26 Oct/),
     ).toBeTruthy();
     cleanup();
     view("llama-4-maverick");
-    expect(screen.getByText("rated 2026-10-26")).toBeTruthy();
     expect(screen.getByText("No attack class got through.")).toBeTruthy();
     expect(screen.queryByText(/Where these numbers come from/)).toBeNull();
   });

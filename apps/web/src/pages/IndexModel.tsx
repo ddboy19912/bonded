@@ -1,13 +1,8 @@
-import {
-  type BondedIndex as BondedIndexData,
-  type BondedIndexEntry,
-  OFFCHAIN_LIBRARY_VERSION,
-} from "@bondedhq/shared";
+import { type BondedIndex as BondedIndexData, type BondedIndexEntry } from "@bondedhq/shared";
 import { useParams } from "react-router";
 import { ChartCard, DataTable, ProviderLogo, fallFill } from "../components/index-charts";
 import { EmptyState, LinkButton, Page } from "../components/ui";
 import {
-  IDLE_FLAG,
   classResults,
   entryBySlug,
   idle,
@@ -17,8 +12,6 @@ import {
   overpaidUsd,
   pct,
   runsOf,
-  setBy,
-  taskSetBy,
   taskText,
   usd,
   versionOf,
@@ -28,17 +21,7 @@ import { Kpi } from "./BondedIndex";
 const BACK = { to: "/index", label: "Bonded Index" };
 
 /** One of the two headline scores. Both always show, at the same size. */
-function Score({
-  label,
-  value,
-  lines,
-  warn = false,
-}: {
-  label: string;
-  value: string;
-  lines: (string | null)[];
-  warn?: boolean;
-}) {
+function Score({ label, value, warn = false }: { label: string; value: string; warn?: boolean }) {
   return (
     <div className="min-w-0 rounded-2xl border border-line bg-surface/70 p-4 sm:p-6">
       <p className="text-[11px] uppercase tracking-wider text-muted">{label}</p>
@@ -47,11 +30,6 @@ function Score({
       >
         {value}
       </p>
-      <div className="mt-3 flex flex-col gap-0.5 text-xs text-muted">
-        {lines.filter(Boolean).map((l) => (
-          <p key={l}>{l}</p>
-        ))}
-      </div>
     </div>
   );
 }
@@ -152,7 +130,6 @@ export function IndexModelView({ index, slug }: { index: BondedIndexData; slug: 
   const fell = e.rows.reduce((n, r) => n + r.fell, 0);
   const runs = runsOf(e);
   const version = versionOf(e);
-  const older = version < OFFCHAIN_LIBRARY_VERSION;
   return (
     <Page
       title={e.label}
@@ -174,17 +151,8 @@ export function IndexModelView({ index, slug }: { index: BondedIndexData; slug: 
       }
     >
       <div className="grid grid-cols-2 gap-3 sm:gap-4">
-        <Score
-          label="Security"
-          value={`${e.score}`}
-          lines={[`95% interval ${e.scoreInterval[0]}–${e.scoreInterval[1]}`, `set by ${setBy(e)}`]}
-        />
-        <Score
-          label="Task"
-          value={taskText(e)}
-          warn={idle(e)}
-          lines={[idle(e) ? IDLE_FLAG : null, taskSetBy(e) ? `set by ${taskSetBy(e)}` : null]}
-        />
+        <Score label="Security" value={`${e.score}`} />
+        <Score label="Task" value={taskText(e)} warn={idle(e)} />
       </div>
 
       <div className="grid grid-cols-2 gap-x-6 gap-y-5 border-y border-line py-5 sm:grid-cols-4">
@@ -207,11 +175,7 @@ export function IndexModelView({ index, slug }: { index: BondedIndexData; slug: 
               : `above ${pct(e.riskCeiling, 1)} ruled out`
           }
         />
-        <Kpi
-          label="Attack library"
-          value={`v${version}`}
-          hint={`rated ${e.ranAt.slice(0, 10)}${older ? ` · current is v${OFFCHAIN_LIBRARY_VERSION}` : ""}`}
-        />
+        <Kpi label="Attack library" value={`v${version}`} />
       </div>
 
       <AttackClasses e={e} />
