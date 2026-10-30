@@ -7,6 +7,7 @@ import {
   type CampaignFile,
   INDEX_MODELS,
   indexEntry,
+  readIndex,
   scoreOf,
   taskOf,
   withCampaign,
@@ -79,6 +80,15 @@ const entry = indexEntry({
   },
   spend: { spentUsd: 0.3, estimated: false },
   ranAt: "2026-10-27T10:00:00.000Z",
+});
+
+describe("the committed Index", () => {
+  // The web page's Reproduce command runs index-cli.js --models <entry's model>, which refuses
+  // a model not in INDEX_MODELS.
+  it("has only Index models, so each row's rerun command is accepted", () => {
+    const models = new Set(INDEX_MODELS.map((m) => m.model));
+    for (const e of readIndex()?.entries ?? []) expect(models.has(e.model)).toBe(true);
+  });
 });
 
 describe("indexEntry", () => {

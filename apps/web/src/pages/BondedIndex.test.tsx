@@ -325,6 +325,46 @@ describe("Bonded Index", () => {
     );
   });
 
+  it("gives each result row the command that reruns it, with its keys and spend", () => {
+    view({
+      ...index,
+      entries: index.entries.map((e) =>
+        e.model === "muse-spark-1.3"
+          ? {
+              ...e,
+              libraryVersion: OFFCHAIN_LIBRARY_VERSION,
+              cost: { ...e.cost, spentUsd: 6.55, estimated: true },
+            }
+          : e,
+      ),
+    });
+    const results = section("All results");
+    const toggle = within(results).getByRole("button", { name: "Command to rerun Muse Spark 1.3" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(within(results).queryByText(/index-cli\.js/)).toBeNull();
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    const code = within(results).getByRole("figure").textContent;
+    expect(code).toContain(
+      "node apps/arena/dist/offchain/index-cli.js --models muse-spark-1.3 --max-usd 27",
+    );
+    const note = within(results).getByText(/spends model credits/).textContent;
+    expect(note).toContain("Needs OPENROUTER_API_KEY and MODEL_API_KEY in .env");
+    expect(note).toContain("cost $6.55 (estimated), and it stops at $27.");
+    expect(note).not.toContain("earlier library");
+    // One row open at a time; a row on an older library says a rerun won't match it.
+    fireEvent.click(
+      within(results).getByRole("button", { name: "Command to rerun DeepSeek V4.1 Flash" }),
+    );
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(within(results).getByText(/spends model credits/).textContent).toContain(
+      "Needs OPENROUTER_API_KEY in .env",
+    );
+    expect(within(results).getByText(/spends model credits/).textContent).toContain(
+      "won't match it",
+    );
+  });
+
   it("says so when no model has been rated", () => {
     view({ ...index, entries: [] });
     expect(screen.getByText("No models have been rated yet.")).toBeTruthy();

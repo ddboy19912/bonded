@@ -406,6 +406,21 @@ The Index rates models, not agents: every model is put in the same agent (payabl
 
 `node apps/arena/dist/offchain/index-cli.js --max-usd <per model>` runs the sweep. `--models` picks models, and `--make-variants <model>` redrafts the shared variant set. Run `npx prettier --write config/bonded-index.json` afterwards, so the file passes the format check.
 
+### Reproduce a row
+
+The attacks a row met are public: the seeds in `apps/arena/offchain-seeds/` and the committed variants in `apps/arena/offchain-index/variants/`. Anyone can rerun one model's row from a clone of the repo:
+
+```bash
+pnpm install && pnpm --filter "@bonded/arena..." build
+node apps/arena/dist/offchain/index-cli.js --models qwen/qwen3.7-flash --max-usd 2
+```
+
+- `--models` takes the row's model id, as listed in `INDEX_MODELS`. Add `--runs <n>` only if the row ran other than 3 times.
+- It spends model credits. Every rerun needs `OPENROUTER_API_KEY`, because DeepSeek on OpenRouter plays the O6 counterparty. Muse models also need `MODEL_API_KEY`, Muse Spark Open needs `BASETEN_API_KEY`, and Claude models need `ANTHROPIC_API_KEY`. Put the keys in `.env` at the repo root, or export them.
+- `--max-usd` is a cap per model. The Index page's Command button sets it at four times what the published run cost, and at least $2. A run that reaches the cap prints how many episodes it skipped; that row isn't complete.
+- The new row replaces the model's entry in `config/bonded-index.json`, so `git diff` shows it beside the published one. Models are not deterministic, so a rerun's numbers vary: compare them with the published interval, not the exact score.
+- A row rated on an earlier library version met a different attack set (its `attacks.hash`). To rerun that set, check out the commit that wrote the row first.
+
 ## Build order
 
 1. The ledger, its mandate and its judge, with tests.
