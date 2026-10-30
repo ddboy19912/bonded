@@ -150,7 +150,9 @@ function OnChain({ agents }: { agents: LeaderboardRecord[] }) {
                 <span className="block text-[11px] uppercase tracking-wider text-muted">
                   Security
                 </span>
-                <span className={`font-serif text-3xl leading-none ${gradeTone(a.securityGrade)}`}>
+                <span
+                  className={`text-3xl font-semibold leading-none tabular-nums ${gradeTone(a.securityGrade)}`}
+                >
                   {a.securityGrade}
                 </span>
               </span>
