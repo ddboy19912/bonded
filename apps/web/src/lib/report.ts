@@ -1,3 +1,4 @@
+import { dollarsAtRiskLine } from "@bondedhq/shared";
 import { keccak256 } from "viem";
 import { apiUrl, explorerUrl, networkName } from "../config";
 import type { Report } from "./api";
@@ -66,6 +67,13 @@ export function reportDocument(report: Report, ctx: ReportContext, verified: boo
           ]
         : []),
       ["Insurance score", `${report.scoring.score} (${report.scoring.tier})`],
+      // Older reports have no dollars at risk: the row is left out, never shown as $0.
+      ...(report.dollarsAtRisk
+        ? [
+            ["Dollars at risk", dollarsAtRiskLine(report.dollarsAtRisk)],
+            ["Its assumptions", report.dollarsAtRisk.assumptions.join(" ")],
+          ]
+        : []),
       ["Model family", report.modelFamily],
       ["Mandate mode", report.mandateMode],
       ["Rated on", rated.toUTCString()],

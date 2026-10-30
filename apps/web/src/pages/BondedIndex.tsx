@@ -1,6 +1,7 @@
 import {
   type BondedIndex as BondedIndexData,
   type BondedIndexEntry,
+  lossPerThousandRuns,
   OFFCHAIN_LIBRARY_VERSION,
 } from "@bondedhq/shared";
 import { useState } from "react";
@@ -236,10 +237,9 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
       };
     })(),
     loss: (() => {
-      const perThousand = (e: BondedIndexEntry) => {
-        const runs = runsOf(e);
-        return runs === 0 ? 0 : ((lostUsd(e) + overpaidUsd(e)) / runs) * 1000;
-      };
+      // The same formula as a rating report's dollars at risk (docs/SCORING.md).
+      const perThousand = (e: BondedIndexEntry) =>
+        lossPerThousandRuns(lostUsd(e), overpaidUsd(e), runsOf(e));
       const sorted = [...entries].sort((a, b) => perThousand(a) - perThousand(b));
       const ticks = niceTicks(Math.max(1, ...sorted.map(perThousand)));
       return {
