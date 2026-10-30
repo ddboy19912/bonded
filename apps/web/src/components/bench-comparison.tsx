@@ -94,10 +94,12 @@ function Versus({ rows }: { rows: BenchComparison[] }) {
           attacks moved money · <span className="text-breach">{money(moved)}</span>
         </>,
       )}
-      <div aria-hidden className="hidden flex-col items-center sm:flex">
-        <span className="w-px flex-1 bg-line" />
-        <span className="py-2 text-[11px] text-muted">vs</span>
-        <span className="w-px flex-1 bg-line" />
+      {/* A hairline between the benches, with a round "VS" badge on it at the middle. */}
+      <div aria-hidden className="relative hidden w-9 sm:block">
+        <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-line" />
+        <span className="absolute top-1/2 left-1/2 grid size-9 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-raised text-[10px] font-semibold tracking-[0.12em] text-soft ring-1 ring-line-strong">
+          VS
+        </span>
       </div>
       {side(
         "agentdojo",
