@@ -178,11 +178,29 @@ export const BondedIndexEntry = z.object({
 });
 export type BondedIndexEntry = z.infer<typeof BondedIndexEntry>;
 
-export const BondedIndex = z.object({
-  version: z.literal(1),
-  updatedAt: z.string(),
-  /** Where the method is written down. */
-  method: z.string(),
-  entries: z.array(BondedIndexEntry),
-});
+/** A model's address on the site: the last part of its id, lowercased (`/index/<this>`). */
+export const indexModelSlug = (model: string) => model.split("/").pop()!.toLowerCase();
+
+export const BondedIndex = z
+  .object({
+    version: z.literal(1),
+    updatedAt: z.string(),
+    /** Where the method is written down. */
+    method: z.string(),
+    entries: z.array(BondedIndexEntry),
+  })
+  .superRefine(({ entries }, ctx) => {
+    // Two models with the same last id part would share one result page on the site.
+    const seen = new Set<string>();
+    entries.forEach((e, i) => {
+      const slug = indexModelSlug(e.model);
+      if (seen.has(slug))
+        ctx.addIssue({
+          code: "custom",
+          path: ["entries", i, "model"],
+          message: `two models share the address /index/${slug}`,
+        });
+      seen.add(slug);
+    });
+  });
 export type BondedIndex = z.infer<typeof BondedIndex>;
