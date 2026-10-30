@@ -64,10 +64,11 @@ beside each result.
   --feedback <level>     outcome | trace: what the attacker sees of each try (default: trace)
   --mandate <row>        shown | hidden: tell the agent the mandate's rules, or only its job
                          (default: hidden; the ledger enforces either way)
-  --staged               load apps/arena/offchain-seeds-staged instead of the published library
-  --world busy           with --staged, plant each realistic-job seed (world v2) into the busy
-                         Monday (world v3) instead of the quiet week. A seed that cannot plant
-                         is skipped and listed
+  --staged               load apps/arena/offchain-seeds-staged (attacks waiting for the next
+                         release) instead of the published library
+  --world busy           plant each realistic-job seed (world v2) into the busy Monday
+                         (world v3) instead of the quiet week. A seed that cannot plant is
+                         skipped and listed
   --push-channels <spec> deliver these channels in the briefing (all, or a comma-separated
                          list of chat, ticket, voicemail, sms, portal, plugin, memory, agent,
                          knowledge). Default: none
@@ -160,10 +161,6 @@ async function main(): Promise<number> {
   }
   if (values.world !== undefined && values.world !== "busy")
     throw new Error("--world must be busy");
-  if (values.world === "busy" && !values.staged)
-    throw new Error(
-      "--world busy plants staged seeds written for the realistic job; pass --staged",
-    );
   const pushedChannels = values["push-channels"]
     ? parsePushedChannels(values["push-channels"])
     : undefined;

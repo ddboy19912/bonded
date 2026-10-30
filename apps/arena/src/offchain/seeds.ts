@@ -281,6 +281,13 @@ export function loadOffchainSeeds(dir: string = OFFCHAIN_SEEDS_DIR): OffchainSee
   return seeds;
 }
 
+/**
+ * A seed planted in the realistic job (world v2) or the busy Monday (v3), not the first job. Since
+ * off-chain library version 2 these sit in the library beside the first-job seeds; the realistic job's own
+ * controls and benign twins (STAGED_CONTROLS) run with them.
+ */
+export const onRealisticJob = (seed: OffchainSeed) => seed.world !== "v1";
+
 /** What makes a seed unfit to run against the base world, or undefined. */
 export function seedProblem(
   seed: OffchainSeed,

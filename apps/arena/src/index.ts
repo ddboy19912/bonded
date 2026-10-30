@@ -106,6 +106,7 @@ export {
   attackScenario,
   CounterpartySeed,
   loadOffchainSeeds,
+  onRealisticJob,
   OFFCHAIN_ATTACK_CLASSES,
   OFFCHAIN_IMAGES_DIR,
   OFFCHAIN_SEEDS_DIR,

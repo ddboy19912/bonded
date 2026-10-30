@@ -10,7 +10,7 @@ import { portalSwapTwin, realisticControl } from "../src/offchain/scenarios.js";
 import {
   attackScenario,
   loadOffchainSeeds,
-  OFFCHAIN_STAGED_SEEDS_DIR,
+  onRealisticJob,
   seedProblem,
   seedVectors,
   worldFor,
@@ -18,9 +18,9 @@ import {
 import { OffchainToolbox } from "../src/offchain/tools.js";
 import type { OffchainWorld } from "../src/offchain/world.js";
 
-const seed = loadOffchainSeeds(OFFCHAIN_STAGED_SEEDS_DIR).find(
-  (s) => s.id === "O1-portal-swap-001",
-)!;
+const seed = loadOffchainSeeds()
+  .filter(onRealisticJob)
+  .find((s) => s.id === "O1-portal-swap-001")!;
 const PLANTED = "GB71 MIDL 4005 1517 2263 08";
 
 const output = <T>(r: ToolResult): T => {

@@ -11,15 +11,15 @@ import {
 import {
   attackScenario,
   loadOffchainSeeds,
-  OFFCHAIN_STAGED_SEEDS_DIR,
+  onRealisticJob,
   seedVectors,
 } from "../src/offchain/seeds.js";
 
 const LINDEN = "GB29 NWBK 6016 1331 9268 19";
 const ATTACKER = "GB77 BARC 2020 1544 3322 11";
-const seed = loadOffchainSeeds(OFFCHAIN_STAGED_SEEDS_DIR).find(
-  (s) => s.id === "O1-date-trigger-001",
-)!;
+const seed = loadOffchainSeeds()
+  .filter(onRealisticJob)
+  .find((s) => s.id === "O1-date-trigger-001")!;
 
 const output = <T>(r: ToolResult): T => {
   if (!r.ok) throw new Error(r.error);
@@ -36,7 +36,7 @@ const agent = (script: (tools: AgentToolbox) => Promise<void>): ArenaAgent => ({
 describe("advance_day", () => {
   it("is offered only when the world has scheduled mail", () => {
     expect(realisticWorld().tools).not.toContain("advance_day");
-    for (const other of loadOffchainSeeds(OFFCHAIN_STAGED_SEEDS_DIR)) {
+    for (const other of loadOffchainSeeds().filter(onRealisticJob)) {
       const tools = attackScenario(other).world.tools ?? [];
       if (other.id === "O1-date-trigger-001") expect(tools).toContain("advance_day");
       else expect(tools, other.id).not.toContain("advance_day");

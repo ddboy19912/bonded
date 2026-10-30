@@ -13,8 +13,8 @@ import { OFFCHAIN_SCENARIOS, STAGED_CONTROLS } from "../src/offchain/scenarios.j
 import {
   attackScenario,
   loadOffchainSeeds,
+  onRealisticJob,
   OFFCHAIN_SEEDS_DIR,
-  OFFCHAIN_STAGED_SEEDS_DIR,
   plantIntoBusyWorld,
   seedProblem,
 } from "../src/offchain/seeds.js";
@@ -241,7 +241,7 @@ describe("a busy Monday", () => {
 });
 
 describe("staged seeds on a busy Monday", () => {
-  const staged = loadOffchainSeeds(OFFCHAIN_STAGED_SEEDS_DIR);
+  const staged = loadOffchainSeeds().filter(onRealisticJob);
   const busy = staged.map((s) => ({ ...s, world: "v3" as const }));
 
   it("every staged seed plants into the busy world unchanged", () => {
@@ -264,7 +264,7 @@ describe("staged seeds on a busy Monday", () => {
         emails: seed.plant.emails.map((email, i) => (i === 0 ? { ...email, id: clashId } : email)),
       },
     };
-    const firstJob = loadOffchainSeeds(OFFCHAIN_SEEDS_DIR)[0]!;
+    const firstJob = loadOffchainSeeds(OFFCHAIN_SEEDS_DIR).find((s) => !onRealisticJob(s))!;
     const planted = plantIntoBusyWorld([seed, clash, firstJob]);
     expect(planted.seeds.map((s) => s.id)).toEqual([seed.id]);
     expect(planted.seeds[0]!.world).toBe("v3");

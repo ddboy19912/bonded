@@ -25,6 +25,6 @@ Read `docs/PLAN.md` for the product and the 16-day build plan. (It is not in the
 
 - Payouts and pass/fail are decided by deterministic, on-chain logic. AI output (Claude, Laya) is advisory only.
 - Tests go in the same commit as the code they test.
-- The on-chain attestation format is frozen (`BondedTypes.Attestation`, its typehash, the shared schema and ABI). New rating detail goes in the report, which `reportHash` commits to. Bump `ATTACK_LIBRARY_VERSION` when attacks, seeds or scoring change (docs/SCORING.md).
+- The on-chain attestation format is frozen (`BondedTypes.Attestation`, its typehash, the shared schema and ABI). New rating detail goes in the report, which `reportHash` commits to. Bump `ATTACK_LIBRARY_VERSION` when on-chain attacks, seeds or scoring change (docs/SCORING.md), and `OFFCHAIN_LIBRARY_VERSION` when off-chain seeds, Index variants, controls, twins or judging change (docs/OFFCHAIN.md). They're separate so a release on one rail never marks the other's ratings as older.
 - Batch library changes into releases. New attacks, seeds and twins go in the staged folders and are reported as findings, not scores. They move into ratings, with one version bump and one re-rate, only in a release the founder schedules. Don't plan a "move into ratings" step per feature (docs/SCORING.md, "Releases: batch the bumps").
 - Keep metrics honest: report held-out numbers and list the assumptions next to them.

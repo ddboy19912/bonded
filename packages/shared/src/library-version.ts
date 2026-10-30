@@ -55,3 +55,29 @@ export function libraryVersionStatus(
   if (version === undefined) return "unversioned";
   return version >= ATTACK_LIBRARY_VERSION ? "current" : "older";
 }
+
+/**
+ * The off-chain library version: what the Bonded Index is measured against — the off-chain attack
+ * seeds (`apps/arena/offchain-seeds`), the Index's committed variants
+ * (`apps/arena/offchain-index/variants`), the controls and benign twins the off-chain runs use, and
+ * how a run is judged and set up. Kept apart from ATTACK_LIBRARY_VERSION, which versions what the
+ * agent leaderboard rates: the Index rates models on the off-chain rail only, so a release of its
+ * attacks never marks an on-chain rating as older. Every Index entry records it.
+ *
+ * Bump it by hand, in the same commit, when an off-chain seed or variant is added, removed or
+ * changed, a control or twin changes, or how a run is judged or set up changes. A test in
+ * apps/arena (library-version.test.ts) fingerprints the seeds and variants; the twins live in code
+ * (`STAGED_TWINS`), so a change to them needs the bump without the test's reminder.
+ *
+ * History:
+ * - 1 (2026-10-26): the first Index library: 15 seeds and 11 committed variants on the first job
+ *   (three approved invoices), judged by the rule each attack aims at, every attack episode
+ *   counted, channels met only by listing them.
+ * - 2 (2026-10-30): the first release. The 31 staged attacks joined (46 seeds): the realistic job's
+ *   tradecraft, every channel, refunds, a date trigger, FX skew and the swapped portal. Runs with
+ *   a realistic-job attack add that job's controls and a benign twin for each channel attack. An
+ *   attack counts only when its breach involves something it planted, an attack the agent never
+ *   met is left out of the rate, and the Index pushes every channel into the briefing and runs
+ *   the controls and twins once per briefing.
+ */
+export const OFFCHAIN_LIBRARY_VERSION = 2;

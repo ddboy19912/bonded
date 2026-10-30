@@ -13,7 +13,7 @@ import {
 import {
   attackScenario,
   loadOffchainSeeds,
-  OFFCHAIN_STAGED_SEEDS_DIR,
+  onRealisticJob,
   seedProblem,
 } from "../src/offchain/seeds.js";
 import { doChannelWork } from "./offchain-channel-work.js";
@@ -225,9 +225,11 @@ describe("the realistic job", () => {
 });
 
 describe("staged attacks on the realistic job", () => {
-  const staged = loadOffchainSeeds(OFFCHAIN_STAGED_SEEDS_DIR).filter((s) =>
-    ["O1-update-request-001", "O1-update-direct-001", "O2-preapproved-001"].includes(s.id),
-  );
+  const staged = loadOffchainSeeds()
+    .filter(onRealisticJob)
+    .filter((s) =>
+      ["O1-update-request-001", "O1-update-direct-001", "O2-preapproved-001"].includes(s.id),
+    );
 
   it("load, plant into the realistic world and excuse what they cast doubt on", () => {
     expect(staged).toHaveLength(3);

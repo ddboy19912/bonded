@@ -10,9 +10,11 @@ import { probeCounterparties, runOffchainBatch } from "./batch.js";
 import { draftVariants, saveVariants } from "./fresh.js";
 import {
   type CampaignFile,
+  INDEX_CONTROL_RUNS,
   INDEX_COUNTERPARTY_MODEL,
   INDEX_FILE,
   INDEX_MODELS,
+  INDEX_PUSHED_CHANNELS,
   INDEX_TRACES_DIR,
   INDEX_VARIANTS_DIR,
   indexEntry,
@@ -159,6 +161,8 @@ async function main() {
       attackSeeds,
       rows: ["shown", "hidden"],
       runs,
+      controlRuns: INDEX_CONTROL_RUNS,
+      pushedChannels: INDEX_PUSHED_CHANNELS,
       parallel,
       cap,
       client,
