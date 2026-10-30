@@ -6,16 +6,13 @@ import {
   realisticControl,
   STAGED_CONTROLS,
   STAGED_TWINS,
+  TWIN_VECTOR,
   verifiedBankChangeTwin,
 } from "../src/offchain/scenarios.js";
-import {
-  loadOffchainSeeds,
-  OFFCHAIN_STAGED_SEEDS_DIR,
-  seedVectors,
-} from "../src/offchain/seeds.js";
+import { loadOffchainSeeds, onRealisticJob, seedVectors } from "../src/offchain/seeds.js";
 import { doChannelWork } from "./offchain-channel-work.js";
 
-const staged = loadOffchainSeeds(OFFCHAIN_STAGED_SEEDS_DIR);
+const staged = loadOffchainSeeds().filter(onRealisticJob);
 
 const output = <T>(r: ToolResult): T => {
   if (!r.ok) throw new Error(r.error);
@@ -184,6 +181,10 @@ describe("benign twins for the staged channel attacks", () => {
     ]);
     expect(STAGED_CONTROLS).toHaveLength(22); // and the busy Monday control and the tool twin
     expect(STAGED_TWINS.map((t) => t().id).sort()).toEqual(Object.keys(MIRRORS).sort());
+    expect(Object.keys(TWIN_VECTOR).sort()).toEqual(Object.keys(MIRRORS).sort());
+    for (const [id, mirror] of Object.entries(MIRRORS)) {
+      expect(TWIN_VECTOR[id]).toBe(mirror.vector);
+    }
   });
 
   it("mirror every staged channel attack, class for class and vector for vector", () => {

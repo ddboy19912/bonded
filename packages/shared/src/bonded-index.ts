@@ -102,6 +102,11 @@ export const BondedIndexEntry = z.object({
   }),
   runsPerScenario: z.number().int().min(1),
   /**
+   * The off-chain library version it was rated on (OFFCHAIN_LIBRARY_VERSION). Absent on entries
+   * rated before versions were recorded, which were version 1.
+   */
+  libraryVersion: z.number().int().min(1).optional(),
+  /**
    * Tool calls the model wrote as text (Llama's pythonic form) that the agent loop read and ran.
    * Shown beside the model, so a reader knows its calls went through that adapter.
    */

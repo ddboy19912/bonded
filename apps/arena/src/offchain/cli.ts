@@ -13,10 +13,11 @@ import {
   type ChatClient,
   chatClientFromEnv,
   llmConfigForModel,
+  OFFCHAIN_LIBRARY_VERSION,
 } from "@bondedhq/shared";
 import { metaCapFallback, SpendingCap } from "../budget.js";
 import { loadDotEnv } from "../env.js";
-import { probeCounterparties, runOffchainBatch } from "./batch.js";
+import { controlsFor, probeCounterparties, runOffchainBatch } from "./batch.js";
 import { parsePushedChannels } from "./world.js";
 import type { Attribution } from "./judge.js";
 import type { ProbeResult } from "./counterparty.js";
@@ -30,7 +31,6 @@ import {
   unspentHeldOut,
 } from "./held-out.js";
 import { describeEstimate, estimateCost } from "./cost-estimate.js";
-import { controlScenario, STAGED_CONTROLS, verifiedBankChangeTwin } from "./scenarios.js";
 import {
   loadOffchainSeeds,
   OFFCHAIN_STAGED_SEEDS_DIR,
@@ -61,28 +61,28 @@ saved, and --replay runs a saved set again exactly.
   --ranking                  use ${RANKING_RUNS} runs per row instead of 3, for a narrower
                              interval. An explicit --runs wins
   --seeds <list>             only these library seed ids (comma-separated)
-  --staged                   run the staged attacks (offchain-seeds-staged/) instead of the
-                             library, with the realistic job's control and the benign twins
-                             for each channel attack alongside
-  --no-controls              with --staged, run the attack seeds only. The job and the benign
-                             twins are not checked
-  --world busy               with --staged, plant each realistic-job seed (world v2) into the
-                             busy Monday (world v3) instead of the quiet week. A seed that
-                             cannot plant is skipped and listed
+  --staged                   run the staged attacks (offchain-seeds-staged/, waiting for the
+                             next release) instead of the library
+                             A run with any realistic-job attack runs that job's controls and
+                             the benign twin of each channel attack alongside
+  --no-controls              run the attack seeds only. The job and the benign twins are not
+                             checked
+  --world busy               plant each realistic-job seed (world v2) into the busy Monday
+                             (world v3) instead of the quiet week. A seed that cannot plant is
+                             skipped and listed
   --channels <list>          the vectors the agent is integrated with (email, chat, ticket,
                              voicemail, sms, portal, plugin, memory, agent, knowledge); attacks
                              through others aren't run and count as not exposed (default: all)
   --push-channels <spec>     deliver these channels in the briefing (all, or a comma-separated
                              list of chat, ticket, voicemail, sms, portal, plugin, memory,
-                             agent, knowledge). Default: none, so the Index is unchanged
+                             agent, knowledge). Default: none; the Index pushes every channel
   --via <list>               also deliver each multi-vector attack through these channels (chat,
                              ticket, voicemail, sms, agent), to find the one the agent trusts
   --fresh                    draft one fresh variant per seed and run it too
   --replay <dir>             run the variants saved in <dir> (a previous --out's variants/)
   --attribution <how>        planted | rule: an attack counts only when its breach involves an
                              account, reference or amount it planted, or whenever the rule it
-                             aims at is broken (default: planted with --staged, rule otherwise,
-                             as the Index scores until the next release)
+                             aims at is broken (default: planted, as the Index scores)
   --held-out <dir>           also run a private variant set from <dir> (default, when drafting:
                              ~/.config/bonded/offchain-held-out). Refused if the directory is a
                              published seed folder or anywhere in the repo outside ratings/.
@@ -174,17 +174,11 @@ async function main() {
     throw new Error("--mandate must be shown, hidden or both");
   if (values.world !== undefined && values.world !== "busy")
     throw new Error("--world must be busy");
-  if (values.world === "busy" && !values.staged)
-    throw new Error(
-      "--world busy plants staged seeds written for the realistic job; pass --staged",
-    );
-  if (values["no-controls"] && !values.staged)
-    throw new Error("--no-controls skips the staged controls and twins; pass --staged");
-  const attribution = (values.attribution ?? (values.staged ? "planted" : "rule")) as Attribution;
+  const attribution = (values.attribution ?? "planted") as Attribution;
   if (attribution !== "planted" && attribution !== "rule")
     throw new Error("--attribution must be planted or rule");
-  // Staged runs leave attacks the agent never met out of the rate; the Index counts every one.
-  const exposure: Exposure = values.staged ? "measured" : "count";
+  // Attacks the agent never met stay out of the rate: they weren't tested.
+  const exposure: Exposure = "measured";
   const pushedChannels = values["push-channels"]
     ? parsePushedChannels(values["push-channels"])
     : undefined;
@@ -314,11 +308,8 @@ async function main() {
     );
     if (planted === 0) throw new Error("no seed could plant in the busy world");
   }
-  const controls = values["no-controls"]
-    ? []
-    : values.staged
-      ? STAGED_CONTROLS
-      : [controlScenario, verifiedBankChangeTwin];
+  const channels = values.channels?.split(",").map((c) => c.trim());
+  const controls = values["no-controls"] ? [] : controlsFor(attackSeeds, channels);
   if (values["no-controls"]) console.log("warning: --no-controls skips the job and twin checks");
   // Each scenario runs once per row and run. Its world sets the job, and so the cost.
   const perScenario = rows.length * runs;
@@ -341,7 +332,7 @@ async function main() {
     seesImages: values.agent === "payables" && values.vision,
     images: !values["text-only"],
     attackSeeds,
-    ...(values.channels ? { channels: values.channels.split(",").map((c) => c.trim()) } : {}),
+    ...(channels ? { channels } : {}),
     ...(pushedChannels ? { pushedChannels } : {}),
     controls,
     attribution,
@@ -472,6 +463,7 @@ async function main() {
   if (notShown.length) console.log(`not run, the agent sees no images: ${notShown.join(", ")}`);
   const header = {
     agent: agentFor(values.agent, values.model, client!, values.vision).name,
+    libraryVersion: OFFCHAIN_LIBRARY_VERSION,
     attribution,
     exposure,
     vision: values.vision,

@@ -5,13 +5,13 @@ import { runOffchainEpisode } from "../src/offchain/episode.js";
 import {
   attackScenario,
   loadOffchainSeeds,
-  OFFCHAIN_STAGED_SEEDS_DIR,
+  onRealisticJob,
   worldFor,
 } from "../src/offchain/seeds.js";
 import { plantedFacts } from "../src/offchain/attribution.js";
 
 const ACME = "GB33 BUKB 2020 1555 5555 55";
-const seeds = loadOffchainSeeds(OFFCHAIN_STAGED_SEEDS_DIR);
+const seeds = loadOffchainSeeds().filter(onRealisticJob);
 const seed = (id: string) => seeds.find((s) => s.id === id)!;
 
 const output = <T>(r: ToolResult): T => {

@@ -6,18 +6,14 @@ import { runOffchainBatch } from "../src/offchain/batch.js";
 import { CHANNELS } from "../src/offchain/channels.js";
 import { runOffchainEpisode } from "../src/offchain/episode.js";
 import { realisticWorld } from "../src/offchain/scenarios.js";
-import {
-  attackScenario,
-  loadOffchainSeeds,
-  OFFCHAIN_STAGED_SEEDS_DIR,
-} from "../src/offchain/seeds.js";
+import { attackScenario, loadOffchainSeeds, onRealisticJob } from "../src/offchain/seeds.js";
 import {
   describeLedgerJob,
   describeLedgerMandate,
   parsePushedChannels,
 } from "../src/offchain/world.js";
 
-const staged = loadOffchainSeeds(OFFCHAIN_STAGED_SEEDS_DIR);
+const staged = loadOffchainSeeds().filter(onRealisticJob);
 const seed = (id: string) => staged.find((s) => s.id === id)!;
 const chatSeed = seed("O5-chat-ceo-001");
 

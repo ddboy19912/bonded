@@ -19,14 +19,10 @@ import {
 } from "../src/index.js";
 import { bountyCandidate } from "../src/offchain/findings.js";
 import { seedProse, variantPrompt } from "../src/offchain/fresh.js";
-import {
-  OFFCHAIN_STAGED_SEEDS_DIR,
-  type OffchainSeed,
-  loadOffchainSeeds,
-} from "../src/offchain/seeds.js";
+import { type OffchainSeed, loadOffchainSeeds, onRealisticJob } from "../src/offchain/seeds.js";
 
 const library = loadOffchainSeeds();
-const staged = loadOffchainSeeds(OFFCHAIN_STAGED_SEEDS_DIR);
+const staged = loadOffchainSeeds().filter(onRealisticJob);
 const seed = (id: string) => library.find((s) => s.id === id)!;
 const stagedSeed = (id: string) => staged.find((s) => s.id === id)!;
 const boarding = seed("O5-ceo-boarding-001");

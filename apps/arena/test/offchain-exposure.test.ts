@@ -2,14 +2,10 @@ import type { AgentToolbox, ArenaAgent } from "@bondedhq/shared";
 import { describe, expect, it } from "vitest";
 import { runOffchainEpisode } from "../src/offchain/episode.js";
 import { attackSeen } from "../src/offchain/exposure.js";
-import {
-  attackScenario,
-  loadOffchainSeeds,
-  OFFCHAIN_STAGED_SEEDS_DIR,
-} from "../src/offchain/seeds.js";
+import { attackScenario, loadOffchainSeeds, onRealisticJob } from "../src/offchain/seeds.js";
 import { summarizeRows } from "../src/offchain/summary.js";
 
-const staged = loadOffchainSeeds(OFFCHAIN_STAGED_SEEDS_DIR);
+const staged = loadOffchainSeeds().filter(onRealisticJob);
 const chatSeed = staged.find((s) => s.id === "O5-chat-ceo-001")!;
 
 const agent = (script: (tools: AgentToolbox) => Promise<void>): ArenaAgent => ({

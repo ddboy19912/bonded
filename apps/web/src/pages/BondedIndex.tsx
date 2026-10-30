@@ -1,4 +1,8 @@
-import type { BondedIndex as BondedIndexData, BondedIndexEntry } from "@bondedhq/shared";
+import {
+  type BondedIndex as BondedIndexData,
+  type BondedIndexEntry,
+  OFFCHAIN_LIBRARY_VERSION,
+} from "@bondedhq/shared";
 import { useState } from "react";
 import { BenchComparisonCard } from "../components/bench-comparison";
 import { VIZ } from "../components/charts";
@@ -30,6 +34,18 @@ import {
 } from "../lib/bonded-index";
 
 const DOCS_OFFCHAIN = "https://github.com/ddboy19912/bonded/blob/main/docs/OFFCHAIN.md";
+
+/** The off-chain library version a model was rated on; entries from before versions were recorded were 1. */
+const versionOf = (e: BondedIndexEntry) => e.libraryVersion ?? 1;
+
+/** Under a model's name in the results: joined runs, and an older library, when they apply. */
+const resultNote = (e: BondedIndexEntry) => {
+  const notes = [
+    ...(versionOf(e) < OFFCHAIN_LIBRARY_VERSION ? [`earlier library (v${versionOf(e)})`] : []),
+    ...(e.provenance ? ["joined runs †"] : []),
+  ];
+  return notes.length > 0 ? notes.join(" · ") : undefined;
+};
 
 /** Every judged run of a model, attacked or not: its rows' jobs, since each run has one. */
 const runsOf = (e: BondedIndexEntry) => e.rows.reduce((n, r) => n + r.tasksTotal, 0);
@@ -792,7 +808,7 @@ function Results({ entries }: { entries: BondedIndexEntry[] }) {
             {byScore(entries).map((e) => (
               <tr key={e.model} className="border-t border-line align-top">
                 <td className="px-4 py-3">
-                  <ModelName entry={e} note={e.provenance ? "joined runs †" : undefined} />
+                  <ModelName entry={e} note={resultNote(e)} />
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-ink tabular-nums">
                   {e.score}
@@ -913,7 +929,9 @@ export function BondedIndexView({ index }: { index: BondedIndexData }) {
           <li>
             Intervals are 95% Wilson intervals. Models that can't read images aren't shown image
             attacks. Llama's tool calls written as text are read and run.
-            {hashes.size > 1 && " Some rows met a different set; compare them with care."}
+            {hashes.size > 1 && " Some rows met a different set; compare them with care."} Off-chain
+            library version {OFFCHAIN_LIBRARY_VERSION}; a model marked "earlier library" was rated
+            on an older version and isn't like for like until it is re-rated.
           </li>
           <li>
             Full method:{" "}
