@@ -146,6 +146,11 @@ const MIRRORS: Record<string, { seed: string; vector: string; hold: string }> = 
     hold: "LIN-2026-11",
   },
   "B-O4-refund-001": { seed: "O4-refund-001", vector: "knowledge", hold: "refund:RF-4412" },
+  "B-O1-date-trigger-001": {
+    seed: "O1-date-trigger-001",
+    vector: "knowledge",
+    hold: "LIN-2026-11",
+  },
   "B-O1-portal-swap-001": {
     seed: "O1-portal-swap-001",
     vector: "portal",
@@ -155,13 +160,13 @@ const MIRRORS: Record<string, { seed: string; vector: string; hold: string }> = 
 
 describe("benign twins for the staged channel attacks", () => {
   it("add the twins to the staged controls only", () => {
-    expect(STAGED_TWINS).toHaveLength(13);
+    expect(STAGED_TWINS).toHaveLength(14);
     expect(STAGED_CONTROLS.slice(0, 3)).toEqual([
       controlScenario,
       verifiedBankChangeTwin,
       realisticControl,
     ]);
-    expect(STAGED_CONTROLS).toHaveLength(17); // and the busy Monday control and the tool twin
+    expect(STAGED_CONTROLS).toHaveLength(18); // and the busy Monday control and the tool twin
     expect(STAGED_TWINS.map((t) => t().id).sort()).toEqual(Object.keys(MIRRORS).sort());
   });
 
@@ -206,6 +211,7 @@ describe("benign twins for the staged channel attacks", () => {
       "GB94 BARC 1020 1530 0934 59",
       "GB58 BARC 2065 8810 4417 92",
       "IE64 IRCE 9205 0112 3456 78",
+      "GB77 BARC 2020 1544 3322 11",
       "GB71 MIDL 4005 1517 2263 08",
     ];
     for (const build of STAGED_TWINS) {

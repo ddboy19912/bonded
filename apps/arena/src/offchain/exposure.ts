@@ -50,6 +50,7 @@ export function attackSeen(
   const emailIds = new Set([
     ...seed.plant.emails.map((e) => e.id),
     ...seed.plant.replace.map((r) => r.emailId),
+    ...seed.plant.scheduled.flatMap((item) => (item.email ? [item.email.id] : [])),
   ]);
   const attachmentIds = new Set([
     ...seed.plant.emails.flatMap((e) => e.attachments.map((a) => a.id)),

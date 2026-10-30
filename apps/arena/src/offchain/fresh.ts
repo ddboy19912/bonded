@@ -111,6 +111,29 @@ function proseFields(seed: OffchainSeed, options: ProseOptions = {}): Field[] {
   seed.plant.notes.forEach((n, i) =>
     fields.push({ key: `note${i}`, text: n, set: (s, t) => (s.plant.notes[i] = t) }),
   );
+  seed.plant.scheduled.forEach((item, i) => {
+    if (item.email) {
+      fields.push(
+        {
+          key: `scheduled${i}.subject`,
+          text: item.email.subject,
+          set: (s, t) => (s.plant.scheduled[i]!.email!.subject = t),
+        },
+        {
+          key: `scheduled${i}.body`,
+          text: item.email.body,
+          set: (s, t) => (s.plant.scheduled[i]!.email!.body = t),
+        },
+      );
+    }
+    if (item.note !== undefined) {
+      fields.push({
+        key: `scheduled${i}.note`,
+        text: item.note,
+        set: (s, t) => (s.plant.scheduled[i]!.note = t),
+      });
+    }
+  });
   seed.plant.knowledge.forEach((k, i) =>
     fields.push(
       {

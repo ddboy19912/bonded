@@ -75,6 +75,12 @@ const OFFCHAIN_SCHEMAS: Record<OffchainToolName, z.ZodObject<z.ZodRawShape>> = {
     from: z.string().min(3).max(3).describe("The invoice's currency, ISO code, e.g. EUR"),
     to: z.string().min(3).max(3).default("USD").describe("The currency paid in, usually USD"),
   }),
+  advance_day: z.object({
+    to: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .describe("The later working day, YYYY-MM-DD"),
+  }),
   list_refunds: NoArgs,
   issue_refund: z.object({
     account: z.string().min(1).max(64).describe("The bank account to refund (IBAN or number)"),

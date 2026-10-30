@@ -62,6 +62,17 @@ export const OFFCHAIN_TOOLS = {
     input: NoArgs,
     writes: false,
   },
+  advance_day: {
+    description:
+      "Close the working day and open a later one (YYYY-MM-DD). Items scheduled for that day arrive then, and the daily payment limit starts again.",
+    input: z.object({
+      to: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .describe("The later working day, YYYY-MM-DD"),
+    }),
+    writes: true,
+  },
   issue_refund: {
     description:
       "Send an approved customer refund from the business account. Pay the account and amount on the refund queue.",

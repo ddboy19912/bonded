@@ -22,6 +22,7 @@ import {
   type Attachment,
   type Email,
   invoiceText,
+  isRealDate,
   type OffchainWorld,
   worldTools,
 } from "./world.js";
@@ -210,6 +211,23 @@ export const OffchainSeed = z.object({
         }),
       )
       .default([]),
+    /**
+     * Mail and notes that stay hidden until advance_day opens `on` or a later day. The date is
+     * after the world's today, so the instruction is not in the inbox at the start.
+     */
+    scheduled: z
+      .array(
+        z
+          .object({
+            on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+            email: EmailSeed.optional(),
+            note: z.string().min(1).optional(),
+          })
+          .refine((item) => (item.email === undefined) !== (item.note === undefined), {
+            message: "a scheduled item needs an email or a note, not both",
+          }),
+      )
+      .default([]),
   }),
   /**
    * The attack is one email with no attachments, so it can be re-delivered through another
@@ -336,6 +354,15 @@ export function seedProblem(
       return `${r.reference} has more than two decimals`;
     }
   }
+  const scheduledIds = seed.plant.scheduled.flatMap((item) => (item.email ? [item.email.id] : []));
+  for (const item of seed.plant.scheduled) {
+    if (!isRealDate(item.on)) return `${item.on} is not a date`;
+    if (item.on <= world.today) return `${item.on} is not after ${world.today}`;
+    if (item.email && (ids.has(item.email.id) || planted.includes(item.email.id))) {
+      return `email id ${item.email.id} is already in the inbox`;
+    }
+  }
+  if (new Set(scheduledIds).size !== scheduledIds.length) return "two scheduled emails share an id";
   if (seed.counterparty) {
     const cp = seed.counterparty;
     if (!cp.hijack && world.inbox.some((e) => e.threadId === cp.threadId)) {
@@ -380,8 +407,9 @@ export function seedVectors(seed: OffchainSeed): Vector[] {
   for (const m of p.messages) out.add(m.channel);
   if (Object.keys(p.portal).length || Object.keys(p.portalSwap).length) out.add("portal");
   if (Object.keys(p.plugin).length) out.add("plugin");
-  if (p.notes.length) out.add("memory");
+  if (p.notes.length || p.scheduled.some((item) => item.note !== undefined)) out.add("memory");
   if (p.knowledge.length) out.add("knowledge");
+  if (p.scheduled.some((item) => item.email !== undefined)) out.add("email");
   for (const tool of Object.keys(p.toolDescriptions) as OffchainToolName[]) {
     const channel = CHANNELS.find((c) => CHANNEL_TOOLS[c].includes(tool));
     if (channel) out.add(channel);
@@ -506,15 +534,7 @@ function plantSeed(world: OffchainWorld, seed: OffchainSeed, dir: string): Offch
     if (r.body !== undefined) email.body = r.body;
     if (r.attachments) email.attachments = r.attachments.map((a) => attachment(a, dir));
   }
-  const added: Email[] = seed.plant.emails.map((e) => ({
-    id: e.id,
-    threadId: e.threadId ?? `t-${e.id}`,
-    from: e.from,
-    subject: e.subject,
-    body: e.body,
-    receivedAt: e.receivedAt,
-    attachments: e.attachments.map((a) => attachment(a, dir)),
-  }));
+  const added: Email[] = seed.plant.emails.map((e) => plantedEmail(e, dir));
   world.inbox = [...world.inbox, ...added].sort((a, b) => b.receivedAt.localeCompare(a.receivedAt));
   const p = seed.plant;
   if (
@@ -546,7 +566,27 @@ function plantSeed(world: OffchainWorld, seed: OffchainSeed, dir: string): Offch
     world.refunds = [...(world.refunds ?? []), ...p.refunds.map((r) => ({ ...r }))];
     grantTools(world, ["list_refunds", "issue_refund"]);
   }
+  if (p.scheduled.length) {
+    world.scheduled = p.scheduled.map((item) => ({
+      on: item.on,
+      ...(item.email ? { email: plantedEmail(item.email, dir) } : {}),
+      ...(item.note !== undefined ? { note: item.note } : {}),
+    }));
+    grantTools(world, ["advance_day"]);
+  }
   return world;
+}
+
+function plantedEmail(seed: z.infer<typeof EmailSeed>, dir: string): Email {
+  return {
+    id: seed.id,
+    threadId: seed.threadId ?? `t-${seed.id}`,
+    from: seed.from,
+    subject: seed.subject,
+    body: seed.body,
+    receivedAt: seed.receivedAt,
+    attachments: seed.attachments.map((a) => attachment(a, dir)),
+  };
 }
 
 function attachment(seed: z.infer<typeof AttachmentSeed>, dir: string): Attachment {

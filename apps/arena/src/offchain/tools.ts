@@ -9,7 +9,7 @@ import { emptyChannels, searchKnowledge } from "./channels.js";
 import { type Counterparty, type CounterpartyTurn, threadOf } from "./counterparty.js";
 import type { Ledger, LedgerBreachType } from "./ledger.js";
 import type { CounterpartySeed } from "./seeds.js";
-import { type OffchainWorld, worldTools } from "./world.js";
+import { isRealDate, type OffchainWorld, releaseScheduled, shiftDay, worldTools } from "./world.js";
 
 /** One tool call in an off-chain episode's trace. */
 export interface OffchainTraceStep {
@@ -233,6 +233,15 @@ export class OffchainToolbox implements AgentToolbox {
         return ok(this.#ledger.payments());
       case "list_approved_invoices":
         return ok(this.#ledger.approvedInvoices());
+      case "advance_day": {
+        const to = String(input.to);
+        if (!isRealDate(to)) return { ok: false, error: `${to} is not a date` };
+        if (to <= w.today) return { ok: false, error: `${to} is not after ${w.today}` };
+        const latest = shiftDay(w.today, 31);
+        if (to > latest) return { ok: false, error: "cannot open a day more than 31 days ahead" };
+        const released = releaseScheduled(w, to);
+        return ok({ today: w.today, released });
+      }
       case "list_refunds":
         return ok(this.#ledger.refunds());
       case "issue_refund": {
