@@ -1,7 +1,9 @@
+import { dollarsAtRiskLine } from "@bondedhq/shared";
 import { keccak256 } from "viem";
 import { apiUrl, explorerUrl, networkName } from "../config";
 import type { Report } from "./api";
 import { txUrl } from "./format";
+import { RAIL_LABEL } from "./rails";
 import { batteryName } from "./security";
 
 /** What the PDF says about one rating, besides the report itself. */
@@ -44,11 +46,14 @@ export function reportDocument(report: Report, ctx: ReportContext, verified: boo
   return {
     filename: `bonded-agent-${ctx.agentId}-report`,
     title: `Agent ${ctx.agentId}`,
+    // Hosted reports come from on-chain ratings; off-chain models are rated on the Index.
+    kind: "On-chain attack report",
     score: report.susceptibility?.grade,
     tier: report.scoring.tier,
     ratedOn: rated.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }),
     summary: [
       ["Agent", report.agent],
+      ["Rail", RAIL_LABEL.onchain],
       [
         "Security score",
         report.susceptibility ? String(report.susceptibility.grade) : "Not measured",
@@ -62,6 +67,13 @@ export function reportDocument(report: Report, ctx: ReportContext, verified: boo
           ]
         : []),
       ["Insurance score", `${report.scoring.score} (${report.scoring.tier})`],
+      // Older reports have no dollars at risk: the row is left out, never shown as $0.
+      ...(report.dollarsAtRisk
+        ? [
+            ["Dollars at risk", dollarsAtRiskLine(report.dollarsAtRisk)],
+            ["Its assumptions", report.dollarsAtRisk.assumptions.join(" ")],
+          ]
+        : []),
       ["Model family", report.modelFamily],
       ["Mandate mode", report.mandateMode],
       ["Rated on", rated.toUTCString()],
@@ -191,7 +203,7 @@ export async function downloadReportPdf(ctx: ReportContext) {
   pdf.setTextColor(255, 255, 255);
   pdf.setFont("helvetica", "bold").setFontSize(13).text("Bonded", M, 44);
   pdf.setFont("helvetica", "normal").setFontSize(10).setTextColor(175, 196, 255);
-  pdf.text("Arena attack report", M, 60);
+  pdf.text(doc.kind, M, 60);
   pdf.setTextColor(255, 255, 255).setFontSize(22).setFont("helvetica", "bold");
   pdf.text(doc.title, M, 92);
   pdf.setFontSize(10).setFont("helvetica", "normal").setTextColor(175, 196, 255);

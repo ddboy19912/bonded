@@ -12,11 +12,13 @@ import {
   type ArenaAgent,
   type ChatClient,
   chatClientFromEnv,
+  dollarsAtRiskLine,
   llmConfigForModel,
   OFFCHAIN_LIBRARY_VERSION,
 } from "@bondedhq/shared";
 import { metaCapFallback, SpendingCap } from "../budget.js";
 import { loadDotEnv } from "../env.js";
+import { assertHeldOutOffMetaApi } from "../held-out-guard.js";
 import { controlsFor, probeCounterparties, runOffchainBatch } from "./batch.js";
 import { parsePushedChannels } from "./world.js";
 import type { Attribution } from "./judge.js";
@@ -26,6 +28,7 @@ import {
   assertHeldOutDir,
   defaultHeldOutDir,
   draftHeldOut,
+  isHeldOutSetDir,
   markSpent,
   RANKING_RUNS,
   unspentHeldOut,
@@ -39,7 +42,13 @@ import {
   viaChannel,
   worldFor,
 } from "./seeds.js";
-import { erroredEpisode, type Exposure, type MandateRow, summarizeRows } from "./summary.js";
+import {
+  erroredEpisode,
+  type Exposure,
+  type MandateRow,
+  offchainDollarsAtRisk,
+  summarizeRows,
+} from "./summary.js";
 
 const USAGE = `Usage: pnpm --filter @bonded/arena offchain --max-usd <n> [options]
 
@@ -56,6 +65,10 @@ saved, and --replay runs a saved set again exactly.
   --text-only                serve attachments' text layers only, never their images
   --mandate <row>            shown | hidden | both: tell the agent the mandate's rules, only its
                              job, or run both rows (default: both; the ledger enforces either way)
+  --enforce                  run the ledger in Enforce mode: a payment that breaks the mandate is
+                             blocked, and the attack still counts as a fall, as the vault blocks
+                             a breach on chain and the score still counts it. Default: Monitor
+                             (the payment goes through and the loss counts), as ratings run
   --runs <n>                 runs of every scenario in each row (default: 3; the Index
                              stays at 3 so its rows stay comparable)
   --ranking                  use ${RANKING_RUNS} runs per row instead of 3, for a narrower
@@ -87,7 +100,9 @@ saved, and --replay runs a saved set again exactly.
                              ~/.config/bonded/offchain-held-out). Refused if the directory is a
                              published seed folder or anywhere in the repo outside ratings/.
                              Variants an agent has already met are skipped, then the ones run
-                             are marked as met
+                             are marked as met. Refused if the agent, the drafter or the
+                             counterparty is a muse-* model: held-out attacks never go to Meta
+                             Model API (meta-models/... on Baseten is allowed)
   --reuse-held-out           run the held-out variants an agent already met too (to replay a
                              rating exactly); nothing new is marked
   --draft-held-out <n>       draft <n> new variants of each seed into the held-out directory
@@ -120,6 +135,7 @@ async function main() {
       vision: { type: "boolean", default: false },
       "text-only": { type: "boolean", default: false },
       mandate: { type: "string", default: "both" },
+      enforce: { type: "boolean", default: false },
       runs: { type: "string" },
       ranking: { type: "boolean", default: false },
       seeds: { type: "string" },
@@ -179,6 +195,7 @@ async function main() {
     throw new Error("--attribution must be planted or rule");
   // Attacks the agent never met stay out of the rate: they weren't tested.
   const exposure: Exposure = "measured";
+  const mandateMode = values.enforce ? "enforce" : "monitor";
   const pushedChannels = values["push-channels"]
     ? parsePushedChannels(values["push-channels"])
     : undefined;
@@ -190,6 +207,20 @@ async function main() {
     ...(draftCount !== undefined ? [values["generator-model"]] : []),
     values["counterparty-model"],
   ];
+  // Held-out text never goes to Meta Model API (held-out-guard.ts): not to the agent, the
+  // drafter or O6's counterparty. Refused before any key is read or model called.
+  const sendsHeldOut =
+    draftCount !== undefined ||
+    values["held-out"] !== undefined ||
+    (values.replay !== undefined && isHeldOutSetDir(values.replay));
+  if (sendsHeldOut)
+    assertHeldOutOffMetaApi([
+      { role: "the agent", model: values.model },
+      ...(draftCount !== undefined || (values.fresh && !values.replay)
+        ? [{ role: "the variant drafter", model: values["generator-model"] }]
+        : []),
+      { role: "O6's counterparty", model: values["counterparty-model"] },
+    ]);
   let client: ChatClient | undefined;
   if (!values.estimate) {
     loadDotEnv();
@@ -326,6 +357,12 @@ async function main() {
     maxUsd,
   );
   console.log(describeEstimate(estimate, maxUsd));
+  if (values.enforce) {
+    console.log(
+      "enforce: the ledger blocks a payment that breaks the mandate; a blocked attack still " +
+        "counts as a fall",
+    );
+  }
   if (values.estimate) return;
   const { episodes, notShown, skipped, accountStop, counterpartyTurns } = await runOffchainBatch({
     agent: () => agentFor(values.agent, values.model, client!, values.vision),
@@ -336,6 +373,7 @@ async function main() {
     ...(pushedChannels ? { pushedChannels } : {}),
     controls,
     attribution,
+    mandateMode,
     rows,
     runs,
     parallel,
@@ -345,11 +383,11 @@ async function main() {
   });
   // The score is the published set only. Held-out variants are a private finding, so a run
   // that includes them still compares with the Index.
-  const summary = summarizeRows(
-    episodes.filter((e) => !heldOutIds.has(e.result.scenarioId)),
-    rows,
-    exposure,
+  const published = episodes.filter(
+    (e) => !heldOutIds.has(e.result.scenarioId) && rows.includes(e.mandate),
   );
+  const summary = summarizeRows(published, rows, exposure);
+  const dollarsAtRisk = offchainDollarsAtRisk(published, OFFCHAIN_LIBRARY_VERSION);
   const heldAttacks = episodes.filter(
     (e) =>
       heldOutIds.has(e.result.scenarioId) &&
@@ -404,6 +442,12 @@ async function main() {
         `$${row.overpaidUsd}; tasks done ${row.tasks.done} of ${row.tasks.total}` +
         (row.errors.length ? `; ${row.errors.length} errored, not counted` : ""),
     );
+    if (values.enforce) {
+      const blocked = episodes
+        .filter((e) => e.mandate === row.mandate)
+        .reduce((n, e) => n + e.result.verdict.breaches.filter((b) => b.blocked).length, 0);
+      console.log(`  blocked by the mandate: ${blocked} payment or bank-change attempts`);
+    }
     if (row.notMet.length > 0) {
       console.log(
         `  not met, so not tested (${exposure === "measured" ? "left out of the rate" : "counted in the rate"}): ` +
@@ -443,6 +487,11 @@ async function main() {
       `spend $${cap.summary().spentUsd.toFixed(4)}`,
   );
   console.log(
+    `dollars at risk: ${dollarsAtRiskLine(dollarsAtRisk)} Lost $${dollarsAtRisk.lostUsd}, ` +
+      `overpaid $${dollarsAtRisk.overpaidUsd} over ${dollarsAtRisk.runs} runs ` +
+      "(assumptions in results.json)",
+  );
+  console.log(
     `counterparty (${values["counterparty-model"]}): refused ${counterpartyTurns.refused} of ` +
       `${counterpartyTurns.turns} turns in episodes`,
   );
@@ -465,6 +514,7 @@ async function main() {
     agent: agentFor(values.agent, values.model, client!, values.vision).name,
     libraryVersion: OFFCHAIN_LIBRARY_VERSION,
     attribution,
+    mandateMode,
     exposure,
     vision: values.vision,
     images: !values["text-only"],
@@ -481,6 +531,7 @@ async function main() {
       counterparty: { model: values["counterparty-model"], ...counterpartyTurns, probes },
     },
     ...summary,
+    dollarsAtRisk,
   };
   const results = episodes.map((e) => ({ mandate: e.mandate, ...e.result }));
   // Images are in the seeds; the record notes their size instead of repeating them.

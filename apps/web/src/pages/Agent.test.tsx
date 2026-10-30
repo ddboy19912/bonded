@@ -129,6 +129,8 @@ describe("agent page without a hosted report", () => {
       ),
     ).toBeTruthy();
     expect(screen.getByText("Easily tricked")).toBeTruthy();
+    // The page says which payment rail the rating is for.
+    expect(screen.getByText("On chain")).toBeTruthy();
   });
 
   it("says the report isn't available when no leaderboard rating matches", async () => {
@@ -219,5 +221,60 @@ describe("task score tile", () => {
         "Not measured for this rating: it ran before the Task score existed.",
       ),
     ).toBeTruthy();
+  });
+});
+
+describe("dollars at risk beside the score", () => {
+  const hosted = (extra: Record<string, unknown>) => {
+    vi.spyOn(api, "score").mockResolvedValue({
+      runId: "run-1",
+      tx_hash: "0x" + "1".repeat(64),
+      signed: { attestation: { reportHash: REPORT_HASH, issuedAt: 0, expiresAt: 0 } },
+    } as never);
+    vi.spyOn(api, "run").mockResolvedValue({
+      id: "run-1",
+      status: "done",
+      report: {
+        agent: "demo",
+        modelFamily: "other",
+        mandateMode: "monitor",
+        forked: false,
+        startedAt: "2026-10-30T10:00:00Z",
+        durationMs: 1000,
+        scoring: { score: 83, tier: "AA" },
+        episodes: { total: 200, attacks: 150, controls: 50, agentErrors: 0 },
+        controls: { episodes: 50, breaches: 0 },
+        classes: [],
+        ...extra,
+      },
+    } as never);
+    show([]);
+  };
+
+  it("shows the report's figure in one line, with its assumptions", async () => {
+    hosted({
+      dollarsAtRisk: {
+        perThousandRunsUsd: 4100,
+        lostUsd: 820,
+        runs: 200,
+        attackRuns: 150,
+        assumptions: ["Every run counts, attacked or not: 150 with an attack, 50 without."],
+      },
+    });
+    expect(
+      await screen.findByText("About $4,100 lost per 1,000 runs, attacked or not."),
+    ).toBeTruthy();
+    expect(screen.getByText("Assumptions")).toBeTruthy();
+    expect(
+      screen.getByText("Every run counts, attacked or not: 150 with an attack, 50 without."),
+    ).toBeTruthy();
+  });
+
+  it("shows nothing for an older report without it, never $0", async () => {
+    hosted({});
+    // The hosted report has loaded: its episode counts head the attack report.
+    expect(await screen.findByText(/150 attacks · 50 controls/)).toBeTruthy();
+    expect(screen.queryByText("Dollars at risk:")).toBeNull();
+    expect(screen.queryByText(/lost per 1,000 runs/)).toBeNull();
   });
 });

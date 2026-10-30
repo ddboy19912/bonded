@@ -4,6 +4,7 @@ import {
   OFFCHAIN_LIBRARY_VERSION,
 } from "@bondedhq/shared";
 import { useState } from "react";
+import { Link } from "react-router";
 import { BenchComparisonCard } from "../components/bench-comparison";
 import { VIZ } from "../components/charts";
 import {
@@ -18,6 +19,7 @@ import {
   fallFill,
   niceTicks,
 } from "../components/index-charts";
+import { RailTag } from "../components/rail-tag";
 import { Card, Page, linkClass } from "../components/ui";
 import {
   ATTACK_CLASS_NAMES,
@@ -731,11 +733,12 @@ function Results({ entries }: { entries: BondedIndexEntry[] }) {
         All results
       </h2>
       <div className="overflow-x-auto rounded-2xl border border-line">
-        <table className="w-full min-w-[46rem] text-left text-xs">
+        <table className="w-full min-w-[51rem] text-left text-xs">
           <thead className="bg-surface/70 text-muted">
             <tr>
               {[
                 "Model",
+                "Rail",
                 "Security",
                 "Task",
                 "Fell, rules shown",
@@ -755,6 +758,9 @@ function Results({ entries }: { entries: BondedIndexEntry[] }) {
               <tr key={e.model} className="border-t border-line align-top">
                 <td className="px-4 py-3">
                   <ModelName entry={e} note={resultNote(e)} />
+                </td>
+                <td className="px-4 py-3">
+                  <RailTag rail={e.rail} />
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-ink tabular-nums">
                   {e.score}
@@ -833,7 +839,16 @@ export function BondedIndexView({ index }: { index: BondedIndexData }) {
     <Page
       title="Bonded Index"
       eyebrow="Models"
-      intro="How often each model, inside the same payments agent, is tricked into paying the wrong account, and whether it still does the job."
+      intro={
+        <>
+          How often each model, inside the same payments agent, is tricked into paying the wrong
+          account, and whether it still does the job. Agents rated on chain are on the{" "}
+          <Link className={linkClass} to="/leaderboard">
+            Leaderboard
+          </Link>
+          .
+        </>
+      }
     >
       <div className="grid grid-cols-2 gap-x-6 gap-y-5 border-y border-line py-5 sm:grid-cols-4">
         <Kpi label="Models rated" value={`${entries.length}`} />

@@ -8,6 +8,7 @@ import { stringify } from "yaml";
 import { loadAttackLibrary } from "./attacks.js";
 import { loadDotEnv } from "./env.js";
 import { generateHeldOut } from "./held-out.js";
+import { assertHeldOutOffMetaApi } from "./held-out-guard.js";
 import { Sandbox } from "./sandbox.js";
 
 const USAGE = `Usage: pnpm heldout:generate --max-usd <n> [options]
@@ -19,7 +20,8 @@ OPENROUTER_API_KEY in .env and anvil (Foundry).
 
   --max-usd <n>     stop once model spend reaches this (required)
   --per-class <n>   keep at most this many per class (default: 2)
-  --model <id>      any OpenRouter model id (default: deepseek/deepseek-v4.1-flash)
+  --model <id>      any OpenRouter model id (default: deepseek/deepseek-v4.1-flash). Not a
+                    muse-* model: held-out attacks never go to Meta Model API
   --classes <list>  only draft from seeds of these classes, e.g. A1,A3 (default: all)
   --out <dir>       where to write them (default: ~/.config/bonded/held-out/<today>). Attacks
                     already there count toward --per-class, so a rerun only fills the gaps`;
@@ -43,6 +45,8 @@ async function main(): Promise<number> {
     console.log(USAGE);
     return values.help ? 0 : 1;
   }
+  // Checked before the sandbox starts; generateHeldOut checks it again.
+  assertHeldOutOffMetaApi([{ role: "the held-out drafter", model: values.model }]);
   loadDotEnv();
   const out = resolve(
     values.out ??

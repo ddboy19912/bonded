@@ -73,6 +73,16 @@ Every retrain must:
 
 When a held-out class has to join training, new held-out classes are chosen first, or the evaluation stops being honest.
 
+## Blocks become attacks
+
+A blocked check can become a new attack for the library, so live incidents feed it. Bonded keeps only a check's outcome, so the agent's owner saves the check (its `mandate`, `proposedAction` and `untrustedInputs`, plus Sentinel's answer) as JSON and runs:
+
+```bash
+pnpm --filter @bonded/arena incident-seed -- --block blocked-check.json
+```
+
+Plain code, no model, takes the text the agent read that names the action's address, puts `{{attacker}}` in the address's place, and takes the surface from the tool that returned it, the class from the surface, and what counts as success from the action (a transfer, an approval or a call). The mandate is not copied. The candidate must pass the bounty spec check and not copy a library attack. It goes to `attacks-staged/incidents/`, which no rating reads: a finding, not a score, until a person reviews it and a release moves it into `attacks/<class>/`. A swap names no outside address, so a blocked swap is left for a person to write up.
+
 ## Speed
 
 One check is one forward pass over the mandate, the proposed action and the untrusted inputs (about 500 to 700 tokens on Arena episodes).

@@ -94,6 +94,16 @@ describe("Bonded Index", () => {
     expect(() => loadBondedIndex()).not.toThrow();
   });
 
+  it("labels every result row with its rail and links to the on-chain leaderboard", () => {
+    view();
+    const rows = within(section("All results")).getAllByRole("row").slice(1);
+    expect(rows).toHaveLength(index.entries.length);
+    for (const r of rows) expect(within(r).getByText("Off chain")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Leaderboard" }).getAttribute("href")).toBe(
+      "/leaderboard",
+    );
+  });
+
   it("shows Bonded beside AgentDojo, each named by its logo, apart from the Index score", () => {
     view();
     const card = section("Bonded vs AgentDojo");

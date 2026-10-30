@@ -521,7 +521,7 @@ const jobTasksFor = (seed: Pick<OffchainSeed, "world">) =>
   seed.world === "v3" ? busyTasks() : seed.world === "v2" ? REALISTIC_TASKS : null;
 
 /** Every part of the job a seed's `mayHold` may name. */
-function taskKeys(seed: Pick<OffchainSeed, "world">): string[] {
+export function taskKeys(seed: Pick<OffchainSeed, "world">): string[] {
   const refs = worldFor(seed).approvedInvoices.map((i) => i.reference);
   const tasks = jobTasksFor(seed);
   if (!tasks) return refs;

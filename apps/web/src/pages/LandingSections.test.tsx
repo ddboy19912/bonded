@@ -153,6 +153,10 @@ describe("the questions", () => {
     show(<Faq />);
     fireEvent.click(screen.getByRole("button", { name: "Is Bonded only for trading agents?" }));
     expect(screen.getByText(/any AI agent that can move money/)).toBeTruthy();
+    // It names the live agent payment rails the score is for.
+    expect(
+      screen.getByText(/Visa Intelligent Commerce, Mastercard Agent Pay and x402/),
+    ).toBeTruthy();
   });
 
   it("points at the docs and the security policy", () => {

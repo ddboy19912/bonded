@@ -10,6 +10,8 @@ import {
   AttackSurface,
   type ClassObservation,
   type BreachEvidence,
+  type DollarsAtRisk,
+  dollarsAtRiskLine,
   mandateHash,
   type ReportFix,
   topFixIds,
@@ -34,6 +36,7 @@ import {
 } from "./attestation.js";
 import { SpendingCap, type TokenPrice } from "./budget.js";
 import { datasetRows, type SentinelRow, writeDataset } from "./dataset.js";
+import { ratingDollarsAtRisk } from "./dollars-at-risk.js";
 import type { BenignSeed } from "./benign.js";
 import { BENIGN_GOALS, type EpisodeResult, runEpisode, saveEpisode } from "./episode.js";
 import { AgentUrlUnavailableError, bondedFailure, RemoteAgent } from "./gateway/remote-agent.js";
@@ -353,6 +356,12 @@ export interface RatingReport {
    * have it.
    */
   task?: RatingTask;
+  /**
+   * Dollars at risk (dollars-at-risk.ts, docs/SCORING.md): money lost per 1,000 runs, attacked or
+   * not, with the assumptions behind it. Context beside the scores, never folded into them; the
+   * report hash commits to it. Older reports don't have it.
+   */
+  dollarsAtRisk?: DollarsAtRisk;
   stoppedEarly: string | null;
   mitigations: string[];
   /** The verified TEE the agent runs in, or null when it runs on the operator's own server. */
@@ -994,6 +1003,13 @@ export async function rateAgent(sandbox: Sandbox, options: RatingOptions): Promi
       remote ? LIVENESS_REMOTE_MIN_RATE : LIVENESS_MIN_RATE,
     ),
     task: taskScore(episodes, benignEpisodes),
+    dollarsAtRisk: ratingDollarsAtRisk(episodes, benignEpisodes, {
+      libraryVersion: ATTACK_LIBRARY_VERSION,
+      mandateMode: mode,
+      forked: sandbox.forked,
+      guarded: Boolean(options.sentinel),
+      batteries: Boolean(options.s1 || options.memory || options.worldState),
+    }),
     stoppedEarly,
     mitigations: mitigations(classes, mode),
     tee: options.tee
@@ -1354,7 +1370,6 @@ export function worldStateLines(report: RatingReport): string[] {
   ];
 }
 
-/** The report for people: score, tier, premium, per-class results and what to fix. */
 /** How the headline names the worst row's track: S2 says nothing, S1 says which kind. */
 export function trackLabel(w: Susceptibility): string {
   if (w.worstTrack !== "s1") return "";
@@ -1392,6 +1407,22 @@ function taskHeadline(task: RatingTask): string {
   );
 }
 
+/** The report's dollars-at-risk line and its assumptions; nothing for older reports. */
+export function dollarsAtRiskLines(report: RatingReport): string[] {
+  const d = report.dollarsAtRisk;
+  if (!d) return [];
+  return [
+    `**Dollars at risk:** ${dollarsAtRiskLine(d)} ` +
+      `$${d.lostUsd.toLocaleString("en-US", { maximumFractionDigits: 2 })} lost over ${d.runs} runs.`,
+    "",
+    "Assumptions:",
+    "",
+    ...d.assumptions.map((a) => `- ${a}`),
+    "",
+  ];
+}
+
+/** The report for people: score, tier, premium, per-class results and what to fix. */
 export function renderReportMarkdown(
   report: RatingReport,
   reportHash: `0x${string}`,
@@ -1418,6 +1449,7 @@ export function renderReportMarkdown(
         ]
       : []),
     ...(report.task ? [taskHeadline(report.task), ""] : []),
+    ...dollarsAtRiskLines(report),
     `**Insurance score ${s.score} (${s.tier})**${s.insurable ? "" : ", not insurable"}` +
       ` — the loss-and-cost axis that prices cover. ` +
       `Expected annual loss ${pct(s.expectedLoss)} of cover; premium ${pct(s.premiumRate)} a year ` +

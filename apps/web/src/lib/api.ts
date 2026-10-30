@@ -1,5 +1,5 @@
 import type { BindingLevel, RemoteMode, SelfServeAgentKind, SelfServeKind } from "@bondedhq/shared";
-import type { AttackSpec, LeaderboardEntry, Susceptibility } from "@bondedhq/shared";
+import type { AttackSpec, DollarsAtRisk, LeaderboardEntry, Susceptibility } from "@bondedhq/shared";
 import { apiUrl } from "../config";
 import type { EpisodeCard, EpisodeCounts, Outcome } from "./events";
 import type { AgentUrlInfo, CheckSummary, CodeHashInfo, Connection } from "./byoa-api";
@@ -310,6 +310,11 @@ export interface Report {
   liveness?: Liveness;
   /** The Task score: does it still do its job (docs/SCORING.md)? Older reports don't have it. */
   task?: TaskScoreView;
+  /**
+   * Money lost per 1,000 runs, attacked or not, with its assumptions (docs/SCORING.md). Older
+   * reports don't have it: show nothing, never $0.
+   */
+  dollarsAtRisk?: DollarsAtRisk;
   /** Set when the agent proved it runs in a TEE; reports from before Day 11 don't have it. */
   tee?: {
     measurement: `0x${string}`;

@@ -33,6 +33,7 @@ import {
 import { loadAttackLibrary } from "./attacks.js";
 import { fallbackForModels } from "./budget.js";
 import { budgetModels } from "./budget-models.js";
+import { assertHeldOutOffMetaApi } from "./held-out-guard.js";
 import { type CheckEvent, runConnectionCheck } from "./check.js";
 import { runControls } from "./controls.js";
 import { loadDotEnv, usesLanguageModel } from "./env.js";
@@ -120,7 +121,9 @@ Attacks:
                            as hosted ratings don't run it yet)
   --no-world               rate only: skip the world-state battery (same as --world-rounds 0)
   --held-out <dir>         rate only: also run the unpublished attacks in this folder (YAML, from
-                           pnpm heldout:generate); the report counts them as unpublished
+                           pnpm heldout:generate); the report counts them as unpublished. Refused
+                           with a muse-* agent or Sentinel model: held-out attacks never go to
+                           Meta Model API
   --list                   list the attack library and exit
 
 Remote agents (--agent remote, run or rate; and check):
@@ -144,8 +147,8 @@ Remote agents (--agent remote, run or rate; and check):
   --held-out-fresh <n>     rate only: variants per attack class made for this rating alone, never
                            reused (default: 1; 0 for none). Used payloads are recorded in
                            ~/.config/bonded/held-out-used.txt
-  --held-out-model <id>    draft those variants with this model (needs OPENROUTER_API_KEY);
-                           without it they are deterministic rewrites
+  --held-out-model <id>    draft those variants with this model (needs OPENROUTER_API_KEY; not a
+                           muse-* model); without it they are deterministic rewrites
   --held-out-max-usd <n>   spending cap for --held-out-model (default: 0.25)
 
 Run:
@@ -255,6 +258,27 @@ async function main(): Promise<number> {
   );
   const mode = AgentMode.safeParse(values.mode);
   if (!mode.success) throw new Error("--mode must be tools or chain");
+  // A remote agent's operator sees every attack their agent reads, so each of its ratings
+  // also gets a held-out set made for it alone, never reused.
+  const perClass = remote && command === "rate" ? settings.heldOutPerClass : 0;
+  // Held-out attacks never reach Meta Model API (held-out-guard.ts). A remote agent's own model
+  // isn't Bonded's to check: Bonded calls only the drafter for it.
+  if (heldOut.length > 0 || (perClass > 0 && values["held-out-model"]))
+    assertHeldOutOffMetaApi([
+      ...(remote
+        ? []
+        : [
+            ...budgetModels({ agent: values.agent, brain: values.brain, model: values.model }).map(
+              (model) => ({ role: "the agent", model }),
+            ),
+            ...budgetModels({
+              "sentinel-model": values["sentinel-model"],
+              "sentinel-fallback": values["sentinel-fallback"],
+              "sentinel-policy": values["sentinel-policy"],
+            }).map((model) => ({ role: "the Sentinel guard", model })),
+          ]),
+      ...(perClass > 0 ? [{ role: "the held-out drafter", model: values["held-out-model"] }] : []),
+    ]);
   // Only runs that call a language model read .env (for its API key); local scripted runs
   // never do, as the README promises.
   if (usesLanguageModel(values) || values["held-out-model"]) loadDotEnv();
@@ -388,9 +412,6 @@ ${agent.name}: Task score ${t.score === null ? "not measured" : `${t.score}/100 
           })
         : undefined;
       if (tee) console.log(`TEE verified: measurement ${tee.measurement}`);
-      // A remote agent's operator sees every attack their agent reads, so each of its ratings
-      // also gets a held-out set made for it alone, never reused.
-      const perClass = remote ? settings.heldOutPerClass : 0;
       console.log(describeProfile(settings));
       const fresh =
         perClass > 0

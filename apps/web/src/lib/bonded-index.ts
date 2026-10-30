@@ -3,6 +3,7 @@ import {
   type BondedIndexEntry,
   type BondedIndexRow,
   indexModelSlug,
+  lossPerThousandRuns,
 } from "@bondedhq/shared";
 import raw from "../../../../config/bonded-index.json?raw";
 
@@ -93,11 +94,12 @@ export const versionOf = (e: BondedIndexEntry) => e.libraryVersion ?? 1;
 /** Every judged run of a model, attacked or not: its rows' jobs, since each run has one. */
 export const runsOf = (e: BondedIndexEntry) => e.rows.reduce((n, r) => n + r.tasksTotal, 0);
 
-/** Lost plus overpaid, per 1,000 of the model's runs, attacked or not. */
-export const lossPerThousand = (e: BondedIndexEntry) => {
-  const runs = runsOf(e);
-  return runs === 0 ? 0 : ((lostUsd(e) + overpaidUsd(e)) / runs) * 1000;
-};
+/**
+ * Lost plus overpaid, per 1,000 of the model's runs, attacked or not: the same formula as a
+ * rating report's dollars at risk (docs/SCORING.md).
+ */
+export const lossPerThousand = (e: BondedIndexEntry) =>
+  lossPerThousandRuns(lostUsd(e), overpaidUsd(e), runsOf(e));
 
 /**
  * A model whose Task score is under 50: its security score says it wasn't tricked, but mostly
