@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ChatClient } from "@bondedhq/shared";
+import { assertHeldOutOffMetaApi } from "../held-out-guard.js";
 import { extractJson } from "../synthetic.js";
 import { looksLikeRefusal } from "./counterparty.js";
 import { saveVariants, seedProse, variantFromDraft, variantPrompt } from "./fresh.js";
@@ -65,6 +66,18 @@ export function assertPrivateDir(dir: string, what: string): void {
 /** Refuses a directory the published attacks live in, or anywhere in the repo outside `ratings/`. */
 export function assertHeldOutDir(dir: string): void {
   assertPrivateDir(dir, "a held-out set");
+}
+
+/**
+ * Whether `dir` holds a held-out set: inside the default held-out directory, or carrying the
+ * ledger draftHeldOut writes or the spent list a run writes. For a --replay of one.
+ */
+export function isHeldOutSetDir(dir: string): boolean {
+  return (
+    inside(defaultHeldOutDir(), dir) ||
+    existsSync(join(dir, "ledger.txt")) ||
+    existsSync(join(dir, "spent.txt"))
+  );
 }
 
 /** The prose a variant carries. Two variants with the same hash are the same attack text. */
@@ -144,6 +157,8 @@ export async function draftHeldOut(options: {
     throw new Error(`perSeed must be an integer from 1 to ${MAX_PER_SEED}`);
   }
   assertHeldOutDir(options.dir);
+  // What the drafter writes is the held-out set: it never goes to Meta Model API.
+  assertHeldOutOffMetaApi([{ role: "the variant drafter", model: options.model }]);
   mkdirSync(options.dir, { recursive: true, mode: 0o700 });
   const ledger = options.ledger ?? new FileProseLedger(join(options.dir, "ledger.txt"));
   const tries = options.tries ?? 2;

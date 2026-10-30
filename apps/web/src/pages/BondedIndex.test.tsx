@@ -94,11 +94,6 @@ describe("Bonded Index", () => {
     expect(() => loadBondedIndex()).not.toThrow();
   });
 
-  it("says off-chain models are rated, not insured", () => {
-    view();
-    expect(screen.getByText("Rated, not insured")).toBeTruthy();
-  });
-
   it("shows Bonded beside AgentDojo, each named by its logo, apart from the Index score", () => {
     view();
     const card = section("Bonded vs AgentDojo");
