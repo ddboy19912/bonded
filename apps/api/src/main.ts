@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import { serve } from "@hono/node-server";
-import { ArenaGateway, loadDotEnv } from "@bonded/arena";
+import { ArenaGateway, assertHeldOutOffMetaApi, loadDotEnv } from "@bonded/arena";
 import { Database } from "@bonded/db";
 import { Keeper, SolanaKeeper, connectChain, connectSolana, parseSolanaKey } from "@bonded/keeper";
 import { parseEvmDeployment } from "@bondedhq/shared";
@@ -334,6 +334,8 @@ if (role === "migrate") {
     // advisory text; every variant is still checked against the undefended reference agent),
     // otherwise deterministic rewrites.
     const heldOutModel = process.env.HELD_OUT_MODEL ?? "deepseek/deepseek-v4.1-flash";
+    // Held-out attacks never go to Meta Model API: refuse to start rather than fail each rating.
+    assertHeldOutOffMetaApi([{ role: "HELD_OUT_MODEL", model: heldOutModel }]);
     const llmKey = isMetaModel(heldOutModel)
       ? process.env.MODEL_API_KEY
       : (process.env.LLM_API_KEY ?? process.env.OPENROUTER_API_KEY);
