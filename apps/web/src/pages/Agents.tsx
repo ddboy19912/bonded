@@ -74,24 +74,33 @@ export function Agents() {
         </>
       }
     >
-      <Card
-        actions={
+      <Card>
+        <div className="-mx-5 -mt-5 mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4 sm:-mx-6 sm:-mt-6 sm:px-6">
+          <div className="inline-flex rounded-full bg-white/[0.06] p-1 text-sm" role="tablist">
+            {tabs.map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={show === key}
+                onClick={() => setShow(key)}
+                className={`flex items-center gap-2 rounded-full px-4 py-1.5 font-semibold ${show === key ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}
+              >
+                {label}
+                <span className="font-mono text-[11px] opacity-70">{counts[key]}</span>
+              </button>
+            ))}
+          </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex rounded-full bg-white/[0.06] p-1 text-sm" role="tablist">
-              {tabs.map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  role="tab"
-                  aria-selected={show === key}
-                  onClick={() => setShow(key)}
-                  className={`flex items-center gap-2 rounded-full px-4 py-1.5 font-semibold ${show === key ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}
-                >
-                  {label}
-                  <span className="font-mono text-[11px] opacity-70">{counts[key]}</span>
-                </button>
-              ))}
-            </div>
+            {narrowed && (
+              <button
+                type="button"
+                onClick={() => list.set({ tier: "all", vault: "any" })}
+                className="px-2 text-sm text-muted hover:text-ink"
+              >
+                Clear filters
+              </button>
+            )}
             <Select
               label="Tier"
               value={filters.tier}
@@ -122,9 +131,7 @@ export function Agents() {
               ]}
             />
           </div>
-        }
-        title={agents.data ? `${rows.length} ${rows.length === 1 ? "agent" : "agents"}` : "Agents"}
-      >
+        </div>
         {agents.isPending && !agents.error && <Loading what="agents" height="lg" />}
         <ErrorText error={agents.error} />
         {agents.data && rows.length === 0 && (

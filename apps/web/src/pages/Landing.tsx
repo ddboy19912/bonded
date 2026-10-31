@@ -10,6 +10,7 @@ import { APP_HOME, TEST_AGENT } from "../lib/routes";
 import { MANDATE_TOKENS } from "../lib/onboarding";
 import { ScoreRing, buttonClass, tierTone } from "../components/ui";
 import { Token, TokenChip, withTokens } from "../components/token";
+import { MarkField } from "../components/mark-field";
 import { LandingSentinel } from "./LandingSentinel";
 import {
   BringYourAgent,
@@ -55,39 +56,30 @@ export function Landing() {
 
 function Hero() {
   return (
-    <section className="relative px-4 pt-20 sm:px-6">
-      <div
-        className="pointer-events-none absolute top-[-420px] left-1/2 -z-10 h-[800px] w-[1400px] -translate-x-1/2 rounded-full blur-2xl"
-        style={{
-          background:
-            "radial-gradient(ellipse at 50% 100%, rgb(77 124 255 / .35), rgb(29 78 216 / .12) 35%, transparent 65%)",
-        }}
-        aria-hidden
-      />
-      <div className="mx-auto max-w-[880px] text-center">
-        <p className="inline-flex items-center gap-2 rounded-full border border-line-strong px-3.5 py-1.5 text-[13px] text-soft">
-          <span className="size-1.5 rounded-full bg-held" aria-hidden />
-          Safety ratings and automatic cover for AI trading agents
-        </p>
-        <h1 className="mt-6 font-serif text-[56px] leading-[0.96] tracking-tight sm:text-[104px]">
-          Don't cage your agent.
-          <br />
-          <em className="text-accent">Bond it.</em>
-        </h1>
-        <p className="mx-auto mt-7 max-w-[580px] text-lg leading-relaxed text-muted">
-          Bonded measures how much money an AI agent can be tricked into losing, and stops it.
-        </p>
-        <div className="mt-9 flex flex-wrap justify-center gap-3">
-          <a href="#how" className={buttonClass("primary", "lg")}>
-            See how it works <span aria-hidden>↓</span>
-          </a>
-          <Link to={TEST_AGENT} className={buttonClass("secondary", "lg")}>
-            Test your agent, free
-          </Link>
+    <section className="relative px-4 pt-14 sm:px-6">
+      <div className="mx-auto grid max-w-[1180px] items-center gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,560px)]">
+        <div className="pt-6 pb-4 lg:pb-12">
+          <p className="text-sm text-soft">
+            Safety ratings and automatic cover for AI trading agents
+          </p>
+          <h1 className="mt-5 font-serif text-[56px] leading-[0.98] sm:text-[88px]">
+            Don't cage your agent.
+            <br />
+            <span className="text-accent">Bond it.</span>
+          </h1>
+          <p className="mt-6 max-w-[500px] text-lg leading-relaxed text-soft">
+            Bonded measures how much money an AI agent can be tricked into losing, and stops it.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <a href="#how" className={buttonClass("primary", "lg")}>
+              See how it works <span aria-hidden>↓</span>
+            </a>
+            <Link to={TEST_AGENT} className={buttonClass("secondary", "lg")}>
+              Test your agent, free
+            </Link>
+          </div>
         </div>
-        <p className="mt-3 text-sm text-muted">
-          Have an agent? See how it scores, free. No vault, no bond, no tokens.
-        </p>
+        <MarkField className="-mt-4 lg:mt-0" />
       </div>
       <HeroProduct />
     </section>
