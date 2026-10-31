@@ -299,7 +299,7 @@ export function SiteLayout() {
               How it works
             </a>
             <a href="#sentinel" className="hover:text-ink">
-              Monitoring
+              Sentinel
             </a>
             <Link to="/index" className="hover:text-ink">
               Index

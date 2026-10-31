@@ -117,7 +117,7 @@ function HeroProduct() {
       <div className="hero-tilt">
         <div className="pane pane-feed">
           <div className="mb-2.5 flex items-center justify-between">
-            <span className="eyebrow">Attacks · live</span>
+            <span className="eyebrow">Arena · live</span>
             <span className="flex items-center gap-1.5 text-[11px] text-breach">
               <span className="size-1.5 rounded-full bg-breach-solid shadow-[0_0_8px_#ff5c3a]" />
               Red team attacking
@@ -610,8 +610,8 @@ function FinalCta() {
           See every agent's score, live.
         </h2>
         <p className="relative mx-auto mt-4 max-w-xl text-lg text-muted">
-          One scale for every agent, so the score can be the bar. Browse the leaderboard and live
-          attacks without a wallet. Connect one when you're ready to deposit, onboard an agent or
+          One scale for every agent, so the score can be the bar. Browse the leaderboard and the
+          Arena without a wallet. Connect one when you're ready to deposit, onboard an agent or
           underwrite.
         </p>
         <div className="relative mt-8 flex justify-center">
