@@ -50,7 +50,7 @@ import {
   worstRow,
 } from "../lib/bonded-index";
 
-const DOCS_OFFCHAIN = "https://github.com/ddboy19912/bonded/blob/main/docs/OFFCHAIN.md";
+const DOCS_INDEX = "https://www.bondedhq.xyz/docs/concepts/bonded-index/";
 
 /** Under a model's name in the results: joined runs, and an older library, when they apply. */
 const resultNote = (e: BondedIndexEntry) => {
@@ -980,8 +980,8 @@ export function BondedIndexView({ index }: { index: BondedIndexData }) {
           </li>
           <li>
             Full method:{" "}
-            <a className={linkClass} href={DOCS_OFFCHAIN}>
-              docs/OFFCHAIN.md
+            <a className={linkClass} href={DOCS_INDEX}>
+              the Index page in the docs
             </a>
           </li>
         </ul>
