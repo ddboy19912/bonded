@@ -43,7 +43,7 @@ function Welcome() {
     {
       to: "/agents/new",
       title: "Onboard your agent",
-      text: "Give it a vault and a bond, get it rated in the Arena, and let depositors trust it.",
+      text: "Give it a vault and a bond, get it rated against attacks, and let depositors trust it.",
       cta: "Onboard an agent",
       icon: "M7 7h10v10H7zM10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4",
     },
@@ -436,7 +436,7 @@ function AcrossBonded() {
           <div className="flex items-center justify-between">
             <h3 className="flex items-center gap-2 text-[17px] font-bold">
               <span className="size-[7px] rounded-full bg-breach-solid [animation:blink_1.4s_infinite]" />
-              Arena now
+              Live attacks
             </h3>
             <Link to="/arena" className={`text-sm ${linkClass}`}>
               Watch →

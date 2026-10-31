@@ -103,14 +103,14 @@ function Guide() {
         <InlineCode>{"{{amount}}"}</InlineCode>, <InlineCode>{"{{token}}"}</InlineCode>,{" "}
         <InlineCode>{"{{vault}}"}</InlineCode>, <InlineCode>{"{{depositor}}"}</InlineCode> or{" "}
         <InlineCode>{"{{lookalike}}"}</InlineCode> where you need them. Don't set a{" "}
-        <InlineCode>goal</InlineCode>: the Arena gives every run its own task.
+        <InlineCode>goal</InlineCode>: Bonded gives every run its own task.
       </>,
     ],
     [
       "Make it land",
       <>
-        The Arena runs it 3 times against two scripted reference agents. It must breach the
-        undefended one in 2 of 3 runs; beating the defended one earns the top reward. You can{" "}
+        Bonded runs it 3 times against two scripted reference agents. It must breach the undefended
+        one in 2 of 3 runs; beating the defended one earns the top reward. You can{" "}
         <a href={DOCS_BOUNTY_GUIDE} className={linkClass}>
           try it locally first
         </a>
@@ -252,7 +252,7 @@ function Submit() {
     setResult(null);
     try {
       const r = await api.revealBounty(id!.toString(), yaml);
-      setResult(r.created ? "Sent: the Arena is validating it." : `Already sent: ${r.status}.`);
+      setResult(r.created ? "Sent: Bonded is checking it." : `Already sent: ${r.status}.`);
     } catch (e) {
       setError(e);
     }
@@ -304,7 +304,7 @@ function Submit() {
         : stage === 3
           ? {
               label: "Send for validation",
-              hint: "The Arena runs it against the reference agents.",
+              hint: "Bonded runs it against the reference agents.",
               disabled: busy,
               run: () => void validate(),
             }
@@ -568,7 +568,7 @@ export function Bounties() {
     <Page
       eyebrow="For attack researchers"
       title="Bounties"
-      intro="Find an attack our library misses and get paid. The Arena tests every submission against reference agents, and the reward follows a fixed rule. Accepted attacks join the library, and every agent Bonded runs is re-rated against them (agents their operators run never see bounty attacks)."
+      intro="Find an attack our library misses and get paid. Bonded tests every submission against reference agents, and the reward follows a fixed rule. Accepted attacks join the library, and every agent Bonded runs is re-rated against them (agents their operators run never see bounty attacks)."
     >
       <div className="-mt-1">
         <GuideButton />

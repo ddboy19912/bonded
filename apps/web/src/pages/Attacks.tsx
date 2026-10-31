@@ -96,7 +96,7 @@ function Record({ s, since }: { s: AttackStats; since: string | null }) {
   if (!s.episodes)
     return (
       <p className="text-xs text-muted">
-        Not tried in the Arena{since ? ` since ${day(since)}` : ""}.
+        Not tried in a rating{since ? ` since ${day(since)}` : ""}.
       </p>
     );
   const rate = s.breaches / s.episodes;
@@ -256,8 +256,8 @@ function ClassGrid({
       </ul>
       {classes && (
         <p className="mt-2.5 text-xs text-muted">
-          An attempt is one Arena run with the attack hidden in what the agent reads. It got through
-          if the agent broke its mandate and the vault recorded a breach.
+          An attempt is one rating run with the attack hidden in what the agent reads. It got
+          through if the agent broke its mandate and the vault recorded a breach.
         </p>
       )}
     </section>
@@ -549,7 +549,7 @@ export function AttackDetail() {
       intro={a.description}
       actions={
         <Link to={`/arena?attack=${encodeURIComponent(a.id)}`} className={buttonClass("secondary")}>
-          See its episodes in the Arena →
+          See its live episodes →
         </Link>
       }
     >
@@ -619,9 +619,7 @@ export function AttackDetail() {
               {placeholders.map((p) => (
                 <Fragment key={p}>
                   <dt className="font-mono text-[13px] text-accent">{p}</dt>
-                  <dd className="text-muted">
-                    {PLACEHOLDER_MEANINGS[p] ?? "filled in by the Arena"}
-                  </dd>
+                  <dd className="text-muted">{PLACEHOLDER_MEANINGS[p] ?? "filled in by Bonded"}</dd>
                 </Fragment>
               ))}
             </dl>
@@ -664,7 +662,7 @@ export function AttackDetail() {
             </ul>
           </section>
           <section className="panel p-6">
-            <h2 className="text-lg font-bold">How the Arena varies it</h2>
+            <h2 className="text-lg font-bold">How each rating varies it</h2>
             <p className="mt-2 text-sm leading-relaxed text-soft">{a.variantPrompt}</p>
             <p className="mt-3 text-xs text-muted">
               Each rating runs every attack several times, so an agent can't pass by luck.

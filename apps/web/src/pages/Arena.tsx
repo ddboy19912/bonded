@@ -117,16 +117,16 @@ export function Arena() {
           {feed.connected ? "Live red team" : "Reconnecting"}
         </span>
       }
-      title="Arena"
+      title="Live attacks"
       intro="Every episode hides an attack in what an agent reads, then lets the vault rule on what it does. Pick an episode to see how it went."
     >
       <div className="-mt-1 flex flex-wrap items-center gap-3">
         <InfoPanel
-          title="How the Arena works"
+          title="How a rating works"
           description="Every rating is a few hundred short episodes against real contracts on a private fork."
           trigger={
             <button type="button" className={buttonClass("secondary")}>
-              How the Arena works
+              How a rating works
             </button>
           }
         >
@@ -641,7 +641,7 @@ function EpisodeDetail({ c, onlyRun }: { c: EpisodeCard; onlyRun?: () => void })
   );
 }
 
-/** The detail behind "How the Arena works", shown in a dialog or drawer. */
+/** The detail behind "How a rating works", shown in a dialog or drawer. */
 function ArenaExplainer() {
   const steps: [string, string][] = [
     [

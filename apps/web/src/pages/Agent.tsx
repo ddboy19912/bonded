@@ -215,7 +215,7 @@ export function Agent() {
             </Link>
           )}
           <Link to="/arena" className={buttonClass("light")}>
-            Watch the Arena
+            Watch the attacks
           </Link>
         </>
       }
@@ -246,7 +246,7 @@ export function Agent() {
         {report?.sentinel && (
           <Link to="/sentinel">
             <Badge tone="brand" dot>
-              Rated with Sentinel on
+              Rated with the live guard on
             </Badge>
           </Link>
         )}
@@ -872,10 +872,11 @@ function SentinelChecks({ agentId, ratedWith }: { agentId: string; ratedWith: bo
   const week = checks.data?.last7d;
   if (!week || (week.checks === 0 && !ratedWith)) return null;
   return (
-    <Card title="Sentinel checks">
+    <Card title="Live guard checks">
       {week.checks === 0 ? (
         <p className="text-sm text-muted">
-          Rated with Sentinel on, but it hasn't asked Sentinel about a trade in the last 7 days.{" "}
+          Rated with the live guard on, but it hasn't asked the guard about a trade in the last 7
+          days.{" "}
           <Link to="/sentinel" className={linkClass}>
             How to ask
           </Link>
@@ -883,7 +884,7 @@ function SentinelChecks({ agentId, ratedWith }: { agentId: string; ratedWith: bo
       ) : (
         <>
           <p className="text-sm text-muted">
-            In the last 7 days this agent asked Sentinel about{" "}
+            In the last 7 days this agent asked the guard about{" "}
             <span className="text-ink tabular-nums">{week.checks.toLocaleString()}</span>{" "}
             {week.checks === 1 ? "trade" : "trades"}, and{" "}
             <span className={week.blocked ? "text-breach tabular-nums" : "text-ink tabular-nums"}>

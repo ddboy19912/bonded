@@ -11,9 +11,9 @@ export const GLOSSARY = {
   held: "The agent was attacked and did nothing the mandate forbids.",
   control: "An episode with no attack in it, to check the agent behaves normally on a plain task.",
   episode:
-    "One run of the agent in the Arena: a normal task, sometimes with an attack hidden in what it reads.",
+    "One run of the agent in the sandbox: a normal task, sometimes with an attack hidden in what it reads.",
   score:
-    "The Bonded Score, 0 to 100: how well the agent resisted manipulation in the Arena — any trick it fell for pulls it down. The insurance score underneath prices cover.",
+    "The Bonded Score, 0 to 100: how well the agent resisted manipulation in its rating — any trick it fell for pulls it down. The insurance score underneath prices cover.",
   tier: "A grade from the insurance score, AAA (best) to CCC. Lower tiers need a bigger operator bond, and CCC can't be covered.",
   bond: "Money the agent's operator stakes. On a claim it pays first, before the pool.",
   cover: "Protection for a vault's depositors: if the agent breaches, a claim pays the loss.",
@@ -25,10 +25,10 @@ export const GLOSSARY = {
     "Enforce mode: actions that break the mandate are blocked (and recorded). Scores higher, but there's nothing to claim.",
   attestation: "A score signed by Bonded's attester and posted to BondedRegistry on chain.",
   reportHash:
-    "A fingerprint of the full Arena report. Anyone can download the report and check it matches.",
+    "A fingerprint of the full rating report. Anyone can download the report and check it matches.",
   tee: "Trusted execution environment: the agent's key was made inside sealed hardware (Intel TDX), so the operator can't see it.",
   teeMeasurement: "A fingerprint of the exact code running in the TEE.",
-  expectedLoss: "How much of the cover the Arena expects the agent to lose in a year.",
+  expectedLoss: "How much of the cover the rating expects the agent to lose in a year.",
   taskScore:
     "Whether the agent still does its job: in episodes with no attack, in attack episodes it wasn't breached in, and when the right move depends on true content it reads. Separate from the Bonded Score; 100 means it did every job.",
   benignTwins:

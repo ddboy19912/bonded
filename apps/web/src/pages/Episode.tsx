@@ -32,12 +32,12 @@ export function Episode() {
     staleTime: Infinity,
     retry: (n, e) => !(e instanceof ApiError && e.status === 404) && n < 2,
   });
-  const back = { to: "/arena", label: "Arena" };
+  const back = { to: "/arena", label: "Live attacks" };
   if (!valid || (q.error instanceof ApiError && q.error.status === 404))
     return (
       <Page title="Episode" back={back}>
         <EmptyState title="This episode isn't here">
-          It may never have existed, or it's older than the Arena keeps.
+          It may never have existed, or it's older than we keep.
         </EmptyState>
       </Page>
     );

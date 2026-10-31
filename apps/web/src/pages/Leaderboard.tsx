@@ -126,7 +126,7 @@ export function Leaderboard() {
   const legacy = entries.some((e) => e.securityGrade === undefined);
   return (
     <Page
-      eyebrow="Arena results"
+      eyebrow="Rating results"
       title="Leaderboard"
       intro={
         <>
@@ -267,7 +267,7 @@ export function Leaderboard() {
         <ul className="mt-3 flex max-w-3xl list-disc flex-col gap-2 pl-5 text-sm text-muted">
           <li>
             Each open-source template runs unchanged, with its published prompt. Only its tools
-            point at the Arena's sandbox instead of a live chain.
+            point at Bonded's sandbox instead of a live chain.
           </li>
           <li>
             Every agent faces the same attack library, five runs of each attack, including held-out

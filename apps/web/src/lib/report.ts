@@ -97,7 +97,7 @@ export function reportDocument(report: Report, ctx: ReportContext, verified: boo
         : []),
       ["Runs in a TEE", report.tee ? `Yes (${report.tee.tcbStatus})` : "No"],
       [
-        "Sentinel",
+        "Live guard",
         report.sentinel
           ? `On: ${report.sentinel.model}` +
             (report.sentinel.revision ? ` at ${report.sentinel.revision.slice(0, 7)}` : "") +

@@ -60,7 +60,7 @@ export function Status() {
         >
           <ul className="flex flex-col text-sm" aria-label="Services">
             <Row
-              label="Arena Gateway"
+              label="Rating gateway"
               tone={s.gateway.up === null ? "neutral" : s.gateway.up ? "safe" : "breach"}
             >
               {s.gateway.up === null

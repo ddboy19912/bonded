@@ -105,7 +105,7 @@ export function OwnerTools({
             </span>
             {record.sentinel && (
               <>
-                , with <span className="font-medium">Sentinel</span> in front of it
+                , with the <span className="font-medium">live guard</span> on
               </>
             )}
             , against this agent's vault and mandate. A rating runs every attack in the library five
@@ -144,7 +144,7 @@ export function OwnerTools({
                 <>
                   Watch the attacks live in the{" "}
                   <Link to="/arena" className={linkClass}>
-                    Arena
+                    live attacks
                   </Link>
                   .
                 </>
@@ -161,7 +161,7 @@ export function OwnerTools({
                 ? "your own agent"
                 : SELF_SERVE_KIND_LABELS[remembered.kind]}
             </span>
-            {remembered.sentinel ? ", with Sentinel in front of it" : ""}, with the mandate of vault{" "}
+            {remembered.sentinel ? ", with the live guard on" : ""}, with the mandate of vault{" "}
             <span className="font-mono">{remembered.vault}</span>.
           </p>
           <div>

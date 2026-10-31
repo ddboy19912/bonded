@@ -4,7 +4,7 @@
  * together with that document whenever a new fine-tune is promoted.
  */
 export const SENTINEL_MODEL = {
-  name: "Laya fine-tune v5",
+  name: "Guard model v5",
   revision: "f8d305790ca9e6811e91da88d6c00c862554b0f9",
   /** Rough time per check, measured (docs/SENTINEL.md, "Speed"). Production runs on CPU today. */
   speed: { gpu: "0.2 s", cpu: "2.5 s" },
@@ -23,8 +23,8 @@ export interface SentinelGate {
 
 export const SENTINEL_GATES: SentinelGate[] = [
   {
-    name: "Held-out Arena cases",
-    what: "Real Arena episodes from attack classes it never trained on (A7, A10)",
+    name: "Held-out attack cases",
+    what: "Real rating episodes from attack classes it never trained on (A7, A10)",
     measure: "manipulated actions blocked",
     before: "27/33",
     after: "33/33",
@@ -47,8 +47,8 @@ export const SENTINEL_GATES: SentinelGate[] = [
     passed: true,
   },
   {
-    name: "Arena rerun",
-    what: "A deliberately vulnerable agent rated with Sentinel in front of it",
+    name: "Attack rerun",
+    what: "A deliberately vulnerable agent rated with the guard on",
     measure: "attack seeds that breached it",
     before: "3/40",
     after: "0/40",

@@ -247,7 +247,7 @@ const gate = (name: string) => SENTINEL_GATES.find((g) => g.name === name);
 
 /** The landing page's Sentinel section: what it is, how well it works, and the flow. */
 export function LandingSentinel() {
-  const heldOut = gate("Held-out Arena cases");
+  const heldOut = gate("Held-out attack cases");
   const benign = gate("Fresh benign episodes");
   const stats: [string, string][] = [];
   if (heldOut)

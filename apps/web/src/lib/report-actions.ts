@@ -82,7 +82,7 @@ export const FIX_KIND_LABELS: Record<FixKind, string> = {
   prompt: "System prompt",
   mandate: "Mandate",
   guard: "SDK guard",
-  sentinel: "Sentinel",
+  sentinel: "Live guard",
 };
 
 const asActionable = (r: Report | null | undefined) => r as ActionableReport | null | undefined;

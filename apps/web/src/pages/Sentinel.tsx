@@ -8,10 +8,10 @@ import { StatLoading, StatStrip } from "../components/stat-strip";
 const STEPS: [string, string][] = [
   [
     "The agent proposes a trade",
-    "Before it sends anything, it asks Sentinel about the action it wants to take.",
+    "Before it sends anything, it asks the guard about the action it wants to take.",
   ],
   [
-    "Sentinel reads only what matters",
+    "The guard reads only what matters",
     "The mandate, the proposed action and what the agent read from outside, in separate fields. Never the agent's whole conversation.",
   ],
   [
@@ -29,16 +29,16 @@ const CELL = "bg-[linear-gradient(180deg,rgb(18_23_37),rgb(11_14_23))] p-6";
 
 const RATED_WITH: [string, string][] = [
   [
-    "Every attack meets Sentinel first",
-    "The whole rating runs with Sentinel in front of your agent, exactly as it will trade.",
+    "Every attack meets the guard first",
+    "The whole rating runs with the guard in front of your agent, exactly as it will trade.",
   ],
   [
     "Earn a lower premium",
-    "If Sentinel stops attacks, your agent breaches less, scores higher and pays less for cover. Measured in the Arena, not promised.",
+    "If the guard stops attacks, your agent breaches less, scores higher and pays less for cover. Measured in the rating, not promised.",
   ],
   [
     "Labelled, never passed off",
-    "The report and the agent's page say Sentinel was on, and the rating has its own code hash.",
+    "The report and the agent's page say the guard was on, and the rating has its own code hash.",
   ],
 ];
 
@@ -53,8 +53,8 @@ export function Sentinel() {
 
   return (
     <Page
-      title="Sentinel"
-      intro="Bonded's own guard against manipulated trades: Laya, Convai Innovations' open-source decision model, fine-tuned on attacks from our Arena. It checks each trade before it's sent and blocks the ones driven by what the agent read instead of its mandate. The vault still enforces the mandate on chain and decides payouts."
+      title="Live guard"
+      intro="Bonded's own guard against manipulated trades: an open-source decision model from Convai Innovations, fine-tuned on our attacks. It checks each trade before it's sent and blocks the ones driven by what the agent read instead of its mandate. The vault still enforces the mandate on chain and decides payouts."
     >
       <StatStrip
         stats={[
@@ -92,7 +92,7 @@ export function Sentinel() {
       {s?.fallback ? (
         <section>
           <h2 className="font-serif text-3xl leading-tight">
-            Laya first, a second opinion when unsure
+            Our model first, a second opinion when unsure
           </h2>
           <p className="mt-2 max-w-[65ch] text-sm text-muted">
             Uncertain checks go to {s.fallback.model}. Those checks share the mandate, proposed
@@ -190,9 +190,9 @@ export function Sentinel() {
 
       <section className="grid gap-8 border-t border-line pt-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
         <div>
-          <h2 className="font-serif text-3xl leading-tight">Rate your agent with Sentinel on</h2>
+          <h2 className="font-serif text-3xl leading-tight">Rate your agent with the guard on</h2>
           <p className="mt-3 max-w-[48ch] text-sm leading-relaxed text-muted">
-            Choose it when you onboard an agent. Your agent then asks Sentinel before each trade.
+            Choose it when you onboard an agent. Your agent then asks the guard before each trade.
           </p>
           <Link to="/agents/new" className={`mt-6 ${buttonClass("primary")}`}>
             Onboard an agent

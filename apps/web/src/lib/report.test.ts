@@ -190,8 +190,8 @@ describe("report PDF content", () => {
     expect(reportDocument(report, ctx, true).world).toEqual([]);
   });
 
-  it("says whether Sentinel was in front of the agent, and which checkpoint", () => {
-    expect(reportDocument(report, ctx, true).summary).toContainEqual(["Sentinel", "Off"]);
+  it("says whether the live guard was in front of the agent, and which checkpoint", () => {
+    expect(reportDocument(report, ctx, true).summary).toContainEqual(["Live guard", "Off"]);
     const withSentinel = {
       ...report,
       sentinel: {
@@ -202,7 +202,7 @@ describe("report PDF content", () => {
       },
     };
     expect(reportDocument(withSentinel, ctx, true).summary).toContainEqual([
-      "Sentinel",
+      "Live guard",
       "On: laya/typed-decisions at f8d3057, questions v3, blocks at 0.7",
     ]);
   });

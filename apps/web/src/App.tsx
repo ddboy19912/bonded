@@ -121,7 +121,7 @@ function Sidebar() {
           <Item
             to="/arena"
             icon={ICONS.arena}
-            label="Arena"
+            label="Live attacks"
             extra={
               <span
                 className="size-[7px] rounded-full bg-breach-solid shadow-[0_0_8px_#ff5c3a] [animation:blink_1.4s_infinite]"
@@ -130,7 +130,7 @@ function Sidebar() {
             }
           />
           <Item to="/attacks" icon={ICONS.redteam} label="Red team" />
-          <Item to="/sentinel" icon={ICONS.sentinel} label="Sentinel" />
+          <Item to="/sentinel" icon={ICONS.sentinel} label="Live guard" />
           <Item to="/vaults" icon={ICONS.vaults} label="Vaults" />
         </Group>
         <Group label="Yours">

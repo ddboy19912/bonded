@@ -952,10 +952,10 @@ export function NewAgent() {
                 <Switch
                   checked={sentinel}
                   onChange={() => setSentinel((v) => !v)}
-                  label="Rate it with Sentinel in front"
+                  label="Rate it with the live guard on"
                   description={
                     <>
-                      Sentinel stops the trades driven by what the agent read, so it breaches less,
+                      The guard stops the trades driven by what the agent read, so it breaches less,
                       scores higher and cover costs less. Your agent then asks it before each trade
                       (
                       <Link to="/sentinel" className={linkClass}>

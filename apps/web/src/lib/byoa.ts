@@ -69,7 +69,7 @@ export function runnerView(record: RunnerRecord | undefined): RunnerView {
     return {
       label: "waiting",
       tone: "warn",
-      hint: "The token is ready. Start the runner with it; it connects out to the Arena.",
+      hint: "The token is ready. Start the runner with it; it connects out to Bonded.",
     };
   if (r.connected)
     return {

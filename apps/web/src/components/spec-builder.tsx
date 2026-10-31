@@ -280,7 +280,7 @@ export function SpecBuilder({
         <Wide>
           <Field
             label="What it says"
-            hint="Click a placeholder to insert it where the Arena should fill in an address or amount."
+            hint="Click a placeholder to insert it where Bonded should fill in an address or amount."
           >
             <textarea
               ref={payloadRef}

@@ -368,7 +368,7 @@ export function ConnectAgent({
       title={readOnly ? "Its runner" : "Connect your agent"}
       description={
         readOnly
-          ? "This agent runs on its operator's servers. The Arena reaches it through a small runner next to it, or at its URL, and attacks it there."
+          ? "This agent runs on its operator's servers. Bonded reaches it through a small runner next to it, or at its URL, and attacks it there."
           : "Your agent runs where it runs. Bonded reaches it at its URL, or through a small runner next to it, and attacks it there."
       }
       actions={
@@ -445,8 +445,8 @@ export function ConnectAgent({
             <p className="text-muted">
               {connected
                 ? status.connection === "url"
-                  ? "Its URL is verified, so the Arena can rate it and renew its score."
-                  : "Its runner is connected, so the Arena can rate it and renew its score."
+                  ? "Its URL is verified, so Bonded can rate it and renew its score."
+                  : "Its runner is connected, so Bonded can rate it and renew its score."
                 : runner.data?.runner
                   ? `Its runner is offline (last seen ${when(Math.floor(Date.parse(runner.data.runner.lastHeartbeatAt) / 1000))}).`
                   : "Its runner hasn't connected yet."}{" "}
