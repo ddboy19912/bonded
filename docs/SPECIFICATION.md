@@ -38,7 +38,7 @@ AI agents now hold and move real money, and even non-chat decision models can be
 2. **The Bonded Score and actuarial pricing.** Red-team results become two numbers: the Bonded Score, a security grade for how easily the agent is tricked, and an expected-loss estimate, which becomes an insurance score and a premium. Every discount is earned in the Arena, not asserted.
 3. **Mandate Vaults.** Agents trade from a smart account that knows their mandate. The vault either blocks breaches or records them on-chain.
 4. **Cover.** Depositors in agent-run vaults are protected. When the agent breaches its mandate, the operator's bond is slashed first, then the underwriting pool pays. The payout is automatic and takes **minutes, not months**.
-5. **Bonded Sentinel.** A fast guard (about 33 ms per check on a T4 GPU by the author's benchmark; about 2.5 s on CPU, measured) built on **Laya**, an open-source "System One" decision model, fine-tuned on Arena data. Agents that use it earn a premium discount.
+5. **Bonded Sentinel.** A real-time guard (Laya v5 in production: about 2.5 s per check on CPU and about 0.2 s on a GPU, measured; see [docs/SENTINEL.md](SENTINEL.md)) built on **Laya**, an open-source "System One" decision model, fine-tuned on Arena data. It is advisory. Rating an agent with Sentinel in front measures what it blocks, so a lower expected loss can follow; no fixed premium discount is applied for using it yet.
 
 **The bar for agents.** Every agent gets the same attacks and the same 0–100 scale, so scores compare: a number that platforms, vaults and depositors can require and agent builders can aim for.
 
@@ -64,7 +64,7 @@ This is a fidelity (crime) policy for AI agents, the same established insurance 
 | **The Arena** | AI red-team. Attacker agents run adversarial episodes against the target agent in a forked-chain sandbox | Off-chain service |
 | **Bonded Score** | 0–100 security grade (how easily the agent is tricked), with a separate insurance score from expected loss; both signed by the Arena and posted on-chain (ERC-8004 compatible) | Arena (off-chain) → registries (on-chain) |
 | **Cover** | Operator bond (first loss) + underwriting pool + parametric claims + dispute module | On-chain |
-| **Bonded Sentinel** | Per-action guard (T4 GPU: about 220 ms; CPU: about 2.5 s) on a fine-tuned Laya model. Advisory only; earns a premium discount | Off-chain service (GPU or CPU) |
+| **Bonded Sentinel** | Per-action guard (about 0.2 s on a T4 GPU, about 2.5 s on CPU) on a fine-tuned Laya model. Advisory only; no fixed premium discount yet | Off-chain service (GPU or CPU) |
 
 Supporting parts: TEE key custody, community attack bounties, public leaderboard, `@bondedhq/sdk`.
 
@@ -72,7 +72,7 @@ Supporting parts: TEE key custody, community attack bounties, public leaderboard
 
 1. **Code decides money; AI advises.** Pass/fail and claims triggers are deterministic and verifiable on-chain. LLMs and Laya produce scores, reports and warnings, never payouts.
 2. **The Arena's judge is the production contract.** In the sandbox the agent trades through a real `MandateVault` on a forked chain. A breach in the Arena is recorded by the same bytecode that records breaches in production.
-3. **Every discount is earned in the Arena.** Enforce mode, TEE custody and Sentinel all lower the premium *because re-running the Arena with them on measurably lowers breach rates or severity*.
+3. **Every discount is earned in the Arena.** Enforce mode and TEE custody are rated in the Arena, and the premium follows what the Arena measures. Sentinel is planned to work the same way: only the operator-bond discount is a fixed formula today (Section 9.1).
 4. **Skin in the game first.** The operator's bond absorbs losses before the pool does.
 5. **Honest numbers.** All reported metrics come from held-out data, and the assumptions are listed next to them.
 
@@ -362,7 +362,7 @@ Each seed is a YAML spec: `id`, `class`, `surfaces`, `payload_template`, `succes
 - **Adaptive loop:** seed → variant → run → feedback (did it breach, and how close did it get?) → mutate. This mirrors the adaptive attacks in the literature, which doubled success rates against decision models.
 - **Guardrails:** attacks only ever target sandboxed forks with test funds, never live systems.
 
-**Status :** the adaptive loop that mutates attacks against an agent's responses is not built. Ratings run three kinds of attack:
+**Status:** the adaptive loop is built ([the adaptive attacker](ADAPTIVE-ATTACKER.md) and [Harbinger](HARBINGER.md), which writes and evolves attacks from a template library), and it runs on staged attacks. Its results are findings: they don't enter ratings or the library version, and a successful rewrite becomes a seed only in a batched release. Ratings run three kinds of attack:
 - the hand-written seeds, each repeatable under different benign goals (`--repeats`);
 - accepted community bounties (Section 13);
 - a **held-out set** of unpublished attacks that the operator can't study in advance.
@@ -514,7 +514,7 @@ Laya is Convai Innovations' **open-source (Apache 2.0) "System One" decision mod
 2. **Scale-up:** an LLM generates synthetic (state, action, label) examples, seeded from real traces. Target: about 30k questions, the scale of Laya's reference fine-tune.
 3. **Fine-tune:** Laya's RLCD recipe. Fit temperatures and pin the base revision.
 4. **Held-out evaluation:** test only on **attack classes and variants not seen in training**, plus benign traffic. Held out: two classes, fixed in `SENTINEL_HELD_OUT_CLASSES`. Each is a new channel for an attack type that stays in training (A1/A2 injection, A6 social engineering), and every scoring group keeps training data. Report TPR at 1% FPR, ECE, and p50/p95 latency on GPU and CPU. Negation tests are included explicitly.
-5. **Product impact:** re-run the Arena with Sentinel on (the agent calls the Sentinel pre-trade hook through the SDK). The measured drop in b feeds straight into the premium (Section 9). **The discount is earned, not asserted.**
+5. **Product impact:** re-run the Arena with Sentinel on (the agent calls the Sentinel pre-trade hook through the SDK). The measured drop in b would feed straight into the premium (Section 9). **A discount must be earned, not asserted.** Status: ratings can run with Sentinel in front (`"sentinel": true`), but no premium discount for it is wired into pricing yet.
 
 ### 10.4 Serving
 

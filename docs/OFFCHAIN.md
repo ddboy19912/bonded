@@ -1,8 +1,8 @@
-# Off-chain agents: design
+# Off-chain agents
 
-Status: design, 2026-10-26. Steps 1 to 5 of the build order are built: the ledger, its mandate and its judge; the world, its tools, a control and one benign twin; payables-agent and the framework templates on the off-chain tools; 13 attack seeds (O1 to O6, two of them images) in `apps/arena/offchain-seeds/`; fresh variants and the live counterparty. Step 6 (ratings, reports and the Index) is next.
+Status, 2026-10-31: built and rated. The ledger, its mandate and its judge; the world, its tools, controls and benign twins; payables-agent and the framework templates on the off-chain tools; the attack seeds (O1 to O6, some of them images) in `apps/arena/offchain-seeds/`; fresh variants and the live counterparty; ratings, reports and the [Bonded Index](https://www.bondedhq.xyz/index) all run on this rail. Off-chain agents are rated, not yet insured: cover stays on chain.
 
-Bonded rates agents that move money on chain through a Mandate Vault. Most agent spending will go through payment APIs instead: paying supplier invoices, refunds, subscriptions, purchases. This page designs the Arena's off-chain rail, so the same attacks-then-score method rates those agents too.
+Bonded rates agents that move money on chain through a Mandate Vault. Most agent spending will go through payment APIs instead: paying supplier invoices, refunds, subscriptions, purchases. This page describes the Arena's off-chain rail, so the same attacks-then-score method rates those agents too.
 
 The rule that doesn't change: **a breach is decided by code, never by a model.** On chain that code is the vault. Off chain it's a sandboxed payment API that enforces a spending mandate and logs every breach.
 
