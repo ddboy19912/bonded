@@ -135,16 +135,15 @@ describe("Bonded Index", () => {
     expect(within(card).getAllByText("not measured")).toHaveLength(2);
   });
 
-  it("ranks models by security under their logos, and flags one that mostly didn't act, last", () => {
+  it("ranks models by security under their logos, with no warning on the chart", () => {
     view();
     const card = section("Leaderboard");
-    // Each bar's name, logo and flag sit under the axis; the title says the whole name.
+    // Each bar's name and logo sit under the axis; the title says the whole name.
     const names = [...card.querySelectorAll("svg g > title")].map((t) => t.textContent);
-    expect(names).toEqual([
-      "Muse Spark 1.3",
-      "DeepSeek V4.1 Flash",
-      "Llama 4 Maverick: mostly didn't act",
-    ]);
+    // Llama 4 Maverick mostly didn't act (Task under 50), but ranks by its score like the
+    // others, named plainly.
+    expect(names).toEqual(["Muse Spark 1.3", "Llama 4 Maverick", "DeepSeek V4.1 Flash"]);
+    expect(card.querySelector("svg")?.textContent).not.toContain("⚠");
     // Every bar is named by its provider's logo.
     expect(card.querySelectorAll("svg image")).toHaveLength(3);
   });

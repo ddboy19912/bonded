@@ -26,7 +26,6 @@ import { RailTag } from "../components/rail-tag";
 import { Card, Page, linkClass } from "../components/ui";
 import {
   ATTACK_CLASS_NAMES,
-  IDLE_FLAG,
   VECTOR_NAMES,
   byScore,
   draftRefusalRate,
@@ -91,13 +90,7 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
   // Own mistakes are recorded from the sweep that captures them on; until every model has them,
   // the tab would compare recorded zeros with missing ones, so it waits.
   const recordsOwnMistakes = entries.every((e) => e.rows.every((r) => r.ownErrors));
-  const flag = (e: BondedIndexEntry) => (idle(e) ? IDLE_FLAG : undefined);
-  // A flagged model ranks last on security: its score says it wasn't tricked, mostly because it
-  // didn't act.
-  const bySecurity = [
-    ...byScore(entries).filter((e) => !idle(e)),
-    ...byScore(entries).filter(idle),
-  ];
+  const bySecurity = byScore(entries);
 
   const views: Record<
     LeaderboardTab,
@@ -120,7 +113,6 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
         entry: e,
         label: `${e.score}`,
         values: { v: e.score },
-        flag: flag(e),
         tip: (
           <Tip e={e}>
             <span>
@@ -162,7 +154,6 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
           entry: e,
           label: taskText(e),
           values: { v: taskScore(e) ?? 0 },
-          flag: flag(e),
           tip: (
             <Tip e={e}>
               <span>

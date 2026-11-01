@@ -229,8 +229,6 @@ export interface ModelBar {
   /** Shown above the bar. */
   label: string;
   values: Record<string, number>;
-  /** A warning shown under the model's name, such as a Task score under 50. */
-  flag?: string;
   tip: ReactNode;
 }
 
@@ -439,18 +437,18 @@ function ModelTick({
   const font = narrow ? 9.5 : 10.5;
   return (
     <g transform={`translate(${x},${y + 6})`}>
-      <title>{bar.flag ? `${bar.entry.label}: ${bar.flag}` : bar.entry.label}</title>
+      <title>{bar.entry.label}</title>
       <rect x={-size / 2} y={0} width={size} height={size} rx={4} fill="#ffffff" />
       {src && <image href={src} x={-size / 2 + 3} y={3} width={size - 6} height={size - 6} />}
       <text
         transform={`translate(${narrow ? 3 : 5},${size + 9}) rotate(${narrow ? -70 : -40})`}
         textAnchor="end"
         fontSize={font}
-        fill={bar.flag ? "#ffb347" : "#c7d2ee"}
+        fill="#c7d2ee"
       >
         {lines.map((line, i) => (
           <tspan key={line} x={0} dy={i === 0 ? 0 : font + 2}>
-            {i === 0 && bar.flag ? `⚠ ${line}` : line}
+            {line}
           </tspan>
         ))}
       </text>

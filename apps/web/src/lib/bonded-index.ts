@@ -146,14 +146,12 @@ export const lossPerThousand = (e: BondedIndexEntry) =>
 
 /**
  * A model whose Task score is under 50: its security score says it wasn't tricked, but mostly
- * because it didn't act. Flagged under its name and ranked last.
+ * because it didn't act. Its Task score is shown in amber.
  */
 export const idle = (e: BondedIndexEntry) => {
   const t = taskScore(e);
   return t !== null && t < 50;
 };
-
-export const IDLE_FLAG = "mostly didn't act";
 
 /** The attack class and briefing that set the security score, in words. */
 export const setBy = (e: BondedIndexEntry) => {
