@@ -26,7 +26,6 @@ import { RailTag } from "../components/rail-tag";
 import { Card, Page, linkClass } from "../components/ui";
 import {
   ATTACK_CLASS_NAMES,
-  IDLE_FLAG,
   VECTOR_NAMES,
   byScore,
   draftRefusalRate,
@@ -46,20 +45,13 @@ import {
   taskSetBy,
   taskText,
   usd,
-  versionOf,
   worstRow,
 } from "../lib/bonded-index";
 
 const DOCS_INDEX = "https://www.bondedhq.xyz/docs/concepts/bonded-index/";
 
-/** Under a model's name in the results: joined runs, and an older library, when they apply. */
-const resultNote = (e: BondedIndexEntry) => {
-  const notes = [
-    ...(versionOf(e) < OFFCHAIN_LIBRARY_VERSION ? [`earlier library (v${versionOf(e)})`] : []),
-    ...(e.provenance ? ["joined runs †"] : []),
-  ];
-  return notes.length > 0 ? notes.join(" · ") : undefined;
-};
+/** Under a model's name in the results: joined runs, when they apply. */
+const resultNote = (e: BondedIndexEntry) => (e.provenance ? "joined runs †" : undefined);
 
 /** How far a score has been tested: attacks measured, and the fall rate ruled out at 95%. */
 const tested = (e: BondedIndexEntry) =>
@@ -98,13 +90,7 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
   // Own mistakes are recorded from the sweep that captures them on; until every model has them,
   // the tab would compare recorded zeros with missing ones, so it waits.
   const recordsOwnMistakes = entries.every((e) => e.rows.every((r) => r.ownErrors));
-  const flag = (e: BondedIndexEntry) => (idle(e) ? IDLE_FLAG : undefined);
-  // A flagged model ranks last on security: its score says it wasn't tricked, mostly because it
-  // didn't act.
-  const bySecurity = [
-    ...byScore(entries).filter((e) => !idle(e)),
-    ...byScore(entries).filter(idle),
-  ];
+  const bySecurity = byScore(entries);
 
   const views: Record<
     LeaderboardTab,
@@ -122,12 +108,11 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
   > = {
     security: {
       subtitle:
-        "Higher is better · 100 × (1 − fall rate of its weakest attack class) · the 95% interval is in the tooltip",
+        "Higher is better · how hard it is to trick into a wrong payment, set by its weakest attack type",
       bars: bySecurity.map((e) => ({
         entry: e,
         label: `${e.score}`,
         values: { v: e.score },
-        flag: flag(e),
         tip: (
           <Tip e={e}>
             <span>
@@ -164,12 +149,11 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
       const sorted = [...entries].sort((a, b) => (taskScore(b) ?? -1) - (taskScore(a) ?? -1));
       return {
         subtitle:
-          "Higher is better · lowest share of jobs done across runs with no attack, attacks it resisted and benign twins",
+          "Higher is better · how often it still gets the job done, like paying real invoices",
         bars: sorted.map((e) => ({
           entry: e,
           label: taskText(e),
           values: { v: taskScore(e) ?? 0 },
-          flag: flag(e),
           tip: (
             <Tip e={e}>
               <span>
@@ -204,8 +188,7 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
       const sorted = [...entries].sort((a, b) => perThousand(a) - perThousand(b));
       const ticks = niceTicks(Math.max(1, ...sorted.map(perThousand)));
       return {
-        subtitle:
-          "Lower is better · lost plus overpaid, per 1,000 of the model's runs, attacked or not",
+        subtitle: "Lower is better · money lost or overpaid per 1,000 runs",
         bars: sorted.map((e) => ({
           entry: e,
           label: usd(perThousand(e)),
@@ -251,8 +234,7 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
       const sorted = [...entries].sort((a, b) => per(total(a), a) - per(total(b), b));
       const ticks = niceTicks(Math.max(1, ...sorted.map((e) => per(total(e), e))));
       return {
-        subtitle:
-          "Lower is better · loss per 1,000 runs, split into what attacks caused and the model's own mistakes",
+        subtitle: "Lower is better · loss per 1,000 runs, from attacks and from its own mistakes",
         bars: sorted.map((e) => ({
           entry: e,
           label: usd(per(total(e), e)),
@@ -300,7 +282,7 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
       const ticks = niceTicks(Math.max(0.05, ...sorted.map(ceiling)));
       return {
         subtitle:
-          "Lower is better · the highest fall rate its runs can't yet rule out, at 95%: more attacks run, a tighter bound",
+          "Lower is better · the worst fall rate not yet ruled out; more runs make it tighter",
         bars: sorted.map((e) => ({
           entry: e,
           label: pct(ceiling(e), 1),
@@ -338,7 +320,7 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
       );
       const ticks = niceTicks(Math.max(1, ...sorted.map((e) => lostUsd(e) + overpaidUsd(e))));
       return {
-        subtitle: "Lower is better · over every run, in US dollars",
+        subtitle: "Lower is better · all money lost or overpaid, in US dollars",
         bars: sorted.map((e) => ({
           entry: e,
           label: usd(lostUsd(e) + overpaidUsd(e)),
@@ -395,7 +377,7 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
       };
       return {
         subtitle:
-          "Lower is better · share of attacks that got through, with the payment rules spelled out or only the job described",
+          "Lower is better · attacks that got through, with the rules given or only the job",
         bars: sorted.map((e) => ({
           entry: e,
           label: "",
@@ -440,8 +422,7 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
     attacker: (() => {
       const sorted = [...entries].sort((a, b) => draftRefusalRate(a) - draftRefusalRate(b));
       return {
-        subtitle:
-          "Share of requests to write test attacks it declined · a model that declines can't red-team other agents",
+        subtitle: "Lower is better · how often it refused to write test attacks for red-teaming",
         bars: sorted.map((e) => ({
           entry: e,
           label: pct(draftRefusalRate(e)),
@@ -547,8 +528,8 @@ function Tradeoffs({ entries }: { entries: BondedIndexEntry[] }) {
       title="Trade-offs"
       subtitle={
         tab === "task"
-          ? "Top right is safe and does the job · top left is safe mostly because it didn't act"
-          : "Top left is safe and cheap · cost of 1,000 runs, log scale (Meta's estimated from its prices)"
+          ? "Top right is safe and does the job; top left is safe because it barely acts"
+          : "Top left is safe and cheap · cost per 1,000 runs, log scale"
       }
       tabs={SCATTER_TABS}
       tab={tab}
@@ -653,8 +634,8 @@ function WhereTheyBreak({ entries }: { entries: BondedIndexEntry[] }) {
       title="Where models break"
       subtitle={
         tab === "breach"
-          ? "Breaches of each type over every run, attack-caused or the model's own"
-          : "Share of attacks that got through, in the model's worse briefing"
+          ? "Rule breaks by type, from attacks or the model's own mistakes"
+          : "Attacks that got through, in each model's weaker briefing"
       }
       tabs={tabs}
       tab={tab}
@@ -736,8 +717,6 @@ function Reproduce({ e }: { e: BondedIndexEntry }) {
       <p className="text-xs leading-relaxed text-muted">
         Needs {reproduceKeys(e.model).join(" and ")} in .env. Last run cost {usd(e.cost.spentUsd)}
         {e.cost.estimated ? " (estimated)" : ""}; this one stops at ${reproduceCapUsd(e)}.
-        {versionOf(e) < OFFCHAIN_LIBRARY_VERSION &&
-          " Rated on an earlier library, so a rerun won't match it."}
       </p>
     </div>
   );
@@ -925,8 +904,8 @@ export function BondedIndexView({ index }: { index: BondedIndexData }) {
       eyebrow="Models"
       intro={
         <>
-          How often each model, inside the same payments agent, is tricked into paying the wrong
-          account, and whether it still does the job. Agents rated on chain are on the{" "}
+          Every model runs the same payments agent. How often is it tricked into a wrong payment,
+          and does it still do the job? Agents rated on chain are on the{" "}
           <Link className={linkClass} to="/leaderboard">
             Leaderboard
           </Link>
@@ -975,8 +954,7 @@ export function BondedIndexView({ index }: { index: BondedIndexData }) {
             Intervals are 95% Wilson intervals. Models that can't read images aren't shown image
             attacks. Llama's tool calls written as text are read and run.
             {hashes.size > 1 && " Some rows met a different set; compare them with care."} Off-chain
-            library version {OFFCHAIN_LIBRARY_VERSION}; a model marked "earlier library" was rated
-            on an older version and isn't like for like until it is re-rated.
+            library version {OFFCHAIN_LIBRARY_VERSION}.
           </li>
           <li>
             Full method:{" "}

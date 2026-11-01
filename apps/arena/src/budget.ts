@@ -95,6 +95,8 @@ export const META_MODEL_PRICES: Record<string, TokenPrice> = {
   "muse-wonder-1.0": { inputPerMillion: 4, outputPerMillion: 20 },
   /** Meta's open-weight Muse Spark, on Baseten (baseten.co/library/muse-spark-open, 2026-10-30). */
   "muse-spark-open": { inputPerMillion: 1.25, outputPerMillion: 4.25 },
+  /** The same model under the Meta hackathon's id on Baseten. */
+  "muse-spark-open-1026": { inputPerMillion: 1.25, outputPerMillion: 4.25 },
 };
 
 /** The dearest Meta price, for a Meta id the table doesn't list (so a new id never loosens a cap). */

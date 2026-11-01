@@ -42,7 +42,7 @@ export const MEASURED_COSTS: Record<string, MeasuredCost> = {
     source: "Index Oct 26; staged run Oct 27",
   },
   "qwen/qwen3.7-flash": { firstJobUsd: 0.00025, source: "Index Oct 26" },
-  "meta-models/muse-spark-open": {
+  "meta-models/muse-spark-open-1026": {
     firstJobUsd: 0.041,
     source: "smoke run Oct 30, 3 episodes with images (estimated at Baseten's list price)",
   },

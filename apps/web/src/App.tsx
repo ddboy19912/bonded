@@ -283,8 +283,8 @@ export function AppLayout() {
 export function SiteLayout() {
   return (
     <div className="flex min-h-screen flex-col overflow-x-clip">
-      <header className="relative z-30 px-4 pt-5 sm:px-6">
-        <div className="mx-auto flex min-h-[60px] max-w-[1180px] flex-wrap items-center gap-6 rounded-full border border-line bg-white/[0.04] py-2 pr-2 pl-6 backdrop-blur-md">
+      <header className="sticky top-0 z-30 px-4 pt-5 sm:px-6">
+        <div className="mx-auto flex min-h-[60px] max-w-[1180px] flex-wrap items-center gap-6 rounded-full border border-line bg-surface/80 py-2 pr-2 pl-6 backdrop-blur-md">
           <Link to="/" aria-label="Bonded home">
             <Logo className="h-[26px]" />
           </Link>

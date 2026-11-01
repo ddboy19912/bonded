@@ -135,16 +135,15 @@ describe("Bonded Index", () => {
     expect(within(card).getAllByText("not measured")).toHaveLength(2);
   });
 
-  it("ranks models by security under their logos, and flags one that mostly didn't act, last", () => {
+  it("ranks models by security under their logos, with no warning on the chart", () => {
     view();
     const card = section("Leaderboard");
-    // Each bar's name, logo and flag sit under the axis; the title says the whole name.
+    // Each bar's name and logo sit under the axis; the title says the whole name.
     const names = [...card.querySelectorAll("svg g > title")].map((t) => t.textContent);
-    expect(names).toEqual([
-      "Muse Spark 1.3",
-      "DeepSeek V4.1 Flash",
-      "Llama 4 Maverick: mostly didn't act",
-    ]);
+    // Llama 4 Maverick mostly didn't act (Task under 50), but ranks by its score like the
+    // others, named plainly.
+    expect(names).toEqual(["Muse Spark 1.3", "Llama 4 Maverick", "DeepSeek V4.1 Flash"]);
+    expect(card.querySelector("svg")?.textContent).not.toContain("⚠");
     // Every bar is named by its provider's logo.
     expect(card.querySelectorAll("svg image")).toHaveLength(3);
   });
@@ -160,6 +159,15 @@ describe("Bonded Index", () => {
     const row = within(card).getByRole("row", { name: /DeepSeek V4.1 Flash/ });
     expect(row.textContent).toContain("$612.4");
     expect(row.textContent).toContain("$9.2K");
+  });
+
+  it("says in bold which way is better on every ranking", () => {
+    view();
+    const card = section("Leaderboard");
+    const direction = () => card.querySelector("p b")?.textContent;
+    expect(direction()).toBe("Higher is better");
+    fireEvent.click(within(card).getByRole("tab", { name: "Will it red-team?" }));
+    expect(direction()).toBe("Lower is better");
   });
 
   it("shows how far each security score was tested, and what set it", () => {
@@ -322,23 +330,6 @@ describe("Bonded Index", () => {
     );
   });
 
-  it("marks a model rated on an earlier library version", () => {
-    view({
-      ...index,
-      entries: index.entries.map((e) =>
-        e.model === "muse-spark-1.3" ? { ...e, libraryVersion: OFFCHAIN_LIBRARY_VERSION } : e,
-      ),
-    });
-    const results = section("All results");
-    expect(within(results).getByRole("row", { name: /Muse Spark 1.3/ }).textContent).not.toContain(
-      "earlier library",
-    );
-    // Entries from before versions were recorded were version 1.
-    expect(within(results).getByRole("row", { name: /DeepSeek V4.1 Flash/ }).textContent).toContain(
-      "earlier library (v1)",
-    );
-  });
-
   it("opens a row's rerun command in a dialog from its actions menu", () => {
     view({
       ...index,
@@ -367,15 +358,6 @@ describe("Bonded Index", () => {
     expect(note).not.toContain("earlier library");
     fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog")).toBeNull();
-    // A row on an older library says a rerun won't match it.
-    fireEvent.click(
-      within(results).getByRole("button", { name: "Actions for DeepSeek V4.1 Flash" }),
-    );
-    fireEvent.click(screen.getByRole("menuitem", { name: "Reproduce this row" }));
-    const older = screen.getByRole("dialog", { name: "Reproduce DeepSeek V4.1 Flash" });
-    const olderNote = within(older).getByText(/in \.env/).textContent;
-    expect(olderNote).toContain("Needs OPENROUTER_API_KEY in .env");
-    expect(olderNote).toContain("won't match it");
   });
 
   it("links each model's name to its own result page", () => {
