@@ -70,7 +70,8 @@ export const INDEX_MODELS: IndexModel[] = [
     vision: true,
   },
   {
-    model: "meta-models/muse-spark-open",
+    // The hackathon id: Baseten's hackathon credit and key cover only this one.
+    model: "meta-models/muse-spark-open-1026",
     label: "Muse Spark Open",
     provider: "Meta",
     family: "Muse Spark",

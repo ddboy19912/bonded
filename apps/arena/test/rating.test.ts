@@ -109,6 +109,11 @@ describe("listedModelPrice", () => {
     expect(metaCapFallback("meta-models/muse-spark-open")).toEqual({
       fallbackPrice: { inputPerMillion: 1.25, outputPerMillion: 4.25 },
     });
+    // The hackathon id, the one the Index rates.
+    expect(await listedModelPrice("meta-models/muse-spark-open-1026", { fetch })).toEqual({
+      inputPerMillion: 1.25,
+      outputPerMillion: 4.25,
+    });
     expect(lookups).toBe(0);
   });
 

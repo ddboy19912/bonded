@@ -99,6 +99,18 @@ function useWidth(fallback = 720) {
   return { ref, width };
 }
 
+/** A subtitle with its leading "Higher is better" or "Lower is better" in bold, so it reads first. */
+function Direction({ text }: { text: string }) {
+  const m = /^((?:Higher|Lower) is better)(.*)$/s.exec(text);
+  if (!m) return text;
+  return (
+    <>
+      <b className="font-semibold text-soft">{m[1]}</b>
+      {m[2]}
+    </>
+  );
+}
+
 /** A chart's card: title, one line of subtitle, optional tabs, and a table view of its data. */
 export function ChartCard({
   title,
@@ -135,7 +147,11 @@ export function ChartCard({
             <span aria-hidden className="size-2.5 rounded-[2px] bg-[#3987e5]" />
             {title}
           </h2>
-          {subtitle && <p className="mt-1 text-xs text-muted">{subtitle}</p>}
+          {subtitle && (
+            <p className="mt-1 text-xs text-muted">
+              {typeof subtitle === "string" ? <Direction text={subtitle} /> : subtitle}
+            </p>
+          )}
         </div>
         {table && (
           <button
@@ -213,8 +229,6 @@ export interface ModelBar {
   /** Shown above the bar. */
   label: string;
   values: Record<string, number>;
-  /** A warning shown under the model's name, such as a Task score under 50. */
-  flag?: string;
   tip: ReactNode;
 }
 
@@ -249,6 +263,13 @@ export function ModelBars({
     label: b.label,
   }));
   const byModel = new Map(bars.map((b) => [b.entry.model, b]));
+  // Size the axes from their own labels, so no tick or name is cut off at any width.
+  const { yWidth, xHeight, left, right } = barLayout(
+    bars.map((b) => b.entry.label),
+    (ticks ?? domain).map(format),
+    width,
+    narrow,
+  );
   const single = series.length === 1;
   const last = series[series.length - 1]!.key;
   // For each bar, the index of its top series with a value (the last one when all are zero).
@@ -261,9 +282,9 @@ export function ModelBars({
     <div ref={ref} className="w-full min-w-0 overflow-hidden">
       <BarChart
         width={width}
-        height={height + (narrow ? 112 : 82)}
+        height={height + xHeight}
         data={data}
-        margin={{ top: 22, right: 4, bottom: 0, left: -8 }}
+        margin={{ top: 22, right, bottom: 0, left }}
         barCategoryGap={narrow ? "18%" : "26%"}
         accessibilityLayer
       >
@@ -275,12 +296,12 @@ export function ModelBars({
           tick={AXIS}
           axisLine={false}
           tickLine={false}
-          width={48}
+          width={yWidth}
         />
         <XAxis
           dataKey="model"
           interval={0}
-          height={narrow ? 112 : 82}
+          height={xHeight}
           axisLine={{ stroke: "rgb(255 255 255 / 0.16)" }}
           tickLine={false}
           tick={(props: {
@@ -405,6 +426,72 @@ function splitName(name: string): string[] {
   return best;
 }
 
+/** About how wide a line of chart text is, in pixels: a little generous, so nothing is cut. */
+const textWidth = (text: string, fontSize: number) => text.length * fontSize * 0.7;
+
+/** A y axis wide enough for its widest tick label: Recharts sets labels 8px from the plot. */
+export const yAxisWidth = (labels: readonly string[], fontSize = AXIS.fontSize) =>
+  Math.ceil(Math.max(0, ...labels.map((l) => textWidth(l, fontSize)))) + 12;
+
+/** Where a bar's logo and turned name sit, below the axis line. */
+const TICK_TOP = 6;
+const tickStyle = (narrow: boolean) => ({
+  size: narrow ? 16 : 18,
+  font: narrow ? 9.5 : 10.5,
+  /** The name's anchor, right of the logo's centre and below it. */
+  dx: narrow ? 3 : 5,
+  gap: 9,
+  /** Degrees the name is turned, counter-clockwise. */
+  angle: narrow ? 70 : 40,
+});
+
+/**
+ * How far a bar's turned name reaches: below the axis line, and left of the bar's centre. Each
+ * line runs back from its anchor; the second line's anchor sits one line further along the
+ * turned name's own "down".
+ */
+export function tickReach(label: string, narrow: boolean): { below: number; left: number } {
+  const { size, font, dx, gap, angle } = tickStyle(narrow);
+  const a = (angle * Math.PI) / 180;
+  const step = font + 2;
+  let below = 0;
+  let left = size / 2;
+  splitName(label).forEach((line, i) => {
+    const w = textWidth(line, font);
+    // Descenders below the baseline, and the glyphs' height above it, turned with the line.
+    below = Math.max(below, i * step * Math.cos(a) + w * Math.sin(a) + 0.3 * font);
+    left = Math.max(left, w * Math.cos(a) - dx - i * step * Math.sin(a) + font * Math.sin(a));
+  });
+  return { below: TICK_TOP + size + gap + below + 4, left: left + 2 };
+}
+
+/**
+ * A bar chart's axes and left margin, worked out from its labels: the y axis from its widest tick,
+ * the x axis from how far each turned name reaches down, and the left margin from how far the
+ * first names reach left. Bar centres sit half a band into their slots, so a narrower chart has
+ * its first names closer to the edge; the margin grows until every one fits.
+ */
+export function barLayout(
+  names: readonly string[],
+  ticks: readonly string[],
+  width: number,
+  narrow: boolean,
+) {
+  const right = 4;
+  const yWidth = yAxisWidth(ticks);
+  const reach = names.map((n) => tickReach(n, narrow));
+  const xHeight = Math.ceil(Math.max(0, ...reach.map((r) => r.below)));
+  const bandAt = (left: number) => (width - left - yWidth - right) / Math.max(1, names.length);
+  let left = 0;
+  for (let pass = 0; pass < 8; pass++) {
+    const band = bandAt(left);
+    const need = Math.max(0, ...reach.map((r, i) => Math.ceil(r.left - yWidth - band * (i + 0.5))));
+    if (need <= left) break;
+    left = need;
+  }
+  return { yWidth, xHeight, left, right, band: bandAt(left), reach };
+}
+
 /** Under a bar: the provider's logo, then the model's name, turned so long names fit. */
 function ModelTick({
   x,
@@ -418,23 +505,22 @@ function ModelTick({
   narrow: boolean;
 }) {
   const src = LOGOS[bar.entry.provider];
-  const size = narrow ? 16 : 18;
+  const { size, font, dx, angle, gap } = tickStyle(narrow);
   const lines = splitName(bar.entry.label);
-  const font = narrow ? 9.5 : 10.5;
   return (
-    <g transform={`translate(${x},${y + 6})`}>
-      <title>{bar.flag ? `${bar.entry.label}: ${bar.flag}` : bar.entry.label}</title>
+    <g transform={`translate(${x},${y + TICK_TOP})`}>
+      <title>{bar.entry.label}</title>
       <rect x={-size / 2} y={0} width={size} height={size} rx={4} fill="#ffffff" />
       {src && <image href={src} x={-size / 2 + 3} y={3} width={size - 6} height={size - 6} />}
       <text
-        transform={`translate(${narrow ? 3 : 5},${size + 9}) rotate(${narrow ? -70 : -40})`}
+        transform={`translate(${dx},${size + gap}) rotate(${-angle})`}
         textAnchor="end"
         fontSize={font}
-        fill={bar.flag ? "#ffb347" : "#c7d2ee"}
+        fill="#c7d2ee"
       >
         {lines.map((line, i) => (
           <tspan key={line} x={0} dy={i === 0 ? 0 : font + 2}>
-            {i === 0 && bar.flag ? `⚠ ${line}` : line}
+            {line}
           </tspan>
         ))}
       </text>
@@ -451,7 +537,6 @@ export interface ModelPoint {
 }
 
 const SCATTER_MARGIN = { top: 18, right: 24, bottom: 30, left: 4 };
-const Y_AXIS_WIDTH = 44;
 const X_AXIS_HEIGHT = 30;
 
 interface Placement {
@@ -543,9 +628,11 @@ export function ModelScatter({
   const font = narrow ? 10 : 11;
   const byModel = new Map(points.map((p) => [p.entry.model, p]));
   const data = points.map((p) => ({ model: p.entry.model, x: p.x, y: p.y }));
+  // Room for the widest tick label, and the turned axis title beside it.
+  const yWidth = yAxisWidth((y.ticks ?? y.domain).map(y.format)) + 14;
   // The plot's pixel box, as Recharts lays it out with these margins and axis sizes.
   const plot = {
-    left: SCATTER_MARGIN.left + Y_AXIS_WIDTH,
+    left: SCATTER_MARGIN.left + yWidth,
     right: width - SCATTER_MARGIN.right,
     top: SCATTER_MARGIN.top,
     bottom: height - SCATTER_MARGIN.bottom - X_AXIS_HEIGHT,
@@ -635,7 +722,7 @@ export function ModelScatter({
           tick={AXIS}
           tickLine={false}
           axisLine={false}
-          width={Y_AXIS_WIDTH}
+          width={yWidth}
           label={{
             value: y.label,
             angle: -90,

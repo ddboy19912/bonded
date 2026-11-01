@@ -26,7 +26,6 @@ import { RailTag } from "../components/rail-tag";
 import { Card, Page, linkClass } from "../components/ui";
 import {
   ATTACK_CLASS_NAMES,
-  IDLE_FLAG,
   VECTOR_NAMES,
   byScore,
   draftRefusalRate,
@@ -46,20 +45,13 @@ import {
   taskSetBy,
   taskText,
   usd,
-  versionOf,
   worstRow,
 } from "../lib/bonded-index";
 
 const DOCS_OFFCHAIN = "https://github.com/ddboy19912/bonded/blob/main/docs/OFFCHAIN.md";
 
-/** Under a model's name in the results: joined runs, and an older library, when they apply. */
-const resultNote = (e: BondedIndexEntry) => {
-  const notes = [
-    ...(versionOf(e) < OFFCHAIN_LIBRARY_VERSION ? [`earlier library (v${versionOf(e)})`] : []),
-    ...(e.provenance ? ["joined runs †"] : []),
-  ];
-  return notes.length > 0 ? notes.join(" · ") : undefined;
-};
+/** Under a model's name in the results: joined runs, when they apply. */
+const resultNote = (e: BondedIndexEntry) => (e.provenance ? "joined runs †" : undefined);
 
 /** How far a score has been tested: attacks measured, and the fall rate ruled out at 95%. */
 const tested = (e: BondedIndexEntry) =>
@@ -98,13 +90,7 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
   // Own mistakes are recorded from the sweep that captures them on; until every model has them,
   // the tab would compare recorded zeros with missing ones, so it waits.
   const recordsOwnMistakes = entries.every((e) => e.rows.every((r) => r.ownErrors));
-  const flag = (e: BondedIndexEntry) => (idle(e) ? IDLE_FLAG : undefined);
-  // A flagged model ranks last on security: its score says it wasn't tricked, mostly because it
-  // didn't act.
-  const bySecurity = [
-    ...byScore(entries).filter((e) => !idle(e)),
-    ...byScore(entries).filter(idle),
-  ];
+  const bySecurity = byScore(entries);
 
   const views: Record<
     LeaderboardTab,
@@ -127,7 +113,6 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
         entry: e,
         label: `${e.score}`,
         values: { v: e.score },
-        flag: flag(e),
         tip: (
           <Tip e={e}>
             <span>
@@ -169,7 +154,6 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
           entry: e,
           label: taskText(e),
           values: { v: taskScore(e) ?? 0 },
-          flag: flag(e),
           tip: (
             <Tip e={e}>
               <span>
@@ -441,7 +425,7 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
       const sorted = [...entries].sort((a, b) => draftRefusalRate(a) - draftRefusalRate(b));
       return {
         subtitle:
-          "Share of requests to write test attacks it declined · a model that declines can't red-team other agents",
+          "Lower is better · share of requests to write test attacks it declined · a model that declines can't red-team other agents",
         bars: sorted.map((e) => ({
           entry: e,
           label: pct(draftRefusalRate(e)),
@@ -736,8 +720,6 @@ function Reproduce({ e }: { e: BondedIndexEntry }) {
       <p className="text-xs leading-relaxed text-muted">
         Needs {reproduceKeys(e.model).join(" and ")} in .env. Last run cost {usd(e.cost.spentUsd)}
         {e.cost.estimated ? " (estimated)" : ""}; this one stops at ${reproduceCapUsd(e)}.
-        {versionOf(e) < OFFCHAIN_LIBRARY_VERSION &&
-          " Rated on an earlier library, so a rerun won't match it."}
       </p>
     </div>
   );
@@ -975,8 +957,7 @@ export function BondedIndexView({ index }: { index: BondedIndexData }) {
             Intervals are 95% Wilson intervals. Models that can't read images aren't shown image
             attacks. Llama's tool calls written as text are read and run.
             {hashes.size > 1 && " Some rows met a different set; compare them with care."} Off-chain
-            library version {OFFCHAIN_LIBRARY_VERSION}; a model marked "earlier library" was rated
-            on an older version and isn't like for like until it is re-rated.
+            library version {OFFCHAIN_LIBRARY_VERSION}.
           </li>
           <li>
             Full method:{" "}
