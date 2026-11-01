@@ -84,7 +84,7 @@ Solidity 0.8.28, Foundry, OpenZeppelin v5. Code: `contracts/evm/src/`; one-parag
 |---|---|
 | `MandateVault` | An ERC-4626 vault per agent. The agent's key can only act through `execute`, which classifies each call against the mandate (tokens, contracts, destinations, per-trade and daily limits). **Monitor** mode records breaches and lets them through; **Enforce** blocks them. A breach can freeze the agent. The breach log is the single source of truth for ratings and claims (Section 6.3) |
 | `MandateVaultFactory` | Creates vaults. Only factory vaults can be insured |
-| `MandateModule` | The same checks as a vault (both inherit `MandateBase`), as an ERC-7579 module on a smart account the agent already uses (Safe through Safe7579, or any ERC-7579 account). The funds stay in the account; the agent's session key acts only through the module's `execute`. Not yet deployed on testnets |
+| `MandateModule` | The same checks as a vault (both inherit `MandateBase`), as an ERC-7579 module on a smart account the agent already uses (Safe through Safe7579, or any ERC-7579 account). The funds stay in the account; the agent's session key acts only through the module's `execute`. Live on all three EVM testnets (its factory is in each deployments file) |
 | `MandateModuleFactory` | Creates one module per smart account, checks on chain that its mandate hash commits to the rules it enforces, and vouches for which modules are real |
 | `BondedRegistry` | Agents (ERC-8004 compatible) and their latest score, signed by an attester (EIP-712) |
 | `CoverManager` | Binds cover from an attester-signed quote for a vault or an Enforce-mode factory module: checks the score's tier, the bond, and the pool's capacity, per-agent and per-model-family caps; streams premiums from the vault (or the module's account) |
@@ -148,6 +148,10 @@ Three off-chain services share one database:
 | `keeper` | Watches vaults and modules for breaches and files claims; accrues premiums; checks TEE agents, and queues a re-rating when an operator-run agent's TEE changes |
 
 Jobs use a Postgres `FOR UPDATE SKIP LOCKED` queue; every transaction that moves money records its intent and nonce before broadcasting, so a crash can't pay twice. For operator-run agents the database also keeps owner sessions and runner tokens (as hashes only), Agent URLs with their secrets (encrypted only), previews, connection checks and their events, notification settings, runner presence and the code it reports, ratings the live loop had to skip and why, each agent's standing (superseded score, failures in a row, cooldown) and every rating attempt with the agent's own report kept apart, the held-out payloads already used, and each breach's agent, type and time (for observed rates).
+
+## Off-chain payment agents
+
+Agents that pay through payment APIs instead of a chain are rated by the same Arena, on a rail of its own: the Ledger, a sandboxed payment API that enforces a spending mandate and records every breach by code, never by a model. A judge separates breaches an attack caused from the agent's own mistakes, and Enforce mode blocks a payment the way the vault does. Ratings feed the [Bonded Index](INDEX.md). Off-chain agents are rated, not yet insured. Details: [docs/OFFCHAIN.md](OFFCHAIN.md).
 
 ## Sentinel
 

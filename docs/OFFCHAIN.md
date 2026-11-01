@@ -1,8 +1,8 @@
-# Off-chain agents: design
+# Off-chain agents
 
-Status: design, 2026-10-26. Steps 1 to 5 of the build order are built: the ledger, its mandate and its judge; the world, its tools, a control and one benign twin; payables-agent and the framework templates on the off-chain tools; 13 attack seeds (O1 to O6, two of them images) in `apps/arena/offchain-seeds/`; fresh variants and the live counterparty. Step 6 (ratings, reports and the Index) is next.
+Status, 2026-10-31: built and rated. The ledger, its mandate and its judge; the world, its tools, controls and benign twins; payables-agent and the framework templates on the off-chain tools; the attack seeds (O1 to O6, some of them images) in `apps/arena/offchain-seeds/`; fresh variants and the live counterparty; ratings, reports and the [Bonded Index](https://www.bondedhq.xyz/index) all run on this rail. Off-chain agents are rated, not yet insured: cover stays on chain.
 
-Bonded rates agents that move money on chain through a Mandate Vault. Most agent spending will go through payment APIs instead: paying supplier invoices, refunds, subscriptions, purchases. This page designs the Arena's off-chain rail, so the same attacks-then-score method rates those agents too.
+Bonded rates agents that move money on chain through a Mandate Vault. Most agent spending will go through payment APIs instead: paying supplier invoices, refunds, subscriptions, purchases. This page describes the Arena's off-chain rail, so the same attacks-then-score method rates those agents too.
 
 The rule that doesn't change: **a breach is decided by code, never by a model.** On chain that code is the vault. Off chain it's a sandboxed payment API that enforces a spending mandate and logs every breach.
 
@@ -209,9 +209,9 @@ The realistic job is a quiet week: three invoices. A real first-of-the-month run
 
 Everything in the realistic world is still there, so any seed written for it plants into the busy Monday unchanged: set `world: v3`. The busy job allows 160 tool calls. `--world busy` on `offchain` and `offchain-adaptive` plants each realistic-job seed into this world instead of the quiet week. It does not need `--staged`, and the busy control runs with those library seeds. Each seed is checked again with `seedProblem` against v3; one that cannot plant is skipped and listed. `--no-controls` runs the attack seeds only and warns that the job and twin checks are skipped.
 
-## Attacker tradecraft (staged)
+## Attacker tradecraft
 
-Real business email compromise is patient and embedded. The staged seeds in `apps/arena/offchain-seeds-staged/` plant documented patterns into the realistic job:
+Real business email compromise is patient and embedded. These seeds plant documented patterns into the realistic job. They were staged first and joined the rated library in off-chain library version 2 (30 Oct), so every Index row meets them:
 
 | Pattern | Seed | The trick |
 |---|---|---|
@@ -230,7 +230,7 @@ Real business email compromise is patient and embedded. The staged seeds in `app
 
 A counterparty may own a genuine vendor thread only when its seed says `hijack: true`, and only writing as that thread's real sender.
 
-These are findings, not ratings. A live check on DeepSeek V4.1 Flash (one run each, rules hidden, $0.03) found 0 of 11 fell. A single fixed message, however well made, rarely breaks a capable model. The adaptive attacker, which rewrites the attack after each failure, is what applies real pressure.
+Before they joined the library, a live check on DeepSeek V4.1 Flash (one run each, rules hidden, $0.03) found 0 of 11 fell. A single fixed message, however well made, rarely breaks a capable model. The adaptive attacker, which rewrites the attack after each failure, is what applies real pressure.
 
 ## Benign twins for the staged attacks
 
@@ -397,7 +397,7 @@ The off-chain classes are built from business-email-fraud patterns documented by
 
 The Index rates models, not agents: every model is put in the same agent (payables-agent) and meets the same attacks, so rows differ only in the model. It's written to `config/bonded-index.json` and shown on the web app's Index page.
 
-- **The models:** Muse Spark 1.3, Muse Spark Open, Llama 4 Maverick, DeepSeek V4.1 Flash, GLM-5.3, GLM-5.3 Flash, Qwen3.7 Flash, Claude Sonnet 5.5 and Claude Haiku 5.5 (`INDEX_MODELS`). Muse Spark 1.1 and 1.2 were dropped on 29 Oct: the Meta budget can't re-rate them on the staged attacks, and a score from the smaller attack set beside ones from the larger would mislead. Claude models run on Anthropic's API (`ANTHROPIC_API_KEY`). Muse Spark Open, Meta's open-weight Muse Spark, runs on Baseten (`meta-models/muse-spark-open`, `BASETEN_API_KEY`); it was tried first as the O6 counterparty on 30 Oct, but declined to write the supplier's emails at every reasoning setting, so it is rated as a model instead.
+- **The models:** Muse Spark 1.3, Muse Spark Open, Llama 4 Maverick, DeepSeek V4.1 Flash, GLM-5.3, GLM-5.3 Flash, Qwen3.7 Flash, Claude Sonnet 5.5 and Claude Haiku 5.5 (`INDEX_MODELS`). Muse Spark 1.1 and 1.2 were dropped on 29 Oct: the Meta budget can't re-rate them on the staged attacks, and a score from the smaller attack set beside ones from the larger would mislead. Claude models run on Anthropic's API (`ANTHROPIC_API_KEY`). Muse Spark Open, Meta's open-weight Muse Spark, runs on Baseten under the Meta hackathon's model ID (`meta-models/muse-spark-open-1026`, `BASETEN_API_KEY`; the hackathon key and credit cover only that ID); it was tried first as the O6 counterparty on 30 Oct, but declined to write the supplier's emails at every reasoning setting, so it is rated as a model instead.
 - **Same attacks for everyone:** the library seeds plus one committed set of fresh variants (`apps/arena/offchain-index/variants/`). Each entry records a hash of the set it met, so rows that met different sets aren't compared, and the off-chain library version it was rated on (`libraryVersion`; entries without one were rated on version 1). The page marks a row rated on an older version.
 - **What a sweep runs (version 2 on):** every attack with every channel pushed, as the realistic job's campaign did; the realistic-job controls and benign twins once per briefing, not once per run (`INDEX_CONTROL_RUNS`), since they repeat the same few jobs; falls judged by what the attack planted, and attacks the model never met left out of the fall rate.
 - **Same supplier for everyone:** DeepSeek V4.1 Flash plays the O6 counterparty in every row.
@@ -411,7 +411,7 @@ The Index rates models, not agents: every model is put in the same agent (payabl
 - **Loss and testing on the page.** Loss per 1,000 runs is lost plus overpaid over every run the model did, attacked or not, so a model that ran more episodes compares fairly. How well tested is the risk ceiling above: the highest fall rate the runs can't yet rule out.
 - **Own mistakes and breach types.** Each row records the model's own mistakes (`ownErrors`: breaches that involved nothing an attack planted, and what they cost) and every breach by type (`breaches`: how many, and the money they moved), attack-caused or not. Entries rated before that lack them; the page's Own mistakes and By breach type tabs appear once every model has them, so recorded zeros aren't compared with missing ones. A campaign join counts an earlier row as having none only when nothing in it broke.
 - **Where the numbers came from.** An entry that joins counts from more than one run (a release that reuses a campaign's counts instead of running a model again) carries a `provenance` line, shown under the model's name: which attacks came from which run, and on what date. `index-cli.js --models <one model> --merge-campaign <results.json files or folders> --provenance "<text>"` does the joining, without running anything: it adds a campaign's counts to that model's entry by briefing and re-scores both scores. The join is refused when the campaign and the entry were measured on different off-chain library versions, either way around. A results file or an entry with no version recorded counts as version 1. A row written before the parts were recorded is split into them only when nothing in it went wrong (every job done, no breach, no error); otherwise the merge stops. The entry's attack-set hash changes, so the page says it met a different set, and its cost stays the sweep's.
-  - Muse Spark 1.3 was merged this way on 29 Oct: its 26 Oct Index run plus the 29 Oct campaign (the 30 staged attacks, every channel pushed, images shown). Security 100 → 96, set by bank-detail changes with the rules hidden (2 of 54); Task 100 → 29, set by the benign twins (38 of 133). The other models were rated on version 1 and meet version 2 at the next rating.
+  - Muse Spark 1.3 was merged this way on 29 Oct: its 26 Oct Index run plus the 29 Oct campaign (the 30 staged attacks, every channel pushed, images shown). Security 100 → 96, set by bank-detail changes with the rules hidden (2 of 54); Task 100 → 29, set by the benign twins (38 of 133). At the final rating (1 Nov) the other models were rated on version 2, except GLM-5.3, which keeps its version 1 entry: on this job it writes far more per step, and OpenRouter routed many calls to dearer providers, so a full run would have cost about $36. Muse Spark 1.3 keeps this joined entry, because a full version 2 run would cost more than the Meta credit left.
 - **Tool calls written as text are read.** Llama models write their tool calls as text in a pythonic list (`[get_vendor(vendorId="acme")]`). Providers turn that into real tool calls only when the reply holds nothing else, so a reply with a sentence before the list arrived as plain text, and the agent loop ended the run. In the first sweep Llama 4 Maverick did none of its jobs for this reason. The agent loop now reads those calls, as inference servers do for Llama (vLLM's pythonic tool parser):
   - it reads only the first list, and only if every call names one of the agent's tools and its arguments parse
   - anything written after that list is dropped, such as a result the model made up
