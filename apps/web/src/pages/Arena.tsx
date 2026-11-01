@@ -199,9 +199,18 @@ export function Arena() {
               )}
             </p>
           ) : latest ? (
-            <p className="mt-3.5 font-mono text-[15px]">
-              {latest.runId.slice(0, 8)} · {latest.index + 1} of {latest.total}
-            </p>
+            <button
+              type="button"
+              onClick={() => setRunId(latest.runId)}
+              className="group mt-3 block text-left"
+            >
+              <span className="block font-mono text-[15px] group-hover:text-accent">
+                Run {latest.runId.slice(0, 8)}
+              </span>
+              <span className="mt-1 block text-xs text-muted">
+                Episode {latest.index + 1} of {latest.total} · view this run
+              </span>
+            </button>
           ) : (
             <p className="mt-3.5 text-sm text-muted">
               {newestAlone.isFetching ? "…" : "Waiting for episodes"}
