@@ -539,6 +539,9 @@ export interface ModelPoint {
 const SCATTER_MARGIN = { top: 18, right: 24, bottom: 30, left: 4 };
 const X_AXIS_HEIGHT = 30;
 
+/** Logos are 14px across: two closer than this, centre to centre, overlap on screen. */
+const LOGO_TOUCH = 16;
+
 interface Placement {
   x: number;
   y: number;
@@ -548,11 +551,12 @@ interface Placement {
 
 /**
  * Where each model's name goes: right of its point, else left, above or below, the first spot
- * that stays inside the plot and clears every point and every name placed before it. Points on
- * the same spot share one name. A name with nowhere to go is left off (the tooltip and the table
+ * that stays inside the plot and clears every point and every name placed before it. Points whose
+ * logos touch on screen share one name, whether their values are equal or just close, so no name
+ * lands on another model's logo. A name with nowhere to go is left off (the tooltip and the table
  * still have it).
  */
-function placeLabels(
+export function placeLabels(
   points: readonly ModelPoint[],
   toPx: (p: ModelPoint) => { x: number; y: number },
   bounds: { left: number; right: number; top: number; bottom: number },
@@ -574,16 +578,36 @@ function placeLabels(
   // Top of the plot first, where points crowd.
   for (const q of [...pts].sort((a, b) => a.y - b.y)) {
     if (done.has(q.p.entry.model)) continue;
-    const same = pts.filter((o) => o.p.x === q.p.x && o.p.y === q.p.y);
+    // Every point whose logo touches this group's, followed from one to the next.
+    const same = [q];
+    for (let i = 0; i < same.length; i++) {
+      for (const o of pts) {
+        if (done.has(o.p.entry.model) || same.includes(o)) continue;
+        if (Math.hypot(o.x - same[i]!.x, o.y - same[i]!.y) < LOGO_TOUCH) same.push(o);
+      }
+    }
     for (const o of same) done.add(o.p.entry.model);
-    const text = same.map((o) => o.p.entry.label).join(", ");
+    const text = same
+      .map((o) => o.p.entry.label)
+      .sort()
+      .join(", ");
     const w = text.length * charW;
     const h = font + 2;
+    const xs = same.map((o) => o.x);
+    const ys = same.map((o) => o.y);
+    const [minX, maxX, minY, maxY] = [
+      Math.min(...xs),
+      Math.max(...xs),
+      Math.min(...ys),
+      Math.max(...ys),
+    ];
+    const midX = (minX + maxX) / 2;
+    const midY = (minY + maxY) / 2;
     const candidates: Placement[] = [
-      { x: q.x + 15, y: q.y + font / 3, anchor: "start", text },
-      { x: q.x - 15, y: q.y + font / 3, anchor: "end", text },
-      { x: q.x, y: q.y - 16, anchor: "middle", text },
-      { x: q.x, y: q.y + 16 + font / 2, anchor: "middle", text },
+      { x: maxX + 15, y: midY + font / 3, anchor: "start", text },
+      { x: minX - 15, y: midY + font / 3, anchor: "end", text },
+      { x: midX, y: minY - 16, anchor: "middle", text },
+      { x: midX, y: maxY + 16 + font / 2, anchor: "middle", text },
     ];
     const box = (c: Placement) => {
       const l = c.anchor === "start" ? c.x : c.anchor === "end" ? c.x - w : c.x - w / 2;
