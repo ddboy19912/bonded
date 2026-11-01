@@ -108,7 +108,7 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
   > = {
     security: {
       subtitle:
-        "Higher is better · 100 × (1 − fall rate of its weakest attack class) · the 95% interval is in the tooltip",
+        "Higher is better · how hard it is to trick into a wrong payment, set by its weakest attack type",
       bars: bySecurity.map((e) => ({
         entry: e,
         label: `${e.score}`,
@@ -149,7 +149,7 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
       const sorted = [...entries].sort((a, b) => (taskScore(b) ?? -1) - (taskScore(a) ?? -1));
       return {
         subtitle:
-          "Higher is better · lowest share of jobs done across runs with no attack, attacks it resisted and benign twins",
+          "Higher is better · how often it still gets the job done, like paying real invoices",
         bars: sorted.map((e) => ({
           entry: e,
           label: taskText(e),
@@ -188,8 +188,7 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
       const sorted = [...entries].sort((a, b) => perThousand(a) - perThousand(b));
       const ticks = niceTicks(Math.max(1, ...sorted.map(perThousand)));
       return {
-        subtitle:
-          "Lower is better · lost plus overpaid, per 1,000 of the model's runs, attacked or not",
+        subtitle: "Lower is better · money lost or overpaid per 1,000 runs",
         bars: sorted.map((e) => ({
           entry: e,
           label: usd(perThousand(e)),
@@ -235,8 +234,7 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
       const sorted = [...entries].sort((a, b) => per(total(a), a) - per(total(b), b));
       const ticks = niceTicks(Math.max(1, ...sorted.map((e) => per(total(e), e))));
       return {
-        subtitle:
-          "Lower is better · loss per 1,000 runs, split into what attacks caused and the model's own mistakes",
+        subtitle: "Lower is better · loss per 1,000 runs, from attacks and from its own mistakes",
         bars: sorted.map((e) => ({
           entry: e,
           label: usd(per(total(e), e)),
@@ -284,7 +282,7 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
       const ticks = niceTicks(Math.max(0.05, ...sorted.map(ceiling)));
       return {
         subtitle:
-          "Lower is better · the highest fall rate its runs can't yet rule out, at 95%: more attacks run, a tighter bound",
+          "Lower is better · the worst fall rate not yet ruled out; more runs make it tighter",
         bars: sorted.map((e) => ({
           entry: e,
           label: pct(ceiling(e), 1),
@@ -322,7 +320,7 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
       );
       const ticks = niceTicks(Math.max(1, ...sorted.map((e) => lostUsd(e) + overpaidUsd(e))));
       return {
-        subtitle: "Lower is better · over every run, in US dollars",
+        subtitle: "Lower is better · all money lost or overpaid, in US dollars",
         bars: sorted.map((e) => ({
           entry: e,
           label: usd(lostUsd(e) + overpaidUsd(e)),
@@ -379,7 +377,7 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
       };
       return {
         subtitle:
-          "Lower is better · share of attacks that got through, with the payment rules spelled out or only the job described",
+          "Lower is better · attacks that got through, with the rules given or only the job",
         bars: sorted.map((e) => ({
           entry: e,
           label: "",
@@ -424,8 +422,7 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
     attacker: (() => {
       const sorted = [...entries].sort((a, b) => draftRefusalRate(a) - draftRefusalRate(b));
       return {
-        subtitle:
-          "Lower is better · share of requests to write test attacks it declined · a model that declines can't red-team other agents",
+        subtitle: "Lower is better · how often it refused to write test attacks for red-teaming",
         bars: sorted.map((e) => ({
           entry: e,
           label: pct(draftRefusalRate(e)),
@@ -531,8 +528,8 @@ function Tradeoffs({ entries }: { entries: BondedIndexEntry[] }) {
       title="Trade-offs"
       subtitle={
         tab === "task"
-          ? "Top right is safe and does the job · top left is safe mostly because it didn't act"
-          : "Top left is safe and cheap · cost of 1,000 runs, log scale (Meta's estimated from its prices)"
+          ? "Top right is safe and does the job; top left is safe because it barely acts"
+          : "Top left is safe and cheap · cost per 1,000 runs, log scale"
       }
       tabs={SCATTER_TABS}
       tab={tab}
@@ -637,8 +634,8 @@ function WhereTheyBreak({ entries }: { entries: BondedIndexEntry[] }) {
       title="Where models break"
       subtitle={
         tab === "breach"
-          ? "Breaches of each type over every run, attack-caused or the model's own"
-          : "Share of attacks that got through, in the model's worse briefing"
+          ? "Rule breaks by type, from attacks or the model's own mistakes"
+          : "Attacks that got through, in each model's weaker briefing"
       }
       tabs={tabs}
       tab={tab}
@@ -907,8 +904,8 @@ export function BondedIndexView({ index }: { index: BondedIndexData }) {
       eyebrow="Models"
       intro={
         <>
-          How often each model, inside the same payments agent, is tricked into paying the wrong
-          account, and whether it still does the job. Agents rated on chain are on the{" "}
+          Every model runs the same payments agent. How often is it tricked into a wrong payment,
+          and does it still do the job? Agents rated on chain are on the{" "}
           <Link className={linkClass} to="/leaderboard">
             Leaderboard
           </Link>
