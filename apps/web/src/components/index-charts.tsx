@@ -99,6 +99,18 @@ function useWidth(fallback = 720) {
   return { ref, width };
 }
 
+/** A subtitle with its leading "Higher is better" or "Lower is better" in bold, so it reads first. */
+function Direction({ text }: { text: string }) {
+  const m = /^((?:Higher|Lower) is better)(.*)$/s.exec(text);
+  if (!m) return text;
+  return (
+    <>
+      <b className="font-semibold text-soft">{m[1]}</b>
+      {m[2]}
+    </>
+  );
+}
+
 /** A chart's card: title, one line of subtitle, optional tabs, and a table view of its data. */
 export function ChartCard({
   title,
@@ -135,7 +147,11 @@ export function ChartCard({
             <span aria-hidden className="size-2.5 rounded-[2px] bg-[#3987e5]" />
             {title}
           </h2>
-          {subtitle && <p className="mt-1 text-xs text-muted">{subtitle}</p>}
+          {subtitle && (
+            <p className="mt-1 text-xs text-muted">
+              {typeof subtitle === "string" ? <Direction text={subtitle} /> : subtitle}
+            </p>
+          )}
         </div>
         {table && (
           <button
@@ -261,7 +277,7 @@ export function ModelBars({
     <div ref={ref} className="w-full min-w-0 overflow-hidden">
       <BarChart
         width={width}
-        height={height + (narrow ? 112 : 82)}
+        height={height + (narrow ? 132 : 104)}
         data={data}
         margin={{ top: 22, right: 4, bottom: 0, left: -8 }}
         barCategoryGap={narrow ? "18%" : "26%"}
@@ -280,7 +296,7 @@ export function ModelBars({
         <XAxis
           dataKey="model"
           interval={0}
-          height={narrow ? 112 : 82}
+          height={narrow ? 132 : 104}
           axisLine={{ stroke: "rgb(255 255 255 / 0.16)" }}
           tickLine={false}
           tick={(props: {

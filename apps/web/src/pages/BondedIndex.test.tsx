@@ -162,6 +162,15 @@ describe("Bonded Index", () => {
     expect(row.textContent).toContain("$9.2K");
   });
 
+  it("says in bold which way is better on every ranking", () => {
+    view();
+    const card = section("Leaderboard");
+    const direction = () => card.querySelector("p b")?.textContent;
+    expect(direction()).toBe("Higher is better");
+    fireEvent.click(within(card).getByRole("tab", { name: "Will it red-team?" }));
+    expect(direction()).toBe("Lower is better");
+  });
+
   it("shows how far each security score was tested, and what set it", () => {
     const tested: BondedIndexData = {
       ...index,

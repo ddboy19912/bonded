@@ -434,7 +434,7 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
       const sorted = [...entries].sort((a, b) => draftRefusalRate(a) - draftRefusalRate(b));
       return {
         subtitle:
-          "Share of requests to write test attacks it declined · a model that declines can't red-team other agents",
+          "Lower is better · share of requests to write test attacks it declined · a model that declines can't red-team other agents",
         bars: sorted.map((e) => ({
           entry: e,
           label: pct(draftRefusalRate(e)),
