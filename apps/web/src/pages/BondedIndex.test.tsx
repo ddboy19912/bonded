@@ -322,23 +322,6 @@ describe("Bonded Index", () => {
     );
   });
 
-  it("marks a model rated on an earlier library version", () => {
-    view({
-      ...index,
-      entries: index.entries.map((e) =>
-        e.model === "muse-spark-1.3" ? { ...e, libraryVersion: OFFCHAIN_LIBRARY_VERSION } : e,
-      ),
-    });
-    const results = section("All results");
-    expect(within(results).getByRole("row", { name: /Muse Spark 1.3/ }).textContent).not.toContain(
-      "earlier library",
-    );
-    // Entries from before versions were recorded were version 1.
-    expect(within(results).getByRole("row", { name: /DeepSeek V4.1 Flash/ }).textContent).toContain(
-      "earlier library (v1)",
-    );
-  });
-
   it("opens a row's rerun command in a dialog from its actions menu", () => {
     view({
       ...index,
@@ -367,15 +350,6 @@ describe("Bonded Index", () => {
     expect(note).not.toContain("earlier library");
     fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog")).toBeNull();
-    // A row on an older library says a rerun won't match it.
-    fireEvent.click(
-      within(results).getByRole("button", { name: "Actions for DeepSeek V4.1 Flash" }),
-    );
-    fireEvent.click(screen.getByRole("menuitem", { name: "Reproduce this row" }));
-    const older = screen.getByRole("dialog", { name: "Reproduce DeepSeek V4.1 Flash" });
-    const olderNote = within(older).getByText(/in \.env/).textContent;
-    expect(olderNote).toContain("Needs OPENROUTER_API_KEY in .env");
-    expect(olderNote).toContain("won't match it");
   });
 
   it("links each model's name to its own result page", () => {

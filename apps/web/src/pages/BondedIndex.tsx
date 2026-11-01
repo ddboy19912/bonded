@@ -46,20 +46,13 @@ import {
   taskSetBy,
   taskText,
   usd,
-  versionOf,
   worstRow,
 } from "../lib/bonded-index";
 
 const DOCS_OFFCHAIN = "https://github.com/ddboy19912/bonded/blob/main/docs/OFFCHAIN.md";
 
-/** Under a model's name in the results: joined runs, and an older library, when they apply. */
-const resultNote = (e: BondedIndexEntry) => {
-  const notes = [
-    ...(versionOf(e) < OFFCHAIN_LIBRARY_VERSION ? [`earlier library (v${versionOf(e)})`] : []),
-    ...(e.provenance ? ["joined runs †"] : []),
-  ];
-  return notes.length > 0 ? notes.join(" · ") : undefined;
-};
+/** Under a model's name in the results: joined runs, when they apply. */
+const resultNote = (e: BondedIndexEntry) => (e.provenance ? "joined runs †" : undefined);
 
 /** How far a score has been tested: attacks measured, and the fall rate ruled out at 95%. */
 const tested = (e: BondedIndexEntry) =>
@@ -736,8 +729,6 @@ function Reproduce({ e }: { e: BondedIndexEntry }) {
       <p className="text-xs leading-relaxed text-muted">
         Needs {reproduceKeys(e.model).join(" and ")} in .env. Last run cost {usd(e.cost.spentUsd)}
         {e.cost.estimated ? " (estimated)" : ""}; this one stops at ${reproduceCapUsd(e)}.
-        {versionOf(e) < OFFCHAIN_LIBRARY_VERSION &&
-          " Rated on an earlier library, so a rerun won't match it."}
       </p>
     </div>
   );
@@ -975,8 +966,7 @@ export function BondedIndexView({ index }: { index: BondedIndexData }) {
             Intervals are 95% Wilson intervals. Models that can't read images aren't shown image
             attacks. Llama's tool calls written as text are read and run.
             {hashes.size > 1 && " Some rows met a different set; compare them with care."} Off-chain
-            library version {OFFCHAIN_LIBRARY_VERSION}; a model marked "earlier library" was rated
-            on an older version and isn't like for like until it is re-rated.
+            library version {OFFCHAIN_LIBRARY_VERSION}.
           </li>
           <li>
             Full method:{" "}
