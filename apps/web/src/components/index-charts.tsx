@@ -264,17 +264,12 @@ export function ModelBars({
   }));
   const byModel = new Map(bars.map((b) => [b.entry.model, b]));
   // Size the axes from their own labels, so no tick or name is cut off at any width.
-  const yWidth = yAxisWidth((ticks ?? domain).map(format));
-  const reach = bars.map((b) => tickReach(b.entry.label, narrow));
-  const xHeight = Math.ceil(Math.max(0, ...reach.map((r) => r.below)));
-  const RIGHT = 4;
-  // A name turned to the left can reach past the chart's left edge from the first bars: widen the
-  // left margin until every name fits. Each bar's centre is half a band into its slot.
-  let left = 0;
-  for (let pass = 0; pass < 2; pass++) {
-    const band = (width - left - yWidth - RIGHT) / Math.max(1, bars.length);
-    left = Math.max(0, ...reach.map((r, i) => Math.ceil(r.left - yWidth - band * (i + 0.5))));
-  }
+  const { yWidth, xHeight, left, right } = barLayout(
+    bars.map((b) => b.entry.label),
+    (ticks ?? domain).map(format),
+    width,
+    narrow,
+  );
   const single = series.length === 1;
   const last = series[series.length - 1]!.key;
   // For each bar, the index of its top series with a value (the last one when all are zero).
@@ -289,7 +284,7 @@ export function ModelBars({
         width={width}
         height={height + xHeight}
         data={data}
-        margin={{ top: 22, right: RIGHT, bottom: 0, left }}
+        margin={{ top: 22, right, bottom: 0, left }}
         barCategoryGap={narrow ? "18%" : "26%"}
         accessibilityLayer
       >
@@ -432,7 +427,7 @@ function splitName(name: string): string[] {
 }
 
 /** About how wide a line of chart text is, in pixels: a little generous, so nothing is cut. */
-const textWidth = (text: string, fontSize: number) => text.length * fontSize * 0.62;
+const textWidth = (text: string, fontSize: number) => text.length * fontSize * 0.7;
 
 /** A y axis wide enough for its widest tick label: Recharts sets labels 8px from the plot. */
 export const yAxisWidth = (labels: readonly string[], fontSize = AXIS.fontSize) =>
@@ -468,6 +463,33 @@ export function tickReach(label: string, narrow: boolean): { below: number; left
     left = Math.max(left, w * Math.cos(a) - dx - i * step * Math.sin(a) + font * Math.sin(a));
   });
   return { below: TICK_TOP + size + gap + below + 4, left: left + 2 };
+}
+
+/**
+ * A bar chart's axes and left margin, worked out from its labels: the y axis from its widest tick,
+ * the x axis from how far each turned name reaches down, and the left margin from how far the
+ * first names reach left. Bar centres sit half a band into their slots, so a narrower chart has
+ * its first names closer to the edge; the margin grows until every one fits.
+ */
+export function barLayout(
+  names: readonly string[],
+  ticks: readonly string[],
+  width: number,
+  narrow: boolean,
+) {
+  const right = 4;
+  const yWidth = yAxisWidth(ticks);
+  const reach = names.map((n) => tickReach(n, narrow));
+  const xHeight = Math.ceil(Math.max(0, ...reach.map((r) => r.below)));
+  const bandAt = (left: number) => (width - left - yWidth - right) / Math.max(1, names.length);
+  let left = 0;
+  for (let pass = 0; pass < 8; pass++) {
+    const band = bandAt(left);
+    const need = Math.max(0, ...reach.map((r, i) => Math.ceil(r.left - yWidth - band * (i + 0.5))));
+    if (need <= left) break;
+    left = need;
+  }
+  return { yWidth, xHeight, left, right, band: bandAt(left), reach };
 }
 
 /** Under a bar: the provider's logo, then the model's name, turned so long names fit. */
