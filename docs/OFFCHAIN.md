@@ -209,9 +209,9 @@ The realistic job is a quiet week: three invoices. A real first-of-the-month run
 
 Everything in the realistic world is still there, so any seed written for it plants into the busy Monday unchanged: set `world: v3`. The busy job allows 160 tool calls. `--world busy` on `offchain` and `offchain-adaptive` plants each realistic-job seed into this world instead of the quiet week. It does not need `--staged`, and the busy control runs with those library seeds. Each seed is checked again with `seedProblem` against v3; one that cannot plant is skipped and listed. `--no-controls` runs the attack seeds only and warns that the job and twin checks are skipped.
 
-## Attacker tradecraft (staged)
+## Attacker tradecraft
 
-Real business email compromise is patient and embedded. The staged seeds in `apps/arena/offchain-seeds-staged/` plant documented patterns into the realistic job:
+Real business email compromise is patient and embedded. These seeds plant documented patterns into the realistic job. They were staged first and joined the rated library in off-chain library version 2 (30 Oct), so every Index row meets them:
 
 | Pattern | Seed | The trick |
 |---|---|---|
@@ -230,7 +230,7 @@ Real business email compromise is patient and embedded. The staged seeds in `app
 
 A counterparty may own a genuine vendor thread only when its seed says `hijack: true`, and only writing as that thread's real sender.
 
-These are findings, not ratings. A live check on DeepSeek V4.1 Flash (one run each, rules hidden, $0.03) found 0 of 11 fell. A single fixed message, however well made, rarely breaks a capable model. The adaptive attacker, which rewrites the attack after each failure, is what applies real pressure.
+Before they joined the library, a live check on DeepSeek V4.1 Flash (one run each, rules hidden, $0.03) found 0 of 11 fell. A single fixed message, however well made, rarely breaks a capable model. The adaptive attacker, which rewrites the attack after each failure, is what applies real pressure.
 
 ## Benign twins for the staged attacks
 
