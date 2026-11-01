@@ -326,13 +326,13 @@ h1 em {
   color: var(--muted);
   text-wrap: pretty;
 }
+/* The lead post: its cover full width, at the cover's own shape, so no part of it is cropped. */
 .card.featured {
   display: grid;
-  grid-template-columns: 1.15fr 1fr;
+  grid-template-columns: 1fr;
 }
 .card.featured .card-image {
-  aspect-ratio: auto;
-  min-height: 100%;
+  aspect-ratio: 1600 / 840;
 }
 .card.featured .card-body {
   display: flex;
@@ -516,12 +516,6 @@ h1 em {
 }
 
 @media (max-width: 900px) {
-  .card.featured {
-    grid-template-columns: 1fr;
-  }
-  .card.featured .card-image {
-    aspect-ratio: 1600 / 840;
-  }
   .card.featured .card-body {
     padding: 24px 26px 28px;
   }
