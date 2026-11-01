@@ -74,12 +74,31 @@ describe("scatter names", () => {
     ]);
     const named = [...labels.values()].filter((p) => p !== null);
     expect(named).toHaveLength(1);
-    expect(named[0]!.text).toBe("Claude Haiku 5.5, DeepSeek V4.1 Flash");
+    expect(named[0]!.lines).toEqual(["Claude Haiku 5.5", "DeepSeek V4.1 Flash"]);
+  });
+
+  it("finds room for a shared name among crowded neighbours, as on the cost chart", () => {
+    // Pixel spots from the Security vs cost chart, where the pair went unnamed.
+    const labels = placeLabels(
+      [
+        point("GLM-5.3", 328, 254),
+        point("DeepSeek V4.1 Flash", 371, 305),
+        point("Claude Haiku 5.5", 370, 305),
+        point("Llama 4 Maverick", 410, 313),
+        point("GLM-5.3 Flash", 355, 350),
+      ],
+      (p) => ({ x: p.x, y: p.y }),
+      { left: 280, right: 798, top: 2, bottom: 470 },
+      11,
+    );
+    const pair = [labels.get("DeepSeek V4.1 Flash"), labels.get("Claude Haiku 5.5")].find(Boolean);
+    expect(pair?.lines).toEqual(["Claude Haiku 5.5", "DeepSeek V4.1 Flash"]);
+    expect(labels.get("Llama 4 Maverick")).toBeTruthy();
   });
 
   it("names points apart from each other separately", () => {
     const labels = place([point("GLM-5.3", 100, 100), point("Qwen3.7 Flash", 300, 300)]);
-    expect(labels.get("GLM-5.3")?.text).toBe("GLM-5.3");
-    expect(labels.get("Qwen3.7 Flash")?.text).toBe("Qwen3.7 Flash");
+    expect(labels.get("GLM-5.3")?.lines).toEqual(["GLM-5.3"]);
+    expect(labels.get("Qwen3.7 Flash")?.lines).toEqual(["Qwen3.7 Flash"]);
   });
 });

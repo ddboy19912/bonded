@@ -539,21 +539,23 @@ export interface ModelPoint {
 const SCATTER_MARGIN = { top: 18, right: 24, bottom: 30, left: 4 };
 const X_AXIS_HEIGHT = 30;
 
-/** Logos are 14px across: two closer than this, centre to centre, overlap on screen. */
-const LOGO_TOUCH = 16;
+/** Each logo is a 22px disc: two closer than this, centre to centre, overlap on screen. */
+const LOGO_TOUCH = 22;
 
 interface Placement {
   x: number;
+  /** The first line's baseline. */
   y: number;
   anchor: "start" | "end" | "middle";
-  text: string;
+  /** One name per line: points that share a spot stack their names. */
+  lines: string[];
 }
 
 /**
- * Where each model's name goes: right of its point, else left, above or below, the first spot
- * that stays inside the plot and clears every point and every name placed before it. Points whose
- * logos touch on screen share one name, whether their values are equal or just close, so no name
- * lands on another model's logo. A name with nowhere to go is left off (the tooltip and the table
+ * Where each model's name goes: right of its point, else left, above, below or a corner, the first
+ * spot that stays inside the plot and clears every point and every name placed before it. Points
+ * whose logos touch on screen share one label, a name per line, whether their values are equal or
+ * just close, so no name lands on another model's logo. A name with nowhere to go is left off (the tooltip and the table
  * still have it).
  */
 export function placeLabels(
@@ -587,12 +589,10 @@ export function placeLabels(
       }
     }
     for (const o of same) done.add(o.p.entry.model);
-    const text = same
-      .map((o) => o.p.entry.label)
-      .sort()
-      .join(", ");
-    const w = text.length * charW;
+    const lines = same.map((o) => o.p.entry.label).sort();
+    const w = Math.max(...lines.map((l) => l.length)) * charW;
     const h = font + 2;
+    const tall = lines.length * h;
     const xs = same.map((o) => o.x);
     const ys = same.map((o) => o.y);
     const [minX, maxX, minY, maxY] = [
@@ -603,15 +603,29 @@ export function placeLabels(
     ];
     const midX = (minX + maxX) / 2;
     const midY = (minY + maxY) / 2;
+    // Baselines that put the block's middle level with the group, or its edge clear of the logos.
+    const level = midY - tall / 2 + h - 2;
+    const over = minY - 14 - tall + h - 2;
+    const under = maxY + 14 + h - 2;
+    const at = (x: number, y: number, anchor: Placement["anchor"]): Placement => ({
+      x,
+      y,
+      anchor,
+      lines,
+    });
     const candidates: Placement[] = [
-      { x: maxX + 15, y: midY + font / 3, anchor: "start", text },
-      { x: minX - 15, y: midY + font / 3, anchor: "end", text },
-      { x: midX, y: minY - 16, anchor: "middle", text },
-      { x: midX, y: maxY + 16 + font / 2, anchor: "middle", text },
+      at(maxX + 15, level, "start"),
+      at(minX - 15, level, "end"),
+      at(midX, over, "middle"),
+      at(midX, under, "middle"),
+      at(maxX + 8, over, "start"),
+      at(minX - 8, over, "end"),
+      at(maxX + 8, under, "start"),
+      at(minX - 8, under, "end"),
     ];
     const box = (c: Placement) => {
       const l = c.anchor === "start" ? c.x : c.anchor === "end" ? c.x - w : c.x - w / 2;
-      return { l, r: l + w, t: c.y - h + 2, b: c.y + 2 };
+      return { l, r: l + w, t: c.y - h + 2, b: c.y - h + 2 + tall };
     };
     const own = new Set(same.map((o) => pts.indexOf(o)));
     const fits = (c: Placement) => {
@@ -815,7 +829,11 @@ function LogoPoint({
       {src && <image href={src} x={cx - 7} y={cy - 7} width={14} height={14} />}
       {label && (
         <text x={label.x} y={label.y} textAnchor={label.anchor} fontSize={font} fill="#c7d2ee">
-          {label.text}
+          {label.lines.map((line, i) => (
+            <tspan key={line} x={label.x} dy={i === 0 ? 0 : font + 2}>
+              {line}
+            </tspan>
+          ))}
         </text>
       )}
     </g>
