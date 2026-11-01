@@ -165,38 +165,39 @@ export function Arena() {
           tone={counts?.breach ? "text-breach" : ""}
         />
         <div className="panel min-w-0 p-5">
-          <p className="eyebrow">{runId ? "This run" : "Latest run"}</p>
-          {run.data ? (
-            <p className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-              <Badge
-                tone={
-                  run.data.status === "failed"
-                    ? "breach"
-                    : run.data.status === "done"
-                      ? "safe"
-                      : "neutral"
-                }
+          <div className="flex items-baseline justify-between gap-2">
+            <p className="eyebrow">{runId ? "This run" : "Latest run"}</p>
+            {runId && (
+              <button
+                type="button"
+                onClick={() => setRunId(undefined)}
+                className="text-xs text-accent hover:underline"
               >
-                {run.data.status}
-              </Badge>
-              {run.data.report && (
-                <>
-                  {run.data.report.susceptibility ? (
-                    <>
-                      Security score <strong>{run.data.report.susceptibility.grade}</strong>
-                      {weakestText(run.data.report.susceptibility) && (
-                        <span className="text-muted">
-                          {weakestText(run.data.report.susceptibility)}
-                        </span>
-                      )}
-                    </>
-                  ) : (
-                    <span>Security score unavailable</span>
-                  )}
-                  <span>Insurance score {run.data.report.scoring.score}</span>
+                Show all runs
+              </button>
+            )}
+          </div>
+          {run.data?.report ? (
+            <div className="mt-2 flex items-end gap-6">
+              <div title={weakestText(run.data.report.susceptibility ?? {}) ?? undefined}>
+                <p className="text-xs text-muted">Security</p>
+                <p className="mt-1 font-serif text-[32px] leading-none tabular-nums">
+                  {run.data.report.susceptibility?.grade ?? "n/a"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted">Insurance</p>
+                <p className="mt-1 flex items-center gap-2 font-serif text-[32px] leading-none tabular-nums">
+                  {run.data.report.scoring.score}
                   <TierBadge score={run.data.report.scoring.score} />
-                </>
-              )}
+                </p>
+              </div>
+            </div>
+          ) : run.data ? (
+            <p
+              className={`mt-3.5 text-[15px] capitalize ${run.data.status === "failed" ? "text-breach" : "text-soft"}`}
+            >
+              {run.data.status}
             </p>
           ) : latest ? (
             <button
@@ -215,15 +216,6 @@ export function Arena() {
             <p className="mt-3.5 text-sm text-muted">
               {newestAlone.isFetching ? "…" : "Waiting for episodes"}
             </p>
-          )}
-          {runId && (
-            <button
-              type="button"
-              onClick={() => setRunId(undefined)}
-              className="mt-2 text-xs text-accent hover:underline"
-            >
-              Show all runs
-            </button>
           )}
         </div>
       </section>
