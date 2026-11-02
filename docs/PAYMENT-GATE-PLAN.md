@@ -72,10 +72,12 @@ Users can see and check the rules that guard their money.
 
 Put the check in the payment path so it can't be skipped. Two routes, card first.
 
-**5a. Card authorization (first).** The agent pays with a virtual card. Card issuers that support real-time authorization (Stripe Issuing, Lithic, Marqeta) ask an endpoint to approve each charge before it goes through; Bonded's gate answers. Bonded never holds the money or a payment key, only says yes or no.
+**5a. Card authorization with Stripe Issuing (first).** The agent pays with a Stripe Issuing virtual card. For each charge, Stripe sends an `issuing_authorization.request` webhook to the gate before the charge goes through, and the gate answers in the webhook response (HTTP 200, a `Stripe-Version` header, and `approved: true` or `false`). Bonded never holds the money or a payment key, only says yes or no. ([Stripe: real-time authorizations](https://docs.stripe.com/issuing/controls/real-time-authorizations))
 
-- Needs a fast answer (Stripe Issuing allows about two seconds), so the check runs without a model on this path.
-- The issuer's own card limits stay on as a second line.
+- Stripe waits **2 seconds**. After that it applies the account's timeout setting (or Autopilot rules), so the check runs without a model on this path, and the user's fail mode is set in Stripe's timeout setting too.
+- Webhook timeouts and errors show as `webhook_timeout` and `webhook_error` on the authorization; the gate alerts on both. Approval rate alone isn't a health check, since a fallback can approve on our behalf.
+- Card spending controls in Stripe stay on as a second line.
+- To confirm before building: Stripe Issuing's countries and business eligibility for our first users, and the direct-response method against the live docs.
 
 **5b. Bank and payout proxy (second).** For bank transfers and payout APIs, the agent never gets the payment credential. It asks the gate to pay; the gate checks and forwards.
 
@@ -123,11 +125,14 @@ Cover needs two things this plan provides: a rail we can enforce (the gate) and 
 
 ## Decisions for the founder
 
-1. Card issuer for Phase 5a (Stripe Issuing, Lithic or Marqeta).
-2. Which chain carries the Phase 4 hashes.
-3. Pricing for checks, CI testing and the data APIs.
-4. Retention: how long check inputs and logs are kept, and whether invoices are stored or only hashed.
-5. Legal advice before Phase 5b: holding payment credentials for others may need a licence in some markets.
+Decided: Stripe Issuing is the card issuer for Phase 5a (2026-11-02).
+
+Open:
+
+1. Which chain carries the Phase 4 hashes.
+2. Pricing for checks, CI testing and the data APIs.
+3. Retention: how long check inputs and logs are kept, and whether invoices are stored or only hashed.
+4. Legal advice before Phase 5b: holding payment credentials for others may need a licence in some markets.
 
 ## Not in this plan
 
