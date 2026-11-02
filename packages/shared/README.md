@@ -11,6 +11,9 @@ SDK and runner.
 - **Runner protocol**: the messages between the Arena Gateway and `@bondedhq/runner` (zod schemas),
   and the environment a runner gives an agent (`episodeEnv`).
 - **Mandates and attestations**: `EvmMandate`, `mandateHash`, the attestation's EIP-712 types.
+- **Payment gate**: the off-chain payment mandate's rules (`checkInvoicePayment`,
+  `checkRefundPayment`), and the gate's receipts: `GateReceipt`, its EIP-712 types,
+  `gateInputHash`, `gateMandateHash`, `evaluateGateInput` and `verifyGateReceipt`.
 - **ABIs** for the Bonded contracts, generated from the Foundry build.
 - **Chains and deployments**: the networks Bonded runs on and its contract addresses there.
 
