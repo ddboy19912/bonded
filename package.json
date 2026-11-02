@@ -40,6 +40,8 @@
     "solana:build": "cd contracts/solana && NO_DNA=1 anchor build --ignore-keys",
     "solana:test": "cd contracts/solana && NO_DNA=1 anchor build --ignore-keys && cargo test",
     "sentinel:eval": "turbo run build --filter=@bonded/arena --output-logs=errors-only && pnpm --filter @bonded/arena sentinel-eval",
+    "sentinel:payments-dataset": "turbo run build --filter=@bonded/arena --output-logs=errors-only && pnpm --filter @bonded/arena payments-dataset",
+    "sentinel:payments-eval": "turbo run build --filter=@bonded/arena --output-logs=errors-only && pnpm --filter @bonded/arena sentinel-payments-eval",
     "sentinel:cascade": "turbo run build --filter=@bonded/arena --output-logs=errors-only && pnpm --filter @bonded/arena sentinel-cascade",
     "sentinel:stress": "turbo run build --filter=@bonded/arena --output-logs=errors-only && pnpm --filter @bonded/arena sentinel-stress",
     "scores": "turbo run build --filter=@bonded/arena --output-logs=errors-only && pnpm --filter @bonded/arena scores",
