@@ -1,4 +1,5 @@
 ---
+import Hero from "../../components/Hero.astro";
 import PostList from "../../components/PostList.astro";
 import Base from "../../layouts/Base.astro";
 import { paginate } from "../../lib/paginate.mjs";
@@ -11,17 +12,13 @@ export async function getStaticPaths() {
 }
 
 const { page } = Astro.props;
-const base = import.meta.env.BASE_URL;
 ---
 
 <Base
   title={`Blog, page ${page.number} | Bonded`}
   description={`Older notes from Bonded on red-teaming AI agents and safety scores. Page ${page.number} of ${page.total}.`}
 >
-  <section class="page-head">
-    <a class="back" href={base}><span aria-hidden="true">←</span> Latest posts</a>
-    <h1>Older posts</h1>
-  </section>
+  <Hero />
 
   <PostList page={page} />
 </Base>

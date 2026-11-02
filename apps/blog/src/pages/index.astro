@@ -1,4 +1,5 @@
 ---
+import Hero from "../components/Hero.astro";
 import PostList from "../components/PostList.astro";
 import Base from "../layouts/Base.astro";
 import { paginate } from "../lib/paginate.mjs";
@@ -11,11 +12,7 @@ const [page] = paginate(await indexPosts());
   title="Blog | Bonded"
   description="Notes from Bonded on red-teaming AI agents, safety scores, and paying people back when an agent breaks its rules."
 >
-  <section class="hero">
-    <p class="badge"><span class="dot" aria-hidden="true"></span>The Bonded blog</p>
-    <h1>Notes from the <em>red team.</em></h1>
-    <p class="lede">How AI agents get fooled, how we measure it, and who pays when one breaks its rules.</p>
-  </section>
+  <Hero />
 
   <PostList page={page} />
 </Base>
