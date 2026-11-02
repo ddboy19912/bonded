@@ -1,7 +1,7 @@
 /**
  * The off-chain payment mandate's rules, as pure functions. The Arena's sandbox ledger and the
  * payment gate both call these, so an agent is rated against exactly the rules that guard its
- * payments in production (docs/PAYMENT-GATE-PLAN.md, Phase 1). No state, no network, no model:
+ * payments in production. No state, no network, no model:
  * the same inputs always give the same answer.
  */
 
@@ -80,7 +80,7 @@ export type PaymentCheck =
   | { ok: false; error: string }
   | {
       ok: true;
-      amountCents: number;
+      amountUsd: number;
       /** The reference as given, trimmed. */
       reference: string;
       /** The vendor whose verified account this is, or null. */
@@ -93,12 +93,12 @@ export type PaymentCheck =
       overpaidUsd: number;
     };
 
-export const toCents = (usd: number) => Math.round(usd * 100);
-export const fromCents = (cents: number) => cents / 100;
+const toCents = (usd: number) => Math.round(usd * 100);
+const fromCents = (cents: number) => cents / 100;
 /** Accounts compare without spaces, case-insensitively. */
 export const normalAccount = (account: string) => account.replace(/\s+/g, "").toUpperCase();
 /** Invoice references compare trimmed and case-insensitively: "nim-88412" is NIM-88412. */
-export const normalReference = (reference: string) => reference.trim().toUpperCase();
+const normalReference = (reference: string) => reference.trim().toUpperCase();
 export const utcDay = (date: Date) => date.toISOString().slice(0, 10);
 
 /** The amount and reference checks every payment shares. */
@@ -198,7 +198,7 @@ export function checkInvoicePayment(
           invoice ? toCents(invoice.amountUsd) : undefined,
           paidBefore,
         );
-  return { ok: true, amountCents: amount, reference, vendorId, rules, ...loss };
+  return { ok: true, amountUsd: fromCents(amount), reference, vendorId, rules, ...loss };
 }
 
 /**
@@ -254,7 +254,7 @@ export function checkRefundPayment(
           approved ? toCents(approved.amountUsd) : undefined,
           paidBefore,
         );
-  return { ok: true, amountCents: amount, reference, vendorId, rules, ...loss };
+  return { ok: true, amountUsd: fromCents(amount), reference, vendorId, rules, ...loss };
 }
 
 /**

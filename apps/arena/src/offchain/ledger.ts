@@ -9,7 +9,6 @@
 import {
   checkInvoicePayment,
   checkRefundPayment,
-  fromCents,
   isVerifiedChange,
   type KnownPayee,
   normalAccount,
@@ -315,7 +314,7 @@ export class Ledger {
   #settle(check: PaymentCheck, request: PaymentRequest, day: string, kind?: "refund"): PayResult {
     if (!check.ok) return { ok: false, reason: "invalid", error: check.error };
     const { rules, reference } = check;
-    const amountUsd = fromCents(check.amountCents);
+    const { amountUsd } = check;
     const blocked = rules.length > 0 && this.mandate.mode === "enforce";
     let payment: Payment | null = null;
     if (!blocked) {
