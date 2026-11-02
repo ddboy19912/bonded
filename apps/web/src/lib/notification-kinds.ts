@@ -46,6 +46,12 @@ export const NOTICE_KINDS: Record<NotificationType, NoticeKind> = {
   },
   payment_breach: { title: "Payment breach", group: "Payment gate", tone: "breach", icon: "stop" },
   gate_frozen: { title: "Gate frozen", group: "Payment gate", tone: "breach", icon: "stop" },
+  stripe_webhook_failed: {
+    title: "Card check missed",
+    group: "Payment gate",
+    tone: "warn",
+    icon: "plug",
+  },
 };
 
 const known = (type: string | undefined): type is NotificationType =>

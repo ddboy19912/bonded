@@ -70,7 +70,8 @@ export interface AgentNotification {
 }
 
 /** The payment gate's alerts (gate.ts): a payment blocked, a breach let through, a freeze. */
-export type GateNotificationType = "payment_blocked" | "payment_breach" | "gate_frozen";
+export type GateNotificationType =
+  "payment_blocked" | "payment_breach" | "gate_frozen" | "stripe_webhook_failed";
 
 /** About a gate account rather than an agent; otherwise like `AgentNotification`. */
 export interface GateNotification {

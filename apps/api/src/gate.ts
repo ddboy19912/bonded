@@ -3,6 +3,7 @@ import type { Context, Hono } from "hono";
 import { z } from "zod";
 import { GateStore, type Database, type GateAccountRecord } from "@bonded/db";
 import {
+  cardMerchantKey,
   describePaymentMandate,
   GATE_MODES,
   GATE_RECEIPT_DOMAIN,
@@ -20,6 +21,7 @@ import type { SessionWallet } from "./sessions.js";
 import { Notifier, type EmailSender } from "./notifications.js";
 import type { SecretBox } from "./secrets.js";
 import { alertOwner, decisionView, runGateCheck, type GateCheckRequest } from "./gate-check.js";
+import { gateCardRoutes, type GateCardOptions } from "./gate-card.js";
 
 /**
  * The payment gate's hosted check (apps/api/GATE.md). A business makes a gate account with its
@@ -49,10 +51,18 @@ export interface GateOptions {
   maxVendorsPerAccount?: number;
   /** Sends the owner's alerts (default: one made from the API's secrets and email sender). */
   notifier?: Notifier;
+  /** The card route with Stripe Issuing (gate-card.ts). */
+  card?: GateCardOptions;
 }
 
-/** Routes under /gate and /payments do their own authentication (see the module comment). */
-export const gateOpen = (path: string) => /^\/(gate|payments)(\/|$)/.test(path);
+/**
+ * Routes under /gate and /payments do their own authentication (see the module comment), and
+ * Stripe's webhooks under /stripe/issuing are checked by their signature.
+ */
+export const gateOpen = (path: string) => /^\/(gate|payments|stripe\/issuing)(\/|$)/.test(path);
+
+/** Stripe's webhooks, whose events can be larger than the API's usual 16 KB body cap. */
+export const stripeWebhookPath = (path: string) => /^\/stripe\/issuing\//.test(path);
 
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 
@@ -110,10 +120,30 @@ const accountPatch = z
     freezeOnBreach: z.boolean().optional(),
   })
   .refine((p) => Object.keys(p).length > 0);
-const vendorInput = z.strictObject({ id, name: text(120), account: payee });
+/** A vendor's card merchant: its name and Stripe network id (`merchant_data.network_id`). */
+const cardMerchant = z.strictObject({
+  name: text(120),
+  networkId: z.string().regex(/^[A-Za-z0-9._-]{1,64}$/),
+});
+const vendorInput = z.strictObject({
+  id,
+  name: text(120),
+  account: payee,
+  cardMerchant: cardMerchant.optional(),
+});
 const vendorPatch = z
-  .strictObject({ name: text(120).optional(), account: payee.optional() })
-  .refine((p) => Object.keys(p).length > 0);
+  .strictObject({
+    name: text(120).optional(),
+    account: payee.optional(),
+    /** null removes it. Changing one on file needs `ticket`. */
+    cardMerchant: cardMerchant.nullable().optional(),
+    ticket: id.optional(),
+  })
+  .refine((p) => Object.keys(p).some((k) => k !== "ticket"));
+const merchantOf = (m: { name: string; networkId: string }) => ({
+  ...m,
+  key: cardMerchantKey(m.networkId),
+});
 const invoiceInput = z.strictObject({ vendorId: id, reference, amountUsd: cents });
 const refundInput = z.strictObject({
   reference,
@@ -451,7 +481,13 @@ export function gateRoutes(
         });
       const made = await store.addVendor(
         account.id,
-        { ...v, accountNorm: normalAccount(v.account) },
+        {
+          id: v.id,
+          name: v.name,
+          account: v.account,
+          accountNorm: normalAccount(v.account),
+          cardMerchant: v.cardMerchant ? merchantOf(v.cardMerchant) : undefined,
+        },
         owner,
       );
       if (made === "exists") already("vendor");
@@ -470,9 +506,18 @@ export function gateRoutes(
         {
           ...(p.name ? { name: p.name } : {}),
           ...(p.account ? { account: p.account, accountNorm: normalAccount(p.account) } : {}),
+          ...(p.cardMerchant !== undefined
+            ? { cardMerchant: p.cardMerchant && merchantOf(p.cardMerchant) }
+            : {}),
+          ...(p.ticket ? { ticket: p.ticket } : {}),
         },
         owner,
       );
+      if (updated === "needs-ticket")
+        throw new Refused(
+          409,
+          "A vendor's card merchant changes only with a verified ticket that covers it: a ticket for this vendor whose account is card:<network id>.",
+        );
       return updated ? c.json(updated) : notFound("vendor");
     }),
   );
@@ -664,6 +709,25 @@ export function gateRoutes(
   app.get(
     "/gate/accounts/:id/decisions/:decisionId",
     handle(async (c) => decision(c, (await owned(c, options.reads)).account.id)),
+  );
+
+  gateCardRoutes(
+    app,
+    {
+      db,
+      store,
+      notifier,
+      receiptKey: options.receiptKey,
+      now,
+      secrets: options.secrets,
+      checks,
+      owned,
+      keyed,
+      writes: options.writes,
+      reads: options.reads,
+      log: options.card?.log ?? ((line) => console.error(line)),
+    },
+    options.card,
   );
 
   return { store, notifier };

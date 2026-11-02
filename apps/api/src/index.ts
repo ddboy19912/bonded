@@ -57,7 +57,7 @@ import { gatewayUrlVerifier, type AgentUrlVerifier } from "./connections.js";
 import { AgentStatusReader } from "./agent-status.js";
 import { launchRoutes } from "./launch.js";
 import { statusRoutes } from "./service-status.js";
-import { gateOpen, gateRoutes, type GateOptions } from "./gate.js";
+import { gateOpen, gateRoutes, stripeWebhookPath, type GateOptions } from "./gate.js";
 export { issueQuote } from "./quotes.js";
 /** A decimal id, in canonical form: "01" and "1" are the same agent, so they must be the same key. */
 const uint = z
@@ -214,7 +214,9 @@ export function createApi(options: {
     onError: (c) => c.json({ error: "the check is over 256 KB" }, 413),
   });
   app.use("*", (c, next) =>
-    c.req.path === "/sentinel/check" ? checkBodies(c, next) : smallBodies(c, next),
+    c.req.path === "/sentinel/check" || stripeWebhookPath(c.req.path)
+      ? checkBodies(c, next)
+      : smallBodies(c, next),
   );
   // POSTs that need no operator token: a bounty reveal (the hash check against the chain's
   // revealed specURI authenticates it), self-serve requests (signed by the agent's owner: register,

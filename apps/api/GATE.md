@@ -33,7 +33,7 @@ Owner (wallet session):
 | `POST /gate/accounts/:id/unfreeze` | Lift a freeze |
 | `GET /gate/accounts/:id/mandates` | Every mandate version, newest first, with its hash and who made it |
 | `GET`, `POST /gate/accounts/:id/keys`, `DELETE .../keys/:keyId` | List, make (`{ label? }`) and revoke API keys (10 live at most) |
-| `GET`, `POST /gate/accounts/:id/vendors`, `PUT`, `DELETE .../vendors/:vendorId` | The vendor master: `{ id, name, account }`, each vendor's verified account |
+| `GET`, `POST /gate/accounts/:id/vendors`, `PUT`, `DELETE .../vendors/:vendorId` | The vendor master: `{ id, name, account, cardMerchant? }`, each vendor's verified account and card merchant (`{ name, networkId }`). Changing a card merchant on file needs `ticket` (see the card route) |
 | `GET`, `POST /gate/accounts/:id/invoices`, `DELETE .../invoices/:itemId` | Approved invoices: `{ vendorId, reference, amountUsd }` |
 | `GET`, `POST /gate/accounts/:id/refunds`, `DELETE .../refunds/:itemId` | Approved refunds: `{ reference, account, amountUsd, name?, reason? }` |
 | `GET`, `POST /gate/accounts/:id/tickets`, `DELETE .../tickets/:itemId` | Verified bank-change tickets: `{ id, vendorId, account, verifiedBy }` |
@@ -101,11 +101,91 @@ evaluateGateInput(answer.input).rules; // the same rules
 
 Without a receipt key the service gives no decisions: `POST /payments/check` answers 503.
 
+## The card route (Stripe Issuing)
+
+The agent pays an approved invoice with a single-use Stripe Issuing virtual card, and Stripe asks
+the gate before every charge on it. Bonded holds no money; it only says yes or no. Code:
+`src/gate-card.ts` (routes), `src/stripe-issuing.ts` (the Stripe calls behind a small client
+interface, and the webhook signature check), `packages/db/src/gate-card.ts` (migration
+`0025_gate_stripe_card.sql`), and `GateCardInput` in `packages/shared/src/gate-receipt.ts`.
+Tests: `test/gate-card.test.ts`, with a fake Stripe client and webhooks signed the way Stripe
+signs them.
+
+| Route | Who | What it does |
+|---|---|---|
+| `PUT /gate/accounts/:id/stripe` | owner | Link the account's Stripe account: `{ secretKey, cardholderId, authorizationWebhookSecret?, eventsWebhookSecret? }`. `secretKey` is a restricted key (`rk_test_...`) that can create, read and update Issuing cards; `cardholderId` (`ich_...`) is the cardholder the cards are issued to. Test-mode keys only unless `GATE_ALLOW_LIVE_CREDENTIALS=true`. Stored encrypted with `AGENT_URL_SECRET_KEY`, never shown again |
+| `GET`, `DELETE /gate/accounts/:id/stripe` | owner | The link (key hint only), or unlink: no new cards. Cards already issued are still checked |
+| `GET /gate/accounts/:id/card-intents` | owner | The cards issued, newest first |
+| `POST /payments/intents` | agent | `{ invoiceReference, vendorId? }`. If the invoice is approved and unpaid, its vendor has a card merchant, the charge would pass the rules and the account isn't frozen, Stripe issues a virtual card: single use (`lifecycle_controls.cancel_after.payment_count=1`), an all-time spending limit of the invoice amount, cash, ATM and quasi-cash categories blocked. The answer carries the card number, CVC and expiry once, as Stripe returns them (`Cache-Control: no-store`); only the card's id and last four digits are kept. The same invoice again, while its card is unused, returns the same card |
+| `GET /payments/intents/:intentId` | agent | One intent, without card details |
+| `POST /stripe/issuing/authorization` | Stripe | The real-time authorization webhook (below) |
+| `POST /stripe/issuing/events` | Stripe | `issuing_authorization.created`, `issuing_authorization.updated`, `issuing_transaction.created` (below) |
+
+Both Stripe routes check the `Stripe-Signature` header (HMAC-SHA256, `v1` only, 5 minutes'
+tolerance) against the linked account's own endpoint secret, if it gave one, and the service's
+(`STRIPE_WEBHOOK_SECRET`, `STRIPE_EVENTS_WEBHOOK_SECRET`). An unsigned or badly signed request
+gets 400 and changes nothing. Their bodies may be up to 256 KB.
+
+**Each charge.** Stripe sends `issuing_authorization.request`; the gate finds the card's intent,
+runs the shared rules on the card mapping, applies the mode and freeze, records the decision with
+a signed receipt (kind `card`, payee `CARD:<network id>`), all in one transaction holding the
+account's lock, and answers `200 { "approved": true | false }` with a `Stripe-Version` header.
+
+| Rule | On the card |
+|---|---|
+| `unknown_payee` | The merchant (`merchant_data.network_id`) isn't any vendor's card merchant on file |
+| `unverified_vendor_change` | The merchant has the card's vendor's name but isn't its merchant on file, and no verified ticket covers it. A ticket covers a merchant when its account is `card:<network id>`; the charge then passes and the merchant becomes the vendor's (a new mandate version). The owner changing a merchant on file needs the same ticket |
+| `unmatched_invoice` | No approved invoice of that vendor behind the card, an amount other than the invoice's (the mandate pays exact amounts), or a cash or quasi-cash category |
+| `duplicate_payment` | The invoice is paid, or held by a charge already approved |
+| `over_payment_cap`, `over_daily_cap` | Over the limits; charges approved and still held count toward the day |
+
+- **Enforce** never approves a charge that breaks a rule. **Monitor** approves it and records the
+  breach, except cash and quasi-cash, which are declined in either mode. A **frozen** account
+  declines every charge.
+- An incremental authorization is checked on the new total; declining it leaves the original
+  approval standing, as Stripe does.
+- The gate answers within 1.5 seconds (`budgetMs`) or declines, and keeps nothing it was
+  deciding. Any error, a card it didn't issue, a missing receipt key, a non-USD charge or a
+  live-mode charge (unless live credentials are allowed) is a decline: there is no fail-open.
+  Measured in the tests on embedded Postgres: a few milliseconds per charge.
+- The same event again gets the same answer and no second decision.
+
+**Paths that don't reach the gate, and how each is closed.**
+
+| Path | What the gate does | Stripe test helper that simulates it |
+|---|---|---|
+| Timeout or webhook error | Stripe applies its timeout setting (must be decline). `issuing_authorization.created`/`updated` with `request_history.reason` `webhook_timeout`, `webhook_error` or `network_fallback` alerts the owner (`stripe_webhook_failed`) | Stop the API, then `POST /v1/test_helpers/issuing/authorizations` |
+| Stripe approved without the gate (timeout fallback, Autopilot, stand-in) | The card is cancelled at once and the owner alerted (`payment_breach`); whatever settles is recorded as a breach | As above, with the timeout setting on approve (only to test) |
+| Force capture or offline transaction (no authorization) | `issuing_transaction.created` without a gate-approved authorization: a breach decision (bypassed), the payment recorded, the card cancelled, the owner alerted, the account frozen if set | `POST /v1/test_helpers/issuing/transactions/create_force_capture` |
+| Capture or increment above the approved amount | The difference is recorded as an overpayment (a breach decision with `overpaidUsd`) and alerted | `.../authorizations/:id/capture` with a larger `capture_amount`; `.../authorizations/:id/increment` |
+| Reversal or expiry | The invoice is released (intent `released`); a new card can be issued for it | `.../authorizations/:id/reverse`, `.../authorizations/:id/expire` |
+| Cash, ATM, quasi-cash | Blocked on the card; declined by the gate if a request still arrives | `POST /v1/test_helpers/issuing/authorizations` with `merchant_data[category]=automated_cash_disburse` |
+
+Nothing is marked paid until a transaction settles: a payment (`source: "card"`) is recorded on
+`issuing_transaction.created`, and the intent becomes `paid`. Refunds are recorded on the card
+and change nothing else. Every event id is stored, so a replay changes nothing.
+
+**Stripe settings the founder sets** (Dashboard, test mode, Issuing settings):
+
+1. Issuing turned on in test mode, a cardholder made (its `ich_` id goes in the link), and the
+   Issuing balance topped up with test funds.
+2. Real-time authorizations: the endpoint URL `https://<api host>/stripe/issuing/authorization`.
+   Its signing secret goes in `STRIPE_WEBHOOK_SECRET` (or the link's
+   `authorizationWebhookSecret`).
+3. The authorization timeout setting: **decline**. Autopilot off (or set to decline only).
+4. A webhook endpoint (Workbench, snapshot events) at `https://<api host>/stripe/issuing/events`
+   for `issuing_authorization.created`, `issuing_authorization.updated` and
+   `issuing_transaction.created`. Its signing secret goes in `STRIPE_EVENTS_WEBHOOK_SECRET`.
+5. A restricted key with write access to Issuing cards (and read on Issuing authorizations and
+   transactions), linked with `PUT /gate/accounts/:id/stripe`.
+
 ## Storage and retention
 
 Tables: `gate_accounts`, `gate_mandates`, `gate_api_keys`, `gate_vendors`, `gate_invoices`,
-`gate_refunds`, `gate_tickets`, `gate_payments`, `gate_decisions`, `gate_usage_daily`. Amounts
-are whole cents.
+`gate_refunds`, `gate_tickets`, `gate_payments`, `gate_decisions`, `gate_usage_daily`, and for
+the card route `gate_stripe_links`, `gate_card_intents`, `gate_card_authorizations`,
+`gate_card_transactions`, `gate_stripe_events` (event ids, kept 30 days). Amounts are whole
+cents.
 
 The decision log keeps the record only (rules, amounts, payee account, reference, hashes and the
 receipt), never an invoice document or image. The keeper deletes decisions older than
@@ -118,6 +198,11 @@ duplicate rule reads them.
 |---|---|---|
 | `GATE_RECEIPT_PRIVATE_KEY` | API | 32-byte hex secp256k1 key that signs receipts. Required for checks |
 | `GATE_DECISION_RETENTION_DAYS` | keeper | Days of decision log to keep (default 365) |
+| `STRIPE_WEBHOOK_SECRET` | API | Signing secret (`whsec_...`) of the real-time authorization endpoint |
+| `STRIPE_EVENTS_WEBHOOK_SECRET` | API | Signing secret of the Issuing events endpoint |
+| `STRIPE_API_VERSION` | API | The `Stripe-Version` sent and answered with (default `2026-09-30.endive`) |
+| `GATE_ALLOW_LIVE_CREDENTIALS` | API | `true` accepts live Stripe keys and live charges. Off: test mode only |
+| `AGENT_URL_SECRET_KEY` | API | Also encrypts the linked Stripe keys and secrets; `pnpm secrets:reencrypt` moves them with the rest |
 
 Limits (in `createApi({ gate })`): 600 checks per account per minute, 1,200 API-key requests per
 client address per minute, 20 accounts per wallet, 10 live keys per account, 500 vendors per

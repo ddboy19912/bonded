@@ -1,5 +1,5 @@
 import type { Database } from "@bonded/db";
-import { agentUrlContext, webhookContext, type SecretBox } from "./secrets.js";
+import { agentUrlContext, gateStripeContext, webhookContext, type SecretBox } from "./secrets.js";
 
 /** What one table's pass did. */
 export interface ReencryptCount {
@@ -12,6 +12,8 @@ export interface ReencryptCount {
 export interface ReencryptResult {
   agentUrls: ReencryptCount;
   webhooks: ReencryptCount;
+  /** Each linked Stripe account's key and endpoint secrets, counted one by one. */
+  gateStripe: ReencryptCount;
   dryRun: boolean;
 }
 
@@ -19,8 +21,9 @@ export interface ReencryptResult {
 const keyIdOf = (sealed: string) => sealed.split(".")[1];
 
 /**
- * Moves every stored secret (Agent URL secrets, revoked ones included, and webhook signing
- * secrets) from the `from` key to the `to` key, for rotating AGENT_URL_SECRET_KEY. One
+ * Moves every stored secret (Agent URL secrets, revoked ones included, webhook signing secrets,
+ * and the payment gate's Stripe keys and endpoint secrets) from the `from` key to the `to` key,
+ * for rotating AGENT_URL_SECRET_KEY. One
  * transaction with the rows locked: a value that won't decrypt with either key (malformed, or
  * under a third key) rolls everything back, naming its row but never the secret. Values already
  * under `to` are left alone, so a rerun is safe. With `dryRun`, everything is checked and
@@ -90,8 +93,46 @@ export async function reencryptSecrets(
           [r.owner, sealed],
         );
     }
+    // The payment gate's linked Stripe accounts: the restricted key and the endpoints' secrets.
+    const gateStripe: ReencryptCount = { reencrypted: 0, already: 0 };
+    const links = await client.query<{
+      account_id: string;
+      key_ciphertext: string;
+      authorization_secret_ciphertext: string | null;
+      events_secret_ciphertext: string | null;
+    }>(
+      `SELECT account_id, key_ciphertext, authorization_secret_ciphertext, events_secret_ciphertext
+       FROM gate_stripe_links ORDER BY account_id FOR UPDATE`,
+    );
+    for (const r of links.rows) {
+      const row = `Stripe link of gate account ${r.account_id}`;
+      const key = move(r.key_ciphertext, gateStripeContext(r.account_id, "key"), row, gateStripe);
+      const auth = r.authorization_secret_ciphertext
+        ? move(
+            r.authorization_secret_ciphertext,
+            gateStripeContext(r.account_id, "authorization"),
+            row,
+            gateStripe,
+          )
+        : undefined;
+      const events = r.events_secret_ciphertext
+        ? move(
+            r.events_secret_ciphertext,
+            gateStripeContext(r.account_id, "events"),
+            row,
+            gateStripe,
+          )
+        : undefined;
+      if ((key || auth || events) && !dryRun)
+        await client.query(
+          `UPDATE gate_stripe_links SET key_ciphertext=COALESCE($2,key_ciphertext),
+             authorization_secret_ciphertext=COALESCE($3,authorization_secret_ciphertext),
+             events_secret_ciphertext=COALESCE($4,events_secret_ciphertext) WHERE account_id=$1`,
+          [r.account_id, key ?? null, auth ?? null, events ?? null],
+        );
+    }
     await client.query(dryRun ? "ROLLBACK" : "COMMIT");
-    return { agentUrls, webhooks, dryRun };
+    return { agentUrls, webhooks, gateStripe, dryRun };
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     throw error;

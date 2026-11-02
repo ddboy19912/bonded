@@ -1,7 +1,13 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { reencryptSecrets } from "../src/reencrypt.js";
-import { SecretBox, agentUrlContext, secretBoxFromEnv, webhookContext } from "../src/secrets.js";
+import {
+  SecretBox,
+  agentUrlContext,
+  gateStripeContext,
+  secretBoxFromEnv,
+  webhookContext,
+} from "../src/secrets.js";
 import { postgres } from "./postgres.js";
 
 const box = () => new SecretBox(randomBytes(32));
@@ -67,6 +73,7 @@ describe("re-encrypting stored secrets for a new AGENT_URL_SECRET_KEY", () => {
     expect(result).toEqual({
       agentUrls: { reencrypted: 2, already: 0 },
       webhooks: { reencrypted: 1, already: 0 },
+      gateStripe: { reencrypted: 0, already: 0 },
       dryRun: false,
     });
     expect(newKey.decrypt(await urlSecret(live), agentUrlContext(live))).toBe("bonded_as_live");
@@ -80,6 +87,43 @@ describe("re-encrypting stored secrets for a new AGENT_URL_SECRET_KEY", () => {
       /another AGENT_URL_SECRET_KEY/,
     );
     expect(await hookSecret("0x00000000000000000000000000000000000000bb")).toBeNull();
+  });
+
+  it("moves the payment gate's Stripe key and endpoint secrets, each bound to its account", async () => {
+    const account = randomUUID();
+    await pg.db.pool.query(
+      `INSERT INTO gate_accounts(id,owner,mode,max_payment_cents,max_daily_cents,mandate_hash)
+       VALUES($1,$2,'enforce',100,100,'0x00')`,
+      [account, OWNER],
+    );
+    // Throwaway values shaped like Stripe's, made for this test.
+    const key = `rk_test_${randomBytes(12).toString("hex")}`;
+    const events = `whsec_${randomBytes(12).toString("hex")}`;
+    await pg.db.pool.query(
+      `INSERT INTO gate_stripe_links(account_id,key_ciphertext,key_hint,livemode,cardholder_id,
+         events_secret_ciphertext,linked_by) VALUES($1,$2,'rk_test_…',false,'ich_1',$3,$4)`,
+      [
+        account,
+        oldKey.encrypt(key, gateStripeContext(account, "key")),
+        oldKey.encrypt(events, gateStripeContext(account, "events")),
+        OWNER,
+      ],
+    );
+    const result = await reencryptSecrets(pg.db, oldKey, newKey);
+    expect(result.gateStripe).toEqual({ reencrypted: 2, already: 0 });
+    const row = (
+      await pg.db.pool.query("SELECT * FROM gate_stripe_links WHERE account_id=$1", [account])
+    ).rows[0];
+    expect(newKey.decrypt(row.key_ciphertext, gateStripeContext(account, "key"))).toBe(key);
+    expect(newKey.decrypt(row.events_secret_ciphertext, gateStripeContext(account, "events"))).toBe(
+      events,
+    );
+    expect(row.authorization_secret_ciphertext).toBeNull();
+    await pg.db.pool.query("DELETE FROM gate_stripe_links");
+    expect((await reencryptSecrets(pg.db, newKey, box())).gateStripe).toEqual({
+      reencrypted: 0,
+      already: 0,
+    });
   });
 
   it("is safe to run again: values already under the new key are left as they are", async () => {

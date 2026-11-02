@@ -35,6 +35,9 @@ try {
   console.log(
     `webhooks:   ${verb} ${r.webhooks.reencrypted}, already on the new key ${r.webhooks.already}`,
   );
+  console.log(
+    `gate Stripe secrets: ${verb} ${r.gateStripe.reencrypted}, already on the new key ${r.gateStripe.already}`,
+  );
   if (!r.dryRun)
     console.log("now set AGENT_URL_SECRET_KEY to the new key on api and arena-worker and redeploy");
 } finally {
