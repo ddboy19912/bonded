@@ -59,7 +59,7 @@ Each phase ships on its own and is useful without the next.
 
 ### Phase 1: one rule engine
 
-Move the mandate's rule check out of the sandbox ledger into a package of its own (`@bondedhq/payment-mandate`). The Arena's ledger and the gate both call it, so the rules an agent is rated against are exactly the rules that guard it in production.
+Move the mandate's rule check out of the sandbox ledger into `@bondedhq/shared` (`payment-mandate.ts`), which the SDK, API, Arena and web app already use. The Arena's ledger and the gate both call it, so the rules an agent is rated against are exactly the rules that guard it in production.
 
 - Input: a proposed payment (account, amount, invoice reference), the vendor master, approved invoices and refunds, verified change tickets, today's total.
 - Output: allow or block, every rule broken, and a plain-language reason per rule.
