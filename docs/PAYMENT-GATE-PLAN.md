@@ -1,6 +1,6 @@
 # Payment gate plan: protecting money off chain
 
-Date: 2026-11-02. Status: plan, nothing here is built yet. Start with the demo slice below.
+Date: 2026-11-02. Status: plan, nothing here is built yet. Build order and the video are below.
 
 ## Why
 
@@ -29,30 +29,29 @@ On chain, the vault holds the money and the contract enforces the rules, so nobo
 | TEE custody | `services/tee-agent/`, [TEE.md](TEE.md) | Keys made inside a Phala confidential VM, with a public attestation |
 | Arena traces | `apps/arena/ratings/index-traces/` | Labelled payment attacks and benign twins from the Index runs |
 
-## First milestone: the demo slice
+## Build order
 
-The first build is a thin slice through Phases 1, 3, 4 and 5a, enough to show the gate stopping a real attack live, in Stripe's test mode. The rest of each phase follows.
+All phases get built. Order: 1, 3, 4 and 5a first (the card route working end to end with receipts and the rules page), then 2, 5b, 6 and 7, then 8. Each lands in its own PR with its tests.
 
-**What it shows.** An agent works through the busy-Monday inbox. A forged invoice asks it to pay through a new payment link. The agent tries; Stripe asks the gate; the gate declines it in under 2 seconds, naming the rule. A genuine invoice right after goes through. Both decisions appear live in the Bonded app with their signed receipts, and in the Stripe dashboard as one declined and one approved authorization.
-
-**Steps.**
-
-1. **Rule engine** (Phase 1): extract the six rules into `@bondedhq/payment-mandate`, with the card mapping below. Arena results unchanged.
-2. **Payment intents and cards:** `POST /payments/intent` takes an invoice reference; if the invoice is approved, the gate creates a single-use Stripe Issuing virtual card limited to that invoice's amount and returns it to the agent.
-3. **The webhook:** `POST /stripe/issuing/authorization` receives `issuing_authorization.request`, verifies Stripe's signature, runs the rule engine against the intent and the merchant, and answers approve or decline within the 2-second window.
-4. **Receipts and live view:** each decision gets a signed receipt (Phase 3) and appears on a new `/gate` page in the web app: the payment, the merchant, the decision, the rule, the receipt. The day's mandate is shown in plain words beside it (Phase 4).
-5. **Demo driver:** `pnpm demo:gate` runs two payments through Stripe's test helpers (create a test authorization with `merchant_data` for the attacker's merchant, then for the real vendor), so the run is the same every time. ([Stripe: test your Issuing integration](https://docs.stripe.com/issuing/testing)) A second mode lets a model agent (Muse Spark) do the paying from the Arena world.
-6. **Tests:** the rule engine's card cases; the webhook with Stripe's signed test payloads; timeouts (the gate answers or the fallback applies); no secret in logs or receipts.
-
-**Done when:** `pnpm demo:gate` declines the attack and approves the real invoice against Stripe test mode, the `/gate` page shows both with valid receipts, and the Stripe dashboard agrees.
-
-**Founder steps before step 2:**
+Founder steps before Phase 5a:
 
 1. Create a Stripe account (or use an existing one) and turn on Issuing in **test mode**.
 2. Put the test secret key and the webhook signing secret in the local `.env` and the API's host settings. Never paste them in chat.
 3. In Stripe, point the Issuing real-time authorization webhook at the API's public URL.
 
-**In the video.** Show the live run: the agent, the decline with its rule, the receipt, then the real invoice going through. Label it "Stripe test mode". A short motion piece (Remotion, about 20 seconds) explains what the live run can't show: the card, Stripe's question, the gate's answer, and the receipt's hash going on chain. If the live run isn't ready by recording time, the motion piece carries the scene alone, labelled as the plan.
+Real money waits for the safety work (audit, legal advice, live-mode Stripe approval).
+
+## The video: the product end to end
+
+The video shows the real product being used, not a scripted run:
+
+- A builder connects an agent, sets its rules on the rules page, and links its Stripe Issuing account.
+- The agent does a normal day's payments through the gate. When it is fooled into paying the wrong merchant, the gate declines the charge and names the rule; genuine payments go through.
+- The `/gate` page shows each decision with its signed receipt, and the Stripe dashboard agrees.
+- The receipt's hash is on chain, checkable by anyone.
+- The Arena and the Index show how the same rules were used to rate the agent before it went live.
+
+Recorded in Stripe test mode, labelled as such. Short motion pieces (Remotion) explain the parts that happen out of sight: Stripe asking the gate, the TEE holding a payout key, the hash going on chain, and where cover fits later.
 
 ## Phases
 
