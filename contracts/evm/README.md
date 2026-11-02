@@ -241,6 +241,24 @@ The council is a multisig for now; UMA or Kleros can replace it later without ch
 
 Accepted attacks join the Arena's library, and every insured agent is re-tested against them.
 
+## Optional: GateAnchor
+
+[`GateAnchor`](src/GateAnchor.sol) is the public record of the off-chain payment gate ([apps/api/GATE.md](../../apps/api/GATE.md)). It isn't part of a deployment: it holds no money, no other contract reads it, and it doesn't touch the attestation format. Not deployed yet.
+
+- **What it holds:** for each gate account (its UUID as `bytes16`), the hash of each mandate version (`postMandate`) and one log root per UTC day over that day's signed receipts (`postLogRoot`, the day as days since 1970).
+- **No overwriting:** a version or a day can be posted once. A day can be posted only after it has ended on chain.
+- **Who posts:** addresses the owner allows with `setPoster` (the keeper's `GATE_ANCHOR_KEY`), like the registry's attesters. Ownership moves in two steps.
+- **Reading:** `mandateHashOf(account, version)` and `logRootOf(account, day)` return the hash and when it was posted (zero if not posted). `verifyReceipt(account, day, receiptHash, index, count, siblings)` checks a receipt's proof from the API against the posted root. Events: `MandatePosted`, `LogRootPosted`, `PosterSet`.
+
+To deploy it on a chain that already has the protocol (it prints the address for the keeper's `GATE_ANCHOR_ADDRESS`):
+
+```bash
+DEPLOYER_PRIVATE_KEY=... GATE_ANCHOR_POSTER=<keeper poster address> \
+  forge script script/DeployGateAnchor.s.sol --rpc-url <rpc> --broadcast --slow
+```
+
+With a full deployment, `GATE_ANCHOR=true` (and `GATE_ANCHOR_POSTER`) makes `Deploy.s.sol` deploy it too and write `gateAnchor` to the deployment file.
+
 ## The testnet demo market
 
 We couldn't confirm the real stablecoin, stock token and exchange addresses on Robinhood Chain testnet, so the deploy script brings its own. **None of these go to mainnet**, where Bonded uses real tokens, Chainlink prices and real exchanges.
@@ -266,6 +284,7 @@ We couldn't confirm the real stablecoin, stock token and exchange addresses on R
 | Trade from the vault, or from a guarded account | The agent (only through `execute`) |
 | Sign scores and quotes, accept or reject bounties | Attesters in the registry |
 | Decide challenged disputes | The council |
+| Post payment gate hashes to GateAnchor | Posters its owner allows (the keeper) |
 | Change parameters, attesters and fees | Each contract's owner. The deployer for now, moving to a multisig before mainnet (ownership changes take two steps, `Ownable2Step`, so a typo can't lose it). |
 
 Contracts that move money for each other are linked once at deployment: the factory, pool and bond to CoverManager and ClaimsEngine, CoverManager to ClaimsEngine and to MandateModuleFactory, and ClaimsEngine to DisputeModule. None of those links can be changed afterwards, so an owner can't later point them at a contract that drains funds.
@@ -294,16 +313,16 @@ src/
   BondedRegistry.sol, MandateBase.sol, MandateVault.sol, MandateVaultFactory.sol,
   MandateModule.sol, MandateModuleFactory.sol,
   CoverPool.sol, OperatorBond.sol, CoverManager.sol, ClaimsEngine.sol,
-  DisputeModule.sol, BountyBoard.sol
+  DisputeModule.sol, BountyBoard.sol, GateAnchor.sol (optional, the payment gate's hashes)
   oracles/       ChainlinkOracle (production), MockOracle (testnets)
   testnet/       TestToken, DemoRouter (never deployed to mainnet)
   interfaces/    what the contracts read from each other, and the ERC-7579 parts the module uses
   libraries/     BondedTypes: shared structs, signed-message formats, tier rules, the mandate
                  commitment; MandateErrors: the errors the mandate checks raise
-test/            Forge tests (318), one file per contract plus full-loop tests
+test/            Forge tests (334), one file per contract plus full-loop tests
   module/        MandateModule on real ERC-7579 accounts, the vault/module differential tests
   invariant/     invariant suites and mutations.py (plants known bugs, checks the invariants catch them)
-script/          Deploy, RecordDeployment, Smoke; deploy.sh, smoke.sh, local-demo.sh, env.sh
+script/          Deploy, RecordDeployment, Smoke, DeployGateAnchor; deploy.sh, smoke.sh, local-demo.sh, env.sh
 deployments/     live addresses per chain
 lib/             forge-std and OpenZeppelin; for tests only: Safe 1.4.1, Safe7579 1.0.2, the ERC-7579
                  reference account 0.0.2 and their dependencies (git submodules pinned to release tags)
