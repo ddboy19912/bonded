@@ -51,6 +51,10 @@ test("a slug must be lowercase letters, numbers and hyphens", () => {
   assert.match(checkPost({ ...good(), slug: "Sandboxed Isnt Safe" }).join(), /bad URL slug/);
 });
 
+test("a slug the blog uses for its own pages is rejected", () => {
+  assert.match(checkPost({ ...good(), slug: "page" }).join(), /blog uses itself/);
+});
+
 test("saying Bonded covers trading or market losses fails, wherever it appears", () => {
   const inBody = good();
   inBody.body[0].children.push(span(" Bonded covers your trading losses."));

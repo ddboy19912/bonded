@@ -1,0 +1,24 @@
+---
+import Hero from "../../components/Hero.astro";
+import PostList from "../../components/PostList.astro";
+import Base from "../../layouts/Base.astro";
+import { paginate } from "../../lib/paginate.mjs";
+import { indexPosts } from "../../lib/sanity";
+
+// Page 1 is the front page (index.astro); this builds pages 2 and up, if there are any.
+export async function getStaticPaths() {
+  const pages = paginate(await indexPosts());
+  return pages.slice(1).map((page) => ({ params: { page: String(page.number) }, props: { page } }));
+}
+
+const { page } = Astro.props;
+---
+
+<Base
+  title={`Blog, page ${page.number} | Bonded`}
+  description={`Older notes from Bonded on red-teaming AI agents and safety scores. Page ${page.number} of ${page.total}.`}
+>
+  <Hero />
+
+  <PostList page={page} />
+</Base>
