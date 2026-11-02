@@ -1,0 +1,25 @@
+---
+import type { Post } from "../lib/sanity";
+import Pagination from "./Pagination.astro";
+import PostCard from "./PostCard.astro";
+
+interface Props {
+  page: { number: number; total: number; lead?: Post; posts: Post[] };
+}
+
+const { page } = Astro.props;
+---
+
+<section class="list">
+  {page.lead && <PostCard post={page.lead} featured />}
+  {
+    page.posts.length > 0 && (
+      <div class="grid">
+        {page.posts.map((post) => (
+          <PostCard post={post} />
+        ))}
+      </div>
+    )
+  }
+  <Pagination number={page.number} total={page.total} />
+</section>

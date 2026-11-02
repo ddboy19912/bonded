@@ -1,9 +1,10 @@
 ---
-import PostCard from "../components/PostCard.astro";
+import PostList from "../components/PostList.astro";
 import Base from "../layouts/Base.astro";
+import { paginate } from "../lib/paginate.mjs";
 import { indexPosts } from "../lib/sanity";
 
-const [featured, ...rest] = await indexPosts();
+const [page] = paginate(await indexPosts());
 ---
 
 <Base
@@ -16,16 +17,5 @@ const [featured, ...rest] = await indexPosts();
     <p class="lede">How AI agents get fooled, how we measure it, and who pays when one breaks its rules.</p>
   </section>
 
-  <section class="list">
-    {featured && <PostCard post={featured} featured />}
-    {
-      rest.length > 0 && (
-        <div class="grid">
-          {rest.map((post) => (
-            <PostCard post={post} />
-          ))}
-        </div>
-      )
-    }
-  </section>
+  <PostList page={page} />
 </Base>

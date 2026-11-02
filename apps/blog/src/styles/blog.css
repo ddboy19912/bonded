@@ -242,6 +242,63 @@ h1 em {
   text-wrap: pretty;
 }
 
+/* Pages 2 and up: a short heading instead of the hero */
+.page-head {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 72px 16px 0;
+  text-align: center;
+}
+.page-head h1 {
+  margin: 16px 0 0;
+  font-size: clamp(40px, 7vw, 64px);
+  line-height: 1;
+}
+
+/* Page links under the list */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 24px;
+  font-size: 14px;
+}
+.pager ol {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pager a {
+  color: var(--muted);
+  text-decoration: none;
+}
+.pager a:hover {
+  color: var(--ink);
+}
+.pager ol a {
+  display: grid;
+  place-items: center;
+  min-width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+.pager ol a[aria-current="page"] {
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+.pager-step {
+  min-width: 72px;
+}
+.pager-step:last-child {
+  text-align: right;
+}
+
 /* Post cards */
 .list,
 .more {

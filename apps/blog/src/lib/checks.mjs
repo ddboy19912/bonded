@@ -71,6 +71,9 @@ function linkProblems(text) {
   return problems;
 }
 
+// URL paths the blog itself uses, so a post can't take them.
+const RESERVED_SLUGS = new Set(["page"]);
+
 /** Problems with one post, as readable sentences. An empty list means it can go live. */
 export function checkPost(post) {
   const problems = [];
@@ -80,6 +83,8 @@ export function checkPost(post) {
     problems.push(
       `has a bad URL slug "${post.slug ?? ""}" (use lowercase letters, numbers and hyphens)`,
     );
+  else if (RESERVED_SLUGS.has(post.slug))
+    problems.push(`has the URL slug "${post.slug}", which the blog uses itself (pick another)`);
   if (!post.description) problems.push("has no description");
   else if (post.description.length > 200) problems.push("has a description over 200 characters");
   if (!post.publishedAt) problems.push("has no publish date");

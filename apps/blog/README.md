@@ -11,6 +11,8 @@ Posts live in **Sanity** (project "Bonded", `v74fgzgp`, dataset `production`), n
 3. Write the body. Headings, quotes, lists, links, images and tables are all available.
 4. Click **Publish**. Sanity tells Vercel to rebuild the site (a webhook to a Vercel deploy hook), and the post goes live in a minute or two. The web app's build is never cached (`"cache": false` in `apps/web/turbo.json`): posts aren't files in the repo, so a cached build would replay the old blog without the new post.
 
+The index shows the lead post and 8 more per page; older posts go to `/blog/page/2/`, `/blog/page/3/` and so on (`src/lib/paginate.mjs`). Pages are built with the site, so a new post just reshuffles them. `page` is reserved as a slug.
+
 The cover is shown on the post and in the list, and becomes the post's link-preview image (cropped to 1200×630).
 
 ## Checks before anything goes live

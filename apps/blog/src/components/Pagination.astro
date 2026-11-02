@@ -1,0 +1,46 @@
+---
+import { pagePath } from "../lib/paginate.mjs";
+
+interface Props {
+  number: number;
+  total: number;
+}
+
+const { number, total } = Astro.props;
+const base = import.meta.env.BASE_URL;
+const pages = Array.from({ length: total }, (_, i) => i + 1);
+---
+
+{
+  total > 1 && (
+    <nav class="pager" aria-label="Pages of posts">
+      {number > 1 ? (
+        <a class="pager-step" href={pagePath(base, number - 1)} rel="prev">
+          <span aria-hidden="true">←</span> Newer
+        </a>
+      ) : (
+        <span class="pager-step" aria-hidden="true" />
+      )}
+      <ol>
+        {pages.map((n) => (
+          <li>
+            <a
+              href={pagePath(base, n)}
+              aria-current={n === number ? "page" : undefined}
+              aria-label={`Page ${n}`}
+            >
+              {n}
+            </a>
+          </li>
+        ))}
+      </ol>
+      {number < total ? (
+        <a class="pager-step" href={pagePath(base, number + 1)} rel="next">
+          Older <span aria-hidden="true">→</span>
+        </a>
+      ) : (
+        <span class="pager-step" aria-hidden="true" />
+      )}
+    </nav>
+  )
+}
