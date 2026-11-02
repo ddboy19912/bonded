@@ -582,6 +582,92 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 **What to do:** Save a webhook URL, then rotate its secret.
 
+## The payment gate
+
+### gate-not-found
+
+**Message:** No such gate account.
+
+**What to do:** Check the account id, and that you are signed in with the wallet that created it. Another wallet's accounts, and their vendors, invoices and decisions, show as not found.
+
+### gate-already-there
+
+**Message:** That is already on this gate account.
+
+**What to do:** Use the one already there, or delete it first and add it again.
+
+### gate-key-missing
+
+**Message:** Send your gate API key.
+
+**What to do:** Send the key as `Authorization: Bearer bonded_gk_...`. The account's owner makes keys in the gate account's settings.
+
+### gate-key-invalid
+
+**Message:** That gate API key isn't valid or was revoked.
+
+**What to do:** Ask the account's owner for a new key; a key is shown only once, when it is made.
+
+### gate-receipt-key-missing
+
+**Message:** The payment gate's receipt key isn't set up on this service.
+
+**What to do:** Checks need a signed receipt, so none run without the key. The operator sets GATE_RECEIPT_PRIVATE_KEY on the API.
+
+### gate-check-limit
+
+**Message:** Too many checks for this gate account. Try again in a minute.
+
+**What to do:** Wait a minute. The limit is per gate account, so spread checks out or ask for a higher limit.
+
+### gate-request-reused
+
+**Message:** That request id was already used for a different check.
+
+**What to do:** Give each new check its own request id. The same id again must carry the same check: it returns the first decision.
+
+### gate-account-limit
+
+**Message:** This wallet has as many gate accounts as it may.
+
+**What to do:** Use one of the wallet's gate accounts, or another wallet.
+
+### gate-key-limit
+
+**Message:** This gate account has as many live API keys as it may.
+
+**What to do:** Revoke a key that is no longer used, then make a new one.
+
+### gate-vendor-limit
+
+**Message:** This gate account has as many vendors as it may.
+
+**What to do:** Delete vendors the business no longer pays, or use a second gate account.
+
+### gate-future-payment
+
+**Message:** A payment's day can't be in the future.
+
+**What to do:** Import only payments already made, with the UTC day they were made.
+
+### gate-payment-blocked
+
+**Message:** The payment gate blocked a payment.
+
+**What to do:** Read the rules it broke in the decision log. If the payment is genuine, approve its invoice (or verify the bank change), then pay again.
+
+### gate-payment-breach
+
+**Message:** A payment broke the mandate and went through (Monitor mode).
+
+**What to do:** Check the payment in the decision log, and recover it if it was wrong. Switch the account to Enforce mode to block such payments.
+
+### gate-frozen
+
+**Message:** The payment gate froze the account after a breach.
+
+**What to do:** Every check is refused until you lift the freeze. Read the breach in the decision log first, then unfreeze the account.
+
 ## Bonded's own services
 
 ### agent-urls-off

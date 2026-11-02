@@ -15,6 +15,9 @@ export const NOTIFICATION_TYPES = {
   claim_paid: "A claim was paid.",
   cover_lapsing: "The cover's premium is past due (in its grace period) or the cover lapsed.",
   low_gas: "The agent key is low on gas.",
+  payment_blocked: "The payment gate blocked a payment (Enforce mode).",
+  payment_breach: "A payment broke a rule and went through (Monitor mode).",
+  gate_frozen: "The payment gate froze an account after a breach.",
 } as const;
 
 export type NotificationType = keyof typeof NOTIFICATION_TYPES;

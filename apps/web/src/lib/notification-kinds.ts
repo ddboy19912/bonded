@@ -4,7 +4,7 @@ export type NoticeTone = "safe" | "warn" | "breach";
 export type NoticeIconName =
   "check" | "stop" | "clock" | "plug" | "fuel" | "shield" | "claim" | "paid" | "umbrella" | "bell";
 
-export const NOTICE_GROUPS = ["Ratings", "Your agent", "Vault and cover"] as const;
+export const NOTICE_GROUPS = ["Ratings", "Your agent", "Vault and cover", "Payment gate"] as const;
 export type NoticeGroup = (typeof NOTICE_GROUPS)[number];
 
 export interface NoticeKind {
@@ -38,6 +38,14 @@ export const NOTICE_KINDS: Record<NotificationType, NoticeKind> = {
     tone: "warn",
     icon: "umbrella",
   },
+  payment_blocked: {
+    title: "Payment blocked",
+    group: "Payment gate",
+    tone: "warn",
+    icon: "shield",
+  },
+  payment_breach: { title: "Payment breach", group: "Payment gate", tone: "breach", icon: "stop" },
+  gate_frozen: { title: "Gate frozen", group: "Payment gate", tone: "breach", icon: "stop" },
 };
 
 const known = (type: string | undefined): type is NotificationType =>

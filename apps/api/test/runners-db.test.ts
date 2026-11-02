@@ -26,13 +26,13 @@ beforeAll(async () => {
 }, 120_000);
 afterAll(() => pg?.stop());
 
-describe("migrations 0014 to 0023", () => {
+describe("migrations 0014 to 0024", () => {
   it("apply once, in order, and again is a no-op", async () => {
     const versions = (
       await db.pool.query("SELECT version FROM schema_migrations ORDER BY version")
     ).rows.map((r) => r.version);
-    // Numbered by their file names (0001 to 0023), each once and in order.
-    expect(versions).toEqual(Array.from({ length: 23 }, (_, i) => i + 1));
+    // Numbered by their file names (0001 to 0024), each once and in order.
+    expect(versions).toEqual(Array.from({ length: 24 }, (_, i) => i + 1));
     await db.migrate();
     const tables = (
       await db.pool.query(
@@ -58,11 +58,29 @@ describe("migrations 0014 to 0023", () => {
       )
     ).rows.map((r) => r.column_name);
     expect(rated).toEqual(["charged_owner", "config", "kind"]);
+    // 0024: the payment gate.
+    const gate = (
+      await db.pool.query(
+        "SELECT table_name FROM information_schema.tables WHERE table_name LIKE 'gate\\_%' ORDER BY 1",
+      )
+    ).rows.map((r) => r.table_name);
+    expect(gate).toEqual([
+      "gate_accounts",
+      "gate_api_keys",
+      "gate_decisions",
+      "gate_invoices",
+      "gate_mandates",
+      "gate_payments",
+      "gate_refunds",
+      "gate_tickets",
+      "gate_usage_daily",
+      "gate_vendors",
+    ]);
   });
 });
 
 describe("migrations on a database that main already migrated", () => {
-  it("applies only 0020 to 0023 after 0001 to 0019, then nothing", async () => {
+  it("applies only 0020 to 0024 after 0001 to 0019, then nothing", async () => {
     // Before migrations took their version from the file name, the version was the place in the
     // list: on main that put 0001 to 0019 at versions 1 to 19, the same numbers.
     const old = await postgres({ migrate: false });
@@ -70,7 +88,7 @@ describe("migrations on a database that main already migrated", () => {
       const dir = fileURLToPath(new URL("../../../packages/db/migrations/", import.meta.url));
       const files = (await readdir(dir)).filter((f) => /^\d{4}_.*\.sql$/.test(f)).sort();
       expect(files.map((f) => Number(f.slice(0, 4)))).toEqual(
-        Array.from({ length: 23 }, (_, i) => i + 1),
+        Array.from({ length: 24 }, (_, i) => i + 1),
       );
       await old.db.pool.query("CREATE TABLE schema_migrations (version integer PRIMARY KEY)");
       for (const [index, file] of files.slice(0, 19).entries()) {
@@ -86,7 +104,7 @@ describe("migrations on a database that main already migrated", () => {
         (
           await old.db.pool.query("SELECT version FROM schema_migrations ORDER BY version")
         ).rows.map((r) => r.version);
-      expect(await versions()).toEqual(Array.from({ length: 23 }, (_, i) => i + 1));
+      expect(await versions()).toEqual(Array.from({ length: 24 }, (_, i) => i + 1));
       const added = (
         await old.db.pool.query(
           "SELECT table_name FROM information_schema.tables WHERE table_name IN ('previews','notification_settings') ORDER BY 1",
@@ -106,7 +124,7 @@ describe("migrations on a database that main already migrated", () => {
         { chain_id: 46630, registry: "0x35f6d30be731a639235ccad7abedda4d4be8d4f9" },
       ]);
       await old.db.migrate();
-      expect(await versions()).toEqual(Array.from({ length: 23 }, (_, i) => i + 1));
+      expect(await versions()).toEqual(Array.from({ length: 24 }, (_, i) => i + 1));
     } finally {
       await old.stop();
     }
