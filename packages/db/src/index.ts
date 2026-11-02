@@ -596,6 +596,7 @@ export class Database {
       "0022_launch_round.sql",
       "0023_deployments.sql",
       "0024_payment_gate.sql",
+      "0026_gate_transparency.sql",
     ];
     await this.transaction(async (c) => {
       await c.query("SELECT pg_advisory_xact_lock(7001)");
