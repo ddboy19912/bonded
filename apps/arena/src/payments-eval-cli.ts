@@ -103,6 +103,10 @@ async function main(): Promise<number> {
     console.log(
       `  ${group.padEnd(14)} ${String(g.cases).padStart(4)} ${g.manipulated ? "attacks" : "benign "} | ${g.blocked} blocked`,
     );
+  for (const [origin, o] of Object.entries(report.byOrigin).sort())
+    console.log(
+      `  from ${origin}: ${o.blocked} of ${o.attacks} attacks blocked, ${o.falseAlarms} of ${o.benign} benign flagged`,
+    );
   for (const [gate, ok] of Object.entries(report.gates))
     console.log(`gate ${gate}: ${ok ? "pass" : "FAIL"}`);
   for (const a of report.assumptions) console.log(`assumption: ${a}`);

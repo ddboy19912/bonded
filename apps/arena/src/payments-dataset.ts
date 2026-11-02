@@ -73,8 +73,16 @@ export const PAYMENTS_DATASET_DIR = "datasets/sentinel-payments";
  */
 export const paymentsMandate = () => describePaymentMandate(baseWorld().mandate).join(" ");
 
+/**
+ * Where a case's agent came from: a model-driven agent (Index traces and off-chain runs) or the
+ * scripted payables agents (payments-scripted.ts). A scripted attack case shows what a
+ * manipulation looks like; only a model's cases say how often one gets through.
+ */
+export type PaymentOrigin = "model" | "scripted";
+
 /** One payment decision before deduplication. A SentinelRow, so the Laya tooling reads it. */
 export interface PaymentRow extends SentinelRow {
+  origin: PaymentOrigin;
   kind: OffchainEpisodeResult["kind"];
   scenarioId: string;
   /** The seed family: a fresh variant belongs to the seed it was drafted from. */
@@ -143,6 +151,7 @@ export function paymentRows(
     agent: string;
     mandate: string;
     planted: ReadonlySet<string> | null;
+    origin?: PaymentOrigin;
   },
 ): PaymentRow[] {
   const attack = episode.kind === "attack";
@@ -185,6 +194,7 @@ export function paymentRows(
           breachTypes.length > 0 ? "breach_likely" : namesPlanted ? "suspicious" : "within_mandate",
         injection_in_inputs: injected,
       },
+      origin: context.origin ?? "model",
       kind: episode.kind,
       scenarioId: episode.scenarioId,
       family: episode.variantOf ?? episode.scenarioId,
@@ -201,6 +211,8 @@ export interface EpisodeFile {
   /** SHA-256 of the file, so the manifest records exactly what was read. */
   sha256: string;
   agent: string;
+  /** "scripted" when the results file says so (`summary.origin`), else a model's. */
+  origin: PaymentOrigin;
   episodes: TracedEpisode[];
 }
 
@@ -223,14 +235,15 @@ export function readEpisodeFile(path: string): EpisodeFile | null {
     model?: unknown;
     episodes?: unknown;
     results?: unknown;
-    summary?: { agent?: unknown };
+    summary?: { agent?: unknown; origin?: unknown };
   };
   if (isEpisodeList(record.episodes) && typeof record.model === "string")
-    return { sha256, agent: record.model, episodes: record.episodes };
+    return { sha256, agent: record.model, origin: "model", episodes: record.episodes };
   if (isEpisodeList(record.results) && (record.results.length > 0 || record.summary))
     return {
       sha256,
       agent: typeof record.summary?.agent === "string" ? record.summary.agent : "unknown",
+      origin: record.summary?.origin === "scripted" ? "scripted" : "model",
       episodes: record.results,
     };
   return null;
@@ -251,6 +264,12 @@ export function episodeFilePaths(paths: readonly string[]): string[] {
 
 /** Where episodes are read from when no path is given: the Index sweep's traces. */
 export const DEFAULT_EPISODE_PATHS: readonly string[] = [INDEX_TRACES_DIR];
+
+/**
+ * Where the scripted runs are written (`pnpm sentinel:payments-scripted`), relative to
+ * `apps/arena`. The dataset build reads them beside the traces with `--with-scripted`.
+ */
+export const SCRIPTED_RUNS_DIR = "datasets/sentinel-payments-scripted";
 
 /** Where seeds are looked up: the library, the staged folder and the Index variants. */
 export const DEFAULT_SEED_DIRS: readonly string[] = [
@@ -280,6 +299,8 @@ export interface ExportStats {
   /** Attack episodes whose seed isn't in any seed folder given. */
   skippedUnknownSeed: number;
   paymentRows: number;
+  /** Episodes and payment rows read, by where the agent came from. */
+  byOrigin: Record<PaymentOrigin, { episodes: number; paymentRows: number }>;
 }
 
 /** Every payment row in the given files, with what was skipped and why. */
@@ -295,6 +316,7 @@ export function exportPaymentRows(
     skippedUnattributed: 0,
     skippedUnknownSeed: 0,
     paymentRows: 0,
+    byOrigin: { model: { episodes: 0, paymentRows: 0 }, scripted: { episodes: 0, paymentRows: 0 } },
   };
   const rows: PaymentRow[] = [];
   const sources: string[] = [];
@@ -304,8 +326,10 @@ export function exportPaymentRows(
       continue;
     }
     sources.push(file.sha256);
+    const origin = stats.byOrigin[file.origin];
     for (const [i, episode] of file.episodes.entries()) {
       stats.episodes++;
+      origin.episodes++;
       const attack = episode.kind === "attack";
       if (attack && !episode.verdict.ownErrors) {
         stats.skippedUnattributed++;
@@ -316,14 +340,15 @@ export function exportPaymentRows(
         stats.skippedUnknownSeed++;
         continue;
       }
-      rows.push(
-        ...paymentRows(episode, {
-          episodeId: `${file.sha256.slice(0, 12)}:${i}`,
-          agent: file.agent,
-          mandate,
-          planted: seedFacts ?? null,
-        }),
-      );
+      const found = paymentRows(episode, {
+        episodeId: `${file.sha256.slice(0, 12)}:${i}`,
+        agent: file.agent,
+        mandate,
+        planted: seedFacts ?? null,
+        origin: file.origin,
+      });
+      origin.paymentRows += found.length;
+      rows.push(...found);
     }
   }
   stats.paymentRows = rows.length;
@@ -347,6 +372,8 @@ export interface PaymentCase extends LayaRow {
   families: string[];
   /** The off-chain classes its copies came from (`control` for a control). */
   classes: string[];
+  /** Where its copies' agents came from. */
+  origins: PaymentOrigin[];
   manipulated: boolean;
   /** Payment rows that had this exact state. */
   copies: number;
@@ -354,6 +381,9 @@ export interface PaymentCase extends LayaRow {
 }
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
+
+/** A case's origin as one label; a case file written before origins were recorded is a model's. */
+export const originOf = (c: Pick<PaymentCase, "origins">) => (c.origins ?? ["model"]).join("+");
 
 function groupOf(row: PaymentRow): string {
   if (row.kind === "control") return "control";
@@ -424,6 +454,12 @@ export interface PaymentsDataset {
     labels: Record<PaymentsPart, Record<string, Record<string, number>>>;
     /** Manipulated cases whose state omits a picture the agent saw. */
     manipulatedWithImages: Record<PaymentsPart, number>;
+    /**
+     * Cases and manipulated cases by where their agents came from (`model`, `scripted`, or
+     * `model+scripted` for a state both produced), so a report can say which attacks were a
+     * model's.
+     */
+    origins: Record<PaymentsPart, Record<string, { cases: number; manipulated: number }>>;
     /** Whether a surface rule predicts the training labels (shortcuts.ts). Don't train on a fail. */
     shortcuts: ShortcutAudit;
   };
@@ -482,6 +518,7 @@ export function buildPaymentsDataset(input: {
       group: groups[0]!,
       families,
       classes: [...new Set(kept.map((r) => r.offchainClass ?? "control"))].sort(),
+      origins: [...new Set(kept.map((r) => r.origin))].sort(),
       manipulated: first.labels.manipulated,
       copies: kept.length,
       imageInputs: first.imageInputs,
@@ -526,7 +563,18 @@ export function buildPaymentsDataset(input: {
       manipulatedWithImages: each(
         (cases) => cases.filter((c) => c.manipulated && c.imageInputs > 0).length,
       ),
-      shortcuts: auditShortcuts(out.train.map(auditRowFromLaya)),
+      origins: each((cases) =>
+        cases.reduce<Record<string, { cases: number; manipulated: number }>>((acc, c) => {
+          const o = (acc[originOf(c)] ??= { cases: 0, manipulated: 0 });
+          o.cases++;
+          if (c.manipulated) o.manipulated++;
+          return acc;
+        }, {}),
+      ),
+      // Audited by origin too: a source with many rows mustn't be solvable on its own.
+      shortcuts: auditShortcuts(
+        out.train.map((c) => ({ ...auditRowFromLaya(c), source: originOf(c) })),
+      ),
     },
   };
 }

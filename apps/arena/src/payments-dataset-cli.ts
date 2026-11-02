@@ -13,6 +13,7 @@ import {
   PAYMENTS_HELD_OUT_CLASSES,
   plantedBySeed,
   readEpisodeFile,
+  SCRIPTED_RUNS_DIR,
 } from "./payments-dataset.js";
 import { formatAudit } from "./shortcuts.js";
 
@@ -25,6 +26,8 @@ judge. Writes train.jsonl, calibration.jsonl, test.jsonl and manifest.json. Prin
 
   --episodes <path>    an episode file, or a folder searched for them; repeatable
                        (default: ratings/index-traces)
+  --with-scripted      also read the scripted payables agents' runs
+                       (${SCRIPTED_RUNS_DIR}, from pnpm sentinel:payments-scripted)
   --seeds <dir>        a folder of seeds to look attack episodes up in; repeatable
                        (default: the library, the staged folder and the Index variants)
   --held-out <classes> comma-separated off-chain classes kept out of training
@@ -36,6 +39,7 @@ function main(): number {
   const { values } = parseArgs({
     options: {
       episodes: { type: "string", multiple: true },
+      "with-scripted": { type: "boolean", default: false },
       seeds: { type: "string", multiple: true },
       "held-out": { type: "string" },
       "allow-shortcuts": { type: "boolean", default: false },
@@ -48,7 +52,10 @@ function main(): number {
     return 0;
   }
   assertDatasetDir(values.out);
-  const paths = episodeFilePaths(values.episodes ?? DEFAULT_EPISODE_PATHS);
+  const paths = episodeFilePaths([
+    ...(values.episodes ?? DEFAULT_EPISODE_PATHS),
+    ...(values["with-scripted"] ? [SCRIPTED_RUNS_DIR] : []),
+  ]);
   const files = paths.map((path) => ({ path, file: readEpisodeFile(path) }));
   const { rows, stats, sources } = exportPaymentRows(
     files,
@@ -56,6 +63,9 @@ function main(): number {
   );
   console.log(
     `${stats.files} file(s), ${stats.files - stats.ignoredFiles} with off-chain episodes; ${stats.episodes} episodes, ${stats.paymentRows} payment decisions`,
+  );
+  console.log(
+    `  model-driven agents: ${stats.byOrigin.model.episodes} episodes, ${stats.byOrigin.model.paymentRows} payment decisions; scripted agents: ${stats.byOrigin.scripted.episodes} episodes, ${stats.byOrigin.scripted.paymentRows} payment decisions`,
   );
   console.log(
     `skipped: ${stats.skippedUnattributed} attack episode(s) without the judge's attribution, ${stats.skippedUnknownSeed} whose seed wasn't found`,
@@ -97,7 +107,7 @@ function main(): number {
   console.log(
     `deduplicated: ${m.duplicateCopies} identical copies merged, ${m.droppedSharedState} left out of a less held-out part, ${m.rejectedConflicting.cases} state(s) with contradictory labels rejected (${m.rejectedConflicting.rows} rows)`,
   );
-  console.log(JSON.stringify({ counts: m.counts, labels: m.labels }, null, 2));
+  console.log(JSON.stringify({ counts: m.counts, labels: m.labels, origins: m.origins }, null, 2));
   console.log(`wrote ${values.out}`);
   return 0;
 }
