@@ -11,10 +11,16 @@ import {
   type PaymentLimits,
   type PaymentRule,
   PAYMENT_RULE_WORDS,
+  type SignedGateReceipt,
   utcDay,
   type VerifiedChange,
 } from "@bondedhq/shared";
-import { BondedError, PaymentBlockedError, PaymentFrozenError } from "./errors.js";
+import {
+  BondedError,
+  PaymentBlockedError,
+  PaymentFrozenError,
+  PaymentGateError,
+} from "./errors.js";
 
 /** The off-chain payment mandate an agent's payments are checked against. */
 export interface PaymentMandate extends PaymentLimits {
@@ -70,6 +76,10 @@ export interface PaymentBreach {
   overpaidUsd: number;
   /** UTC day it counts against, YYYY-MM-DD. */
   day: string;
+  /** From the hosted gate (`PaymentGate`): the decision's id in its log. */
+  decisionId?: string;
+  /** From the hosted gate: Bonded's signed receipt for the decision. */
+  receipt?: SignedGateReceipt;
 }
 
 /** The rule verdict for a payment, without making it. */
@@ -346,8 +356,11 @@ export function paymentGuard(options: PaymentGuardOptions): PaymentGuard {
 }
 
 export interface GuardPaymentsOptions<I> {
-  /** Share one guard between your invoice and refund functions, so limits and freezes are shared. */
-  guard: PaymentGuard;
+  /**
+   * A `PaymentGuard`, or the hosted `PaymentGate`. Share one between your invoice and refund
+   * functions, so limits and freezes are shared.
+   */
+  guard: Pick<PaymentGuard, "pay">;
   /** `invoice` (the default) pays approved invoices; `refund` pays approved customer refunds. */
   kind?: "invoice" | "refund";
   /**
@@ -382,9 +395,13 @@ export function guardPayments<I, Rest extends unknown[], R>(
 }
 
 export interface GuardVendorChangesOptions<I> {
-  guard: PaymentGuard;
-  /** Reads the change from your function's first argument. Default: `{ vendorId, account }`. */
-  toChange?: (input: I) => { vendorId: string; account: string };
+  /** A `PaymentGuard`, or the hosted `PaymentGate`. */
+  guard: Pick<PaymentGuard, "changeVendorAccount">;
+  /**
+   * Reads the change from your function's first argument. Default: `{ vendorId, account }`, and
+   * `ticket` when there is one (the hosted gate checks it).
+   */
+  toChange?: (input: I) => { vendorId: string; account: string; ticket?: string };
 }
 
 /**
@@ -401,13 +418,17 @@ export function guardVendorChanges<I, Rest extends unknown[], R>(
     options.guard.changeVendorAccount(toChange(input), () => update(input, ...rest));
 }
 
-/** The payment guard refused (blocked, frozen, or arguments it can't check): no money moved. */
+/**
+ * The payment guard or gate refused (blocked, frozen, arguments it can't check, or the gate gave no
+ * answer to act on): no money moved.
+ */
 export function isPaymentRefusal(
   error: unknown,
-): error is PaymentBlockedError | PaymentFrozenError | BondedError {
+): error is PaymentBlockedError | PaymentFrozenError | PaymentGateError | BondedError {
   return (
     error instanceof PaymentBlockedError ||
     error instanceof PaymentFrozenError ||
+    error instanceof PaymentGateError ||
     (error instanceof BondedError && error.code === "INVALID_PAYMENT")
   );
 }
@@ -425,7 +446,7 @@ const asObject = (input: unknown): Record<string, unknown> => {
   return input as Record<string, unknown>;
 };
 
-function defaultPayment(input: unknown): PaymentAttempt {
+function defaultPayment(input: unknown): PaymentAttempt & { requestId?: string } {
   const args = asObject(input);
   const amount = args.amountUsd;
   const amountUsd =
@@ -440,10 +461,15 @@ function defaultPayment(input: unknown): PaymentAttempt {
     account: field(args, "account"),
     amountUsd,
     invoiceReference: field(args, "invoiceReference" in args ? "invoiceReference" : "reference"),
+    ...(typeof args.requestId === "string" ? { requestId: args.requestId } : {}),
   };
 }
 
-function defaultChange(input: unknown): { vendorId: string; account: string } {
+function defaultChange(input: unknown): { vendorId: string; account: string; ticket?: string } {
   const args = asObject(input);
-  return { vendorId: field(args, "vendorId"), account: field(args, "account") };
+  return {
+    vendorId: field(args, "vendorId"),
+    account: field(args, "account"),
+    ...(typeof args.ticket === "string" ? { ticket: args.ticket } : {}),
+  };
 }

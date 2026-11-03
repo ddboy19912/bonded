@@ -102,6 +102,10 @@ an earlier decision, so keep it from the first answer) and `receipt`.
   (`gate_frozen`). The webhook body is `{ type, dedupeKey, gateAccountId, message, code, fix?,
   details?, at }`; each type can be muted like the others.
 
+From an agent, `paymentGate` in `@bondedhq/sdk` wraps this route: it fails closed, checks each
+receipt, and works as the `guard` for `guardPayments` and the framework helpers
+(`packages/sdk/src/gate.ts`, `apps/api/test/gate-sdk.test.ts`).
+
 ## Receipts
 
 A receipt is EIP-712 typed data (domain `Bonded Payment Gate`, version `1`, no chain) signed by

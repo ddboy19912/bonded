@@ -59,6 +59,7 @@ export {
   NotAgentError,
   PaymentBlockedError,
   PaymentFrozenError,
+  PaymentGateError,
   PredictedBreachError,
   SentinelError,
   SentinelRefusedError,
@@ -66,6 +67,18 @@ export {
   type SentinelVerdict,
 } from "./errors.js";
 export type { BreachType } from "@bondedhq/shared";
+export {
+  BONDED_API_URL,
+  PaymentGate,
+  paymentGate,
+  type GateAnswer,
+  type GateCheck,
+  type GateDecision,
+  type GatePayment,
+  type GateReceiptProof,
+  type GateVendorChange,
+  type PaymentGateOptions,
+} from "./gate.js";
 export {
   guardPayments,
   guardVendorChanges,

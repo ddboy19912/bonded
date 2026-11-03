@@ -147,6 +147,25 @@ export class PaymentBlockedError extends BondedError {
   }
 }
 
+/**
+ * The hosted payment gate gave no answer to act on: it couldn't be reached, refused the request,
+ * or its answer didn't check out. It fails closed: the pay function was not called.
+ */
+export class PaymentGateError extends BondedError {
+  override readonly name = "PaymentGateError";
+  /** The answer came back, but its signed receipt didn't check out. */
+  readonly receipt: boolean;
+  constructor(
+    message: string,
+    /** HTTP status, when the API answered. */
+    readonly status?: number,
+    options?: { cause?: unknown; receipt?: boolean },
+  ) {
+    super("PAYMENT_GATE_ERROR", message, options);
+    this.receipt = options?.receipt ?? false;
+  }
+}
+
 /** The payment guard is frozen after a breach (freeze on breach). It refuses until unfrozen. */
 export class PaymentFrozenError extends BondedError {
   override readonly name = "PaymentFrozenError";
