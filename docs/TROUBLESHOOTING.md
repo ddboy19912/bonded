@@ -650,6 +650,18 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 **What to do:** Import only payments already made, with the UTC day they were made.
 
+### gate-no-log-root
+
+**Message:** This decision's day has no log root yet. It is made once the day ends (UTC).
+
+**What to do:** Try again after the day ends: the keeper makes each day's log root a few minutes after midnight UTC. The signature and input checks work before then.
+
+### gate-log-pruned
+
+**Message:** This day's log no longer matches its root, so it can't be proved: some of its decisions were deleted after the retention period.
+
+**What to do:** Keep receipts you may need to prove before the retention period (GATE_DECISION_RETENTION_DAYS) ends. The root itself stays on chain.
+
 ### gate-payment-blocked
 
 **Message:** The payment gate blocked a payment.

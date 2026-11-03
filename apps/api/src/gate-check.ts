@@ -171,6 +171,8 @@ export async function runGateCheck(
       vendorId,
       reference,
       inputHash,
+      // Kept so the owner can recompute the hash and rerun the rules (the rules page).
+      input,
       mandateHash: account.mandateHash,
       mandateVersion: account.mandateVersion,
       receipt: signed,
@@ -261,6 +263,8 @@ export function decisionView(d: GateDecisionRecord) {
     reference: d.reference,
     requestId: d.requestId,
     inputHash: d.inputHash,
+    /** What the rules were given; null for decisions made before it was kept. */
+    input: d.input,
     mandate: { version: d.mandateVersion, hash: d.mandateHash },
     createdAt: d.createdAt.toISOString(),
     receipt: d.receipt,

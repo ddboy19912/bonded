@@ -11343,3 +11343,503 @@ export const demoRouterAbi = [
     inputs: [],
   },
 ] as const;
+
+export const gateAnchorAbi = [
+  {
+    type: "constructor",
+    inputs: [
+      {
+        name: "owner_",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "acceptOwnership",
+    inputs: [],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "isPoster",
+    inputs: [
+      {
+        name: "poster",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+    outputs: [
+      {
+        name: "",
+        type: "bool",
+        internalType: "bool",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "logRootOf",
+    inputs: [
+      {
+        name: "account",
+        type: "bytes16",
+        internalType: "bytes16",
+      },
+      {
+        name: "day",
+        type: "uint32",
+        internalType: "uint32",
+      },
+    ],
+    outputs: [
+      {
+        name: "",
+        type: "tuple",
+        internalType: "struct GateAnchor.Posted",
+        components: [
+          {
+            name: "hash",
+            type: "bytes32",
+            internalType: "bytes32",
+          },
+          {
+            name: "postedAt",
+            type: "uint64",
+            internalType: "uint64",
+          },
+        ],
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "mandateHashOf",
+    inputs: [
+      {
+        name: "account",
+        type: "bytes16",
+        internalType: "bytes16",
+      },
+      {
+        name: "version",
+        type: "uint64",
+        internalType: "uint64",
+      },
+    ],
+    outputs: [
+      {
+        name: "",
+        type: "tuple",
+        internalType: "struct GateAnchor.Posted",
+        components: [
+          {
+            name: "hash",
+            type: "bytes32",
+            internalType: "bytes32",
+          },
+          {
+            name: "postedAt",
+            type: "uint64",
+            internalType: "uint64",
+          },
+        ],
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "owner",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "pendingOwner",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "postLogRoot",
+    inputs: [
+      {
+        name: "account",
+        type: "bytes16",
+        internalType: "bytes16",
+      },
+      {
+        name: "day",
+        type: "uint32",
+        internalType: "uint32",
+      },
+      {
+        name: "root",
+        type: "bytes32",
+        internalType: "bytes32",
+      },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "postMandate",
+    inputs: [
+      {
+        name: "account",
+        type: "bytes16",
+        internalType: "bytes16",
+      },
+      {
+        name: "version",
+        type: "uint64",
+        internalType: "uint64",
+      },
+      {
+        name: "mandateHash",
+        type: "bytes32",
+        internalType: "bytes32",
+      },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "receiptLeaf",
+    inputs: [
+      {
+        name: "receiptHash",
+        type: "bytes32",
+        internalType: "bytes32",
+      },
+    ],
+    outputs: [
+      {
+        name: "",
+        type: "bytes32",
+        internalType: "bytes32",
+      },
+    ],
+    stateMutability: "pure",
+  },
+  {
+    type: "function",
+    name: "renounceOwnership",
+    inputs: [],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "setPoster",
+    inputs: [
+      {
+        name: "poster",
+        type: "address",
+        internalType: "address",
+      },
+      {
+        name: "allowed",
+        type: "bool",
+        internalType: "bool",
+      },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "transferOwnership",
+    inputs: [
+      {
+        name: "newOwner",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "verifyReceipt",
+    inputs: [
+      {
+        name: "account",
+        type: "bytes16",
+        internalType: "bytes16",
+      },
+      {
+        name: "day",
+        type: "uint32",
+        internalType: "uint32",
+      },
+      {
+        name: "receiptHash",
+        type: "bytes32",
+        internalType: "bytes32",
+      },
+      {
+        name: "index",
+        type: "uint256",
+        internalType: "uint256",
+      },
+      {
+        name: "count",
+        type: "uint256",
+        internalType: "uint256",
+      },
+      {
+        name: "siblings",
+        type: "bytes32[]",
+        internalType: "bytes32[]",
+      },
+    ],
+    outputs: [
+      {
+        name: "",
+        type: "bool",
+        internalType: "bool",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "event",
+    name: "LogRootPosted",
+    inputs: [
+      {
+        name: "account",
+        type: "bytes16",
+        indexed: true,
+        internalType: "bytes16",
+      },
+      {
+        name: "day",
+        type: "uint32",
+        indexed: true,
+        internalType: "uint32",
+      },
+      {
+        name: "root",
+        type: "bytes32",
+        indexed: false,
+        internalType: "bytes32",
+      },
+      {
+        name: "poster",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "MandatePosted",
+    inputs: [
+      {
+        name: "account",
+        type: "bytes16",
+        indexed: true,
+        internalType: "bytes16",
+      },
+      {
+        name: "version",
+        type: "uint64",
+        indexed: true,
+        internalType: "uint64",
+      },
+      {
+        name: "mandateHash",
+        type: "bytes32",
+        indexed: false,
+        internalType: "bytes32",
+      },
+      {
+        name: "poster",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "OwnershipTransferStarted",
+    inputs: [
+      {
+        name: "previousOwner",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+      {
+        name: "newOwner",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "OwnershipTransferred",
+    inputs: [
+      {
+        name: "previousOwner",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+      {
+        name: "newOwner",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "PosterSet",
+    inputs: [
+      {
+        name: "poster",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+      {
+        name: "allowed",
+        type: "bool",
+        indexed: false,
+        internalType: "bool",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "error",
+    name: "DayNotOver",
+    inputs: [
+      {
+        name: "day",
+        type: "uint32",
+        internalType: "uint32",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "LogRootAlreadyPosted",
+    inputs: [
+      {
+        name: "account",
+        type: "bytes16",
+        internalType: "bytes16",
+      },
+      {
+        name: "day",
+        type: "uint32",
+        internalType: "uint32",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "MandateAlreadyPosted",
+    inputs: [
+      {
+        name: "account",
+        type: "bytes16",
+        internalType: "bytes16",
+      },
+      {
+        name: "version",
+        type: "uint64",
+        internalType: "uint64",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "NotPoster",
+    inputs: [
+      {
+        name: "caller",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "OwnableInvalidOwner",
+    inputs: [
+      {
+        name: "owner",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "OwnableUnauthorizedAccount",
+    inputs: [
+      {
+        name: "account",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "ZeroAccount",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "ZeroAddress",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "ZeroHash",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "ZeroVersion",
+    inputs: [],
+  },
+] as const;

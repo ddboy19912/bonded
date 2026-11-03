@@ -8,7 +8,8 @@ import * as prettier from "prettier";
 const OUT = fileURLToPath(new URL("../../../contracts/evm/out/", import.meta.url));
 const TARGET = fileURLToPath(new URL("../src/abis.ts", import.meta.url));
 
-// Every contract in a deployment, plus the per-agent vault and smart-account module.
+// Every contract in a deployment, plus the per-agent vault and smart-account module, and the
+// payment gate's optional hash record (GateAnchor).
 const CONTRACTS = [
   "BondedRegistry",
   "MandateVaultFactory",
@@ -24,6 +25,7 @@ const CONTRACTS = [
   "MockOracle",
   "TestToken",
   "DemoRouter",
+  "GateAnchor",
 ];
 
 let body =

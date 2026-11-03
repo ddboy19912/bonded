@@ -7,9 +7,13 @@ rates agents against (`checkInvoicePayment`, `checkRefundPayment` and `isVerifie
 and freeze, and answers with the decision and a signed receipt.
 
 Code: `src/gate.ts` (routes), `src/gate-check.ts` (the check), `packages/db/src/gate.ts` (storage,
-migration `0024_payment_gate.sql`), `packages/shared/src/gate-receipt.ts` (receipts, input and
-mandate hashing, offline verification). Tests: `test/gate.test.ts` and
-`packages/shared/test/gate-receipt.test.ts`.
+migrations `0024_payment_gate.sql` and `0026_gate_transparency.sql`),
+`packages/shared/src/gate-receipt.ts` (receipts, input and mandate hashing, offline verification),
+`packages/shared/src/gate-log.ts` (daily log roots and proofs), `apps/keeper/src/gate-anchor.ts`
+(the keeper job that makes and posts them), `contracts/evm/src/GateAnchor.sol` (where they go on
+chain) and `apps/web/src/pages/Gate.tsx` (the rules page). Tests: `test/gate.test.ts`,
+`test/gate-anchor.test.ts`, `packages/shared/test/gate-receipt.test.ts` and `gate-log.test.ts`,
+`contracts/evm/test/GateAnchor.t.sol` and `apps/web/src/pages/Gate.test.tsx`.
 
 ## Who can call what
 
@@ -48,8 +52,22 @@ Agent (API key):
 | `POST /payments/check` | Check one payment, refund or bank change (below) |
 | `GET /payments/decisions` | The decision log, newest first: `?limit=` (1 to 100), `?before=<next>`, `?result=allowed\|blocked\|refused` |
 | `GET /payments/decisions/:decisionId` | One decision with its receipt |
+| `GET /payments/decisions/:decisionId/proof` | Where its receipt sits in its day's log root (below) |
 
-Public: `GET /gate/receipt-key` returns the receipt key's address and the EIP-712 domain and types.
+The owner gets the same proof at `GET /gate/accounts/:id/decisions/:decisionId/proof`. A decision
+(from either log) also carries `input`, what the rules were given, so its hash can be recomputed
+(empty for decisions made before migration 0026).
+
+Public (no sign-in):
+
+| Route | What it does |
+|---|---|
+| `GET /gate/receipt-key` | The receipt key's address and the EIP-712 domain and types |
+| `GET /gate/anchors/:id/mandates` | Each mandate version's hash, newest first, and where it was posted on chain (`posted`: `{ chainId, contract, txHash, postedAt }` or null) |
+| `GET /gate/anchors/:id/roots` | Each day's log root, newest first (`?limit=`, `?before=<day>`), with the day's number on chain and `posted` |
+
+The public routes give hashes only, the same ones that go on chain, and not how many decisions a
+day had.
 
 ## The check
 
@@ -103,16 +121,50 @@ evaluateGateInput(answer.input).rules; // the same rules
 
 Without a receipt key the service gives no decisions: `POST /payments/check` answers 503.
 
+The rules page in the web app (`/gate`, signed in with the owner's wallet) shows the mandate in
+plain words, its vendors, every version with its hash, and the decision log. Its Verify button
+runs these checks, and the log root check below, in the browser.
+
+## Hashes on chain
+
+Each mandate version's hash and one log root per account per UTC day are posted to
+[`GateAnchor`](../../contracts/evm/src/GateAnchor.sol), where they can't be changed.
+
+- **The log root** (`gateLogRoot` in `packages/shared/src/gate-log.ts`) is a Merkle tree over the
+  day's receipts in decision order. Each leaf is the receipt's EIP-712 hash (`gateReceiptHash`)
+  hashed twice; each node is keccak256(left, right); a level with an odd count carries its last
+  node up; the root is keccak256(abi.encode(count, tree root)). It commits to every receipt, their
+  order and their number.
+- **The keeper** makes a day's root ten minutes after the day ends (UTC), for every account with
+  decisions that day, looking back 7 days. It stores it (`gate_log_roots`, migration 0026) whether
+  or not GateAnchor is set up. With GateAnchor set up it then posts every mandate hash and day root
+  not on chain yet, every `GATE_ANCHOR_MS`. It reads the contract first: a hash already there is
+  recorded as posted, a different one is never overwritten (the row keeps the error), and a stored
+  mandate whose hash doesn't match is never posted.
+- **A proof** is `{ index, count, siblings }`, with `receiptHash`, `root`, `day`, `dayNumber`,
+  `accountKey` (the account's UUID as 16 bytes) and `posted`. It answers 409 until the day has a
+  root, and once some of the day's decisions have been deleted (retention).
+
+To check a receipt against its root, offline or on chain:
+
+```ts
+const p = await (await fetch(`${api}/payments/decisions/${id}/proof`, auth)).json();
+verifyGateLogProof(gateReceiptHash(receipt.receipt), p.proof, p.root); // true
+// On chain, against the root GateAnchor holds:
+anchor.verifyReceipt(p.accountKey, p.dayNumber, p.receiptHash, p.proof.index, p.proof.count, p.proof.siblings);
+```
+
 ## Storage and retention
 
 Tables: `gate_accounts`, `gate_mandates`, `gate_api_keys`, `gate_vendors`, `gate_invoices`,
-`gate_refunds`, `gate_tickets`, `gate_payments`, `gate_decisions`, `gate_usage_daily`. Amounts
-are whole cents.
+`gate_refunds`, `gate_tickets`, `gate_payments`, `gate_decisions`, `gate_usage_daily`, and
+`gate_log_roots` (migration 0026). Amounts are whole cents.
 
-The decision log keeps the record only (rules, amounts, payee account, reference, hashes and the
-receipt), never an invoice document or image. The keeper deletes decisions older than
-`GATE_DECISION_RETENTION_DAYS` (365 by default) hourly. Payments made are kept, because the
-duplicate rule reads them.
+The decision log keeps the record only (rules, amounts, payee account, reference, hashes, the
+receipt and the rules' input: the attempt, limits, payee accounts, approved invoices or refunds,
+the day's payments and tickets), never an invoice document or image. The keeper deletes decisions
+older than `GATE_DECISION_RETENTION_DAYS` (365 by default) hourly. Payments made are kept, because
+the duplicate rule reads them. Log roots and what was posted on chain are kept too.
 
 ## Settings
 
@@ -120,6 +172,10 @@ duplicate rule reads them.
 |---|---|---|
 | `GATE_RECEIPT_PRIVATE_KEY` | API | 32-byte hex secp256k1 key that signs receipts. Required for checks |
 | `GATE_DECISION_RETENTION_DAYS` | keeper | Days of decision log to keep (default 365) |
+| `GATE_ANCHOR_ADDRESS` | keeper | GateAnchor's address (default: `gateAnchor` in the deployment file, if any). Without it, roots are made and stored, not posted |
+| `GATE_ANCHOR_KEY` | keeper | 32-byte hex key that posts; GateAnchor's owner must allow its address with `setPoster`. Needed to post, and needs gas on that chain |
+| `GATE_ANCHOR_RPC_URL` | keeper | GateAnchor's chain, when it isn't the protocol's (default `RPC_URL`) |
+| `GATE_ANCHOR_MS` | keeper | How often the job runs (default 600000, at least 60000) |
 
 Limits (in `createApi({ gate })`): 600 checks per account per minute, 1,200 API-key requests per
 client address per minute, 20 accounts per wallet, 10 live keys per account, 500 vendors per

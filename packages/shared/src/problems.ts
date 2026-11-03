@@ -776,6 +776,20 @@ export const PROBLEMS: readonly ProblemEntry[] = [
     /day can't be in the future/i,
   ),
   entry(
+    "gate-no-log-root",
+    "gate",
+    "This decision's day has no log root yet. It is made once the day ends (UTC).",
+    "Try again after the day ends: the keeper makes each day's log root a few minutes after midnight UTC. The signature and input checks work before then.",
+    /no log root yet/i,
+  ),
+  entry(
+    "gate-log-pruned",
+    "gate",
+    "This day's log no longer matches its root, so it can't be proved: some of its decisions were deleted after the retention period.",
+    "Keep receipts you may need to prove before the retention period (GATE_DECISION_RETENTION_DAYS) ends. The root itself stays on chain.",
+    /no longer matches its root/i,
+  ),
+  entry(
     "gate-payment-blocked",
     "gate",
     "The payment gate blocked a payment.",

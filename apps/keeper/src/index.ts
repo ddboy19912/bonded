@@ -10,6 +10,7 @@ import { getAbiItem, type Address } from "viem";
 import type { ServiceChain } from "./chain.js";
 export * from "./chain.js";
 export * from "./solana.js";
+export * from "./gate-anchor.js";
 
 /** BondedTypes.BreachType.Deferred: an unexplained drop found by reconcile(). */
 const DEFERRED = 3;

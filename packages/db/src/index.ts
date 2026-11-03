@@ -597,6 +597,7 @@ export class Database {
       "0022_launch_round.sql",
       "0023_deployments.sql",
       "0024_payment_gate.sql",
+      "0026_gate_transparency.sql",
       "0027_data_apis.sql",
     ];
     await this.transaction(async (c) => {

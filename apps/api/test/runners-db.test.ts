@@ -19,8 +19,8 @@ async function agent(id: number, config: unknown = remote, enabled = true) {
   return `${CHAIN}:${id}`;
 }
 const hello = { runnerVersion: "0.1.0", mode: "tools" };
-/** The migrations' numbers: 0001 to 0024, then 0027 (the data APIs). */
-const MIGRATIONS = [...Array.from({ length: 24 }, (_, i) => i + 1), 27];
+/** The migrations' numbers: 0001 to 0024, then 0026 (gate transparency) and 0027 (the data APIs). */
+const MIGRATIONS = [...Array.from({ length: 24 }, (_, i) => i + 1), 26, 27];
 
 beforeAll(async () => {
   pg = await postgres();
@@ -71,6 +71,7 @@ describe("migrations 0014 to 0027", () => {
       "gate_api_keys",
       "gate_decisions",
       "gate_invoices",
+      "gate_log_roots",
       "gate_mandates",
       "gate_payments",
       "gate_refunds",
@@ -78,6 +79,13 @@ describe("migrations 0014 to 0027", () => {
       "gate_usage_daily",
       "gate_vendors",
     ]);
+    // 0026: each check's input, and what is posted to GateAnchor.
+    const anchored = (
+      await db.pool.query(
+        "SELECT table_name, column_name FROM information_schema.columns WHERE (table_name='gate_decisions' AND column_name='input') OR (table_name IN ('gate_mandates','gate_log_roots') AND column_name='anchored_at') ORDER BY 1",
+      )
+    ).rows.map((r) => r.table_name);
+    expect(anchored).toEqual(["gate_decisions", "gate_log_roots", "gate_mandates"]);
     // 0027: the data APIs.
     const data = (
       await db.pool.query(
