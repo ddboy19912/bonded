@@ -13,7 +13,8 @@ SDK and runner.
 - **Mandates and attestations**: `EvmMandate`, `mandateHash`, the attestation's EIP-712 types.
 - **Payment gate**: the off-chain payment mandate's rules (`checkInvoicePayment`,
   `checkRefundPayment`), and the gate's receipts: `GateReceipt`, its EIP-712 types,
-  `gateInputHash`, `gateMandateHash`, `evaluateGateInput` and `verifyGateReceipt`.
+  `gateInputHash`, `gateMandateHash`, `evaluateGateInput` and `verifyGateReceipt`, and the card
+  route's mapping of the rules onto Stripe Issuing charges (`GateCardInput`, `cardMerchantKey`).
 - **ABIs** for the Bonded contracts, generated from the Foundry build.
 - **Chains and deployments**: the networks Bonded runs on and its contract addresses there.
 

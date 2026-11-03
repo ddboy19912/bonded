@@ -14,6 +14,7 @@ import {
   checkRefundPayment,
   isVerifiedChange,
   normalAccount,
+  PAYMENT_RULES,
   type KnownPayee,
   type PaymentRule,
 } from "./payment-mandate.js";
@@ -28,8 +29,12 @@ import {
 export const GATE_MODES = ["monitor", "enforce"] as const;
 export type GateMode = (typeof GATE_MODES)[number];
 
-/** What a check is about: a supplier invoice, a customer refund, or a vendor's bank change. */
-export const GATE_CHECK_KINDS = ["invoice", "refund", "bank_change"] as const;
+/**
+ * What a check is about: a supplier invoice, a customer refund, a vendor's bank change, or a
+ * supplier invoice paid with a gate card (Stripe Issuing asking before a charge, or a card
+ * transaction that settled).
+ */
+export const GATE_CHECK_KINDS = ["invoice", "refund", "bank_change", "card"] as const;
 export type GateCheckKind = (typeof GATE_CHECK_KINDS)[number];
 
 /** The rule verdict: no rule broken, a rule broken, or not checked (the account is frozen). */
@@ -47,13 +52,29 @@ export interface GateMandate {
   maxPaymentCents: number;
   maxDailyCents: number;
   freezeOnBreach: boolean;
-  vendors: { id: string; name: string; account: string }[];
+  vendors: {
+    id: string;
+    name: string;
+    account: string;
+    /** The vendor's card merchant, when it takes cards: its name and Stripe network id. */
+    cardMerchant?: { name: string; networkId: string } | undefined;
+  }[];
 }
 
-/** The mandate's hash: SHA-256 of its canonical JSON, vendors in id order, accounts normalised. */
+/**
+ * The mandate's hash: SHA-256 of its canonical JSON, vendors in id order, accounts normalised. A
+ * vendor without a card merchant hashes as it did before card merchants existed.
+ */
 export function gateMandateHash(mandate: GateMandate): Hex {
   const vendors = mandate.vendors
-    .map((v) => ({ id: v.id, name: v.name, account: normalAccount(v.account) }))
+    .map((v) => ({
+      id: v.id,
+      name: v.name,
+      account: normalAccount(v.account),
+      ...(v.cardMerchant
+        ? { cardMerchant: { name: v.cardMerchant.name, networkId: v.cardMerchant.networkId } }
+        : {}),
+    }))
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   return sha256(stringToBytes(canonicalJson({ ...mandate, vendors })));
 }
@@ -108,7 +129,75 @@ export type GateInput =
       vendorId: string;
       account: string;
       tickets: { vendorId: string; account: string }[];
-    };
+    }
+  | GateCardInput;
+
+/**
+ * A charge on a gate card, checked as an invoice payment whose payee is the card merchant
+ * (`cardMerchantKey`). The card was issued for one approved invoice of one vendor, and the vendor
+ * master holds each vendor's card merchant. On the card path:
+ *
+ * - `unknown_payee`: the merchant isn't any vendor's merchant on file.
+ * - `unverified_vendor_change`: the merchant goes by the card's vendor's name but isn't its
+ *   merchant on file, and no verified ticket covers the change (the ticket's account is
+ *   `card:<network id>`). A verified ticket makes it the vendor's merchant.
+ * - `unmatched_invoice`: no approved invoice of that vendor behind the card, the amount isn't the
+ *   invoice's amount, or the merchant's category is cash or quasi-cash
+ *   (`CARD_BLOCKED_CATEGORIES`), which is no invoice payment.
+ * - `duplicate_payment`: the invoice is already paid, or held by a charge already approved.
+ * - `over_payment_cap`, `over_daily_cap`: over the mandate's limits.
+ *
+ * `stage` is "authorization" when Stripe asks before the charge and "transaction" when money
+ * settled. `gateApproved` is false for a transaction the gate never approved (a stand-in or
+ * offline authorization, or a force capture): a breach whatever the rules say.
+ */
+export interface GateCardInput {
+  kind: "card";
+  stage: "authorization" | "transaction";
+  gateApproved: boolean;
+  day: string;
+  limits: Limits;
+  /** `account` is the merchant's key; `reference` the card's invoice. */
+  attempt: Attempt;
+  /** The vendor the card was issued to pay, and its card merchant on file. */
+  vendorId: string;
+  vendorMerchant: { key: string; name: string } | null;
+  /** The merchant charging, as Stripe reports it (`merchant_data`). */
+  merchant: { key: string; name: string; category: string };
+  /** Vendors whose card merchant on file is this merchant. */
+  payees: KnownPayee[];
+  invoices: { reference: string; vendorId: string; amountCents: number }[];
+  /** Payments made on the day or against the reference, and charges approved and still held. */
+  payments: GatePaidPayment[];
+  /** Verified tickets covering this vendor and this merchant. */
+  tickets: { vendorId: string; account: string }[];
+}
+
+/**
+ * Merchant categories a gate card never pays, since they aren't invoice payments: cash (ATM and
+ * over the counter) and quasi-cash (money orders, wires, stored-value loads, gambling, other
+ * financial institutions). Stripe Issuing's category names
+ * (https://docs.stripe.com/issuing/categories). The card blocks them, and a charge from one
+ * breaks `unmatched_invoice`.
+ */
+export const CARD_BLOCKED_CATEGORIES = [
+  "automated_cash_disburse",
+  "manual_cash_disburse",
+  "financial_institutions",
+  "non_fi_money_orders",
+  "non_fi_stored_value_card_purchase_load",
+  "wires_money_orders",
+  "betting_casino_gambling",
+] as const;
+
+/** The key a card merchant is compared by: "CARD:" and its network id, no spaces, upper case. */
+export const cardMerchantKey = (networkId: string) => normalAccount(`card:${networkId}`);
+
+/** Merchant names compare by their letters and digits only, in any case. */
+export function sameMerchantName(a: string, b: string): boolean {
+  const plain = (name: string) => name.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+  return plain(a) !== "" && plain(a) === plain(b);
+}
 
 /** SHA-256 of the input's canonical JSON. */
 export const gateInputHash = (input: GateInput): Hex => sha256(stringToBytes(canonicalJson(input)));
@@ -125,6 +214,8 @@ export type GateVerdict =
       lossCents: number;
       /** If it went out: paid to a known payee beyond what it was owed. */
       overpaidCents: number;
+      /** A card transaction that settled without the gate's approval (kind "card" only). */
+      bypassed?: boolean;
     };
 
 const usd = (cents: number) => cents / 100;
@@ -154,6 +245,7 @@ export function evaluateGateInput(input: GateInput): GateVerdict {
       overpaidCents: 0,
     };
   }
+  if (input.kind === "card") return evaluateCardInput(input);
   const limits = {
     maxPaymentUsd: usd(input.limits.maxPaymentCents),
     maxDailyUsd: usd(input.limits.maxDailyCents),
@@ -192,6 +284,58 @@ export function evaluateGateInput(input: GateInput): GateVerdict {
     vendorId: check.vendorId,
     lossCents: cents(check.lossUsd),
     overpaidCents: cents(check.overpaidUsd),
+  };
+}
+
+/** The card mapping (see `GateCardInput`) on top of the shared invoice check. */
+function evaluateCardInput(input: GateCardInput): GateVerdict {
+  const merchant = input.merchant.key;
+  const verified = isVerifiedChange(input.tickets, { vendorId: input.vendorId, account: merchant });
+  // A verified change makes the merchant the vendor's, as a verified bank change does.
+  const payees =
+    verified &&
+    !input.payees.some(
+      (p) => p.vendorId === input.vendorId && normalAccount(p.account) === merchant,
+    )
+      ? [...input.payees, { vendorId: input.vendorId, account: merchant }]
+      : input.payees;
+  const check = checkInvoicePayment(
+    {
+      limits: {
+        maxPaymentUsd: usd(input.limits.maxPaymentCents),
+        maxDailyUsd: usd(input.limits.maxDailyCents),
+      },
+      payees,
+      invoices: input.invoices.map((i) => ({ ...i, amountUsd: usd(i.amountCents) })),
+      payments: paid(input.payments),
+      day: input.day,
+    },
+    {
+      account: input.attempt.account,
+      amountUsd: usd(input.attempt.amountCents),
+      invoiceReference: input.attempt.reference,
+    },
+  );
+  if (!check.ok) return check;
+  const changed =
+    !verified &&
+    input.vendorMerchant !== null &&
+    input.vendorMerchant.key !== merchant &&
+    sameMerchantName(input.vendorMerchant.name, input.merchant.name);
+  const broken = new Set<PaymentRule>(check.rules);
+  if (changed) broken.add("unverified_vendor_change");
+  if ((CARD_BLOCKED_CATEGORIES as readonly string[]).includes(input.merchant.category))
+    broken.add("unmatched_invoice");
+  // The card pays its own vendor's invoice only: another vendor's merchant charging it, even for
+  // an approved invoice of that vendor with the same reference, has no invoice behind this card.
+  if (check.vendorId !== null && check.vendorId !== input.vendorId) broken.add("unmatched_invoice");
+  return {
+    ok: true,
+    rules: PAYMENT_RULES.filter((r) => broken.has(r)),
+    vendorId: check.vendorId,
+    lossCents: cents(check.lossUsd),
+    overpaidCents: cents(check.overpaidUsd),
+    bypassed: !input.gateApproved,
   };
 }
 

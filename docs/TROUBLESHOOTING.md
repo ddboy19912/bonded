@@ -680,6 +680,84 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 **What to do:** Every check is refused until you lift the freeze. Read the breach in the decision log first, then unfreeze the account.
 
+### gate-stripe-not-linked
+
+**Message:** This gate account isn't linked to Stripe.
+
+**What to do:** The account's owner links its Stripe Issuing account (a restricted test-mode key and a cardholder) in the gate account's settings.
+
+### gate-stripe-live-refused
+
+**Message:** Live Stripe keys are refused: the payment gate takes test-mode keys only for now.
+
+**What to do:** Use a test-mode restricted key (rk_test_...). Live keys stay off until the operator turns them on.
+
+### gate-stripe-unavailable
+
+**Message:** Stripe linking is off on this service.
+
+**What to do:** The operator sets AGENT_URL_SECRET_KEY on the API, which encrypts the Stripe keys it holds.
+
+### gate-stripe-webhook-refused
+
+**Message:** The Stripe signature doesn't match.
+
+**What to do:** Only Stripe calls these routes. Check the endpoint's signing secret (STRIPE_WEBHOOK_SECRET or STRIPE_EVENTS_WEBHOOK_SECRET, or the link's own) is the one Stripe shows for that endpoint, and the server's clock is right.
+
+### gate-stripe-failed
+
+**Message:** Stripe didn't issue the card.
+
+**What to do:** Try again in a minute. If it keeps failing, check the linked key can create Issuing cards and the cardholder is active.
+
+### gate-merchant-change-unverified
+
+**Message:** A vendor's card merchant changes only with a verified ticket that covers it.
+
+**What to do:** Verify the new merchant with the vendor out of band, add a ticket for that vendor with the account `card:&lt;network id&gt;`, then send its id as `ticket`.
+
+### gate-invoice-ambiguous
+
+**Message:** Several vendors have an approved invoice with that reference.
+
+**What to do:** Send the vendor's id as `vendorId` with the invoice reference.
+
+### gate-no-card-merchant
+
+**Message:** That vendor has no card merchant on file.
+
+**What to do:** Add the vendor's card merchant (its name and Stripe network id) to the vendor master, then ask for the card again.
+
+### gate-card-refused
+
+**Message:** The payment gate won't issue a card for that invoice.
+
+**What to do:** Read the rules it names. A card is issued only for an approved, unpaid invoice within the account's limits.
+
+### gate-card-in-use
+
+**Message:** A card for that invoice is already in use.
+
+**What to do:** Wait for the charge on that card to settle or be reversed; a reversed or expired charge frees the invoice for a new card.
+
+### gate-stripe-webhook-failed
+
+**Message:** Stripe couldn't get the payment gate's answer on a card charge.
+
+**What to do:** Check the API is up and the real-time authorization endpoint's URL and secret are right. Stripe applied the account's timeout setting, which must be decline.
+
+### gate-card-bypass
+
+**Message:** A card charge went through without the payment gate's approval.
+
+**What to do:** The card was cancelled. Check the charge in Stripe and dispute it if it was wrong (a force capture or a stand-in approval can do this).
+
+### gate-card-overpaid
+
+**Message:** A card charge settled for more than the payment gate approved.
+
+**What to do:** The difference is recorded as an overpayment. Ask the merchant for it back, or dispute it in Stripe.
+
 ## Data APIs and testing in CI
 
 ### data-key-missing

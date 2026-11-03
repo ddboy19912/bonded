@@ -35,7 +35,21 @@ export interface GateMandateSnapshot {
   maxPaymentCents: number;
   maxDailyCents: number;
   freezeOnBreach: boolean;
-  vendors: { id: string; name: string; account: string }[];
+  vendors: {
+    id: string;
+    name: string;
+    account: string;
+    /** Only when the vendor has a card merchant (migration 0025). */
+    cardMerchant?: { name: string; networkId: string };
+  }[];
+}
+
+/** A vendor's card merchant: its name and Stripe network id, and the key the rules compare. */
+export interface GateCardMerchant {
+  name: string;
+  networkId: string;
+  /** "CARD:<network id>", no spaces, upper case (`cardMerchantKey` in @bondedhq/shared). */
+  key: string;
 }
 
 /** Where and when a hash was posted to GateAnchor (migration 0026). */
@@ -85,6 +99,8 @@ export interface GateVendorRecord {
   name: string;
   account: string;
   accountNorm: string;
+  /** The card merchant on file, or null when the vendor isn't paid by card. */
+  cardMerchant: GateCardMerchant | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -120,7 +136,7 @@ export interface GateTicketRecord {
 export interface GatePaymentRecord {
   id: string;
   decisionId: string | null;
-  source: "check" | "import";
+  source: "check" | "import" | "card";
   kind: "invoice" | "refund";
   payee: string;
   vendorId: string | null;
@@ -139,7 +155,7 @@ export interface GateDecisionRecord {
   keyId: string | null;
   requestId: string | null;
   requestHash: string | null;
-  kind: "invoice" | "refund" | "bank_change";
+  kind: "invoice" | "refund" | "bank_change" | "card";
   decision: "pass" | "breach" | "frozen";
   result: "allowed" | "blocked" | "refused";
   mode: GateModeName;
@@ -200,6 +216,13 @@ const vendor = (r: Record<string, unknown>): GateVendorRecord => ({
   name: r.name as string,
   account: r.account as string,
   accountNorm: r.account_norm as string,
+  cardMerchant: r.card_merchant_id
+    ? {
+        name: r.card_merchant_name as string,
+        networkId: r.card_merchant_id as string,
+        key: r.card_merchant_norm as string,
+      }
+    : null,
   createdAt: r.created_at as Date,
   updatedAt: r.updated_at as Date,
 });
@@ -426,10 +449,18 @@ export class GateStore {
     const a = (await this.account(id, c))!;
     const vendors = (
       await c.query(
-        "SELECT id,name,account_norm FROM gate_vendors WHERE account_id=$1 ORDER BY id",
+        `SELECT id,name,account_norm,card_merchant_name,card_merchant_id FROM gate_vendors
+         WHERE account_id=$1 ORDER BY id`,
         [id],
       )
-    ).rows.map((v) => ({ id: v.id as string, name: v.name as string, account: v.account_norm }));
+    ).rows.map((v) => ({
+      id: v.id as string,
+      name: v.name as string,
+      account: v.account_norm as string,
+      ...(v.card_merchant_id
+        ? { cardMerchant: { name: v.card_merchant_name, networkId: v.card_merchant_id } }
+        : {}),
+    }));
     return {
       mode: a.mode,
       maxPaymentCents: a.maxPaymentCents,
@@ -541,15 +572,31 @@ export class GateStore {
 
   async addVendor(
     accountId: string,
-    v: { id: string; name: string; account: string; accountNorm: string },
+    v: {
+      id: string;
+      name: string;
+      account: string;
+      accountNorm: string;
+      cardMerchant?: GateCardMerchant | undefined;
+    },
     by: string,
   ): Promise<GateVendorRecord | "exists"> {
     return this.db.transaction(async (c) => {
       await this.lockAccount(c, accountId);
       const r = await c.query(
-        `INSERT INTO gate_vendors(account_id,id,name,account,account_norm) VALUES($1,$2,$3,$4,$5)
+        `INSERT INTO gate_vendors(account_id,id,name,account,account_norm,card_merchant_name,
+           card_merchant_id,card_merchant_norm) VALUES($1,$2,$3,$4,$5,$6,$7,$8)
          ON CONFLICT DO NOTHING RETURNING *`,
-        [accountId, v.id, v.name, v.account, v.accountNorm],
+        [
+          accountId,
+          v.id,
+          v.name,
+          v.account,
+          v.accountNorm,
+          v.cardMerchant?.name ?? null,
+          v.cardMerchant?.networkId ?? null,
+          v.cardMerchant?.key ?? null,
+        ],
       );
       if (!r.rowCount) return "exists" as const;
       await this.newVersion(c, accountId, by);
@@ -558,8 +605,11 @@ export class GateStore {
   }
 
   /**
-   * Change a vendor's name or verified account: the owner's edit, or (inside a check's
-   * transaction, `c`) a bank change a verified ticket covers.
+   * Change a vendor's name, verified account or card merchant: the owner's edit, or (inside a
+   * check's transaction, `c`) a bank or merchant change a verified ticket covers. A vendor's card
+   * merchant, once on file, changes to another merchant only with `ticket`: a verified ticket
+   * whose vendor is this one and whose account is the new merchant's key ("needs-ticket"
+   * otherwise). Setting the first merchant, or removing it (null), needs none.
    */
   /**
    * Mark the unused tickets covering this vendor and account as applied by `decisionId`, inside
@@ -582,23 +632,80 @@ export class GateStore {
   async updateVendor(
     accountId: string,
     id: string,
-    patch: { name?: string; account?: string; accountNorm?: string },
+    patch: {
+      name?: string;
+      account?: string;
+      accountNorm?: string;
+      cardMerchant?: GateCardMerchant | null;
+      ticket?: string;
+    },
     by: string,
     c?: Connection,
-  ): Promise<GateVendorRecord | undefined> {
+  ): Promise<GateVendorRecord | "needs-ticket" | undefined> {
     const run = async (tx: Connection) => {
       if (!c) await this.lockAccount(tx, accountId);
+      const merchant = patch.cardMerchant;
+      // The ticket that covers a merchant change, used up once the change is made.
+      let ticketUsed: string | undefined;
+      if (merchant) {
+        const current = await tx.query(
+          "SELECT card_merchant_norm FROM gate_vendors WHERE account_id=$1 AND id=$2",
+          [accountId, id],
+        );
+        if (!current.rowCount) return undefined;
+        const onFile = current.rows[0].card_merchant_norm as string | null;
+        if (onFile !== null && onFile !== merchant.key) {
+          const covered = patch.ticket
+            ? await tx.query(
+                `SELECT 1 FROM gate_tickets
+                 WHERE account_id=$1 AND id=$2 AND vendor_id=$3 AND account_norm=$4
+                   AND used_by IS NULL`,
+                [accountId, patch.ticket, id, merchant.key],
+              )
+            : undefined;
+          if (!covered?.rowCount) return "needs-ticket" as const;
+          ticketUsed = patch.ticket;
+        }
+      }
       const r = await tx.query(
         `UPDATE gate_vendors SET name=COALESCE($3,name), account=COALESCE($4,account),
-           account_norm=COALESCE($5,account_norm), updated_at=now()
+           account_norm=COALESCE($5,account_norm),
+           card_merchant_name=CASE WHEN $6::boolean THEN $7 ELSE card_merchant_name END,
+           card_merchant_id=CASE WHEN $6::boolean THEN $8 ELSE card_merchant_id END,
+           card_merchant_norm=CASE WHEN $6::boolean THEN $9 ELSE card_merchant_norm END,
+           updated_at=now()
          WHERE account_id=$1 AND id=$2 RETURNING *`,
-        [accountId, id, patch.name ?? null, patch.account ?? null, patch.accountNorm ?? null],
+        [
+          accountId,
+          id,
+          patch.name ?? null,
+          patch.account ?? null,
+          patch.accountNorm ?? null,
+          merchant !== undefined,
+          merchant?.name ?? null,
+          merchant?.networkId ?? null,
+          merchant?.key ?? null,
+        ],
       );
       if (!r.rowCount) return undefined;
+      if (ticketUsed)
+        await tx.query(
+          "UPDATE gate_tickets SET used_by=$3 WHERE account_id=$1 AND id=$2 AND used_by IS NULL",
+          [accountId, ticketUsed, by],
+        );
       await this.newVersion(tx, accountId, by);
       return vendor(r.rows[0]);
     };
     return c ? run(c) : this.db.transaction(run);
+  }
+
+  /** One vendor, read inside the caller's transaction. */
+  async vendor(q: Queryable, accountId: string, id: string): Promise<GateVendorRecord | undefined> {
+    const r = await q.query("SELECT * FROM gate_vendors WHERE account_id=$1 AND id=$2", [
+      accountId,
+      id,
+    ]);
+    return r.rows[0] ? vendor(r.rows[0]) : undefined;
   }
 
   async deleteVendor(accountId: string, id: string, by: string): Promise<boolean> {
@@ -769,7 +876,7 @@ export class GateStore {
     accountId: string,
     p: {
       decisionId?: string | null;
-      source: "check" | "import";
+      source: "check" | "import" | "card";
       kind: "invoice" | "refund";
       payee: string;
       payeeNorm: string;

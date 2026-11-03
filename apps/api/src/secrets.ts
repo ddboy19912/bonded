@@ -93,6 +93,12 @@ export function secretBoxFromEnv(
 export const agentUrlContext = (id: string) => `agent-url:${id}`;
 /** Where an owner's webhook secret is bound. */
 export const webhookContext = (owner: string) => `webhook:${owner.toLowerCase()}`;
+/**
+ * Where a gate account's Stripe secrets are bound (gate-card.ts): its restricted key, and the
+ * signing secrets of its real-time authorization and events endpoints.
+ */
+export const gateStripeContext = (accountId: string, what: "key" | "authorization" | "events") =>
+  `gate-stripe:${accountId}:${what}`;
 
 /**
  * Checks a signed webhook call's headers: `bonded-timestamp` and `bonded-signature:

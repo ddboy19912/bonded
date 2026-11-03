@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import { serve } from "@hono/node-server";
 import { ArenaGateway, assertHeldOutOffMetaApi, loadDotEnv } from "@bonded/arena";
-import { Database, GateStore } from "@bonded/db";
+import { Database, GateCardStore, GateStore } from "@bonded/db";
 import {
   GateAnchorJob,
   Keeper,
@@ -199,10 +199,27 @@ if (role === "migrate") {
       ownDomains: ownHosts,
       ...(allowLoopback ? { allowLoopbackUrls: true } : {}),
       // The payment gate signs every receipt with GATE_RECEIPT_PRIVATE_KEY; without it, checks
-      // are refused (apps/api/GATE.md).
-      ...(process.env.GATE_RECEIPT_PRIVATE_KEY
-        ? { gate: { receiptKey: key("GATE_RECEIPT_PRIVATE_KEY") } }
-        : {}),
+      // are refused and card charges declined (apps/api/GATE.md). The card route's Stripe
+      // webhooks are verified with STRIPE_WEBHOOK_SECRET (real-time authorizations) and
+      // STRIPE_EVENTS_WEBHOOK_SECRET (other Issuing events), or a linked account's own secrets.
+      gate: {
+        ...(process.env.GATE_RECEIPT_PRIVATE_KEY
+          ? { receiptKey: key("GATE_RECEIPT_PRIVATE_KEY") }
+          : {}),
+        card: {
+          ...(process.env.STRIPE_WEBHOOK_SECRET?.trim()
+            ? { authorizationSecret: process.env.STRIPE_WEBHOOK_SECRET.trim() }
+            : {}),
+          ...(process.env.STRIPE_EVENTS_WEBHOOK_SECRET?.trim()
+            ? { eventsSecret: process.env.STRIPE_EVENTS_WEBHOOK_SECRET.trim() }
+            : {}),
+          ...(process.env.STRIPE_API_VERSION?.trim()
+            ? { apiVersion: process.env.STRIPE_API_VERSION.trim() }
+            : {}),
+          // Off until the founder has legal advice: live keys and live charges are refused.
+          allowLiveCredentials: process.env.GATE_ALLOW_LIVE_CREDENTIALS === "true",
+        },
+      },
       // Shown by GET /status: BONDED_VERSION, else the deploy's commit.
       version:
         process.env.BONDED_VERSION?.trim() ||
@@ -278,6 +295,8 @@ if (role === "migrate") {
           await db.pruneNotifications(new Date(Date.now() - 90 * 86_400_000));
           // The payment gate's decision log (payments made are kept: the duplicate rule reads them).
           await gateStore.pruneDecisions(new Date(Date.now() - gateRetentionDays * 86_400_000));
+          // Stripe event ids seen (Stripe retries an event for up to three days; kept 30 days).
+          await new GateCardStore(db).pruneEvents(new Date(Date.now() - 30 * 86_400_000));
         },
         3_600_000,
       ),

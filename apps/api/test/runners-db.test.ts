@@ -19,8 +19,8 @@ async function agent(id: number, config: unknown = remote, enabled = true) {
   return `${CHAIN}:${id}`;
 }
 const hello = { runnerVersion: "0.1.0", mode: "tools" };
-/** The migrations' numbers: 0001 to 0024, then 0026 (gate transparency) and 0027 (the data APIs). */
-const MIGRATIONS = [...Array.from({ length: 24 }, (_, i) => i + 1), 26, 27];
+/** The migrations' numbers: 0001 to 0024, 0025 (the gate's card route), 0026 (gate transparency) and 0027 (the data APIs). */
+const MIGRATIONS = [...Array.from({ length: 27 }, (_, i) => i + 1)];
 
 beforeAll(async () => {
   pg = await postgres();
@@ -60,7 +60,7 @@ describe("migrations 0014 to 0027", () => {
       )
     ).rows.map((r) => r.column_name);
     expect(rated).toEqual(["charged_owner", "config", "kind"]);
-    // 0024: the payment gate.
+    // 0024: the payment gate; 0025: its card route (Stripe Issuing).
     const gate = (
       await db.pool.query(
         "SELECT table_name FROM information_schema.tables WHERE table_name LIKE 'gate\\_%' ORDER BY 1",
@@ -69,16 +69,28 @@ describe("migrations 0014 to 0027", () => {
     expect(gate).toEqual([
       "gate_accounts",
       "gate_api_keys",
+      "gate_card_authorizations",
+      "gate_card_intents",
+      "gate_card_transactions",
       "gate_decisions",
       "gate_invoices",
       "gate_log_roots",
       "gate_mandates",
       "gate_payments",
       "gate_refunds",
+      "gate_stripe_events",
+      "gate_stripe_links",
       "gate_tickets",
       "gate_usage_daily",
       "gate_vendors",
     ]);
+    const merchant = (
+      await db.pool.query(
+        `SELECT column_name FROM information_schema.columns
+         WHERE table_name='gate_vendors' AND column_name LIKE 'card\\_merchant\\_%' ORDER BY 1`,
+      )
+    ).rows.map((r) => r.column_name);
+    expect(merchant).toEqual(["card_merchant_id", "card_merchant_name", "card_merchant_norm"]);
     // 0026: each check's input, and what is posted to GateAnchor.
     const anchored = (
       await db.pool.query(
