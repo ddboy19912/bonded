@@ -8,6 +8,7 @@ import { deployment, explorerUrl } from "../config";
 import { ago, short, txUrl } from "../lib/format";
 import { useOwnerSession } from "../lib/owner-session";
 import {
+  dollars,
   gateApi,
   verifyDecision,
   type AnchorPost,
@@ -32,15 +33,13 @@ import {
   Unavailable,
   linkClass,
 } from "../components/ui";
+import { AddVendor, Invoices, KeyOnce, Keys, NewAccount, Settings, Tickets } from "./GateSetup";
 
 /**
  * Reads a day's root from the app's own GateAnchor (`gateAnchor` in the deployment file): the
  * zero hash when none is posted, null when it can't be read here.
  */
 export type ChainRoot = (at: ChainRootQuery) => Promise<Hex | null>;
-
-const dollars = (usd: number) =>
-  `$${usd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /** A hash in short form, with a button to copy it whole. */
 function HashText({ hash }: { hash: string }) {
@@ -200,6 +199,7 @@ function Rules({ account, session }: { account: GateAccount; session: string }) 
           </tbody>
         </Table>
       )}
+      <AddVendor key={account.id} account={account} session={session} />
       <Details>
         <dt>Version</dt>
         <dd>{account.mandate.version}</dd>
@@ -263,12 +263,15 @@ function Decisions({
   session: string;
   chainRoot?: ChainRoot | undefined;
 }) {
+  const [older, setOlder] = useState<{ items: GateDecision[]; next: string | null }>();
   const first = useQuery({
     queryKey: ["gate-decisions", session, account.id],
     queryFn: () => gateApi.decisions(session, account.id),
     retry: false,
+    // Agents check payments from elsewhere: new decisions show without a reload. Not once older
+    // pages are loaded, whose cursor a refreshed first page would leave a gap before.
+    refetchInterval: older ? false : 10_000,
   });
-  const [older, setOlder] = useState<{ items: GateDecision[]; next: string | null }>();
   const [loading, setLoading] = useState(false);
   const [moreError, setMoreError] = useState<unknown>(null);
   const items = [...(first.data?.items ?? []), ...(older?.items ?? [])];
@@ -352,6 +355,14 @@ export function Gate() {
   });
   const list = accounts.data?.items ?? [];
   const selected = list.find((a) => a.id === params.get("account")) ?? list[0];
+  const [creating, setCreating] = useState(false);
+  // A new account's first API key, shown once above it.
+  const [madeKey, setMadeKey] = useState<{ accountId: string; key: string }>();
+  const made = (accountId: string, key: string) => {
+    setMadeKey({ accountId, key });
+    setCreating(false);
+    setParams({ account: accountId }, { replace: true });
+  };
   // The root posted on chain, read straight from the app's own GateAnchor: never from an address
   // the API names. Not read when the API says it was posted somewhere else.
   const anchor = deployment.gateAnchor;
@@ -374,7 +385,7 @@ export function Gate() {
   return (
     <Page
       title="Payment gate"
-      intro="The rules that guard your agents' payments, every decision, and a way to check each one."
+      intro="Set the rules your agents' payments must follow, see every decision, and check each one."
     >
       {!isConnected ? (
         <EmptyState title="Connect your wallet" action={<ConnectButton />}>
@@ -401,30 +412,52 @@ export function Gate() {
       ) : accounts.error ? (
         <Unavailable error={accounts.error} onRetry={() => void accounts.refetch()} />
       ) : !selected ? (
-        <EmptyState title="No gate accounts yet">
-          Make one with the API (POST /gate/accounts), then come back.
-        </EmptyState>
+        <NewAccount session={session} onMade={made} />
+      ) : creating ? (
+        <NewAccount session={session} onMade={made} onCancel={() => setCreating(false)} />
       ) : (
         <>
-          {list.length > 1 && (
-            <nav aria-label="Gate accounts" className="flex flex-wrap gap-2">
-              {list.map((a) => (
+          <nav aria-label="Gate accounts" className="flex flex-wrap gap-2">
+            {list.length > 1 &&
+              list.map((a) => (
                 <Button
                   key={a.id}
                   size="sm"
                   kind={a.id === selected.id ? "primary" : "secondary"}
-                  onClick={() => setParams({ account: a.id }, { replace: true })}
+                  onClick={() => {
+                    if (a.id !== selected.id) setMadeKey(undefined);
+                    setParams({ account: a.id }, { replace: true });
+                  }}
                 >
                   {a.name || short(a.id, 6)}
                 </Button>
               ))}
-            </nav>
-          )}
+            <Button
+              size="sm"
+              kind="ghost"
+              onClick={() => {
+                // The key is shown once: leaving the account hides it for good.
+                setMadeKey(undefined);
+                setCreating(true);
+              }}
+            >
+              New account
+            </Button>
+          </nav>
+          {madeKey?.accountId === selected.id && <KeyOnce apiKey={madeKey.key} />}
           <div className="grid gap-6 xl:grid-cols-2">
             <Rules account={selected} session={session} />
+            <Settings key={selected.id} account={selected} session={session} />
+          </div>
+          <div className="grid gap-6 xl:grid-cols-2">
+            <Invoices key={selected.id} account={selected} session={session} />
+            <Tickets key={selected.id} account={selected} session={session} />
+          </div>
+          <Decisions key={selected.id} account={selected} session={session} chainRoot={chainRoot} />
+          <div className="grid gap-6 xl:grid-cols-2">
+            <Keys key={selected.id} account={selected} session={session} />
             <History account={selected} session={session} />
           </div>
-          <Decisions account={selected} session={session} chainRoot={chainRoot} />
         </>
       )}
     </Page>

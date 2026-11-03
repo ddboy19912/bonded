@@ -96,7 +96,50 @@ export interface Page<T> {
   next: string | null;
 }
 
+/** An agent's API key: only its prefix is kept, the key itself is shown once. */
+export interface GateKey {
+  id: string;
+  prefix: string;
+  label: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+}
+
+/** An invoice the business approved: this vendor, this reference, this amount. */
+export interface GateInvoice {
+  id: string;
+  vendorId: string;
+  reference: string;
+  amountCents: number;
+  createdAt: string;
+}
+
+/** A bank change finance verified out of band. `usedBy` is the decision that applied it. */
+export interface GateTicket {
+  id: string;
+  vendorId: string;
+  account: string;
+  verifiedBy: string;
+  usedBy: string | null;
+  createdAt: string;
+}
+
+export interface NewGateAccount {
+  name?: string;
+  mode: GateAccount["mode"];
+  maxPaymentUsd: number;
+  maxDailyUsd: number;
+  freezeOnBreach: boolean;
+}
+
 const bearer = (session: string) => ({ headers: { Authorization: `Bearer ${session}` } });
+/** A write as the signed-in owner, with a JSON body. */
+const send = (session: string, method: "POST" | "PUT" | "DELETE", body?: unknown) => ({
+  method,
+  headers: { Authorization: `Bearer ${session}`, "Content-Type": "application/json" },
+  ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+});
 const account = (id: string) => `/gate/accounts/${encodeURIComponent(id)}`;
 const before = (cursor?: string) => (cursor ? `?before=${encodeURIComponent(cursor)}` : "");
 
@@ -121,7 +164,85 @@ export const gateApi = {
     ),
   /** GET /gate/receipt-key: the address every receipt is signed with. Public. */
   receiptKey: () => request<{ address: Address }>("/gate/receipt-key"),
+
+  // Setting an account up (owner session).
+
+  /** POST /gate/accounts: a new account and its first API key, shown once. */
+  createAccount: (session: string, input: NewGateAccount) =>
+    request<{ account: GateAccount; apiKey: { id: string; key: string; prefix: string } }>(
+      "/gate/accounts",
+      send(session, "POST", input),
+    ),
+  /** PUT /gate/accounts/:id: change the mode, limits or freeze setting. */
+  updateAccount: (session: string, id: string, patch: Partial<NewGateAccount>) =>
+    request<GateAccount>(account(id), send(session, "PUT", patch)),
+  /** POST …/unfreeze: lift a freeze, so checks run again. */
+  unfreeze: (session: string, id: string) =>
+    request<GateAccount>(`${account(id)}/unfreeze`, send(session, "POST", {})),
+  /** POST …/vendors: a vendor and its verified account. */
+  addVendor: (session: string, id: string, vendor: GateVendor) =>
+    request<GateVendor>(`${account(id)}/vendors`, send(session, "POST", vendor)),
+  /** GET …/invoices: approved invoices, newest first. */
+  invoices: (session: string, id: string) =>
+    request<Page<GateInvoice>>(`${account(id)}/invoices?limit=100`, bearer(session)),
+  /** POST …/invoices: approve an invoice for payment. */
+  addInvoice: (
+    session: string,
+    id: string,
+    invoice: { vendorId: string; reference: string; amountUsd: number },
+  ) => request<GateInvoice>(`${account(id)}/invoices`, send(session, "POST", invoice)),
+  /** DELETE …/invoices/:itemId */
+  deleteInvoice: (session: string, id: string, itemId: string) =>
+    request<{ deleted: true }>(
+      `${account(id)}/invoices/${encodeURIComponent(itemId)}`,
+      send(session, "DELETE"),
+    ),
+  /** GET …/tickets: verified bank-change tickets. */
+  tickets: (session: string, id: string) =>
+    request<{ items: GateTicket[] }>(`${account(id)}/tickets`, bearer(session)),
+  /** POST …/tickets: a bank change finance verified out of band. */
+  addTicket: (
+    session: string,
+    id: string,
+    ticket: { id: string; vendorId: string; account: string; verifiedBy: string },
+  ) => request<GateTicket>(`${account(id)}/tickets`, send(session, "POST", ticket)),
+  /** DELETE …/tickets/:itemId */
+  deleteTicket: (session: string, id: string, itemId: string) =>
+    request<{ deleted: true }>(
+      `${account(id)}/tickets/${encodeURIComponent(itemId)}`,
+      send(session, "DELETE"),
+    ),
+  /** GET …/keys: the account's API keys, revoked ones too. */
+  keys: (session: string, id: string) =>
+    request<{ items: GateKey[] }>(`${account(id)}/keys`, bearer(session)),
+  /** POST …/keys: a new API key, shown once. */
+  createKey: (session: string, id: string, label: string) =>
+    request<GateKey & { key: string }>(
+      `${account(id)}/keys`,
+      send(session, "POST", label ? { label } : {}),
+    ),
+  /** DELETE …/keys/:keyId: revoke a key; it stops working at once. */
+  revokeKey: (session: string, id: string, keyId: string) =>
+    request<{ revoked: true }>(
+      `${account(id)}/keys/${encodeURIComponent(keyId)}`,
+      send(session, "DELETE"),
+    ),
 };
+
+/** An amount in dollars, with cents: $612.40. */
+export const dollars = (usd: number) =>
+  `$${usd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/**
+ * Dollars as typed into a form, or null when it isn't a positive amount with at most two
+ * decimals (what the API takes).
+ */
+export function parseUsd(text: string): number | null {
+  const t = text.trim().replace(/[$,\s]/g, "");
+  if (!/^\d+(\.\d{1,2})?$/.test(t)) return null;
+  const v = Number(t);
+  return v > 0 && v <= 100_000_000_000 ? v : null;
+}
 
 /** One check of a decision: passed, failed, or not possible (with why). */
 export interface VerifyStep {

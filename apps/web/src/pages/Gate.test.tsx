@@ -19,7 +19,13 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { deployment } from "../config";
 import { ApiError } from "../lib/api";
 import { saveSession } from "../lib/connect";
-import { gateApi, type GateAccount, type GateDecision, type GateProof } from "../lib/gate";
+import {
+  gateApi,
+  parseUsd,
+  type GateAccount,
+  type GateDecision,
+  type GateProof,
+} from "../lib/gate";
 import { Gate } from "./Gate";
 
 const WALLET = "0x00000000000000000000000000000000000000a1";
@@ -212,6 +218,25 @@ beforeEach(() => {
   vi.spyOn(gateApi, "decisions").mockResolvedValue({ items: [blocked, paid], next: null });
   vi.spyOn(gateApi, "receiptKey").mockResolvedValue({ address: SIGNER });
   vi.spyOn(gateApi, "proof").mockImplementation(async (_s, _a, id) => proofs[id]!);
+  vi.spyOn(gateApi, "invoices").mockResolvedValue({
+    items: [
+      { id: "7", vendorId: "nimbus", reference: "NIM-1", amountCents: 61_240, createdAt: DAY },
+    ],
+    next: null,
+  });
+  vi.spyOn(gateApi, "tickets").mockResolvedValue({ items: [] });
+  vi.spyOn(gateApi, "keys").mockResolvedValue({
+    items: [
+      {
+        id: "k1",
+        prefix: "bonded_gk_AbCd",
+        label: "Payables agent",
+        createdAt: `${DAY}T09:00:00Z`,
+        lastUsedAt: null,
+        revokedAt: null,
+      },
+    ],
+  });
 });
 afterEach(() => {
   cleanup();
@@ -238,8 +263,9 @@ describe("the payment gate's rules page", () => {
     signedIn();
     show();
     expect(await screen.findByText("No single payment over $5,000.")).toBeTruthy();
-    expect(screen.getByText("Enforce")).toBeTruthy();
-    expect(await screen.findByText("GB29 NWBK 6016 1331 9268 19")).toBeTruthy();
+    const rules = screen.getByRole("heading", { name: "Rules" }).closest("section") as HTMLElement;
+    expect(within(rules).getByText("Enforce")).toBeTruthy();
+    expect(await within(rules).findByText("GB29 NWBK 6016 1331 9268 19")).toBeTruthy();
     // Version 2 is on chain, version 1 isn't yet.
     const history = (await screen.findByRole("heading", { name: "Changes" })).closest(
       "section",
@@ -390,10 +416,181 @@ describe("the payment gate's rules page", () => {
     expect(within(step("Daily log root")).getByText(/GateAnchor has none/)).toBeTruthy();
   });
 
-  it("says when the wallet has no gate account", async () => {
+  it("makes a gate account and shows its API key once", async () => {
     vi.mocked(gateApi.accounts).mockResolvedValue({ items: [] });
+    const create = vi.spyOn(gateApi, "createAccount").mockImplementation(async () => {
+      vi.mocked(gateApi.accounts).mockResolvedValue({ items: [account] });
+      return { account, apiKey: { id: "k1", key: "bonded_gk_secret", prefix: "bonded_gk_secr" } };
+    });
     signedIn();
     show();
-    expect(await screen.findByText("No gate accounts yet")).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "New gate account" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Make the account" }));
+    expect(screen.getAllByText("Enter an amount in dollars.")).toHaveLength(2);
+    expect(create).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Acme AP" } });
+    fireEvent.change(screen.getByLabelText("Most for one payment"), {
+      target: { value: "5,000" },
+    });
+    fireEvent.change(screen.getByLabelText("Most in one day"), { target: { value: "8000" } });
+    fireEvent.click(screen.getByLabelText(/^Enforce/));
+    fireEvent.click(screen.getByRole("button", { name: "Make the account" }));
+    expect(await screen.findByText("bonded_gk_secret")).toBeTruthy();
+    expect(create).toHaveBeenCalledWith("sess", {
+      name: "Acme AP",
+      mode: "enforce",
+      maxPaymentUsd: 5000,
+      maxDailyUsd: 8000,
+      freezeOnBreach: false,
+    });
+    expect(await screen.findByText("No single payment over $5,000.")).toBeTruthy();
+    // Shown once: leaving for another new account and coming back doesn't show it again.
+    fireEvent.click(screen.getByRole("button", { name: "New account" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+    expect(await screen.findByText("No single payment over $5,000.")).toBeTruthy();
+    expect(screen.queryByText("bonded_gk_secret")).toBeNull();
+  });
+
+  it("switches the mode and saves new limits", async () => {
+    const update = vi.spyOn(gateApi, "updateAccount").mockResolvedValue(account);
+    signedIn();
+    show();
+    const settings = (await screen.findByRole("heading", { name: "Settings" })).closest(
+      "section",
+    ) as HTMLElement;
+    fireEvent.click(within(settings).getByLabelText(/^Monitor/));
+    await vi.waitFor(() =>
+      expect(update).toHaveBeenCalledWith("sess", ACCOUNT_ID, { mode: "monitor" }),
+    );
+    const save = within(settings).getByRole("button", { name: "Save limits" });
+    expect((save as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(within(settings).getByLabelText("Most for one payment"), {
+      target: { value: "2500.50" },
+    });
+    // Once the mode change is done, the button takes the new limit.
+    await vi.waitFor(() => expect((save as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(save);
+    await vi.waitFor(() =>
+      expect(update).toHaveBeenCalledWith("sess", ACCOUNT_ID, {
+        maxPaymentUsd: 2500.5,
+        maxDailyUsd: 8000,
+      }),
+    );
+  });
+
+  it("adds a vendor, approves an invoice and adds a verified bank change", async () => {
+    const vendor = vi.spyOn(gateApi, "addVendor").mockResolvedValue({
+      id: "orbit-print",
+      name: "Orbit Print",
+      account: "DE89 3704 0044 0532 0130 00",
+    });
+    const invoice = vi.spyOn(gateApi, "addInvoice").mockResolvedValue({
+      id: "8",
+      vendorId: "nimbus",
+      reference: "NIM-2",
+      amountCents: 1,
+      createdAt: DAY,
+    });
+    const ticket = vi.spyOn(gateApi, "addTicket").mockResolvedValue({
+      id: "FIN-1",
+      vendorId: "nimbus",
+      account: "X",
+      verifiedBy: "Dana",
+      usedBy: null,
+      createdAt: DAY,
+    });
+    signedIn();
+    show();
+    const section = async (name: string) =>
+      (await screen.findByRole("heading", { name })).closest("section") as HTMLElement;
+
+    const rules = await section("Rules");
+    fireEvent.click(within(rules).getByRole("button", { name: "Add a vendor" }));
+    fireEvent.change(within(rules).getByLabelText("Vendor"), {
+      target: { value: "Orbit Print" },
+    });
+    expect(within(rules).getByText(/Its id is orbit-print/)).toBeTruthy();
+    fireEvent.change(within(rules).getByLabelText("Verified bank account"), {
+      target: { value: "DE89 3704 0044 0532 0130 00" },
+    });
+    fireEvent.click(within(rules).getByRole("button", { name: "Add vendor" }));
+    await vi.waitFor(() =>
+      expect(vendor).toHaveBeenCalledWith("sess", ACCOUNT_ID, {
+        id: "orbit-print",
+        name: "Orbit Print",
+        account: "DE89 3704 0044 0532 0130 00",
+      }),
+    );
+
+    const invoices = await section("Approved invoices");
+    expect(await within(invoices).findByText("$612.40")).toBeTruthy();
+    expect(within(invoices).getByText("Nimbus Cloud")).toBeTruthy();
+    fireEvent.click(within(invoices).getByRole("button", { name: "Approve an invoice" }));
+    fireEvent.change(within(invoices).getByLabelText("Invoice number"), {
+      target: { value: "NIM-2" },
+    });
+    fireEvent.change(within(invoices).getByLabelText("Amount"), { target: { value: "612.40" } });
+    fireEvent.click(within(invoices).getByRole("button", { name: "Approve" }));
+    await vi.waitFor(() =>
+      expect(invoice).toHaveBeenCalledWith("sess", ACCOUNT_ID, {
+        vendorId: "nimbus",
+        reference: "NIM-2",
+        amountUsd: 612.4,
+      }),
+    );
+
+    const changes = await section("Bank changes");
+    fireEvent.click(await within(changes).findByRole("button", { name: "Add a verified change" }));
+    fireEvent.change(within(changes).getByLabelText("Ticket"), { target: { value: "FIN-1" } });
+    fireEvent.change(within(changes).getByLabelText("New bank account"), {
+      target: { value: "GB33 BUKB 2020 1555 5555 55" },
+    });
+    fireEvent.change(within(changes).getByLabelText("Verified by"), {
+      target: { value: "Dana" },
+    });
+    fireEvent.click(within(changes).getByRole("button", { name: "Add ticket" }));
+    await vi.waitFor(() =>
+      expect(ticket).toHaveBeenCalledWith("sess", ACCOUNT_ID, {
+        id: "FIN-1",
+        vendorId: "nimbus",
+        account: "GB33 BUKB 2020 1555 5555 55",
+        verifiedBy: "Dana",
+      }),
+    );
+  });
+
+  it("makes an API key, shown once, and revokes one", async () => {
+    const create = vi.spyOn(gateApi, "createKey").mockResolvedValue({
+      id: "k2",
+      prefix: "bonded_gk_ZzZz",
+      label: "",
+      createdAt: DAY,
+      lastUsedAt: null,
+      revokedAt: null,
+      key: "bonded_gk_second",
+    });
+    const revoke = vi.spyOn(gateApi, "revokeKey").mockResolvedValue({ revoked: true });
+    signedIn();
+    show();
+    const keys = (await screen.findByRole("heading", { name: "API keys" })).closest(
+      "section",
+    ) as HTMLElement;
+    expect(await within(keys).findByText("bonded_gk_AbCd…")).toBeTruthy();
+    fireEvent.click(within(keys).getByRole("button", { name: "Revoke" }));
+    await vi.waitFor(() => expect(revoke).toHaveBeenCalledWith("sess", ACCOUNT_ID, "k1"));
+    fireEvent.click(within(keys).getByRole("button", { name: "New key" }));
+    const make = within(keys).getByRole("button", { name: "Make key" }) as HTMLButtonElement;
+    await vi.waitFor(() => expect(make.disabled).toBe(false));
+    fireEvent.click(make);
+    expect(await within(keys).findByText("bonded_gk_second")).toBeTruthy();
+    expect(create).toHaveBeenCalledWith("sess", ACCOUNT_ID, "");
+  });
+});
+
+describe("parseUsd", () => {
+  it("takes dollars with at most two decimals", () => {
+    expect(parseUsd("612.40")).toBe(612.4);
+    expect(parseUsd("$5,000")).toBe(5000);
+    for (const bad of ["", "0", "-5", "1.234", "abc", "1e3"]) expect(parseUsd(bad)).toBeNull();
   });
 });

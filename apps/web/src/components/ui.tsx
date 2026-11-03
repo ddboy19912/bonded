@@ -336,6 +336,35 @@ export function Input(props: {
   );
 }
 
+/** A dropdown with a label above it, styled like `Input`. */
+export function Select(props: {
+  value: string;
+  onChange: (value: string) => void;
+  label: ReactNode;
+  options: { value: string; label: string }[];
+}) {
+  const id = useId();
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5 text-sm">
+      <label htmlFor={id} className="font-medium text-soft">
+        {props.label}
+      </label>
+      <select
+        id={id}
+        value={props.value}
+        onChange={(e) => props.onChange(e.target.value)}
+        className={`${FIELD} border-line-strong`}
+      >
+        {props.options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 /** A choice card for radio groups: a label, an optional line under it, and the selected ring. */
 export function Choice({
   checked,
