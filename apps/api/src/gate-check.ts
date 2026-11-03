@@ -1,5 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { Database, GateAccountRecord, GateDecisionRecord, GateStore } from "@bonded/db";
+import type {
+  Connection,
+  Database,
+  GateAccountRecord,
+  GateDecisionRecord,
+  GateStore,
+} from "@bonded/db";
 import {
   canonicalJson,
   evaluateGateInput,
@@ -59,6 +65,11 @@ export async function runGateCheck(
   deps: { db: Database; store: GateStore; receiptKey: Hex; now: () => number },
   auth: { accountId: string; keyId: string },
   request: GateCheckRequest,
+  /**
+   * Runs at the end of a new check, inside its transaction with the account still locked (the
+   * payout route records its payout there, gate-payout.ts). Not run for a replayed request id.
+   */
+  inside?: (c: Connection, outcome: GateCheckOutcome) => Promise<void>,
 ): Promise<GateCheckOutcome> {
   const { db, store } = deps;
   const { requestId, ...asked } = request;
@@ -208,13 +219,15 @@ export async function runGateCheck(
       );
     const froze = decision === "breach" && account.freezeOnBreach;
     if (froze) await store.freeze(c, account.id, id);
-    return {
+    const outcome: GateCheckOutcome = {
       decision: record,
       input,
       replayed: false,
       froze,
       account: (await store.account(account.id, c))!,
     };
+    if (inside) await inside(c, outcome);
+    return outcome;
   });
 }
 

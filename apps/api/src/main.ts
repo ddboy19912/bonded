@@ -25,6 +25,7 @@ import {
 import { REMOTE_EPISODE_TIMEOUT_MS, gatewayAgents } from "./remote-agent.js";
 import { DbRunnerAuth, RunnerPresenceWriter } from "./runners.js";
 import { secretBoxFromEnv } from "./secrets.js";
+import { payoutTeeFromEnv } from "./payout-tee.js";
 import { Notifier, emailFromEnv } from "./notifications.js";
 import { workPreviewOne } from "./preview-worker.js";
 import { workCheckOne } from "./check-worker.js";
@@ -162,6 +163,7 @@ if (role === "migrate") {
   let gateway: ArenaGateway | undefined;
   let api: ReturnType<typeof createApi> | undefined;
   if (role === "api" || role === "all") {
+    const payoutTee = payoutTeeFromEnv();
     api = createApi({
       db,
       chain,
@@ -207,6 +209,12 @@ if (role === "migrate") {
             ? { apiVersion: process.env.STRIPE_API_VERSION.trim() }
             : {}),
           // Off until the founder has legal advice: live keys and live charges are refused.
+          allowLiveCredentials: process.env.GATE_ALLOW_LIVE_CREDENTIALS === "true",
+        },
+        // The payout route forwards allowed payouts to the payout proxy in a TEE
+        // (GATE_PAYOUT_TEE_*, payout-tee.ts); without GATE_PAYOUT_TEE_URL it answers 503.
+        payout: {
+          ...(payoutTee ? { tee: payoutTee } : {}),
           allowLiveCredentials: process.env.GATE_ALLOW_LIVE_CREDENTIALS === "true",
         },
       },

@@ -1,5 +1,11 @@
 import type { Database } from "@bonded/db";
-import { agentUrlContext, gateStripeContext, webhookContext, type SecretBox } from "./secrets.js";
+import {
+  agentUrlContext,
+  gatePayoutContext,
+  gateStripeContext,
+  webhookContext,
+  type SecretBox,
+} from "./secrets.js";
 
 /** What one table's pass did. */
 export interface ReencryptCount {
@@ -14,6 +20,8 @@ export interface ReencryptResult {
   webhooks: ReencryptCount;
   /** Each linked Stripe account's key and endpoint secrets, counted one by one. */
   gateStripe: ReencryptCount;
+  /** Each payout link's events endpoint secret. */
+  gatePayout: ReencryptCount;
   dryRun: boolean;
 }
 
@@ -22,7 +30,8 @@ const keyIdOf = (sealed: string) => sealed.split(".")[1];
 
 /**
  * Moves every stored secret (Agent URL secrets, revoked ones included, webhook signing secrets,
- * and the payment gate's Stripe keys and endpoint secrets) from the `from` key to the `to` key,
+ * the payment gate's Stripe keys and endpoint secrets, and its payout links' events secrets)
+ * from the `from` key to the `to` key,
  * for rotating AGENT_URL_SECRET_KEY. One
  * transaction with the rows locked: a value that won't decrypt with either key (malformed, or
  * under a third key) rolls everything back, naming its row but never the secret. Values already
@@ -131,8 +140,30 @@ export async function reencryptSecrets(
           [r.account_id, key ?? null, auth ?? null, events ?? null],
         );
     }
+    // The payout links' events secrets. The payout credential itself is sealed to the payout
+    // proxy in the TEE, not to this key, so it is not touched.
+    const gatePayout: ReencryptCount = { reencrypted: 0, already: 0 };
+    const payoutLinks = await client.query<{
+      account_id: string;
+      events_secret_ciphertext: string;
+    }>(
+      "SELECT account_id, events_secret_ciphertext FROM gate_payout_links ORDER BY account_id FOR UPDATE",
+    );
+    for (const r of payoutLinks.rows) {
+      const sealed = move(
+        r.events_secret_ciphertext,
+        gatePayoutContext(r.account_id),
+        `payout link of gate account ${r.account_id}`,
+        gatePayout,
+      );
+      if (sealed && !dryRun)
+        await client.query(
+          "UPDATE gate_payout_links SET events_secret_ciphertext=$2 WHERE account_id=$1",
+          [r.account_id, sealed],
+        );
+    }
     await client.query(dryRun ? "ROLLBACK" : "COMMIT");
-    return { agentUrls, webhooks, gateStripe, dryRun };
+    return { agentUrls, webhooks, gateStripe, gatePayout, dryRun };
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     throw error;

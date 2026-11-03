@@ -1,0 +1,18 @@
+# Local run with no hardware and no money: `TEE_BACKEND=mock`, `PAYOUT_PROVIDER=fake`. The proxy
+# serves evidence, but its quote is not a TDX quote, so the gate API refuses it unless the API runs
+# with GATE_PAYOUT_TEE_LOCAL=true (loopback only, never a TEE). Use it to check the wiring.
+services:
+  proxy:
+    build:
+      context: ../..
+      dockerfile: services/payout-proxy/Dockerfile
+      args:
+        CODE_HASH: "0x0000000000000000000000000000000000000000000000000000000000000001"
+    environment:
+      TEE_BACKEND: mock
+      PAYOUT_PROVIDER: fake
+      # The receipt key address of your local API (GET /gate/receipt-key).
+      GATE_RECEIPT_ADDRESS: "${GATE_RECEIPT_ADDRESS:?set GATE_RECEIPT_ADDRESS}"
+      GATE_ALLOW_LIVE_CREDENTIALS: "false"
+    ports:
+      - "8080:8080"

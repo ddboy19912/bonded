@@ -22,6 +22,7 @@ import { Notifier, type EmailSender } from "./notifications.js";
 import type { SecretBox } from "./secrets.js";
 import { alertOwner, decisionView, runGateCheck, type GateCheckRequest } from "./gate-check.js";
 import { gateCardRoutes, type GateCardOptions } from "./gate-card.js";
+import { gatePayoutRoutes, type GatePayoutOptions } from "./gate-payout.js";
 
 /**
  * The payment gate's hosted check (apps/api/GATE.md). A business makes a gate account with its
@@ -53,13 +54,16 @@ export interface GateOptions {
   notifier?: Notifier;
   /** The card route with Stripe Issuing (gate-card.ts). */
   card?: GateCardOptions;
+  /** The payout route through the payout proxy in a TEE (gate-payout.ts). */
+  payout?: GatePayoutOptions;
 }
 
 /**
  * Routes under /gate and /payments do their own authentication (see the module comment), and
- * Stripe's webhooks under /stripe/issuing are checked by their signature.
+ * Stripe's webhooks under /stripe/issuing and /stripe/payouts are checked by their signature.
  */
-export const gateOpen = (path: string) => /^\/(gate|payments|stripe\/issuing)(\/|$)/.test(path);
+export const gateOpen = (path: string) =>
+  /^\/(gate|payments|stripe\/issuing|stripe\/payouts)(\/|$)/.test(path);
 
 /** Stripe's webhooks, whose events can be larger than the API's usual 16 KB body cap. */
 export const stripeWebhookPath = (path: string) => /^\/stripe\/issuing\//.test(path);
@@ -728,6 +732,25 @@ export function gateRoutes(
       log: options.card?.log ?? ((line) => console.error(line)),
     },
     options.card,
+  );
+  gatePayoutRoutes(
+    app,
+    {
+      db,
+      store,
+      notifier,
+      receiptKey: options.receiptKey,
+      now,
+      secrets: options.secrets,
+      checks,
+      owned,
+      keyed,
+      limited,
+      writes: options.writes,
+      reads: options.reads,
+      log: options.payout?.log ?? ((line) => console.error(line)),
+    },
+    options.payout,
   );
 
   return { store, notifier };

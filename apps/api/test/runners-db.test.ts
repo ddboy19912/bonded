@@ -19,6 +19,9 @@ async function agent(id: number, config: unknown = remote, enabled = true) {
   return `${CHAIN}:${id}`;
 }
 const hello = { runnerVersion: "0.1.0", mode: "tools" };
+// Every migration's number: 0001 to 0025, and 0028 (the payout route; 0026 and 0027 are other
+// branches' numbers).
+const MIGRATED = [...Array.from({ length: 25 }, (_, i) => i + 1), 28];
 
 beforeAll(async () => {
   pg = await postgres();
@@ -26,13 +29,13 @@ beforeAll(async () => {
 }, 120_000);
 afterAll(() => pg?.stop());
 
-describe("migrations 0014 to 0025", () => {
+describe("migrations 0014 to 0028", () => {
   it("apply once, in order, and again is a no-op", async () => {
     const versions = (
       await db.pool.query("SELECT version FROM schema_migrations ORDER BY version")
     ).rows.map((r) => r.version);
-    // Numbered by their file names (0001 to 0025), each once and in order.
-    expect(versions).toEqual(Array.from({ length: 25 }, (_, i) => i + 1));
+    // Numbered by their file names (0001 to 0025, then 0028), each once and in order.
+    expect(versions).toEqual(MIGRATED);
     await db.migrate();
     const tables = (
       await db.pool.query(
@@ -58,7 +61,7 @@ describe("migrations 0014 to 0025", () => {
       )
     ).rows.map((r) => r.column_name);
     expect(rated).toEqual(["charged_owner", "config", "kind"]);
-    // 0024: the payment gate; 0025: its card route (Stripe Issuing).
+    // 0024: the payment gate; 0025: its card route (Stripe Issuing); 0028: its payout route.
     const gate = (
       await db.pool.query(
         "SELECT table_name FROM information_schema.tables WHERE table_name LIKE 'gate\\_%' ORDER BY 1",
@@ -74,6 +77,8 @@ describe("migrations 0014 to 0025", () => {
       "gate_invoices",
       "gate_mandates",
       "gate_payments",
+      "gate_payout_links",
+      "gate_payouts",
       "gate_refunds",
       "gate_stripe_events",
       "gate_stripe_links",
@@ -92,16 +97,14 @@ describe("migrations 0014 to 0025", () => {
 });
 
 describe("migrations on a database that main already migrated", () => {
-  it("applies only 0020 to 0025 after 0001 to 0019, then nothing", async () => {
+  it("applies only 0020 to 0028 after 0001 to 0019, then nothing", async () => {
     // Before migrations took their version from the file name, the version was the place in the
     // list: on main that put 0001 to 0019 at versions 1 to 19, the same numbers.
     const old = await postgres({ migrate: false });
     try {
       const dir = fileURLToPath(new URL("../../../packages/db/migrations/", import.meta.url));
       const files = (await readdir(dir)).filter((f) => /^\d{4}_.*\.sql$/.test(f)).sort();
-      expect(files.map((f) => Number(f.slice(0, 4)))).toEqual(
-        Array.from({ length: 25 }, (_, i) => i + 1),
-      );
+      expect(files.map((f) => Number(f.slice(0, 4)))).toEqual(MIGRATED);
       await old.db.pool.query("CREATE TABLE schema_migrations (version integer PRIMARY KEY)");
       for (const [index, file] of files.slice(0, 19).entries()) {
         await old.db.pool.query(await readFile(join(dir, file), "utf8"));
@@ -116,7 +119,7 @@ describe("migrations on a database that main already migrated", () => {
         (
           await old.db.pool.query("SELECT version FROM schema_migrations ORDER BY version")
         ).rows.map((r) => r.version);
-      expect(await versions()).toEqual(Array.from({ length: 25 }, (_, i) => i + 1));
+      expect(await versions()).toEqual(MIGRATED);
       const added = (
         await old.db.pool.query(
           "SELECT table_name FROM information_schema.tables WHERE table_name IN ('previews','notification_settings') ORDER BY 1",
@@ -136,7 +139,7 @@ describe("migrations on a database that main already migrated", () => {
         { chain_id: 46630, registry: "0x35f6d30be731a639235ccad7abedda4d4be8d4f9" },
       ]);
       await old.db.migrate();
-      expect(await versions()).toEqual(Array.from({ length: 25 }, (_, i) => i + 1));
+      expect(await versions()).toEqual(MIGRATED);
     } finally {
       await old.stop();
     }
