@@ -15,7 +15,8 @@ function stable(value: unknown): unknown {
     );
   return value;
 }
-const digest = (value: unknown) => canonicalHash(JSON.stringify(stable(value)));
+/** A stable hash of a value: the cascade and payments datasets record theirs with it. */
+export const digest = (value: unknown) => canonicalHash(JSON.stringify(stable(value)));
 const probability = z.number().finite().min(0).max(1);
 const assessmentSchema = z.object({
   manipulated: probability,
