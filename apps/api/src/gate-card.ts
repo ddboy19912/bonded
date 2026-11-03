@@ -298,6 +298,7 @@ export function gateCardRoutes(
       vendorId: ok?.vendorId ?? null,
       reference: intent.reference,
       inputHash,
+      input,
       mandateHash: account.mandateHash,
       mandateVersion: account.mandateVersion,
       receipt: signed,

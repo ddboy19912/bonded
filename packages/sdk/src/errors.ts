@@ -1,5 +1,6 @@
 import type { Hex } from "viem";
 import type { DryRunResult, VaultBreach } from "./breaches.js";
+import type { PaymentBreach } from "./payments.js";
 
 /** Base class for every error the SDK throws on purpose. `code` is stable; messages may change. */
 export class BondedError extends Error {
@@ -129,5 +130,30 @@ export class CallRevertedError extends BondedError {
     options?: { cause?: unknown },
   ) {
     super("CALL_REVERTED", message, options);
+  }
+}
+
+/**
+ * The payment guard stopped a payment (or a vendor bank change) in Enforce mode: it breaks the
+ * payment mandate. The pay function was never called; `error.breach` names every rule broken.
+ */
+export class PaymentBlockedError extends BondedError {
+  override readonly name = "PaymentBlockedError";
+  constructor(readonly breach: PaymentBreach) {
+    super(
+      "PAYMENT_BLOCKED",
+      `${breach.kind === "vendor_change" ? "bank change" : "payment"} blocked by the mandate: ${breach.reasons.join("; ")}. Nothing was ${breach.kind === "vendor_change" ? "changed" : "paid"}`,
+    );
+  }
+}
+
+/** The payment guard is frozen after a breach (freeze on breach). It refuses until unfrozen. */
+export class PaymentFrozenError extends BondedError {
+  override readonly name = "PaymentFrozenError";
+  constructor() {
+    super(
+      "PAYMENT_FROZEN",
+      "payments are frozen after a breach; a person has to review it and unfreeze the payment guard",
+    );
   }
 }

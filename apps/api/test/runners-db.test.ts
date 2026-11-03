@@ -19,6 +19,8 @@ async function agent(id: number, config: unknown = remote, enabled = true) {
   return `${CHAIN}:${id}`;
 }
 const hello = { runnerVersion: "0.1.0", mode: "tools" };
+/** The migrations' numbers: 0001 to 0024, 0025 (the gate's card route), 0026 (gate transparency) and 0027 (the data APIs). */
+const MIGRATIONS = [...Array.from({ length: 27 }, (_, i) => i + 1)];
 
 beforeAll(async () => {
   pg = await postgres();
@@ -26,13 +28,13 @@ beforeAll(async () => {
 }, 120_000);
 afterAll(() => pg?.stop());
 
-describe("migrations 0014 to 0025", () => {
+describe("migrations 0014 to 0027", () => {
   it("apply once, in order, and again is a no-op", async () => {
     const versions = (
       await db.pool.query("SELECT version FROM schema_migrations ORDER BY version")
     ).rows.map((r) => r.version);
-    // Numbered by their file names (0001 to 0025), each once and in order.
-    expect(versions).toEqual(Array.from({ length: 25 }, (_, i) => i + 1));
+    // Numbered by their file names, each once and in order.
+    expect(versions).toEqual(MIGRATIONS);
     await db.migrate();
     const tables = (
       await db.pool.query(
@@ -72,6 +74,7 @@ describe("migrations 0014 to 0025", () => {
       "gate_card_transactions",
       "gate_decisions",
       "gate_invoices",
+      "gate_log_roots",
       "gate_mandates",
       "gate_payments",
       "gate_refunds",
@@ -88,20 +91,39 @@ describe("migrations 0014 to 0025", () => {
       )
     ).rows.map((r) => r.column_name);
     expect(merchant).toEqual(["card_merchant_id", "card_merchant_name", "card_merchant_norm"]);
+    // 0026: each check's input, and what is posted to GateAnchor.
+    const anchored = (
+      await db.pool.query(
+        "SELECT table_name, column_name FROM information_schema.columns WHERE (table_name='gate_decisions' AND column_name='input') OR (table_name IN ('gate_mandates','gate_log_roots') AND column_name='anchored_at') ORDER BY 1",
+      )
+    ).rows.map((r) => r.table_name);
+    expect(anchored).toEqual(["gate_decisions", "gate_log_roots", "gate_mandates"]);
+    // 0027: the data APIs.
+    const data = (
+      await db.pool.query(
+        "SELECT table_name FROM information_schema.tables WHERE table_name IN ('data_api_keys','data_api_usage_daily','index_webhooks','index_snapshots','index_webhook_deliveries','ci_runs') ORDER BY 1",
+      )
+    ).rows.map((r) => r.table_name);
+    expect(data).toEqual([
+      "ci_runs",
+      "data_api_keys",
+      "data_api_usage_daily",
+      "index_snapshots",
+      "index_webhook_deliveries",
+      "index_webhooks",
+    ]);
   });
 });
 
 describe("migrations on a database that main already migrated", () => {
-  it("applies only 0020 to 0025 after 0001 to 0019, then nothing", async () => {
+  it("applies only 0020 and later after 0001 to 0019, then nothing", async () => {
     // Before migrations took their version from the file name, the version was the place in the
     // list: on main that put 0001 to 0019 at versions 1 to 19, the same numbers.
     const old = await postgres({ migrate: false });
     try {
       const dir = fileURLToPath(new URL("../../../packages/db/migrations/", import.meta.url));
       const files = (await readdir(dir)).filter((f) => /^\d{4}_.*\.sql$/.test(f)).sort();
-      expect(files.map((f) => Number(f.slice(0, 4)))).toEqual(
-        Array.from({ length: 25 }, (_, i) => i + 1),
-      );
+      expect(files.map((f) => Number(f.slice(0, 4)))).toEqual(MIGRATIONS);
       await old.db.pool.query("CREATE TABLE schema_migrations (version integer PRIMARY KEY)");
       for (const [index, file] of files.slice(0, 19).entries()) {
         await old.db.pool.query(await readFile(join(dir, file), "utf8"));
@@ -116,7 +138,7 @@ describe("migrations on a database that main already migrated", () => {
         (
           await old.db.pool.query("SELECT version FROM schema_migrations ORDER BY version")
         ).rows.map((r) => r.version);
-      expect(await versions()).toEqual(Array.from({ length: 25 }, (_, i) => i + 1));
+      expect(await versions()).toEqual(MIGRATIONS);
       const added = (
         await old.db.pool.query(
           "SELECT table_name FROM information_schema.tables WHERE table_name IN ('previews','notification_settings') ORDER BY 1",
@@ -136,7 +158,7 @@ describe("migrations on a database that main already migrated", () => {
         { chain_id: 46630, registry: "0x35f6d30be731a639235ccad7abedda4d4be8d4f9" },
       ]);
       await old.db.migrate();
-      expect(await versions()).toEqual(Array.from({ length: 25 }, (_, i) => i + 1));
+      expect(await versions()).toEqual(MIGRATIONS);
     } finally {
       await old.stop();
     }

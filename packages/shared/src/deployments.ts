@@ -27,6 +27,11 @@ export const evmDeploymentSchema = z.strictObject({
   bountyBoard: evmAddress,
   /** MandateModuleFactory (ERC-7579 smart accounts). Absent in deployments made before it existed. */
   moduleFactory: evmAddress.optional(),
+  /**
+   * GateAnchor, the payment gate's hash record. Optional: deployed only with GATE_ANCHOR (or on
+   * its own by DeployGateAnchor.s.sol, then given to the keeper as GATE_ANCHOR_ADDRESS).
+   */
+  gateAnchor: evmAddress.optional(),
 });
 
 export type EvmDeployment = z.infer<typeof evmDeploymentSchema>;

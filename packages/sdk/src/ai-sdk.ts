@@ -1,7 +1,9 @@
 import { jsonSchema, type Tool, tool } from "ai";
 import { SENTINEL_INPUT_CHARS } from "@bondedhq/shared";
+import { BondedError } from "./errors.js";
 import type { GuardContext } from "./guarded.js";
 import { type EpisodeTools, type EpisodeToolsSource, resolveTools } from "./mcp.js";
+import { type GuardPaymentsOptions, guardPayments, isPaymentRefusal } from "./payments.js";
 import type { SentinelInput } from "./sentinel.js";
 import {
   BONDED_VAULT_TOOLS,
@@ -10,6 +12,7 @@ import {
 } from "./vault-tools.js";
 
 export type { BondedVaultToolsOptions } from "./vault-tools.js";
+export type { GuardPaymentsOptions } from "./payments.js";
 
 /**
  * The episode's tools as a Vercel AI SDK tool set, for `generateText`/`streamText`/agents. Each
@@ -102,4 +105,53 @@ function toolResultsIn(messages: unknown[]): SentinelInput[] {
     }
   }
   return inputs.slice(-20);
+}
+
+/**
+ * Your own AI SDK pay tool, with every call checked against the payment mandate first (see
+ * `PaymentGuard`). Same name, description and input schema. When the guard refuses (Enforce mode
+ * blocked it, the guard is frozen, or it can't read the payment) your `execute` is not called and
+ * the model gets `{ error }` naming the rules broken, so it can react. In Monitor mode a breaking
+ * payment goes through and the guard's `onBreach` reports it. A local check: no receipts.
+ *
+ * ```ts
+ * const guard = paymentGuard({ mandate, vendors, invoices, onBreach: alert });
+ * const tools = { ...readOnlyTools, pay_invoice: guardAiSdkPayTool(payInvoice, { guard }) };
+ * ```
+ *
+ * The payment is read from the tool's input: `{ account, amountUsd, invoiceReference }` unless you
+ * pass `toPayment`. A streaming `execute` is run to its end before the payment is recorded, and
+ * returns its last output.
+ */
+export function guardAiSdkPayTool<T extends Tool>(
+  payTool: T,
+  options: GuardPaymentsOptions<Parameters<NonNullable<T["execute"]>>[0]>,
+): T {
+  const execute = payTool.execute;
+  if (!execute) throw new BondedError("CONFIG", "guardAiSdkPayTool needs a tool with execute");
+  type Input = Parameters<typeof execute>[0];
+  type Call = Parameters<typeof execute>[1];
+  const guarded = guardPayments(
+    async (input: Input, call: Call) => lastOutput(await execute(input, call)),
+    options,
+  );
+  return {
+    ...payTool,
+    execute: async (input: Input, call: Call) => {
+      try {
+        return await guarded(input, call);
+      } catch (error) {
+        if (isPaymentRefusal(error)) return { error: error.message };
+        throw error;
+      }
+    },
+  };
+}
+
+/** A tool's output, or a streaming tool's last output. */
+async function lastOutput(output: unknown): Promise<unknown> {
+  if (!output || typeof output !== "object" || !(Symbol.asyncIterator in output)) return output;
+  let last: unknown;
+  for await (const part of output as AsyncIterable<unknown>) last = part;
+  return last;
 }

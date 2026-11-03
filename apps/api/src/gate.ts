@@ -1,17 +1,23 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { Context, Hono } from "hono";
 import { z } from "zod";
-import { GateStore, type Database, type GateAccountRecord } from "@bonded/db";
+import { GateStore, type Database, type GateAccountRecord, type GateAnchorPost } from "@bonded/db";
 import {
   cardMerchantKey,
   describePaymentMandate,
   GATE_MODES,
   GATE_RECEIPT_DOMAIN,
   GATE_RECEIPT_TYPES,
+  gateAccountKey,
+  gateDayNumber,
+  gateLogProof,
+  gateLogRoot,
   gateMandateHash,
+  gateReceiptHash,
   normalAccount,
   normalReference,
   utcDay,
+  type SignedGateReceipt,
 } from "@bondedhq/shared";
 import { privateKeyToAccount } from "viem/accounts";
 import type { Hex } from "viem";
@@ -214,6 +220,15 @@ const accountView = (a: GateAccountRecord) => ({
   updatedAt: a.updatedAt.toISOString(),
 });
 
+/** Where a hash was posted on chain (GateAnchor), or null while it isn't. */
+const postedView = (p: GateAnchorPost | null) =>
+  p && {
+    chainId: p.chainId,
+    contract: p.contract,
+    txHash: p.txHash,
+    postedAt: p.postedAt.toISOString(),
+  };
+
 /** A new API key: the key itself (shown once) and what is stored (its hash and a prefix). */
 const newKey = (label: string) => {
   const key = `${GATE_KEY_PREFIX}${randomBytes(32).toString("base64url")}`;
@@ -402,6 +417,7 @@ export function gateRoutes(
         items: versions.items.map((v) => ({
           ...v,
           createdAt: v.createdAt.toISOString(),
+          posted: postedView(v.posted),
           rules: describePaymentMandate({
             mode: v.mandate.mode,
             maxPaymentUsd: v.mandate.maxPaymentCents / 100,
@@ -709,6 +725,112 @@ export function gateRoutes(
   app.get(
     "/gate/accounts/:id/decisions/:decisionId",
     handle(async (c) => decision(c, (await owned(c, options.reads)).account.id)),
+  );
+
+  // Hashes on chain: each day's log root and each mandate version's hash (GateAnchor).
+
+  /**
+   * The proof that a decision's receipt is in its day's log root. It reveals the receipt, so only
+   * the owner and the account's agents get it.
+   */
+  const proof = async (c: Context, accountId: string) => {
+    const parsed = uuid.safeParse(c.req.param("decisionId"));
+    const found = parsed.success ? await store.decision(accountId, parsed.data) : undefined;
+    if (!found) return notFound("decision");
+    const day = utcDay(found.createdAt);
+    const root = await store.logRoot(accountId, day);
+    if (!root)
+      throw new Refused(
+        409,
+        "This decision's day has no log root yet. It is made once the day ends (UTC).",
+        { day },
+      );
+    const decisions = await store.dayDecisions(accountId, day);
+    const hashes = decisions.map((d) => gateReceiptHash((d.receipt as SignedGateReceipt).receipt));
+    // The day must still be exactly what the root covers.
+    if (hashes.length !== root.receipts || gateLogRoot(hashes) !== root.root)
+      throw new Refused(
+        409,
+        "This day's log no longer matches its root, so it can't be proved: some of its decisions were deleted after the retention period.",
+        { day },
+      );
+    const index = decisions.findIndex((d) => d.id === found.id);
+    c.header("Cache-Control", "no-store");
+    return c.json({
+      decisionId: found.id,
+      accountKey: gateAccountKey(accountId),
+      day,
+      dayNumber: gateDayNumber(day),
+      receiptHash: hashes[index],
+      root: root.root,
+      proof: gateLogProof(hashes, index),
+      posted: postedView(root.posted),
+    });
+  };
+  app.get(
+    "/gate/accounts/:id/decisions/:decisionId/proof",
+    handle(async (c) => proof(c, (await owned(c, options.reads)).account.id)),
+  );
+  app.get(
+    "/payments/decisions/:decisionId/proof",
+    handle(async (c) => proof(c, (await keyed(c)).accountId)),
+  );
+
+  /** Any account named in the path, for the public routes. Hashes only: nothing they cover. */
+  const anyAccount = async (c: Context) => {
+    limited(c, options.reads);
+    const parsed = uuid.safeParse(c.req.param("id"));
+    const account = parsed.success ? await store.account(parsed.data) : undefined;
+    if (!account) throw new Refused(404, "No such gate account.");
+    return account;
+  };
+  /** Public: each mandate version's hash, newest first, and where it was posted. */
+  app.get(
+    "/gate/anchors/:id/mandates",
+    handle(async (c) => {
+      const account = await anyAccount(c);
+      const q = listQuery.parse(c.req.query());
+      const versions = await store.mandates(account.id, {
+        ...(q.limit ? { limit: q.limit } : {}),
+        ...(q.before ? { before: Number(q.before) } : {}),
+      });
+      return c.json({
+        accountId: account.id,
+        accountKey: gateAccountKey(account.id),
+        items: versions.items.map((v) => ({
+          version: v.version,
+          hash: v.hash,
+          createdAt: v.createdAt.toISOString(),
+          posted: postedView(v.posted),
+        })),
+        next: versions.next,
+      });
+    }),
+  );
+  /** Public: each day's log root, newest first, and where it was posted. */
+  app.get(
+    "/gate/anchors/:id/roots",
+    handle(async (c) => {
+      const account = await anyAccount(c);
+      const q = z
+        .strictObject({
+          limit: z.coerce.number().int().min(1).max(100).optional(),
+          before: day.optional(),
+        })
+        .parse(c.req.query());
+      const roots = await store.logRoots(account.id, q);
+      return c.json({
+        accountId: account.id,
+        accountKey: gateAccountKey(account.id),
+        items: roots.items.map((r) => ({
+          day: r.day,
+          dayNumber: gateDayNumber(r.day),
+          root: r.root,
+          posted: postedView(r.posted),
+        })),
+        next: roots.next,
+      });
+    }),
   );
 
   gateCardRoutes(

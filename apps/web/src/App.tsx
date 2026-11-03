@@ -28,6 +28,7 @@ const ICONS = {
   redteam: "M12 3l8 3v6c0 5-3.5 8-8 9c-4.5-1-8-4-8-9V6zM9 10l6 6M15 10l-6 6",
   sentinel: "M12 3l8 3v6c0 5-3.5 8-8 9c-4.5-1-8-4-8-9V6zM8.5 12l2.5 2.5 4.5-5",
   docs: "M4 5a2 2 0 0 1 2-2h14v16H6a2 2 0 0 0-2 2zM8 7h8M8 11h6",
+  gate: "M3 10l9-6 9 6M5 10v9M19 10v9M9.5 10v9M14.5 10v9M3 20h18",
 } as const;
 
 function Icon({ d, className = "size-[18px]" }: { d: string; className?: string }) {
@@ -138,6 +139,7 @@ function Sidebar() {
             <>
               <Item to="/agents?mine=1" icon={ICONS.mine} label="Your agents" />
               <Item to="/underwrite?mine=1" icon={ICONS.deposits} label="Your underwriting" />
+              <Item to="/gate" icon={ICONS.gate} label="Payment gate" />
             </>
           ) : (
             <p className="mx-1 rounded-2xl border border-dashed border-line-strong p-3.5 text-[13px] leading-relaxed text-muted">

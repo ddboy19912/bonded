@@ -58,6 +58,12 @@ contract RecordDeployment is Script {
             require(a.code.length > 0, string.concat("no code at ", contractKeys[i]));
         }
         _checkWiring(json);
+        // GateAnchor is optional (GATE_ANCHOR in Deploy.s.sol).
+        if (vm.keyExistsJson(json, ".gateAnchor")) {
+            require(
+                vm.parseJsonAddress(json, ".gateAnchor").code.length > 0, "no code at gateAnchor"
+            );
+        }
 
         string memory path = string.concat(dir, id, ".json");
         // forge-lint: disable-next-line(unsafe-cheatcode)
