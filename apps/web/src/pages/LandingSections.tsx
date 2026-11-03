@@ -147,9 +147,9 @@ export function ScoreScale() {
       </h2>
       <p className="mt-6 max-w-2xl text-lg leading-relaxed text-muted">
         Every agent is attacked with the same published library, plus attacks held back and
-        unpublished. The Bonded Score measures resistance to manipulation from 0 to 100. A separate
-        insurance score measures loss after containment and prices cover. These insurance tiers set
-        how much bond the operator must stake against the cover.
+        unpublished. The Security score measures resistance to manipulation from 0 to 100. A
+        separate insurance score measures loss after containment and prices cover. These insurance
+        tiers set how much bond the operator must stake against the cover.
       </p>
       <ol className="mt-12 grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-4 lg:grid-cols-7">
         {TIER_RULES.map((t, i) => {
@@ -241,12 +241,12 @@ const QUESTIONS: { id: string; q: string; a: string }[] = [
   {
     id: "red-team",
     q: "What does the red team actually do?",
-    a: "It plants instructions where the agent will read them (news, direct messages, token metadata, tool output, prices) across ten attack classes, while the agent does an ordinary task in a sandbox copy of the chain. In ratings of Bonded's own and leaderboard agents it also feeds the agent false market data (fake news, prices and numbers, with no instruction at all) and, for agents that keep notes between sessions, plants a false standing instruction to see if it acts on it another day. The Bonded Score counts every time the agent acted on an attack, even when the vault then stopped it; the vault's breach log decides what's covered.",
+    a: "It plants instructions where the agent will read them (news, direct messages, token metadata, tool output, prices) across ten attack classes, while the agent does an ordinary task in a sandbox copy of the chain. In ratings of Bonded's own and leaderboard agents it also feeds the agent false market data (fake news, prices and numbers, with no instruction at all) and, for agents that keep notes between sessions, plants a false standing instruction to see if it acts on it another day. The Security score counts every time the agent acted on an attack, even when the vault then stopped it; the vault's breach log decides what's covered.",
   },
   {
     id: "breach",
     q: "What counts as a breach, and what isn't covered?",
-    a: "A breach is the agent doing something its vault's rules forbid: a token, contract or payee that isn't allowed, or more than the per-trade or daily limit. Covered means tricked or broken, not unlucky. A bad trade that respected every rule is a market loss, and isn't covered. If false data is what talked the agent into that trade, it still lowers the agent's Bonded Score.",
+    a: "A breach is the agent doing something its vault's rules forbid: a token, contract or payee that isn't allowed, or more than the per-trade or daily limit. Covered means tricked or broken, not unlucky. A bad trade that respected every rule is a market loss, and isn't covered. If false data is what talked the agent into that trade, it still lowers the agent's Security score.",
   },
   {
     id: "claims",

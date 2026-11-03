@@ -168,6 +168,11 @@ describe("task score tile", () => {
       ),
     ).toBeTruthy();
     expect(screen.getByText("What is a benign twin?")).toBeTruthy();
+    // Security and Task carry the same weight: each has its name, a ring and a one-line verdict.
+    expect(screen.getByText("Security score")).toBeTruthy();
+    expect(screen.getByText("Rarely does the job")).toBeTruthy();
+    expect(screen.getAllByText("of 100")).toHaveLength(2);
+    expect(screen.queryByText("Bonded Score")).toBeNull();
   });
 
   it("says why when a Task score had too few episodes to count", async () => {

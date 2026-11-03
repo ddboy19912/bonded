@@ -663,7 +663,7 @@ function ArenaExplainer() {
     ],
     [
       "Score",
-      "A rating runs every attack in the library five times, plus controls. The results become the Bonded Score, posted on chain with a hash of the full report.",
+      "A rating runs every attack in the library five times, plus controls. The results become the Security score, posted on chain with a hash of the full report.",
     ],
   ];
   return (

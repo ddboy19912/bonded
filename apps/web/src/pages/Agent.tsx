@@ -158,7 +158,7 @@ export function Agent() {
   const tee = teeView(a?.teeMeasurement, report);
   const tier = rated && a ? tierForScore(a.score).tier : undefined;
   // Classes of the main library where the agent was manipulated (acted on the attack, whether or
-  // not the vault then stopped it): what the Bonded Score measures. Older reports: breaches.
+  // not the vault then stopped it): what the Security score measures. Older reports: breaches.
   const weak = report?.classes.filter((c) => manipulatedOf(c) > 0) ?? [];
   const grade = report?.susceptibility;
   // Graded market-data and memory rows that moved it: the same classes through another channel,
@@ -206,7 +206,7 @@ export function Agent() {
     <Page
       title={`Agent ${id}`}
       back={back}
-      intro="Its latest rating, read from the on-chain registry. The Bonded Score shows how hard it is to trick; the insurance score prices cover for its vault."
+      intro="Its latest rating: Security · Task, plus the insurance score that prices cover."
       actions={
         <>
           {vault && (
@@ -262,7 +262,7 @@ export function Agent() {
           >
             <ScoreRing score={a.securityScore} />
             <div className="min-w-0 flex-[1_1_240px]">
-              <p className="eyebrow">Bonded Score</p>
+              <p className="eyebrow">Security score</p>
               <p className={`mt-1 font-serif text-3xl ${band.tone}`}>{band.verdict}</p>
               <p className="mt-2 max-w-md text-sm leading-relaxed text-soft">
                 {weakestLine ? (
@@ -295,36 +295,44 @@ export function Agent() {
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <div className="panel col-span-2 min-w-0 p-5">
-              <p className="eyebrow">
-                <Term term="taskScore">Task score</Term>
-              </p>
+            <div className="panel col-span-2 flex min-w-0 flex-wrap items-center gap-x-8 gap-y-4 p-6 sm:p-7">
               {task && task.score !== null ? (
-                <>
-                  <p
-                    className={`mt-2.5 text-[28px] font-bold tracking-tight ${gradeTone(task.score)}`}
-                  >
-                    {task.score}
-                  </p>
-                  <p className="mt-1 text-xs text-muted">
-                    {taskLine(task)} {taskWorstLine(task)}
-                  </p>
-                </>
+                <ScoreRing score={task.score} />
               ) : (
-                <>
-                  <p className="mt-2.5 text-[28px] font-bold tracking-tight text-muted">—</p>
-                  <p className="mt-1 text-xs text-muted">
+                <span className="flex size-[150px] shrink-0 items-center justify-center rounded-full border border-dashed border-line-strong font-serif text-5xl text-muted">
+                  —
+                </span>
+              )}
+              <div className="min-w-0 flex-[1_1_200px]">
+                <p className="eyebrow">
+                  <Term term="taskScore">Task score</Term>
+                </p>
+                {task && task.score !== null ? (
+                  <>
+                    <p className={`mt-1 font-serif text-3xl ${gradeTone(task.score)}`}>
+                      {task.score >= 80
+                        ? "Does the job"
+                        : task.score >= 50
+                          ? "Does some of the job"
+                          : "Rarely does the job"}
+                    </p>
+                    <p className="mt-2 text-sm leading-relaxed text-soft">
+                      {taskLine(task)} {taskWorstLine(task)}
+                    </p>
+                  </>
+                ) : (
+                  <p className="mt-2 text-sm leading-relaxed text-soft">
                     {task
                       ? `Not measured: too few episodes to count. ${taskLine(task)}`
                       : "Not measured for this rating: it ran before the Task score existed."}
                   </p>
-                </>
-              )}
-              {task && task.benign.trials > 0 && (
-                <p className="mt-1 text-xs text-muted">
-                  <Term term="benignTwins">What is a benign twin?</Term>
-                </p>
-              )}
+                )}
+                {task && task.benign.trials > 0 && (
+                  <p className="mt-2 text-xs text-muted">
+                    <Term term="benignTwins">What is a benign twin?</Term>
+                  </p>
+                )}
+              </div>
             </div>
             <Tile
               label="Insurance score"

@@ -354,7 +354,7 @@ export function Attacks() {
           </p>
         </div>
         <p className="text-xs text-muted md:col-span-2">
-          Both feed the Bonded Score alongside the classes above, as separate rows: the agent's
+          Both feed the Security score alongside the classes above, as separate rows: the agent's
           weakest row sets the score.{" "}
           <a className={linkClass} href={DOCS_S1}>
             How the market-data and memory batteries work

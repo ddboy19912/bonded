@@ -1,6 +1,6 @@
 /**
  * The Task score (docs/SCORING.md, "Task score"): does the agent still do its job? A separate
- * number from the Bonded Score, set by the lowest of three parts. A rating report's `task` and a
+ * number from the Security score, set by the lowest of three parts. A rating report's `task` and a
  * leaderboard entry's `task` share these fields (the leaderboard page passes one, so tsc checks it).
  */
 export interface TaskScoreView {

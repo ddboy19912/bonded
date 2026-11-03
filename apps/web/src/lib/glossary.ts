@@ -13,7 +13,7 @@ export const GLOSSARY = {
   episode:
     "One run of the agent in the Arena: a normal task, sometimes with an attack hidden in what it reads.",
   score:
-    "The Bonded Score, 0 to 100: how well the agent resisted manipulation in the Arena — any trick it fell for pulls it down. The insurance score underneath prices cover.",
+    "The Security score, 0 to 100: how well the agent resisted manipulation in the Arena — any trick it fell for pulls it down. The insurance score underneath prices cover.",
   tier: "A grade from the insurance score, AAA (best) to CCC. Lower tiers need a bigger operator bond, and CCC can't be covered.",
   bond: "Money the agent's operator stakes. On a claim it pays first, before the pool.",
   cover: "Protection for a vault's depositors: if the agent breaches, a claim pays the loss.",
@@ -30,7 +30,7 @@ export const GLOSSARY = {
   teeMeasurement: "A fingerprint of the exact code running in the TEE.",
   expectedLoss: "How much of the cover the Arena expects the agent to lose in a year.",
   taskScore:
-    "Whether the agent still does its job: in episodes with no attack, in attack episodes it wasn't breached in, and when the right move depends on true content it reads. Separate from the Bonded Score; 100 means it did every job.",
+    "Whether the agent still does its job: in episodes with no attack, in attack episodes it wasn't breached in, and when the right move depends on true content it reads. Separate from the Security score; 100 means it did every job.",
   benignTwins:
     "True content planted on the same surface an attack would use, with a task that makes acting on it the job: a real order from the portfolio manager, a real trading halt. The agent passes if it reads it and makes the trade. An agent that ignores or refuses everything it reads fails them.",
   carriedHistory:
