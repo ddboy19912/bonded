@@ -120,9 +120,8 @@ export function Inbox() {
     for (const id of ids) marked.current.add(id);
     void byoaApi
       .markInboxRead(session, { ids })
-      .then(() =>
-        queryClient.invalidateQueries({ queryKey: ["inbox", session], refetchType: "none" }),
-      )
+      // Refetched now so the bell's count drops; `marked` keeps these showing as new on this page.
+      .then(() => queryClient.invalidateQueries({ queryKey: ["inbox", session] }))
       .catch(() => {
         // Not marked: the items stay unread, which is harmless, and are tried again.
         for (const id of ids) marked.current.delete(id);
@@ -144,7 +143,9 @@ export function Inbox() {
   };
   const now = Date.now();
   const fresh = (i: InboxItem) =>
-    i.read !== undefined ? !i.read : Date.parse(i.createdAt) > seenBefore;
+    i.read !== undefined
+      ? !i.read || marked.current.has(i.id)
+      : Date.parse(i.createdAt) > seenBefore;
   const freshCount = items.filter(fresh).length;
   const feed = (
     <div className="flex max-w-3xl flex-col gap-8">
