@@ -650,6 +650,46 @@ describe("paying out", () => {
     );
   });
 
+  it("keeps the invoice held when the same request is asked again while the first is being paid", async () => {
+    const a = await payoutAccount();
+    // Hold the first payout inside the provider until the second ask has been answered.
+    const pay0 = provider.pay.bind(provider);
+    let entered!: () => void;
+    const inside = new Promise<void>((resolve) => (entered = resolve));
+    let finish!: () => void;
+    const held = new Promise<void>((resolve) => (finish = resolve));
+    provider.pay = async (credential, request) => {
+      provider.pay = pay0;
+      entered();
+      await held;
+      return pay0(credential, request);
+    };
+    try {
+      const first = pay(a.key, { requestId: "race-1" });
+      await inside;
+      const second = await pay(a.key, { requestId: "race-1" });
+      expect(second.status).toBe(202);
+      expect(second.body.payout.status).toBe("unknown");
+      expect(second.body.payoutMessage).toMatch(/still being made/);
+      expect(await paymentsOf(a.id)).toHaveLength(1);
+      // So a new ask for the same invoice is a duplicate, not a second payout.
+      const third = await pay(a.key);
+      expect(third.body).toMatchObject({ result: "blocked", paid: false, payout: null });
+      finish();
+      const done = await first;
+      expect(done.status).toBe(201);
+      expect(done.body.payout.status).toBe("processing");
+    } finally {
+      finish();
+      provider.pay = pay0;
+    }
+    expect(await paymentsOf(a.id)).toHaveLength(1);
+    const decisions = (await decisionsOf(a.id)).map((d) => d.id as string);
+    expect(
+      [...provider.payouts.values()].filter((p) => decisions.includes(p.gateDecision ?? "")),
+    ).toHaveLength(1);
+  });
+
   it("forwards a breaking payout in Monitor mode, and records the breach", async () => {
     const a = await payoutAccount({ mode: "monitor" });
     const r = await pay(a.key, { account: FRAUD });
@@ -745,6 +785,49 @@ describe("the provider's events", () => {
     expect(
       (await call("GET", `${a.base}/payouts`, undefined, a.session)).body.items[0].status,
     ).toBe("posted");
+  });
+
+  it("records a bypass as a breach even when its metadata names one of the gate's decisions", async () => {
+    const a = await payoutAccount();
+    const r = await pay(a.key);
+    const obp = r.body.payout.providerPayoutId as string;
+    // Someone with the key pays elsewhere and writes a real decision id in the metadata.
+    const outside = provider.outside({
+      status: "processing",
+      amountCents: 250_000,
+      currency: "usd",
+      destination: FRAUD,
+      gateDecision: r.body.id,
+      livemode: false,
+    });
+    const e = await payoutEvent(a.id, "posted", outside.id);
+    expect(e.body).toMatchObject({ handled: true, replayed: false });
+    const decisions = await decisionsOf(a.id);
+    expect(decisions).toHaveLength(2);
+    expect(decisions[1]).toMatchObject({ decision: "breach", payee: normalAccount(FRAUD) });
+    const items = (await call("GET", `${a.base}/payouts`, undefined, a.session)).body.items;
+    expect(items.find((p: Body) => p.id === r.body.payout.id)).toMatchObject({
+      providerPayoutId: obp,
+      status: "processing",
+    });
+    expect(items.find((p: Body) => p.providerPayoutId === outside.id)).toMatchObject({
+      gateApproved: false,
+    });
+    // The same holds for a decision whose answer was lost, when the payout isn't what it allowed.
+    const b = await payoutAccount();
+    provider.next = "refuse";
+    const refused = await pay(b.key);
+    expect(refused.body.payout.status).toBe("not_sent");
+    const named = provider.outside({
+      status: "processing",
+      amountCents: 61_240,
+      currency: "usd",
+      destination: FRAUD,
+      gateDecision: refused.body.id,
+      livemode: false,
+    });
+    await payoutEvent(b.id, "created", named.id);
+    expect((await decisionsOf(b.id)).map((d) => d.decision)).toEqual(["pass", "breach"]);
   });
 
   it("alerts and asks Stripe to retry when an unknown payout can't be checked", async () => {

@@ -258,10 +258,12 @@ signing secret (`Stripe-Signature`, as the card route). It takes Stripe's thin e
 `v2.money_management.outbound_payment.created`, `.posted`, `.failed`, `.returned` and `.canceled`
 and acts on the type and the payout id. A payout the gate knows moves to that status. A payout it
 doesn't know is looked up through the proxy (a lookup signed with the receipt key): if its
-metadata names one of the account's decisions, it is that payout (its answer was lost); otherwise
-it is **a payout the gate never approved**: a breach decision with a signed receipt (the rules run
-on what was paid), the payment and the payout recorded (`gateApproved: false`), the owner alerted
-(`payment_breach`, code `gate-payout-bypass`) and the account frozen if `freezeOnBreach` is set.
+metadata names one of the account's decisions whose payout has no Stripe id yet, and it pays
+exactly that decision's amount to its payee, it is that payout (its answer was lost); otherwise
+(the metadata is whatever the payout's maker wrote) it is **a payout the gate never approved**: a
+breach decision with a signed receipt (the rules run on what was paid), the payment and the
+payout recorded (`gateApproved: false`), the owner alerted (`payment_breach`, code
+`gate-payout-bypass`) and the account frozen if `freezeOnBreach` is set.
 If the proxy can't be reached for the lookup, the owner is alerted (`gate-payout-unchecked`) and
 the event answers 503 so Stripe sends it again. Every event id is stored; a replay changes nothing.
 

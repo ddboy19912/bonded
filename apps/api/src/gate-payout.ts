@@ -447,11 +447,22 @@ export function gatePayoutRoutes(
           : `Paid out: ${dollars(p.amountCents)} sent to ${p.destination} (${r.payoutId}).`,
       };
     } catch (error) {
-      if (error instanceof PayoutRefused && error.details.replayed && error.details.payoutId)
+      if (error instanceof PayoutRefused && error.details.replayed) {
+        if (error.details.payoutId)
+          return {
+            payout: await move(p, "processing", { providerPayoutId: error.details.payoutId }),
+            message: `Already paid out (${error.details.payoutId}).`,
+          };
+        // The proxy is paying this decision for an earlier request right now: it may be paid, so
+        // the invoice stays held (releasing it would let a new decision pay it a second time).
         return {
-          payout: await move(p, "processing", { providerPayoutId: error.details.payoutId }),
-          message: `Already paid out (${error.details.payoutId}).`,
+          payout: await move(p, "unknown", {
+            error: "The payout proxy is still paying this decision for an earlier request.",
+          }),
+          message:
+            "This payout is still being made for an earlier request. The invoice stays held; ask again with the same requestId for its outcome.",
         };
+      }
       if (error instanceof PayoutRefused && error.sent === "unknown") {
         log(`payout: decision ${decision.id}: outcome unknown: ${error.message}`);
         return {
@@ -829,8 +840,19 @@ export function gatePayoutRoutes(
         return c.json({ error: "The payout couldn't be checked yet." }, 503);
       }
       if (looked.gateDecision) {
+        // The metadata is whatever whoever made the payout wrote in it, so it names one of our
+        // payouts only when that payout has no provider id yet (its answer was lost) and this one
+        // pays exactly what its decision allowed. Anything else is a payout the gate never approved.
         const ours = await payouts.payoutByDecision(db.pool, looked.gateDecision);
-        if (ours?.accountId === link.accountId) known = ours;
+        if (
+          ours?.accountId === link.accountId &&
+          ours.gateApproved &&
+          ours.providerPayoutId === null &&
+          ours.amountCents === looked.amountCents &&
+          looked.currency.toLowerCase() === "usd" &&
+          normalAccount(looked.destination) === ours.payee
+        )
+          known = ours;
       }
     }
     const alerts: Omit<GateNotification, "code" | "fix" | "gateAccountId">[] = [];
@@ -847,8 +869,11 @@ export function gatePayoutRoutes(
         return true;
       if (known) {
         const current = (await payouts.payout(link.accountId, known.id, tx))!;
-        await apply(tx, account, current, status, event.payoutId);
-        return false;
+        // A matched payout may have got its own provider id meanwhile: then this one isn't it.
+        if (current.providerPayoutId === null || current.providerPayoutId === event.payoutId) {
+          await apply(tx, account, current, status, event.payoutId);
+          return false;
+        }
       }
       const again = await payouts.payoutByProvider(tx, link.accountId, event.payoutId);
       if (again) {
