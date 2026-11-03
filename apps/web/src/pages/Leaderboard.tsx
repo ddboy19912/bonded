@@ -86,11 +86,21 @@ function chainNote(e: LeaderboardRecord): string | undefined {
   return undefined;
 }
 
-/** Rank, agent, score, class strip, Task score and insurance tier; stacks as a card on phones. */
+/** Rank, agent, Security, Task, class strip and insurance tier; stacks as a card on phones. */
 const ROW =
-  "grid grid-cols-[28px_minmax(0,1fr)_auto] gap-x-4 gap-y-3 lg:grid-cols-[32px_minmax(0,1fr)_72px_254px_48px_56px] xl:grid-cols-[32px_minmax(0,1fr)_72px_410px_56px_56px] lg:items-center lg:gap-x-6";
+  "grid grid-cols-[28px_minmax(0,1fr)_auto] gap-x-4 gap-y-3 lg:grid-cols-[32px_minmax(0,1fr)_64px_64px_254px_56px] xl:grid-cols-[32px_minmax(0,1fr)_72px_72px_410px_56px] lg:items-center lg:gap-x-6";
 
-/** The entry's Task score, with how it was measured in its tooltip; a dash when it has none. */
+/** Scripted agents that show the two ends of the scale: listed, but not ranked against real ones. */
+const isReference = (e: LeaderboardRecord) => e.kind === "reference";
+
+/** Ranked first, by Security; then results without one; then the scripted reference agents. */
+const order = (e: LeaderboardRecord) =>
+  isReference(e) ? 2 : e.securityGrade === undefined ? 1 : 0;
+
+/**
+ * The entry's Task score, drawn the same size as Security beside it, with how it was measured in
+ * its tooltip; a dash when it has none.
+ */
 function TaskCell({ e }: { e: LeaderboardRecord }) {
   const task = e.task;
   if (!task || task.score === null)
@@ -110,7 +120,7 @@ function TaskCell({ e }: { e: LeaderboardRecord }) {
     <span
       title={how}
       aria-label={`Task score ${task.score}. ${how}`}
-      className={`font-mono text-sm ${gradeTone(task.score)}`}
+      className={`font-serif text-3xl leading-none ${gradeTone(task.score)}`}
     >
       {task.score}
     </span>
@@ -119,9 +129,12 @@ function TaskCell({ e }: { e: LeaderboardRecord }) {
 
 export function Leaderboard() {
   const board = useQuery({ queryKey: ["leaderboard"], queryFn: api.leaderboard });
-  // Legacy insurance results cannot be compared with security grades.
+  // Legacy insurance results cannot be compared with security grades, and the scripted reference
+  // agents aren't real agents: both are listed after the ranking, without a rank.
   const entries = board.data
-    ? [...board.data.entries].sort((a, b) => (b.securityGrade ?? -1) - (a.securityGrade ?? -1))
+    ? [...board.data.entries].sort(
+        (a, b) => order(a) - order(b) || (b.securityGrade ?? -1) - (a.securityGrade ?? -1),
+      )
     : [];
   const legacy = entries.some((e) => e.securityGrade === undefined);
   return (
@@ -158,7 +171,8 @@ export function Leaderboard() {
             >
               <span>#</span>
               <span>Agent</span>
-              <span>Score</span>
+              <span>Security</span>
+              <span>Task</span>
               <span className="flex gap-1.5 tracking-normal normal-case xl:gap-2.5">
                 {CLASSES.map((c) => (
                   <span
@@ -169,7 +183,6 @@ export function Leaderboard() {
                   </span>
                 ))}
               </span>
-              <span>Task</span>
               <span>Cover</span>
             </div>
             <ol aria-label="Security rankings">
@@ -181,7 +194,9 @@ export function Leaderboard() {
                     className={`${ROW} relative border-t border-line px-5 py-4 transition hover:bg-white/[0.025] sm:px-6`}
                   >
                     <span className="pt-0.5 font-mono text-xs text-muted lg:pt-0">
-                      {e.securityGrade === undefined ? "—" : String(i + 1).padStart(2, "0")}
+                      {e.securityGrade === undefined || isReference(e)
+                        ? "—"
+                        : String(i + 1).padStart(2, "0")}
                     </span>
                     <span className="min-w-0">
                       <span className="block font-semibold lg:truncate">
@@ -213,6 +228,11 @@ export function Leaderboard() {
                           </a>
                         )}
                       </span>
+                      {isReference(e) && (
+                        <span className="mt-1.5 block text-[11px] text-muted">
+                          Scripted reference, not ranked
+                        </span>
+                      )}
                       {notes.map((n) => (
                         <span key={n} className="mt-1.5 block text-[11px] text-warn">
                           {n}
@@ -220,6 +240,9 @@ export function Leaderboard() {
                       ))}
                     </span>
                     <span className="text-right lg:text-left">
+                      <span className="mb-1 block text-[10px] tracking-[0.14em] text-muted uppercase lg:hidden">
+                        Security
+                      </span>
                       {e.securityGrade === undefined ? (
                         <span className="text-xs text-muted">Not measured</span>
                       ) : (
@@ -230,14 +253,14 @@ export function Leaderboard() {
                         </span>
                       )}
                     </span>
+                    <span className="relative z-10 col-span-2 col-start-2 flex items-center gap-2 lg:col-span-1 lg:col-start-auto lg:block">
+                      <span className="text-xs text-muted lg:hidden">Task score</span>
+                      <TaskCell e={e} />
+                    </span>
                     <span className="relative z-10 col-span-2 col-start-2 flex gap-1.5 lg:col-span-1 xl:gap-2.5 lg:col-start-auto">
                       {classResults(e).map((r) => (
                         <Square key={r.cls} r={r} size="size-5 xl:size-8 xl:rounded-[7px]" />
                       ))}
-                    </span>
-                    <span className="relative z-10 col-span-2 col-start-2 flex items-center gap-2 lg:col-span-1 lg:col-start-auto lg:block">
-                      <span className="text-xs text-muted lg:hidden">Task score</span>
-                      <TaskCell e={e} />
                     </span>
                     <span className="relative z-10 col-span-2 col-start-2 flex items-center gap-2 lg:col-span-1 lg:col-start-auto lg:block">
                       <span className="text-xs text-muted lg:hidden">Cover</span>

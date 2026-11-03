@@ -12,9 +12,10 @@ import {
   tierForScore,
 } from "@bondedhq/shared";
 import { deployment } from "../config";
-import { api } from "../lib/api";
+import { api, type LeaderboardRecord } from "../lib/api";
 import { totalPaid, useAgents, useClaims, useVaults, waterfall, type AgentRow } from "../lib/chain";
 import { short, usd } from "../lib/format";
+import { gradeTone } from "../lib/security";
 import { Badge, ScoreRing, Skeleton, TierBadge, buttonClass, linkClass } from "../components/ui";
 import { TokenLogo, withTokens } from "../components/token";
 
@@ -339,6 +340,30 @@ function MyAgent({ a }: { a: AgentRow }) {
   );
 }
 
+/**
+ * The best agents by Security, the score the Index and the leaderboard rank by, each with its Task
+ * score: the agents the leaderboard ranks (open-source templates), so Bonded's own scripted agents
+ * (the reference agents and the operator's demo agents) never top it.
+ */
+export function topAgents(
+  agents: readonly AgentRow[],
+  board: readonly LeaderboardRecord[] | undefined,
+  n = 4,
+) {
+  const byId = new Map(
+    (board ?? []).filter((e) => e.onchain).map((e) => [String(e.onchain!.agentId), e]),
+  );
+  return agents
+    .filter((a) => a.score && byId.get(String(a.agentId))?.kind === "framework")
+    .map((a) => ({
+      agent: a,
+      security: a.score!.securityScore,
+      task: byId.get(String(a.agentId))?.task?.score ?? null,
+    }))
+    .sort((x, y) => y.security - x.security)
+    .slice(0, n);
+}
+
 function AcrossBonded() {
   const reads = useReadContracts({
     contracts: [
@@ -355,10 +380,9 @@ function AcrossBonded() {
   const claims = useClaims();
   const paid = claims.data && totalPaid(claims.data);
   const agents = useAgents();
-  const top = [...(agents.data ?? [])]
-    .filter((a) => a.score)
-    .sort((x, y) => y.score!.score - x.score!.score)
-    .slice(0, 4);
+  // The same query the leaderboard page uses, for each agent's Task score.
+  const board = useQuery({ queryKey: ["leaderboard"], queryFn: api.leaderboard });
+  const top = topAgents(agents.data ?? [], board.data?.entries);
   // Four rows don't need a live stream (each holds a database connection on the API): a small
   // page, refreshed every ten seconds, is enough.
   const recent = useQuery({
@@ -406,18 +430,38 @@ function AcrossBonded() {
       <section className="grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
         <div className="panel flex min-w-0 flex-col p-6 md:col-span-2 xl:col-span-1">
           <div className="flex items-center justify-between">
-            <h3 className="text-[17px] font-bold">Top agents</h3>
+            <h3 className="text-[17px] font-bold">Top agents by Security</h3>
             <Link to="/agents" className={`text-sm ${linkClass}`}>
               All agents →
             </Link>
           </div>
           <div className="mt-2 flex flex-1 flex-col">
-            {top.length === 0 && <Skeleton className="mt-3 h-40" />}
-            {top.map((a, n) => (
+            {top.length === 0 &&
+              (agents.error ? (
+                <p className="mt-3 text-sm text-muted">Couldn't read the agents from the chain.</p>
+              ) : agents.data && board.data ? (
+                <p className="mt-3 text-sm text-muted">No rated agents yet.</p>
+              ) : (
+                <Skeleton className="mt-3 h-40" />
+              ))}
+            {top.length > 0 && (
+              <div
+                aria-hidden
+                className="-mx-2 grid grid-cols-[22px_minmax(0,1fr)_52px_52px_44px] gap-3 px-2 pt-1 text-[10px] tracking-[0.14em] text-muted uppercase"
+              >
+                <span />
+                <span />
+                <span className="text-right">Security</span>
+                <span className="text-right">Task</span>
+                <span />
+              </div>
+            )}
+            {top.map(({ agent: a, security, task }, n) => (
               <Link
                 key={String(a.agentId)}
                 to={`/agents/${a.agentId}`}
-                className="-mx-2 grid grid-cols-[22px_minmax(0,1fr)_auto_auto] items-center gap-3 rounded-xl border-t border-white/[0.07] px-2 py-2.5 transition first:border-t-0 hover:bg-white/[0.035]"
+                aria-label={`Agent ${a.agentId}: Security ${security}, Task ${task ?? "not measured"}`}
+                className="-mx-2 grid grid-cols-[22px_minmax(0,1fr)_52px_52px_44px] items-center gap-3 rounded-xl border-t border-white/[0.07] px-2 py-2.5 transition first:border-t-0 hover:bg-white/[0.035]"
               >
                 <span className="font-mono text-xs text-muted">
                   {String(n + 1).padStart(2, "0")}
@@ -428,8 +472,19 @@ function AcrossBonded() {
                     {a.vault ? `Vault ${short(a.vault)}` : "No vault yet"}
                   </span>
                 </span>
-                <span className="font-serif text-[26px] leading-none">{a.score!.score}</span>
-                <TierBadge score={a.score!.score} />
+                <span
+                  className={`text-right font-serif text-[26px] leading-none ${gradeTone(security)}`}
+                >
+                  {security}
+                </span>
+                <span
+                  className={`text-right font-serif text-[26px] leading-none ${task === null ? "text-muted" : gradeTone(task)}`}
+                >
+                  {task ?? "—"}
+                </span>
+                <span className="flex justify-end" title="Cover tier, from the insurance score">
+                  <TierBadge score={a.score!.score} />
+                </span>
               </Link>
             ))}
           </div>
