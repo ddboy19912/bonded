@@ -354,12 +354,14 @@ export function topAgents(
     (board ?? []).filter((e) => e.onchain).map((e) => [String(e.onchain!.agentId), e]),
   );
   return agents
-    .filter((a) => a.score && byId.get(String(a.agentId))?.kind === "framework")
-    .map((a) => ({
-      agent: a,
-      security: a.score!.securityScore,
-      task: byId.get(String(a.agentId))?.task?.score ?? null,
-    }))
+    .flatMap((a) => {
+      const e = byId.get(String(a.agentId));
+      // The leaderboard's own grade, so both pages agree while a re-rating is on its way on
+      // chain; the on-chain score still sets the cover tier.
+      return a.score && e?.kind === "framework" && e.securityGrade !== undefined
+        ? [{ agent: a, security: e.securityGrade, task: e.task?.score ?? null }]
+        : [];
+    })
     .sort((x, y) => y.security - x.security)
     .slice(0, n);
 }
@@ -437,8 +439,8 @@ function AcrossBonded() {
           </div>
           <div className="mt-2 flex flex-1 flex-col">
             {top.length === 0 &&
-              (agents.error ? (
-                <p className="mt-3 text-sm text-muted">Couldn't read the agents from the chain.</p>
+              (agents.error || board.error ? (
+                <p className="mt-3 text-sm text-muted">Couldn't load the agents right now.</p>
               ) : agents.data && board.data ? (
                 <p className="mt-3 text-sm text-muted">No rated agents yet.</p>
               ) : (
