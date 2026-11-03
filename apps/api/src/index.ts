@@ -57,6 +57,7 @@ import { gatewayUrlVerifier, type AgentUrlVerifier } from "./connections.js";
 import { AgentStatusReader } from "./agent-status.js";
 import { launchRoutes } from "./launch.js";
 import { statusRoutes } from "./service-status.js";
+import { gateOpen, gateRoutes, type GateOptions } from "./gate.js";
 export { issueQuote } from "./quotes.js";
 /** A decimal id, in canonical form: "01" and "1" are the same agent, so they must be the same key. */
 const uint = z
@@ -162,6 +163,8 @@ export function createApi(options: {
   statusCacheMs?: number;
   /** How long a vault's chain status is reused (default 30 s). */
   vaultStatusCacheMs?: number;
+  /** The payment gate (gate.ts): its receipt key (GATE_RECEIPT_PRIVATE_KEY) and limits. */
+  gate?: GateOptions;
 }) {
   const { db, chain } = options;
   if (options.apiToken.length < 24)
@@ -219,7 +222,8 @@ export function createApi(options: {
   // checks the guardian on chain) and Sentinel checks (signed by the agent's own key, see
   // sentinel.ts). Every other POST or DELETE needs the operator token.
   // Previews, Agent URLs, checks and notification settings are made with an owner session
-  // (sessions.ts), opened by a wallet signature.
+  // (sessions.ts), opened by a wallet signature. The payment gate's routes (/gate, /payments) take
+  // an owner session or a gate API key (gate.ts).
   const PUBLIC_POST =
     /^\/(bounties\/\d{1,78}\/reveal|self\/agents(\/\d{1,78}\/(rate|runner-token|agent-url|agent-url\/verify|agent-url\/secret|checks))?|quotes|sentinel\/check|self\/session|self\/notifications(\/webhook-secret|\/inbox\/read)?|previews(\/session|\/[0-9a-f-]{36}\/(stop|runner-token|agent-url|agent-url\/verify|agent-url\/secret|checks|rate|notifications))?|self\/agents\/\d{1,78}\/notifications|streams\/token|runner\/check)$/;
   const PUBLIC_PUT =
@@ -240,7 +244,7 @@ export function createApi(options: {
           : c.req.method === "PUT"
             ? PUBLIC_PUT.test(c.req.path)
             : true;
-    if (!open && !hasToken(c.req.header("Authorization")))
+    if (!open && !gateOpen(c.req.path) && !hasToken(c.req.header("Authorization")))
       return c.json({ error: "unauthorized" }, 401);
     await next();
   });
@@ -668,6 +672,17 @@ export function createApi(options: {
     ...(options.email ? { email: options.email } : {}),
     ownDomains,
     ...(options.allowLoopbackUrls ? { allowLoopbackUrls: true } : {}),
+  });
+  gateRoutes(app, {
+    db,
+    wallet,
+    writes,
+    reads,
+    now: ownerNow,
+    secrets: options.secrets,
+    email: options.email,
+    allowLoopbackUrls: options.allowLoopbackUrls,
+    ...options.gate,
   });
   observedRatesRoute(app, { db, chainId: chain.deployment.chainId });
   libraryRoutes(app, { db, chainId: chain.deployment.chainId });

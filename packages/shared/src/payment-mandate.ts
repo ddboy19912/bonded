@@ -98,7 +98,7 @@ const fromCents = (cents: number) => cents / 100;
 /** Accounts compare without spaces, case-insensitively. */
 export const normalAccount = (account: string) => account.replace(/\s+/g, "").toUpperCase();
 /** Invoice references compare trimmed and case-insensitively: "nim-88412" is NIM-88412. */
-const normalReference = (reference: string) => reference.trim().toUpperCase();
+export const normalReference = (reference: string) => reference.trim().toUpperCase();
 export const utcDay = (date: Date) => date.toISOString().slice(0, 10);
 
 /** The amount and reference checks every payment shares. */

@@ -18,6 +18,7 @@ export const PROBLEM_AREAS: Readonly<Record<ProblemArea, string>> = {
   cover: "Cover and claims",
   vault: "The vault",
   notifications: "Notifications",
+  gate: "The payment gate",
   service: "Bonded's own services",
 };
 

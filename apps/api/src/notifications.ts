@@ -57,7 +57,7 @@ export interface RatingNotification {
  * troubleshooting list; `dedupeKey` names the event, so it is sent once.
  */
 export interface AgentNotification {
-  type: Exclude<NotificationType, RatingNotificationType>;
+  type: Exclude<NotificationType, RatingNotificationType | GateNotificationType>;
   dedupeKey: string;
   agentId: string;
   chainId: number;
@@ -69,9 +69,25 @@ export interface AgentNotification {
   at: string;
 }
 
-export type OwnerNotification = RatingNotification | AgentNotification;
+/** The payment gate's alerts (gate.ts): a payment blocked, a breach let through, a freeze. */
+export type GateNotificationType = "payment_blocked" | "payment_breach" | "gate_frozen";
+
+/** About a gate account rather than an agent; otherwise like `AgentNotification`. */
+export interface GateNotification {
+  type: GateNotificationType;
+  dedupeKey: string;
+  gateAccountId: string;
+  message: string;
+  code: string;
+  fix?: string;
+  details?: Record<string, string | number | boolean | null>;
+  at: string;
+}
+
+export type OwnerNotification = RatingNotification | AgentNotification | GateNotification;
 
 const isRating = (n: OwnerNotification): n is RatingNotification => "ratingId" in n;
+const isGate = (n: OwnerNotification): n is GateNotification => "gateAccountId" in n;
 
 /** The key that makes a notification send once. */
 export const dedupeKeyOf = (n: OwnerNotification) =>
@@ -81,6 +97,14 @@ export const dedupeKeyOf = (n: OwnerNotification) =>
 export function agentNotification(
   n: Omit<AgentNotification, "code" | "fix"> & { code?: string },
 ): AgentNotification {
+  const coded = codedProblem(n.message, n.code);
+  return { ...n, code: coded.code, ...(coded.fix ? { fix: coded.fix } : {}) };
+}
+
+/** A gate notification with its code and fix filled in from its sentence. */
+export function gateNotification(
+  n: Omit<GateNotification, "code" | "fix"> & { code?: string },
+): GateNotification {
   const coded = codedProblem(n.message, n.code);
   return { ...n, code: coded.code, ...(coded.fix ? { fix: coded.fix } : {}) };
 }
@@ -287,7 +311,8 @@ export function notificationRoutes(
           message: text.title,
           action: text.text,
           createdAt: i.createdAt.toISOString(),
-          ...(n.agentId ? { agentId: n.agentId } : {}),
+          ...("agentId" in n && n.agentId ? { agentId: n.agentId } : {}),
+          ...("gateAccountId" in n ? { gateAccountId: n.gateAccountId } : {}),
           ...("previewId" in n && n.previewId ? { previewId: n.previewId } : {}),
           subject: i.subject,
           read: i.readAt !== null,
@@ -395,7 +420,9 @@ export class Notifier {
         : n.agentId
           ? `${n.chainId}:${n.agentId}`
           : null
-      : `${n.chainId}:${n.agentId}`;
+      : isGate(n)
+        ? `gate:${n.gateAccountId}`
+        : `${n.chainId}:${n.agentId}`;
     const added = await this.db.addNotification({
       owner,
       type: n.type,
@@ -407,7 +434,11 @@ export class Notifier {
     // The old per-rating record, kept for ratings so earlier sends still count.
     if (isRating(n)) await this.db.claimNotification(n.ratingId, n.type).catch(() => false);
     if (!settings || (!settings.webhookUrl && !settings.email)) return true;
-    const label = isRating(n) ? `rating ${n.ratingId}` : `${n.type} for agent ${n.agentId}`;
+    const label = isRating(n)
+      ? `rating ${n.ratingId}`
+      : isGate(n)
+        ? `${n.type} for gate account ${n.gateAccountId}`
+        : `${n.type} for agent ${n.agentId}`;
     const jobs: Promise<void>[] = [];
     if (settings.webhookUrl && settings.webhookSecretCiphertext && this.options.secrets) {
       const secret = this.options.secrets.decrypt(
@@ -457,7 +488,7 @@ export function emailText(n: OwnerNotification): { subject: string; text: string
   if (!isRating(n))
     return {
       subject: `Bonded: ${n.message.replace(/\.$/, "")}`,
-      text: `${n.message}${n.fix ? `\n\n${n.fix}` : ""}\n\nAgent ${n.agentId}.`,
+      text: `${n.message}${n.fix ? `\n\n${n.fix}` : ""}\n\n${isGate(n) ? `Gate account ${n.gateAccountId}` : `Agent ${n.agentId}`}.`,
     };
   const what = n.previewId ? "Your preview rating" : `The rating of agent ${n.agentId}`;
   const outcome =

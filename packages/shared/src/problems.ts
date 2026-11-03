@@ -19,6 +19,7 @@ export type ProblemArea =
   | "cover"
   | "vault"
   | "notifications"
+  | "gate"
   | "service";
 
 export interface ProblemEntry {
@@ -693,6 +694,106 @@ export const PROBLEMS: readonly ProblemEntry[] = [
     "The vault recorded a breach.",
     "Review it on the agent's page; a covered loss is claimed automatically.",
     /recorded a breach/i,
+  ),
+
+  // The payment gate (POST /payments/check and the gate account routes).
+  entry(
+    "gate-not-found",
+    "gate",
+    "No such gate account.",
+    "Check the account id, and that you are signed in with the wallet that created it. Another wallet's accounts, and their vendors, invoices and decisions, show as not found.",
+    /^no such (gate account|.+ on this gate account)/i,
+  ),
+  entry(
+    "gate-already-there",
+    "gate",
+    "That is already on this gate account.",
+    "Use the one already there, or delete it first and add it again.",
+    /is already on this gate account/i,
+  ),
+  entry(
+    "gate-key-missing",
+    "gate",
+    "Send your gate API key.",
+    "Send the key as `Authorization: Bearer bonded_gk_...`. The account's owner makes keys in the gate account's settings.",
+    /send your gate api key/i,
+  ),
+  entry(
+    "gate-key-invalid",
+    "gate",
+    "That gate API key isn't valid or was revoked.",
+    "Ask the account's owner for a new key; a key is shown only once, when it is made.",
+    /gate api key isn't valid/i,
+  ),
+  entry(
+    "gate-receipt-key-missing",
+    "gate",
+    "The payment gate's receipt key isn't set up on this service.",
+    "Checks need a signed receipt, so none run without the key. The operator sets GATE_RECEIPT_PRIVATE_KEY on the API.",
+    /receipt key isn't set up/i,
+  ),
+  entry(
+    "gate-check-limit",
+    "gate",
+    "Too many checks for this gate account. Try again in a minute.",
+    "Wait a minute. The limit is per gate account, so spread checks out or ask for a higher limit.",
+    /too many checks for this gate account/i,
+  ),
+  entry(
+    "gate-request-reused",
+    "gate",
+    "That request id was already used for a different check.",
+    "Give each new check its own request id. The same id again must carry the same check: it returns the first decision.",
+    /request id was already used/i,
+  ),
+  entry(
+    "gate-account-limit",
+    "gate",
+    "This wallet has as many gate accounts as it may.",
+    "Use one of the wallet's gate accounts, or another wallet.",
+    /as many gate accounts as it may/i,
+  ),
+  entry(
+    "gate-key-limit",
+    "gate",
+    "This gate account has as many live API keys as it may.",
+    "Revoke a key that is no longer used, then make a new one.",
+    /as many live api keys as it may/i,
+  ),
+  entry(
+    "gate-vendor-limit",
+    "gate",
+    "This gate account has as many vendors as it may.",
+    "Delete vendors the business no longer pays, or use a second gate account.",
+    /as many vendors as it may/i,
+  ),
+  entry(
+    "gate-future-payment",
+    "gate",
+    "A payment's day can't be in the future.",
+    "Import only payments already made, with the UTC day they were made.",
+    /day can't be in the future/i,
+  ),
+  entry(
+    "gate-payment-blocked",
+    "gate",
+    "The payment gate blocked a payment.",
+    "Read the rules it broke in the decision log. If the payment is genuine, approve its invoice (or verify the bank change), then pay again.",
+    /payment gate blocked/i,
+  ),
+  entry(
+    "gate-payment-breach",
+    "gate",
+    "A payment broke the mandate and went through (Monitor mode).",
+    "Check the payment in the decision log, and recover it if it was wrong. Switch the account to Enforce mode to block such payments.",
+    /broke the mandate and went through/i,
+  ),
+  entry(
+    "gate-frozen",
+    "gate",
+    "The payment gate froze the account after a breach.",
+    "Every check is refused until you lift the freeze. Read the breach in the decision log first, then unfreeze the account.",
+    /payment gate froze/i,
   ),
 
   // Notifications and the service itself.

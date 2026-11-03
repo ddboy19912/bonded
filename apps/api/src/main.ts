@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import { serve } from "@hono/node-server";
 import { ArenaGateway, assertHeldOutOffMetaApi, loadDotEnv } from "@bonded/arena";
-import { Database } from "@bonded/db";
+import { Database, GateStore } from "@bonded/db";
 import { Keeper, SolanaKeeper, connectChain, connectSolana, parseSolanaKey } from "@bonded/keeper";
 import { parseEvmDeployment } from "@bondedhq/shared";
 import { z } from "zod";
@@ -18,6 +18,7 @@ import { renewExpiringScores } from "./live-loop.js";
 import {
   bondedRegistryAbi,
   chatClientFromEnv,
+  gateMandateHash,
   isMetaModel,
   UNDERWRITING_COVER_CAP_USD,
 } from "@bondedhq/shared";
@@ -187,6 +188,11 @@ if (role === "migrate") {
       // the gateway are added from their own settings).
       ownDomains: ownHosts,
       ...(allowLoopback ? { allowLoopbackUrls: true } : {}),
+      // The payment gate signs every receipt with GATE_RECEIPT_PRIVATE_KEY; without it, checks
+      // are refused (apps/api/GATE.md).
+      ...(process.env.GATE_RECEIPT_PRIVATE_KEY
+        ? { gate: { receiptKey: key("GATE_RECEIPT_PRIVATE_KEY") } }
+        : {}),
       // Shown by GET /status: BONDED_VERSION, else the deploy's commit.
       version:
         process.env.BONDED_VERSION?.trim() ||
@@ -243,6 +249,12 @@ if (role === "migrate") {
       .int()
       .min(1)
       .parse(process.env.EVENTS_RETENTION_DAYS ?? 30);
+    const gateRetentionDays = z.coerce
+      .number()
+      .int()
+      .min(1)
+      .parse(process.env.GATE_DECISION_RETENTION_DAYS ?? 365);
+    const gateStore = new GateStore(db, gateMandateHash);
     tasks.push(
       loop(
         "Event retention",
@@ -254,6 +266,8 @@ if (role === "migrate") {
           await db.pruneOwnerAuth();
           // The owners' in-app notification lists keep 90 days.
           await db.pruneNotifications(new Date(Date.now() - 90 * 86_400_000));
+          // The payment gate's decision log (payments made are kept: the duplicate rule reads them).
+          await gateStore.pruneDecisions(new Date(Date.now() - gateRetentionDays * 86_400_000));
         },
         3_600_000,
       ),
