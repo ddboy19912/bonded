@@ -7,7 +7,7 @@ import {
   type SignedGateReceipt,
   verifyGateReceipt,
 } from "@bondedhq/shared";
-import type { Address, Hex } from "viem";
+import { type Address, type Hex, isAddress } from "viem";
 import {
   BondedError,
   PaymentBlockedError,
@@ -251,7 +251,12 @@ export class PaymentGate {
   #receiptSigner(): Promise<Address> {
     if (this.#options.receiptKey) return Promise.resolve(this.#options.receiptKey);
     this.#signer ??= this.#request<{ address: Address }>("/gate/receipt-key")
-      .then((key) => key.address)
+      .then((key) => {
+        // Without an address verifyGateReceipt would accept any self-signed receipt.
+        if (!isAddress(key?.address))
+          throw new PaymentGateError("the gate's receipt key is not an address");
+        return key.address;
+      })
       .catch((error: unknown) => {
         this.#signer = undefined;
         throw error;

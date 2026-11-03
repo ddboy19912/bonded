@@ -218,6 +218,21 @@ describe("the hosted payment gate", () => {
     expect(server.asked).toHaveLength(1);
   });
 
+  it("won't pay when the published receipt key isn't an address", async () => {
+    // A self-signed receipt, from an API that publishes no key to check it against.
+    const forged = generatePrivateKey();
+    const pay = vi.fn();
+    const fake = (async (url: string | URL | Request, init?: RequestInit) =>
+      String(url).endsWith("/gate/receipt-key")
+        ? json({})
+        : json(
+            await answer(JSON.parse(init!.body as string) as Record<string, unknown>, {}, forged),
+          )) as unknown as typeof fetch;
+    const gate = paymentGate({ apiKey: "bonded_gk_test", apiUrl: API, fetch: fake });
+    await expect(gate.pay(PAYMENT, pay)).rejects.toThrow("receipt key is not an address");
+    expect(pay).not.toHaveBeenCalled();
+  });
+
   it("won't pay on a blocked receipt with its answer changed to allowed", async () => {
     const server = api(async (asked) =>
       json({
