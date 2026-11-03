@@ -221,7 +221,7 @@ export async function downloadReportPdf(ctx: ReportContext) {
     .setFont("helvetica", "normal")
     .setFontSize(10);
   pdf.text(
-    doc.score === undefined ? "Security score not measured" : "Bonded Score (security), out of 100",
+    doc.score === undefined ? "Security score not measured" : "Security score, out of 100",
     M,
     y + 18,
   );

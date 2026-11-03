@@ -63,5 +63,9 @@ export const GRADE_BANDS = [
 /** The band a security grade falls in. */
 export const gradeBand = (grade: number) => [...GRADE_BANDS].reverse().find((b) => grade >= b.min)!;
 
+/** The ring colour for a grade's band, so a ring matches the verdict beside it. */
+export const gradeStroke = (grade: number) =>
+  grade >= 80 ? "#6ee7b7" : grade >= 50 ? "#ffb347" : "#ff7a45";
+
 /** The text colour for a security grade's band. */
 export const gradeTone = (grade: number) => gradeBand(grade).tone;

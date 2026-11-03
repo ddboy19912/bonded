@@ -140,7 +140,16 @@ export function TierBadge({ score }: { score: number }) {
 }
 
 /** A score as a ring that fills to it, coloured by tier. */
-export function ScoreRing({ score, size = 150 }: { score: number; size?: number }) {
+export function ScoreRing({
+  score,
+  size = 150,
+  stroke,
+}: {
+  score: number;
+  size?: number;
+  /** The ring's colour; the insurance tier's by default. */
+  stroke?: string;
+}) {
   const c = 2 * Math.PI * 46;
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
@@ -160,7 +169,7 @@ export function ScoreRing({ score, size = 150 }: { score: number; size?: number 
           fill="none"
           strokeWidth="8"
           strokeLinecap="round"
-          stroke={tierStroke(score)}
+          stroke={stroke ?? tierStroke(score)}
           strokeDasharray={c}
           strokeDashoffset={c * (1 - score / 100)}
         />

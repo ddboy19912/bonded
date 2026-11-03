@@ -168,7 +168,40 @@ describe("task score tile", () => {
       ),
     ).toBeTruthy();
     expect(screen.getByText("What is a benign twin?")).toBeTruthy();
+    // Security and Task carry the same weight: each has its name, a ring and a one-line verdict.
+    expect(screen.getByText("Security score")).toBeTruthy();
+    expect(screen.getByText("Rarely does the job")).toBeTruthy();
+    expect(screen.getAllByText("of 100")).toHaveLength(2);
+    expect(screen.queryByText("Bonded Score")).toBeNull();
   });
+
+  it.each([
+    [80, "Does the job", "#6ee7b7"],
+    [70, "Does some of the job", "#ffb347"],
+    [49, "Rarely does the job", "#ff7a45"],
+  ])(
+    "gives a Task score of %s its verdict, in a ring of the same colour",
+    async (score, verdict, colour) => {
+      show([
+        {
+          ...entry(REPORT_HASH),
+          task: {
+            version: 1,
+            score,
+            worst: "benign",
+            controls: { trials: 6, done: 6, graded: true },
+            underAttack: { trials: 0, done: 0, graded: false },
+            benign: { trials: 11, done: 8, graded: true },
+            classes: [],
+            measuredAt: "2026-10-25T10:00:00.000Z",
+            source: "task",
+          },
+        },
+      ]);
+      const panel = (await screen.findByText(verdict)).closest(".panel") as HTMLElement;
+      expect(panel.querySelector(`circle[stroke="${colour}"]`)).toBeTruthy();
+    },
+  );
 
   it("says why when a Task score had too few episodes to count", async () => {
     show([
