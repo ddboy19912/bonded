@@ -11,7 +11,7 @@ migrations `0024_payment_gate.sql` and `0026_gate_transparency.sql`),
 `packages/shared/src/gate-receipt.ts` (receipts, input and mandate hashing, offline verification),
 `packages/shared/src/gate-log.ts` (daily log roots and proofs), `apps/keeper/src/gate-anchor.ts`
 (the keeper job that makes and posts them), `contracts/evm/src/GateAnchor.sol` (where they go on
-chain) and `apps/web/src/pages/Gate.tsx` (the rules page). Tests: `test/gate.test.ts`,
+chain) and `apps/web/src/pages/Gate.tsx` and `GateSetup.tsx` (the rules page). Tests: `test/gate.test.ts`,
 `test/gate-anchor.test.ts`, `packages/shared/test/gate-receipt.test.ts` and `gate-log.test.ts`,
 `contracts/evm/test/GateAnchor.t.sol` and `apps/web/src/pages/Gate.test.tsx`.
 
@@ -121,9 +121,12 @@ evaluateGateInput(answer.input).rules; // the same rules
 
 Without a receipt key the service gives no decisions: `POST /payments/check` answers 503.
 
-The rules page in the web app (`/gate`, signed in with the owner's wallet) shows the mandate in
-plain words, its vendors, every version with its hash, and the decision log. Its Verify button
-runs these checks, and the log root check below, in the browser.
+The rules page in the web app (`/gate`, signed in with the owner's wallet) sets an account up
+and shows it: a new account (its first API key shown once), the mode, limits and freeze, vendors,
+approved invoices, bank-change tickets and API keys, each through the owner routes above. It shows
+the mandate in plain words, every version with its hash, and the decision log. Its Verify button
+runs these checks, and the log root check below, in the browser. Refunds and imported payments are
+API only.
 
 ## Hashes on chain
 

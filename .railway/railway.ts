@@ -121,6 +121,9 @@ export default defineRailway(() => {
       // Encrypts Agent URL and webhook secrets at rest (bring your own agent, round 2): 32 bytes
       // set by the founder in Railway (openssl rand -hex 32). The arena-worker reads the same.
       AGENT_URL_SECRET_KEY: preserve(),
+      // Signs the payment gate's check receipts (apps/api/GATE.md): a new 32-byte key set by the
+      // founder in Railway, never the attester's. Without it, checks are refused.
+      GATE_RECEIPT_PRIVATE_KEY: preserve(),
       ...previews,
       // Telegram alerts (docs/PLAN.md, Day 13 workstream 6): set by the founder, kept here.
       TELEGRAM_BOT_TOKEN: preserve(),
