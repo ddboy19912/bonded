@@ -31,7 +31,7 @@ import { BatteryTables } from "../components/battery-tables";
 import { ClassTrackTable } from "../components/class-track-table";
 import { classResults, gradeResults, weakestSentence } from "../lib/class-tracks";
 import { Square } from "../components/class-squares";
-import { batteryName, gradeBand, gradeTone, manipulatedOf } from "../lib/security";
+import { batteryName, gradeBand, gradeStroke, gradeTone, manipulatedOf } from "../lib/security";
 import { taskLine, taskWorstLine } from "../lib/task-score";
 import { evidenceOf, topFixes } from "../lib/report-actions";
 import { ModuleCover } from "../components/module-cover";
@@ -260,7 +260,7 @@ export function Agent() {
               backgroundImage: `radial-gradient(ellipse at 20% 0%, ${glow}, transparent 60%)`,
             }}
           >
-            <ScoreRing score={a.securityScore} />
+            <ScoreRing score={a.securityScore} stroke={gradeStroke(a.securityScore)} />
             <div className="min-w-0 flex-[1_1_240px]">
               <p className="eyebrow">Security score</p>
               <p className={`mt-1 font-serif text-3xl ${band.tone}`}>{band.verdict}</p>
@@ -297,7 +297,7 @@ export function Agent() {
           <div className="grid grid-cols-2 gap-4">
             <div className="panel col-span-2 flex min-w-0 flex-wrap items-center gap-x-8 gap-y-4 p-6 sm:p-7">
               {task && task.score !== null ? (
-                <ScoreRing score={task.score} />
+                <ScoreRing score={task.score} stroke={gradeStroke(task.score)} />
               ) : (
                 <span className="flex size-[150px] shrink-0 items-center justify-center rounded-full border border-dashed border-line-strong font-serif text-5xl text-muted">
                   —
