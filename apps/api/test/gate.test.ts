@@ -364,6 +364,23 @@ describe("the payment gate: checks", () => {
     // The new account is now the vendor's; the old one is a stranger's.
     expect((await pay(key, NIMBUS_NEW, 90, "NIM-9")).body.result).toBe("allowed");
     expect((await pay(key, NIMBUS, 612.4, "NIM-1")).body.rules).toContain("unknown_payee");
+    const tickets = (await call("GET", `${base}/tickets`, undefined, session)).body.items;
+    expect(tickets[0]).toMatchObject({ id: "FIN-1", usedBy: verified.body.id });
+
+    // Finance verifies a move back to the old account. FIN-1 is used up, so an agent can't then
+    // switch the vendor to NIMBUS_NEW again on the strength of it.
+    await call(
+      "POST",
+      `${base}/tickets`,
+      { id: "FIN-2", vendorId: "nimbus", account: NIMBUS, verifiedBy: "called the number on file" },
+      session,
+    );
+    expect(
+      (await check(key, { kind: "bank_change", vendorId: "nimbus", account: NIMBUS })).body,
+    ).toMatchObject({ decision: "pass" });
+    expect(
+      (await check(key, { kind: "bank_change", vendorId: "nimbus", account: NIMBUS_NEW })).body,
+    ).toMatchObject({ rules: ["unverified_vendor_change"], result: "blocked" });
   });
 
   it("checks refunds against the approved queue", async () => {
@@ -626,6 +643,12 @@ describe("the payment gate: the decision log", () => {
       [id],
     );
     expect(payments.rows).toEqual([{ decision_id: null }]);
+    // Each pruned decision clears its payment's decision_id: an index keeps that from scanning
+    // every payment ever made.
+    const indexed = await pg.db.pool.query(
+      "SELECT 1 FROM pg_indexes WHERE tablename='gate_payments' AND indexdef LIKE '%(decision_id)'",
+    );
+    expect(indexed.rowCount).toBe(1);
     // The payment still counts: paying the invoice again is a duplicate.
     expect((await pay(key, NIMBUS, 612.4, "NIM-1")).body.rules).toEqual(["duplicate_payment"]);
     await expect(store.pruneDecisions(cutoff, 0)).rejects.toThrow(RangeError);

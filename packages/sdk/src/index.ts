@@ -5,6 +5,10 @@
  * `@bondedhq/sdk/agentkit`, `@bondedhq/sdk/solana-agent-kit`, `@bondedhq/sdk/eliza`,
  * `@bondedhq/sdk/langchain`, `@bondedhq/sdk/ai-sdk`. The episode's tools over MCP are in
  * `@bondedhq/sdk/mcp`, and the Agent URL handler in `@bondedhq/sdk/agent-url`.
+ *
+ * Off chain, `paymentGuard` and `guardPayments` check an agent's payments against the payment
+ * mandate inside your own process (no network, no receipts); the framework subpaths wrap a pay
+ * tool with it.
  */
 export {
   BondedVault,
@@ -53,6 +57,8 @@ export {
   BondedError,
   CallRevertedError,
   NotAgentError,
+  PaymentBlockedError,
+  PaymentFrozenError,
   PredictedBreachError,
   SentinelError,
   SentinelRefusedError,
@@ -60,6 +66,33 @@ export {
   type SentinelVerdict,
 } from "./errors.js";
 export type { BreachType } from "@bondedhq/shared";
+export {
+  guardPayments,
+  guardVendorChanges,
+  isPaymentRefusal,
+  PaymentGuard,
+  paymentGuard,
+  type GuardPaymentsOptions,
+  type GuardVendorChangesOptions,
+  type PaymentBreach,
+  type PaymentGuardOptions,
+  type PaymentGuardState,
+  type PaymentMandate,
+  type PaymentSource,
+  type PaymentVendor,
+  type PaymentVerdict,
+} from "./payments.js";
+export {
+  describePaymentMandate,
+  PAYMENT_RULE_WORDS,
+  PAYMENT_RULES,
+  type PaidPayment,
+  type PayableInvoice,
+  type PayableRefund,
+  type PaymentAttempt,
+  type PaymentRule,
+  type VerifiedChange,
+} from "@bondedhq/shared";
 export {
   BONDED_VAULT_TOOLS,
   bondedVaultFromEnv,

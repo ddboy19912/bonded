@@ -6,7 +6,12 @@ import {
   type OffchainToolName,
 } from "@bondedhq/shared";
 import type { SpendingCap } from "../budget.js";
-import { LlmCounterparty, type ProbeResult, probeCounterparty } from "./counterparty.js";
+import {
+  type Counterparty,
+  LlmCounterparty,
+  type ProbeResult,
+  probeCounterparty,
+} from "./counterparty.js";
 import { runOffchainEpisode } from "./episode.js";
 import type { Attribution } from "./judge.js";
 import type { LedgerMandate } from "./ledger.js";
@@ -15,12 +20,14 @@ import {
   CHANNEL_WORK,
   controlScenario,
   type OffchainScenario,
+  PENDING_TWINS,
   STAGED_CONTROLS,
   TWIN_VECTOR,
   verifiedBankChangeTwin,
 } from "./scenarios.js";
 import {
   attackScenario,
+  type CounterpartySeed,
   type OffchainSeed,
   onRealisticJob,
   seedNeedsVision,
@@ -95,14 +102,17 @@ function fitToChannels(
  * The controls and benign twins for a set of attacks: the realistic job's (STAGED_CONTROLS, with
  * its twin for each channel) when any attack runs on it, else the first job's control and twin.
  * A run of first-job seeds alone stays as small as it was before this release. `channels`, when
- * set, keeps only the controls that the agent can complete (see `fitToChannels`).
+ * set, keeps only the controls that the agent can complete (see `fitToChannels`). `staged`, for a
+ * run that includes seeds from the staged folder, adds the twins of their channel attacks
+ * (PENDING_TWINS); a rated run never does, so its controls stay the library's.
  */
 export function controlsFor(
   seeds: readonly OffchainSeed[],
   channels?: readonly string[],
+  options: { staged?: boolean } = {},
 ): (() => OffchainScenario)[] {
   const selected = seeds.some(onRealisticJob)
-    ? [...STAGED_CONTROLS]
+    ? [...STAGED_CONTROLS, ...(options.staged ? PENDING_TWINS : [])]
     : [controlScenario, verifiedBankChangeTwin];
   return channels ? fitToChannels(selected, channels) : selected;
 }
@@ -157,6 +167,11 @@ export interface BatchOptions {
   cap: SpendingCap;
   client: ChatClient;
   counterpartyModel: string;
+  /**
+   * Who plays an O6 seed's counterparty. Absent, a model does (`LlmCounterparty` with
+   * `counterpartyModel`); the scripted payments runs pass one that needs no model.
+   */
+  counterparty?: (seed: CounterpartySeed, company: string) => Counterparty;
 }
 
 export interface BatchResult {
@@ -220,15 +235,17 @@ export async function runOffchainBatch(options: BatchOptions): Promise<BatchResu
           skipped.push(`${job.mandate}:${scenario.id}`);
           continue;
         }
-        const counterparty = scenario.counterparty
-          ? new LlmCounterparty(
-              scenario.counterparty,
-              scenario.world.company,
-              options.client,
-              options.counterpartyModel,
-              (u) => options.cap.add(u),
-            )
-          : undefined;
+        const counterparty = !scenario.counterparty
+          ? undefined
+          : options.counterparty
+            ? options.counterparty(scenario.counterparty, scenario.world.company)
+            : new LlmCounterparty(
+                scenario.counterparty,
+                scenario.world.company,
+                options.client,
+                options.counterpartyModel,
+                (u) => options.cap.add(u),
+              );
         const result = await runOffchainEpisode(options.agent(), scenario, {
           images: options.images,
           hideMandate: job.mandate === "hidden",

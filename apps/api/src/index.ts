@@ -58,6 +58,7 @@ import { AgentStatusReader } from "./agent-status.js";
 import { launchRoutes } from "./launch.js";
 import { statusRoutes } from "./service-status.js";
 import { gateOpen, gateRoutes, stripeWebhookPath, type GateOptions } from "./gate.js";
+import { dataApiRoutes, dataOpen, type DataApiOptions } from "./data-keys.js";
 export { issueQuote } from "./quotes.js";
 /** A decimal id, in canonical form: "01" and "1" are the same agent, so they must be the same key. */
 const uint = z
@@ -165,6 +166,11 @@ export function createApi(options: {
   vaultStatusCacheMs?: number;
   /** The payment gate (gate.ts): its receipt key (GATE_RECEIPT_PRIVATE_KEY) and limits. */
   gate?: GateOptions;
+  /** The data APIs' limits (data-keys.ts): model risk data, testing in CI and attack data. */
+  dataApi?: Pick<
+    DataApiOptions,
+    "maxKeysPerOwner" | "keyRequestsPerMinute" | "modelRisk" | "ci" | "attacks"
+  >;
 }) {
   const { db, chain } = options;
   if (options.apiToken.length < 24)
@@ -225,7 +231,8 @@ export function createApi(options: {
   // sentinel.ts). Every other POST or DELETE needs the operator token.
   // Previews, Agent URLs, checks and notification settings are made with an owner session
   // (sessions.ts), opened by a wallet signature. The payment gate's routes (/gate, /payments) take
-  // an owner session or a gate API key (gate.ts).
+  // an owner session or a gate API key (gate.ts); the data APIs' (/data, /ci) an owner session, a
+  // data API key, or nothing for the public Index (data-keys.ts).
   const PUBLIC_POST =
     /^\/(bounties\/\d{1,78}\/reveal|self\/agents(\/\d{1,78}\/(rate|runner-token|agent-url|agent-url\/verify|agent-url\/secret|checks))?|quotes|sentinel\/check|self\/session|self\/notifications(\/webhook-secret|\/inbox\/read)?|previews(\/session|\/[0-9a-f-]{36}\/(stop|runner-token|agent-url|agent-url\/verify|agent-url\/secret|checks|rate|notifications))?|self\/agents\/\d{1,78}\/notifications|streams\/token|runner\/check)$/;
   const PUBLIC_PUT =
@@ -246,7 +253,12 @@ export function createApi(options: {
           : c.req.method === "PUT"
             ? PUBLIC_PUT.test(c.req.path)
             : true;
-    if (!open && !gateOpen(c.req.path) && !hasToken(c.req.header("Authorization")))
+    if (
+      !open &&
+      !gateOpen(c.req.path) &&
+      !dataOpen(c.req.path) &&
+      !hasToken(c.req.header("Authorization"))
+    )
       return c.json({ error: "unauthorized" }, 401);
     await next();
   });
@@ -643,7 +655,7 @@ export function createApi(options: {
     refusedHosts: ownDomains,
     ...(options.allowLoopbackUrls ? { allowLoopback: true } : {}),
   });
-  ownerRoutes(app, {
+  const owners = ownerRoutes(app, {
     db,
     chain,
     policy: options.selfServe?.remote ?? DEFAULT_REMOTE_POLICY,
@@ -685,6 +697,18 @@ export function createApi(options: {
     email: options.email,
     allowLoopbackUrls: options.allowLoopbackUrls,
     ...options.gate,
+  });
+  dataApiRoutes(app, {
+    db,
+    wallet,
+    writes,
+    reads,
+    now: ownerNow,
+    previewRating: owners.previewRating,
+    secrets: options.secrets,
+    ownDomains,
+    allowLoopbackUrls: options.allowLoopbackUrls,
+    ...options.dataApi,
   });
   observedRatesRoute(app, { db, chainId: chain.deployment.chainId });
   libraryRoutes(app, { db, chainId: chain.deployment.chainId });

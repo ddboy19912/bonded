@@ -20,6 +20,7 @@ export type ProblemArea =
   | "vault"
   | "notifications"
   | "gate"
+  | "data"
   | "service";
 
 export interface ProblemEntry {
@@ -775,6 +776,20 @@ export const PROBLEMS: readonly ProblemEntry[] = [
     /day can't be in the future/i,
   ),
   entry(
+    "gate-no-log-root",
+    "gate",
+    "This decision's day has no log root yet. It is made once the day ends (UTC).",
+    "Try again after the day ends: the keeper makes each day's log root a few minutes after midnight UTC. The signature and input checks work before then.",
+    /no log root yet/i,
+  ),
+  entry(
+    "gate-log-pruned",
+    "gate",
+    "This day's log no longer matches its root, so it can't be proved: some of its decisions were deleted after the retention period.",
+    "Keep receipts you may need to prove before the retention period (GATE_DECISION_RETENTION_DAYS) ends. The root itself stays on chain.",
+    /no longer matches its root/i,
+  ),
+  entry(
     "gate-payment-blocked",
     "gate",
     "The payment gate blocked a payment.",
@@ -950,6 +965,71 @@ export const PROBLEMS: readonly ProblemEntry[] = [
     "A card charge settled for more than the payment gate approved.",
     "The difference is recorded as an overpayment. Ask the merchant for it back, or dispute it in Stripe.",
     /for more than the payment gate approved/i,
+  ),
+
+  // The data APIs (/data and /ci): model risk data, testing in CI and attack data.
+  entry(
+    "data-key-missing",
+    "data",
+    "Send your data API key.",
+    "Send the key as `Authorization: Bearer bonded_dk_...`. Make one with your wallet session at POST /data/keys; it is shown only once.",
+    /send your data api key/i,
+  ),
+  entry(
+    "data-key-invalid",
+    "data",
+    "That data API key isn't valid or was revoked.",
+    "Make a new key; a key is shown only once, when it is made.",
+    /data api key isn't valid/i,
+  ),
+  entry(
+    "data-key-limit",
+    "data",
+    "This wallet has as many live data API keys as it may.",
+    "Revoke a key that is no longer used, then make a new one.",
+    /as many live data api keys as it may/i,
+  ),
+  entry(
+    "data-not-found",
+    "data",
+    "No such data API key.",
+    "Check the id, and that you sent the key or session that owns it. Another wallet's keys, webhooks and CI runs show as not found.",
+    /^no such (data api key|model in the bonded index|webhook on this key|ci run|library attack)/i,
+  ),
+  entry(
+    "data-rate-limit",
+    "data",
+    "Too many Index requests from here.",
+    "Wait a few minutes. Without a key the limit is per address; send a data API key for a higher one.",
+    /too many (index|attack data) requests/i,
+  ),
+  entry(
+    "data-webhook-limit",
+    "data",
+    "This key has as many webhooks as it may.",
+    "Remove a webhook that is no longer used, or list several models on one webhook.",
+    /as many webhooks as it may/i,
+  ),
+  entry(
+    "ci-run-limit",
+    "data",
+    "Too many CI runs for this key. Try again in an hour.",
+    "Rate on deploys rather than every commit. The preview caps on the Test your agent page apply too.",
+    /too many ci runs/i,
+  ),
+  entry(
+    "ci-needs-agent-url",
+    "data",
+    "Testing in CI rates an Agent URL, and this preview connects with the runner.",
+    "Make a preview that connects by Agent URL on the Test your agent page, verify the URL, then pass that preview's id.",
+    /testing in ci rates an agent url/i,
+  ),
+  entry(
+    "attack-data-unavailable",
+    "data",
+    "The attack data export is unavailable right now.",
+    "Try again later. The export refuses to answer rather than risk naming a held-out attack; the operator is told.",
+    /attack data export is unavailable/i,
   ),
 
   // Notifications and the service itself.

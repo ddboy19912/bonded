@@ -30,6 +30,7 @@ import { AttackDetail, Attacks } from "./pages/Attacks";
 import { Sentinel } from "./pages/Sentinel";
 import { Status } from "./pages/Status";
 import { Inbox } from "./pages/Inbox";
+import { Gate } from "./pages/Gate";
 import "./index.css";
 
 const router = createBrowserRouter([
@@ -57,6 +58,7 @@ const router = createBrowserRouter([
       { path: "/bounties", element: <Bounties /> },
       { path: "/status", element: <Status /> },
       { path: "/inbox", element: <Inbox /> },
+      { path: "/gate", element: <Gate /> },
       { path: "*", element: <NotFound /> },
     ],
   },

@@ -674,6 +674,7 @@ export function gatePayoutRoutes(
       vendorId: ok?.vendorId ?? null,
       reference,
       inputHash: receipt.inputHash,
+      input,
       mandateHash: account.mandateHash,
       mandateVersion: account.mandateVersion,
       receipt: await signGateReceipt(receipt, deps.receiptKey!),

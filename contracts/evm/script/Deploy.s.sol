@@ -13,6 +13,7 @@ import {CoverManager} from "../src/CoverManager.sol";
 import {ClaimsEngine} from "../src/ClaimsEngine.sol";
 import {DisputeModule, IDisputePayer} from "../src/DisputeModule.sol";
 import {BountyBoard} from "../src/BountyBoard.sol";
+import {GateAnchor} from "../src/GateAnchor.sol";
 import {MockOracle} from "../src/oracles/MockOracle.sol";
 import {TestToken} from "../src/testnet/TestToken.sol";
 import {DemoRouter} from "../src/testnet/DemoRouter.sol";
@@ -27,6 +28,11 @@ import {DemoRouter} from "../src/testnet/DemoRouter.sol";
 ///      COUNCIL               dispute council (default: deployer)
 ///      WAITING_PERIOD        cover waiting period in seconds (default: 1 day; the local smoke run uses 0)
 ///      WRITE_DEPLOYMENT      write the pending file (default: true). Only written with `--broadcast`.
+///      GATE_ANCHOR           also deploy GateAnchor, the payment gate's hash record (default:
+///                            false). It is separate from the protocol; DeployGateAnchor.s.sol
+///                            adds it to a chain that is already deployed.
+///      GATE_ANCHOR_POSTER    the address allowed to post to it (the keeper's GATE_ANCHOR_KEY);
+///                            none if unset, and the owner sets one later with setPoster
 ///      Forge runs this script before it sends the transactions, so the pending file can't prove
 ///      anything was deployed; RecordDeployment does that check afterwards.
 ///      Ownership handover to a multisig happens after deployment (Ownable2Step).
@@ -47,6 +53,8 @@ contract Deploy is Script {
         address disputeModule;
         address bountyBoard;
         address moduleFactory;
+        /// Zero unless GATE_ANCHOR is set.
+        address gateAnchor;
     }
 
     uint256 internal constant USDG_PRICE = 1e6;
@@ -64,6 +72,10 @@ contract Deploy is Script {
         vm.startBroadcast(key);
         _deployMarket(d, deployer);
         _deployProtocol(d, deployer, attester, council, waitingPeriod);
+        if (vm.envOr("GATE_ANCHOR", false)) {
+            d.gateAnchor =
+                address(deployGateAnchor(deployer, vm.envOr("GATE_ANCHOR_POSTER", address(0))));
+        }
         vm.stopBroadcast();
 
         _log(d);
@@ -146,6 +158,13 @@ contract Deploy is Script {
         d.moduleFactory = address(moduleFactory);
     }
 
+    /// @dev GateAnchor owned by `owner`, with `poster` allowed to post unless it is zero. Called
+    ///      inside a broadcast.
+    function deployGateAnchor(address owner, address poster) internal returns (GateAnchor anchor) {
+        anchor = new GateAnchor(owner);
+        if (poster != address(0)) anchor.setPoster(poster, true);
+    }
+
     function _writePending(Deployment memory d) internal {
         string memory k = "deployment";
         vm.serializeUint(k, "chainId", block.chainid);
@@ -164,6 +183,7 @@ contract Deploy is Script {
         vm.serializeAddress(k, "claimsEngine", d.claimsEngine);
         vm.serializeAddress(k, "disputeModule", d.disputeModule);
         vm.serializeAddress(k, "bountyBoard", d.bountyBoard);
+        if (d.gateAnchor != address(0)) vm.serializeAddress(k, "gateAnchor", d.gateAnchor);
         string memory json = vm.serializeAddress(k, "moduleFactory", d.moduleFactory);
         // DEPLOYMENTS_DIR lets a throwaway local chain (the Arena sandbox) write somewhere
         // git-ignored, away from the committed files. It must stay under ./deployments
@@ -202,5 +222,6 @@ contract Deploy is Script {
         console2.log("DisputeModule  ", d.disputeModule);
         console2.log("BountyBoard    ", d.bountyBoard);
         console2.log("ModuleFactory  ", d.moduleFactory);
+        if (d.gateAnchor != address(0)) console2.log("GateAnchor     ", d.gateAnchor);
     }
 }

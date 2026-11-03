@@ -15,11 +15,11 @@ ESM only, Node 22 or later. Inside the Bonded repository, depend on it with
 
 | Entry point | What it is | Peer dependency |
 |---|---|---|
-| `@bondedhq/sdk` | The vault client, dry runs, the guard, Sentinel, mandates, `fromBondedEnv` | |
-| `@bondedhq/sdk/mcp` | An episode's tools over MCP, `/done`, MCP config | |
+| `@bondedhq/sdk` | The vault client, dry runs, the guard, Sentinel, mandates, `fromBondedEnv`, the payment guard | |
+| `@bondedhq/sdk/mcp` | An episode's tools over MCP, `/done`, MCP config; a guarded pay tool handler | |
 | `@bondedhq/sdk/agent-url` | The Agent URL handler | |
-| `@bondedhq/sdk/langchain` | The episode's tools as LangChain `StructuredTool`s; the vault's trading tools | `@langchain/core` 1 |
-| `@bondedhq/sdk/ai-sdk` | The episode's tools as a Vercel AI SDK tool set; the vault's trading tools | `ai` 5 to 7 |
+| `@bondedhq/sdk/langchain` | The episode's tools as LangChain `StructuredTool`s; the vault's trading tools; a guarded pay tool | `@langchain/core` 1 |
+| `@bondedhq/sdk/ai-sdk` | The episode's tools as a Vercel AI SDK tool set; the vault's trading tools; a guarded pay tool | `ai` 5 to 7 |
 | `@bondedhq/sdk/eliza` | The ElizaOS plugin, with a rating mode | `@elizaos/core` 1.7 |
 | `@bondedhq/sdk/agentkit` | AgentKit wallet provider for the vault; the episode's tools as actions | `@coinbase/agentkit` 0.10 |
 | `@bondedhq/sdk/solana-agent-kit` | Solana Agent Kit plugin for the Solana vault | `solana-agent-kit` 2, `@bondedhq/solana` |
@@ -92,6 +92,9 @@ Every error the SDK throws on purpose is a `BondedError` with a stable `code`:
 | `PredictedBreachError` (`PREDICTED_BREACH`) | A guarded vault refused: the dry run predicts a breach (`error.dryRun`) |
 | `SentinelRefusedError` (`SENTINEL_REFUSED`) | A guarded vault refused on Sentinel's advice (`error.verdict`) |
 | `SentinelError` (`SENTINEL_ERROR`) | The Sentinel API refused the request or didn't answer (`error.status`) |
+| `PaymentBlockedError` (`PAYMENT_BLOCKED`) | The payment guard's Enforce mode stopped a payment or bank change (`error.breach`). Your pay function wasn't called |
+| `PaymentFrozenError` (`PAYMENT_FROZEN`) | The payment guard is frozen after a breach; `guard.unfreeze()` lets payments through again |
+| `BondedError` (`INVALID_PAYMENT`) | The payment guard couldn't read the payment (a missing account or reference, an amount that isn't a positive number of cents) |
 
 In Monitor mode a breaching action is **not** an error: it runs, and its breaches come back in the result. Check `result.breaches`, or use `guarded`.
 
@@ -143,6 +146,74 @@ const text = describeMandate(mandate, tokens); // for Sentinel checks
 ```
 
 The same builder the web app's onboarding uses, so both hash the same rules the same way. Cover requires `freezeOnBreach`, which is the default.
+
+## Payment guard (off chain)
+
+For an agent that pays invoices or refunds from a bank or payment API: check every payment
+against the payment mandate first, inside your own process. It runs the same rule engine the
+Arena rates off-chain agents against (`@bondedhq/shared`'s payment mandate), with no network and no
+model, so invoices never leave your system. It is free.
+
+```ts
+import { guardPayments, guardVendorChanges, paymentGuard } from "@bondedhq/sdk";
+
+const guard = paymentGuard({
+  mandate: { mode: "enforce", maxPaymentUsd: 10_000, maxDailyUsd: 25_000, freezeOnBreach: true },
+  vendors: () => db.vendors(), // [{ id, account }]: the vendor master
+  invoices: () => db.approvedInvoices(), // [{ reference, vendorId, amountUsd }]
+  refunds: () => db.approvedRefunds(), // [{ reference, account, amountUsd }]
+  changes: () => db.verifiedBankChanges(), // [{ vendorId, account }]: finance-verified tickets
+  state: await store.load(), // what onStateChange saved last time, if anything
+  onStateChange: (state) => store.save(state),
+  onBreach: (breach) => alert(breach), // { rules, reasons, blocked, account, amountUsd, lossUsd, ... }
+});
+
+const payInvoice = guardPayments(bank.payInvoice, { guard });
+const issueRefund = guardPayments(bank.refund, { guard, kind: "refund" });
+const updateVendorBank = guardVendorChanges(db.updateVendorBank, { guard });
+
+await payInvoice({ account: "DE89 3704 0044 0532 0130 00", amountUsd: 1840.5, invoiceReference: "ACM-2291" });
+```
+
+The six rules: pay only a vendor's account on file or one a verified ticket covers
+(`unknown_payee`), change a vendor's bank account only with a verified ticket
+(`unverified_vendor_change`), pay only approved invoices for exactly the approved amount
+(`unmatched_invoice`) and only once (`duplicate_payment`), and stay under the per-payment and daily
+limits (`over_payment_cap`, `over_daily_cap`; days are UTC). `describePaymentMandate(mandate)` says
+them in plain words, and `PAYMENT_RULE_WORDS` names each rule.
+
+- **Enforce** blocks: a payment that breaks a rule throws `PaymentBlockedError` naming every rule
+  broken in plain words, and your pay function is never called. **Monitor** calls it anyway and
+  reports the breach to `onBreach`. A bank change no ticket covers that Monitor lets through is
+  remembered: its account is never treated as the vendor's.
+- **Freeze on breach:** after the first breach every payment and bank change is refused
+  (`PaymentFrozenError`) until a person calls `guard.unfreeze()`.
+- **State:** the guard keeps the payments made, the frozen flag and unverified bank changes in
+  memory. `onStateChange` gets a copy after every change; pass it back as `state` to restore it
+  after a restart (or seed `state.payments` with what you paid before). A payment is recorded only
+  once your pay function returns, so a failed one can be retried.
+- Payments go through the guard one at a time, so two calls at once can't both pass the duplicate
+  or daily check. `guard.check(payment)` gives the verdict without paying.
+- Your function's first argument is read as `{ account, amountUsd, invoiceReference }` (or
+  `reference`, as the Arena's `pay_invoice` and `issue_refund` tools take them); pass `toPayment`
+  for any other shape.
+
+For framework tools, wrap your existing pay tool; a refusal goes back to the model so it can react
+(AI SDK: `{ error }`; LangChain: `Error: ...` text; MCP: an `isError` result):
+
+```ts
+import { guardAiSdkPayTool } from "@bondedhq/sdk/ai-sdk";
+import { guardLangChainPayTool } from "@bondedhq/sdk/langchain";
+import { guardMcpPayHandler } from "@bondedhq/sdk/mcp";
+
+const tools = { ...readOnlyTools, pay_invoice: guardAiSdkPayTool(payInvoiceTool, { guard }) };
+const lcTools = [...readOnlyTools, guardLangChainPayTool(payInvoiceTool, { guard })];
+server.registerTool("pay_invoice", config, guardMcpPayHandler(payInvoiceHandler, { guard }));
+```
+
+What it doesn't do: it is a local check, so code that calls your pay function directly skips it.
+Keep the unwrapped function out of the agent's reach. It makes no receipts: nothing outside your
+process records or signs its decisions, so `onBreach` and `onStateChange` are your only log.
 
 ## Getting rated by the Arena
 
@@ -479,6 +550,6 @@ episode's tools: see [Framework helpers](#framework-helpers).
 pnpm --filter @bondedhq/sdk test
 ```
 
-Tests run against a local anvil with the protocol deployed by the production scripts, and check allowed and breaching actions against the vault's breach log, for the core client and each framework. The Agent URL handler's tests (signatures, verify, acknowledging then working, cancel, deadline) run without a chain. The vault trading tools are tested on the same local chain (`test/vault-tools.int.test.ts`): a swap by symbol, a breaching transfer refused by the guard, Sentinel fed from the conversation, and a Monitor-mode breach with the guard off. The framework helpers are tested end to end against a real Arena Gateway in `examples/frameworks` (`pnpm --filter @bonded/example-frameworks test`). The Solana tests need the programs built (`pnpm solana:build`) and the Solana CLI's `solana-test-validator`; without them they skip with a message. `pnpm --filter @bondedhq/sdk typecheck` also checks the ElizaOS plugin against `@elizaos/core`'s own types.
+Tests run against a local anvil with the protocol deployed by the production scripts, and check allowed and breaching actions against the vault's breach log, for the core client and each framework. The Agent URL handler's tests (signatures, verify, acknowledging then working, cancel, deadline) run without a chain. The vault trading tools are tested on the same local chain (`test/vault-tools.int.test.ts`): a swap by symbol, a breaching transfer refused by the guard, Sentinel fed from the conversation, and a Monitor-mode breach with the guard off. The payment guard runs without a chain (`test/payments.test.ts`: each rule in both modes, freeze, restoring state), and its framework wrappers are tested with a scripted AI SDK model, a LangChain tool call and an in-memory MCP server (`test/payments-adapters.test.ts`). The framework helpers are tested end to end against a real Arena Gateway in `examples/frameworks` (`pnpm --filter @bonded/example-frameworks test`). The Solana tests need the programs built (`pnpm solana:build`) and the Solana CLI's `solana-test-validator`; without them they skip with a message. `pnpm --filter @bondedhq/sdk typecheck` also checks the ElizaOS plugin against `@elizaos/core`'s own types.
 
 An example agent that uses the SDK is in [`examples/byo-agent`](../../examples/byo-agent/README.md).

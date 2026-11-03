@@ -3,8 +3,17 @@ import { setTimeout as delay } from "node:timers/promises";
 import { serve } from "@hono/node-server";
 import { ArenaGateway, assertHeldOutOffMetaApi, loadDotEnv } from "@bonded/arena";
 import { Database, GateCardStore, GateStore } from "@bonded/db";
-import { Keeper, SolanaKeeper, connectChain, connectSolana, parseSolanaKey } from "@bonded/keeper";
-import { parseEvmDeployment } from "@bondedhq/shared";
+import {
+  GateAnchorJob,
+  Keeper,
+  SolanaKeeper,
+  connectChain,
+  connectGateAnchor,
+  connectSolana,
+  parseSolanaKey,
+  type GateAnchorTarget,
+} from "@bonded/keeper";
+import { evmAddress, parseEvmDeployment } from "@bondedhq/shared";
 import { z } from "zod";
 import { createApi } from "./index.js";
 import { runTeeChecks, teeCheckInterval } from "./tee-watch.js";
@@ -32,6 +41,7 @@ import { workCheckOne } from "./check-worker.js";
 import { gatewayCheckRunner } from "./connections.js";
 import { AgentStatusReader } from "./agent-status.js";
 import { OwnerAlerts } from "./owner-alerts.js";
+import { IndexWebhooks } from "./model-risk.js";
 import { adoptDeployment } from "./deployment-guard.js";
 
 loadDotEnv();
@@ -299,6 +309,36 @@ if (role === "migrate") {
         3_600_000,
       ),
     );
+    // The payment gate's log roots (apps/api/GATE.md, "Hashes on chain"): made for each finished
+    // day, and posted to GateAnchor with the mandate hashes once its address (GATE_ANCHOR_ADDRESS,
+    // or gateAnchor in the deployment file) and a poster key (GATE_ANCHOR_KEY) are set. Without
+    // them the roots are still made and stored.
+    const anchorAddress = process.env.GATE_ANCHOR_ADDRESS?.trim() || deployment.gateAnchor;
+    let anchor: GateAnchorTarget | undefined;
+    if (anchorAddress && process.env.GATE_ANCHOR_KEY)
+      // GateAnchor may be on another chain than the protocol's (GATE_ANCHOR_RPC_URL).
+      anchor = await connectGateAnchor(
+        deployment,
+        process.env.GATE_ANCHOR_RPC_URL?.trim() || rpc,
+        key("GATE_ANCHOR_KEY"),
+        evmAddress.parse(anchorAddress),
+      );
+    else if (anchorAddress || process.env.GATE_ANCHOR_KEY)
+      console.info(
+        "GateAnchor needs both an address and GATE_ANCHOR_KEY: log roots are stored, not posted",
+      );
+    const gateAnchor = new GateAnchorJob(db, anchor);
+    tasks.push(
+      loop(
+        "Gate log roots",
+        () => gateAnchor.tick(),
+        z.coerce
+          .number()
+          .int()
+          .min(60_000)
+          .parse(process.env.GATE_ANCHOR_MS ?? 600_000),
+      ),
+    );
     // Owners' alerts about their agents (score expiring, runner offline, breaches, claims, cover
     // lapsing, low gas): the keeper is deployed once, so each is sent once.
     const ownerAlerts = new OwnerAlerts(
@@ -321,6 +361,24 @@ if (role === "migrate") {
           .int()
           .min(10_000)
           .parse(process.env.OWNER_ALERTS_MS ?? 60_000),
+      ),
+    );
+    // Model risk data webhooks (model-risk.ts): a deploy that changes the Bonded Index queues a
+    // signed delivery per changed model and webhook; failed ones are retried with backoff.
+    const indexWebhooks = new IndexWebhooks(db, {
+      ...(secrets ? { secrets } : {}),
+      ...(allowLoopback ? { allowLoopback: true } : {}),
+      log: (line) => console.error(line),
+    });
+    tasks.push(
+      loop(
+        "Index webhooks",
+        () => indexWebhooks.tick(),
+        z.coerce
+          .number()
+          .int()
+          .min(5000)
+          .parse(process.env.INDEX_WEBHOOKS_MS ?? 30_000),
       ),
     );
     // The keeper is deployed once, so it also watches for a lagging keeper, stuck claims and

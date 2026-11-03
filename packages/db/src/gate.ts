@@ -52,12 +52,37 @@ export interface GateCardMerchant {
   key: string;
 }
 
+/** Where and when a hash was posted to GateAnchor (migration 0026). */
+export interface GateAnchorPost {
+  chainId: number;
+  contract: string;
+  /** Null when the keeper found the hash already posted. */
+  txHash: string | null;
+  postedAt: Date;
+}
+
 export interface GateMandateVersion {
   version: number;
   hash: string;
   mandate: GateMandateSnapshot;
   createdBy: string;
   createdAt: Date;
+  /** Null until the keeper posts it on chain. */
+  posted: GateAnchorPost | null;
+  /** Why the last post failed, while it isn't posted. */
+  postError: string | null;
+}
+
+/** One account's log root for one UTC day (`gateLogRoot`, migration 0026). */
+export interface GateLogRootRecord {
+  accountId: string;
+  /** UTC day, YYYY-MM-DD. */
+  day: string;
+  root: string;
+  receipts: number;
+  createdAt: Date;
+  posted: GateAnchorPost | null;
+  postError: string | null;
 }
 
 export interface GateKeyRecord {
@@ -103,6 +128,8 @@ export interface GateTicketRecord {
   vendorId: string;
   account: string;
   verifiedBy: string;
+  /** The decision that applied this ticket's change; null until then. A ticket covers one change. */
+  usedBy: string | null;
   createdAt: Date;
 }
 
@@ -140,6 +167,8 @@ export interface GateDecisionRecord {
   vendorId: string | null;
   reference: string;
   inputHash: string;
+  /** What the rules were given (`GateInput`); null for decisions made before migration 0026. */
+  input: unknown;
   mandateHash: string;
   mandateVersion: number;
   receipt: unknown;
@@ -217,10 +246,42 @@ const decision = (r: Record<string, unknown>): GateDecisionRecord => ({
   vendorId: (r.vendor_id as string | null) ?? null,
   reference: r.reference as string,
   inputHash: r.input_hash as string,
+  input: r.input ?? null,
   mandateHash: r.mandate_hash as string,
   mandateVersion: r.mandate_version as number,
   receipt: r.receipt,
   createdAt: r.created_at as Date,
+});
+
+/** The anchor columns of a gate_mandates or gate_log_roots row. */
+const anchorPost = (r: Record<string, unknown>): GateAnchorPost | null =>
+  r.anchored_at
+    ? {
+        chainId: r.anchor_chain_id as number,
+        contract: r.anchor_contract as string,
+        txHash: (r.anchor_tx as string | null) ?? null,
+        postedAt: r.anchored_at as Date,
+      }
+    : null;
+
+const mandateVersion = (r: Record<string, unknown>): GateMandateVersion => ({
+  version: r.version as number,
+  hash: r.hash as string,
+  mandate: r.mandate as GateMandateSnapshot,
+  createdBy: r.created_by as string,
+  createdAt: r.created_at as Date,
+  posted: anchorPost(r),
+  postError: (r.anchor_error as string | null) ?? null,
+});
+
+const logRoot = (r: Record<string, unknown>): GateLogRootRecord => ({
+  accountId: r.account_id as string,
+  day: r.day as string,
+  root: r.root as string,
+  receipts: r.receipts as number,
+  createdAt: r.created_at as Date,
+  posted: anchorPost(r),
+  postError: (r.anchor_error as string | null) ?? null,
 });
 
 const payment = (r: Record<string, unknown>): GatePaymentRecord => ({
@@ -436,14 +497,7 @@ export class GateStore {
        ORDER BY version DESC LIMIT $3`,
       [id, options.before ?? null, limit],
     );
-    const items = r.rows.map((row): GateMandateVersion => ({
-      version: row.version,
-      hash: row.hash,
-      mandate: row.mandate,
-      createdBy: row.created_by,
-      createdAt: row.created_at,
-    }));
-    return page(items, limit, (v) => String(v.version));
+    return page(r.rows.map(mandateVersion), limit, (v) => String(v.version));
   }
 
   // API keys.
@@ -557,6 +611,24 @@ export class GateStore {
    * whose vendor is this one and whose account is the new merchant's key ("needs-ticket"
    * otherwise). Setting the first merchant, or removing it (null), needs none.
    */
+  /**
+   * Mark the unused tickets covering this vendor and account as applied by `decisionId`, inside
+   * the check's transaction. A ticket covers one change, not every later switch back to it.
+   */
+  async useTickets(
+    c: Connection,
+    accountId: string,
+    vendorId: string,
+    accountNorm: string,
+    decisionId: string,
+  ): Promise<void> {
+    await c.query(
+      `UPDATE gate_tickets SET used_by=$4
+       WHERE account_id=$1 AND vendor_id=$2 AND account_norm=$3 AND used_by IS NULL`,
+      [accountId, vendorId, accountNorm, decisionId],
+    );
+  }
+
   async updateVendor(
     accountId: string,
     id: string,
@@ -573,6 +645,8 @@ export class GateStore {
     const run = async (tx: Connection) => {
       if (!c) await this.lockAccount(tx, accountId);
       const merchant = patch.cardMerchant;
+      // The ticket that covers a merchant change, used up once the change is made.
+      let ticketUsed: string | undefined;
       if (merchant) {
         const current = await tx.query(
           "SELECT card_merchant_norm FROM gate_vendors WHERE account_id=$1 AND id=$2",
@@ -584,11 +658,13 @@ export class GateStore {
           const covered = patch.ticket
             ? await tx.query(
                 `SELECT 1 FROM gate_tickets
-                 WHERE account_id=$1 AND id=$2 AND vendor_id=$3 AND account_norm=$4`,
+                 WHERE account_id=$1 AND id=$2 AND vendor_id=$3 AND account_norm=$4
+                   AND used_by IS NULL`,
                 [accountId, patch.ticket, id, merchant.key],
               )
             : undefined;
           if (!covered?.rowCount) return "needs-ticket" as const;
+          ticketUsed = patch.ticket;
         }
       }
       const r = await tx.query(
@@ -612,6 +688,11 @@ export class GateStore {
         ],
       );
       if (!r.rowCount) return undefined;
+      if (ticketUsed)
+        await tx.query(
+          "UPDATE gate_tickets SET used_by=$3 WHERE account_id=$1 AND id=$2 AND used_by IS NULL",
+          [accountId, ticketUsed, by],
+        );
       await this.newVersion(tx, accountId, by);
       return vendor(r.rows[0]);
     };
@@ -858,7 +939,7 @@ export class GateStore {
       state.tickets = (
         await c.query(
           `SELECT vendor_id, account_norm FROM gate_tickets
-           WHERE account_id=$1 AND vendor_id=$2 AND account_norm=$3 ORDER BY id`,
+           WHERE account_id=$1 AND vendor_id=$2 AND account_norm=$3 AND used_by IS NULL ORDER BY id`,
           [accountId, q.vendorId, q.accountNorm],
         )
       ).rows.map((t) => ({ vendorId: t.vendor_id, account: t.account_norm }));
@@ -931,8 +1012,8 @@ export class GateStore {
     const r = await c.query(
       `INSERT INTO gate_decisions(id,account_id,key_id,request_id,request_hash,kind,decision,result,
          mode,rules,amount_cents,loss_cents,overpaid_cents,payee,vendor_id,reference,input_hash,
-         mandate_hash,mandate_version,receipt,created_at)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+         mandate_hash,mandate_version,receipt,created_at,input)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
        RETURNING *`,
       [
         d.id,
@@ -956,6 +1037,7 @@ export class GateStore {
         d.mandateVersion,
         JSON.stringify(d.receipt),
         d.createdAt,
+        d.input === null || d.input === undefined ? null : JSON.stringify(d.input),
       ],
     );
     return decision(r.rows[0]);
@@ -1005,12 +1087,15 @@ export class GateStore {
   }
 
   /**
-   * Delete decisions made before `before`, oldest first, in bounded batches (as `pruneEvents`).
-   * Payments stay: the duplicate rule needs them for as long as the account exists.
+   * Delete decisions made before `before`'s UTC day, oldest first, in bounded batches (as
+   * `pruneEvents`). Whole days only: a day cut part way would leave the keeper a partial day to
+   * make a log root over, or a sealed day whose remaining receipts can't be proved. Payments stay:
+   * the duplicate rule needs them for as long as the account exists.
    */
   async pruneDecisions(before: Date, batchSize = 10_000): Promise<number> {
     if (!Number.isSafeInteger(batchSize) || batchSize < 1)
       throw new RangeError("batchSize must be a positive integer");
+    before = new Date(Math.floor(before.getTime() / 86_400_000) * 86_400_000);
     let deleted = 0;
     for (;;) {
       const r = await this.pool.query(
@@ -1021,6 +1106,131 @@ export class GateStore {
       deleted += r.rowCount ?? 0;
       if ((r.rowCount ?? 0) < batchSize) return deleted;
     }
+  }
+
+  // Log roots and what is posted to GateAnchor (migration 0026).
+
+  /**
+   * The account days with decisions in [since, until) that have no log root yet, oldest first.
+   * `until` should be a day's start that has passed by a margin, so no check of that day is
+   * still being written.
+   */
+  async daysWithoutRoot(
+    since: Date,
+    until: Date,
+    limit = 500,
+  ): Promise<{ accountId: string; day: string }[]> {
+    const r = await this.pool.query(
+      `SELECT d.account_id, d.day::text AS day FROM (
+         SELECT account_id, (created_at AT TIME ZONE 'UTC')::date AS day FROM gate_decisions
+         WHERE created_at >= $1 AND created_at < $2 GROUP BY 1, 2) d
+       WHERE NOT EXISTS
+         (SELECT 1 FROM gate_log_roots l WHERE l.account_id=d.account_id AND l.day=d.day)
+       ORDER BY d.day, d.account_id LIMIT $3`,
+      [since, until, limit],
+    );
+    return r.rows.map((row) => ({ accountId: row.account_id, day: row.day }));
+  }
+
+  /** An account's decisions on one UTC day, in decision order: the leaves of its log root. */
+  async dayDecisions(accountId: string, day: string): Promise<GateDecisionRecord[]> {
+    const start = new Date(`${day}T00:00:00Z`);
+    const r = await this.pool.query(
+      `SELECT * FROM gate_decisions WHERE account_id=$1 AND created_at >= $2 AND created_at < $3
+       ORDER BY seq`,
+      [accountId, start, new Date(start.getTime() + 86_400_000)],
+    );
+    return r.rows.map(decision);
+  }
+
+  /** Record a day's log root. A day's root is made once: false if it already has one. */
+  async addLogRoot(root: {
+    accountId: string;
+    day: string;
+    root: string;
+    receipts: number;
+  }): Promise<boolean> {
+    const r = await this.pool.query(
+      `INSERT INTO gate_log_roots(account_id,day,root,receipts) VALUES($1,$2::date,$3,$4)
+       ON CONFLICT DO NOTHING`,
+      [root.accountId, root.day, root.root, root.receipts],
+    );
+    return (r.rowCount ?? 0) > 0;
+  }
+
+  async logRoot(accountId: string, day: string): Promise<GateLogRootRecord | undefined> {
+    const r = await this.pool.query(
+      "SELECT *, day::text AS day FROM gate_log_roots WHERE account_id=$1 AND day=$2::date",
+      [accountId, day],
+    );
+    return r.rows[0] ? logRoot(r.rows[0]) : undefined;
+  }
+
+  /** An account's log roots, newest day first; `before` is the `next` cursor (a day). */
+  async logRoots(
+    accountId: string,
+    options: { limit?: number; before?: string } = {},
+  ): Promise<GatePage<GateLogRootRecord>> {
+    const limit = limitOf(options.limit);
+    const r = await this.pool.query(
+      `SELECT *, day::text AS day FROM gate_log_roots
+       WHERE account_id=$1 AND ($2::date IS NULL OR day<$2::date) ORDER BY gate_log_roots.day DESC LIMIT $3`,
+      [accountId, options.before ?? null, limit],
+    );
+    return page(r.rows.map(logRoot), limit, (l) => l.day);
+  }
+
+  /** Mandate versions not posted on chain yet, oldest first. */
+  async unpostedMandates(limit = 100): Promise<(GateMandateVersion & { accountId: string })[]> {
+    const r = await this.pool.query(
+      `SELECT * FROM gate_mandates WHERE anchored_at IS NULL ORDER BY created_at, account_id, version
+       LIMIT $1`,
+      [limit],
+    );
+    return r.rows.map((row) => ({ accountId: row.account_id as string, ...mandateVersion(row) }));
+  }
+
+  /** Log roots not posted on chain yet, oldest day first. */
+  async unpostedRoots(limit = 100): Promise<GateLogRootRecord[]> {
+    const r = await this.pool.query(
+      `SELECT *, day::text AS day FROM gate_log_roots WHERE anchored_at IS NULL
+       ORDER BY gate_log_roots.day, account_id LIMIT $1`,
+      [limit],
+    );
+    return r.rows.map(logRoot);
+  }
+
+  /** Record a mandate version (`{ version }`) or a day's root (`{ day }`) as posted on chain. */
+  async markPosted(
+    accountId: string,
+    which: { version: number } | { day: string },
+    post: { chainId: number; contract: string; txHash: string | null },
+  ): Promise<void> {
+    const [table, key, value] =
+      "version" in which
+        ? ["gate_mandates", "version=$2::int", which.version]
+        : ["gate_log_roots", "day=$2::date", which.day];
+    await this.pool.query(
+      `UPDATE ${table} SET anchor_chain_id=$3, anchor_contract=$4, anchor_tx=$5,
+         anchored_at=now(), anchor_error=NULL WHERE account_id=$1 AND ${key}`,
+      [accountId, value, post.chainId, post.contract.toLowerCase(), post.txHash],
+    );
+  }
+
+  /** Why posting a mandate version or a day's root failed; it is tried again later. */
+  async postFailed(
+    accountId: string,
+    which: { version: number } | { day: string },
+    error: string,
+  ): Promise<void> {
+    const [table, key, value] =
+      "version" in which
+        ? ["gate_mandates", "version=$2::int", which.version]
+        : ["gate_log_roots", "day=$2::date", which.day];
+    await this.pool.query(
+      `UPDATE ${table} SET anchor_error=$3 WHERE account_id=$1 AND ${key} AND anchored_at IS NULL`,
+      [accountId, value, error.slice(0, 300)],
+    );
   }
 }
 
@@ -1042,6 +1252,7 @@ function ticket(r: Record<string, unknown>): GateTicketRecord {
     vendorId: r.vendor_id as string,
     account: r.account as string,
     verifiedBy: r.verified_by as string,
+    usedBy: (r.used_by as string | null) ?? null,
     createdAt: r.created_at as Date,
   };
 }

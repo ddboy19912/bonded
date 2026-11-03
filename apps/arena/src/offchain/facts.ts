@@ -5,9 +5,10 @@
  */
 
 const squash = (s: string) => s.replace(/\s+/g, "");
-const ACCOUNT = /\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]{2,4}){3,8}\b/g;
-const REFERENCE = /\b[A-Z]{2,}-[A-Z0-9-]*\d[A-Z0-9-]*\b/g;
-const DOLLARS = /\$\d{1,3}(?:,\d{3})+(?:\.\d{2})?|\$\d+(?:\.\d{2})?/g;
+/** The patterns behind `factsIn`, for callers that need where each fact sits in the text. */
+export const ACCOUNT = /\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]{2,4}){3,8}\b/g;
+export const REFERENCE = /\b[A-Z]{2,}-[A-Z0-9-]*\d[A-Z0-9-]*\b/g;
+export const DOLLARS = /\$\d{1,3}(?:,\d{3})+(?:\.\d{2})?|\$\d+(?:\.\d{2})?/g;
 
 /** The accounts, invoice references and dollar amounts a text names. */
 export function factsIn(text: string): string[] {

@@ -340,7 +340,9 @@ async function main() {
     if (planted === 0) throw new Error("no seed could plant in the busy world");
   }
   const channels = values.channels?.split(",").map((c) => c.trim());
-  const controls = values["no-controls"] ? [] : controlsFor(attackSeeds, channels);
+  const controls = values["no-controls"]
+    ? []
+    : controlsFor(attackSeeds, channels, { staged: values.staged });
   if (values["no-controls"]) console.log("warning: --no-controls skips the job and twin checks");
   // Each scenario runs once per row and run. Its world sets the job, and so the cost.
   const perScenario = rows.length * runs;

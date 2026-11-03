@@ -560,6 +560,29 @@ describe("the vendor master's card merchants", () => {
     const mandate = (await call("GET", `${base}/mandates?limit=1`, undefined, session)).body
       .items[0].mandate;
     expect(mandate.vendors[0].cardMerchant).toEqual(FRAUD_MERCHANT);
+
+    // FIN-2 is used up: after a verified move back, it can't switch the merchant again.
+    await call(
+      "POST",
+      `${base}/tickets`,
+      { id: "FIN-3", vendorId: "nimbus", account: "card:1234567890", verifiedBy: "ap@acme.test" },
+      session,
+    );
+    const back = await call(
+      "PUT",
+      `${base}/vendors/nimbus`,
+      { cardMerchant: NIMBUS_MERCHANT, ticket: "FIN-3" },
+      session,
+    );
+    expect(back.status).toBe(200);
+    const reuse = await call(
+      "PUT",
+      `${base}/vendors/nimbus`,
+      { cardMerchant: FRAUD_MERCHANT, ticket: "FIN-2" },
+      session,
+    );
+    expect(reuse.status).toBe(409);
+    expect(reuse.body.code).toBe("gate-merchant-change-unverified");
   });
 });
 
@@ -848,6 +871,38 @@ describe("the real-time authorization webhook", () => {
       expect(row.input_hash).toBe(row.receipt.receipt.inputHash);
       expect(await verifyGateReceipt(row.receipt, RECEIPT_SIGNER)).toBe(true);
     }
+  });
+
+  it("declines another vendor's merchant on the card, even for that vendor's invoice with the same reference", async () => {
+    const a = await withCard();
+    const orbit = { name: "Orbit Hosting", networkId: "7777777777" };
+    await call(
+      "POST",
+      `${a.base}/vendors`,
+      {
+        id: "orbit",
+        name: "Orbit Hosting",
+        account: "DE89 3704 0044 0532 0130 00",
+        cardMerchant: orbit,
+      },
+      a.session,
+    );
+    await call(
+      "POST",
+      `${a.base}/invoices`,
+      { vendorId: "orbit", reference: "NIM-1", amountUsd: 612.4 },
+      a.session,
+    );
+    const r = await webhook(
+      "/stripe/issuing/authorization",
+      authRequest(a.cardId, 61_240, { merchant: orbit }),
+    );
+    expect(r.body.approved).toBe(false);
+    expect((await decisions(a.id))[0]).toMatchObject({
+      result: "blocked",
+      rules: ["unmatched_invoice"],
+    });
+    expect(await intentStatus(a.intent.id)).toBe("issued");
   });
 
   it("lets a verified merchant change through and makes it the vendor's merchant", async () => {
@@ -1164,6 +1219,54 @@ describe("reconciling what reached Stripe without the gate", () => {
       const late = await webhook("/stripe/issuing/authorization", authRequest(a.cardId, 61_240));
       expect(late.body.approved).toBe(false);
     }
+  });
+
+  it("releases the invoice when Stripe declines a charge the gate approved (its answer came too late)", async () => {
+    const a = await withCard();
+    await webhook(
+      "/stripe/issuing/authorization",
+      authRequest(a.cardId, 61_240, { authId: "iauth_slow" }),
+    );
+    expect(await intentStatus(a.intent.id)).toBe("authorized");
+    await webhook(
+      "/stripe/issuing/events",
+      authEvent("issuing_authorization.created", a.cardId, "iauth_slow", {
+        approved: false,
+        amount: 61_240,
+        status: "closed",
+        reasons: ["webhook_timeout"],
+      }),
+    );
+    expect(await intentStatus(a.intent.id)).toBe("released");
+    const next = await call("POST", "/payments/intents", { invoiceReference: "NIM-1" }, a.key);
+    expect(next.status).toBe(201);
+  });
+
+  it("still counts a captured charge toward the day when its transaction arrives after the authorization closes", async () => {
+    // Daily cap $1,000; two invoices of $612.40.
+    const a = await withCard({ maxDailyUsd: 1_000 });
+    await call(
+      "POST",
+      `${a.base}/invoices`,
+      { vendorId: "nimbus", reference: "NIM-2", amountUsd: 612.4 },
+      a.session,
+    );
+    await webhook(
+      "/stripe/issuing/authorization",
+      authRequest(a.cardId, 61_240, { authId: "iauth_first" }),
+    );
+    // Captured: Stripe closes the authorization; its issuing_transaction.created comes later.
+    await webhook(
+      "/stripe/issuing/events",
+      authEvent("issuing_authorization.updated", a.cardId, "iauth_first", {
+        approved: true,
+        amount: 0,
+        status: "closed",
+      }),
+    );
+    const second = await call("POST", "/payments/intents", { invoiceReference: "NIM-2" }, a.key);
+    expect(second.status).toBe(409);
+    expect(second.body.rules).toEqual(["over_daily_cap"]);
   });
 
   it("alerts on webhook_timeout and webhook_error, once each", async () => {

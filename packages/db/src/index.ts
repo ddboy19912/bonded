@@ -6,6 +6,7 @@ export * from "./schema.js";
 export * from "./gate.js";
 export * from "./gate-card.js";
 export * from "./gate-payout.js";
+export * from "./data-api.js";
 export type Connection = pg.PoolClient;
 /** Serialize public payloads without losing integer precision. */
 export const json = (value: unknown): string =>
@@ -599,6 +600,8 @@ export class Database {
       "0023_deployments.sql",
       "0024_payment_gate.sql",
       "0025_gate_stripe_card.sql",
+      "0026_gate_transparency.sql",
+      "0027_data_apis.sql",
       "0028_gate_payout_proxy.sql",
     ];
     await this.transaction(async (c) => {
