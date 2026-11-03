@@ -86,6 +86,27 @@ It fails closed, so if the gate can't be reached your function isn't called. It 
 
 The SDK also has a local guard that runs the same rules inside your own process, so invoices never leave your system. It makes no receipts and no log.
 
+## Pay by card
+
+On the check route your code decides whether to obey the answer. On the card route it doesn't: the agent pays with a single-use Stripe Issuing card, Stripe asks the gate before every charge, and a charge that breaks a rule is declined. If the gate doesn't answer in time, the charge is declined. This route runs in Stripe test mode only for now.
+
+1. In Stripe, in test mode, make a cardholder, top up the Issuing balance, and make a restricted key with write access to Issuing cards and read access to Issuing authorizations and transactions.
+2. Set Stripe's real-time authorizations endpoint to `https://api-production-ba50.up.railway.app/stripe/issuing/authorization`, with the timeout set to decline and Autopilot off.
+3. Add a webhook endpoint at `https://api-production-ba50.up.railway.app/stripe/issuing/events` for `issuing_authorization.created`, `issuing_authorization.updated` and `issuing_transaction.created`.
+4. On the gate page, fill in **Card payments** with the key, the cardholder and both signing secrets.
+5. Add the vendor with its card merchant name and network id, and approve its invoice.
+
+Your agent then asks for a card for that invoice:
+
+```bash
+curl https://api-production-ba50.up.railway.app/payments/intents \
+  -H "Authorization: Bearer $BONDED_GATE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"invoiceReference":"NIM-88412"}'
+```
+
+The card works once, for the exact invoice amount, at that vendor's merchant. Its number is in this answer only. Bonded keeps the card's id and last four digits, and never holds money. Each charge gets a decision and a receipt, like a check.
+
 ## Check a receipt
 
 Anyone holding a receipt can check it, with no sign-in. Paste it at [bondedhq.xyz/gate/verify](https://www.bondedhq.xyz/gate/verify): the answer from a check works as it is, or use **Copy receipt** on a decision in the gate page. The checks run in the browser:
@@ -105,7 +126,7 @@ Each finished day's log root, and the hash of each version of your rules, is pos
 
 ## What it doesn't do
 
-- **It only sees what your code sends it.** The check is voluntary: code that pays without asking skips it, so keep the raw pay function out of the agent's reach. The card and bank payout routes that make the gate impossible to skip are built, but not live yet.
+- **It only sees what your code sends it.** On the check route the check is voluntary: code that pays without asking skips it, so keep the raw pay function out of the agent's reach. The card route closes that gap, in Stripe test mode for now. The bank payout route is built, but not live yet.
 - **It doesn't move money.** Your own bank or payment API makes the payment.
 - **It doesn't pay back losses yet.** Cover is on chain today. Off-chain cover is planned.
 - **Rules can be followed and fraud can still happen.** If a real vendor's own systems are hacked and a correct invoice is paid to its correct account, no rule breaks.

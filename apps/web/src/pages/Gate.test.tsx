@@ -226,6 +226,7 @@ beforeEach(() => {
     next: null,
   });
   vi.spyOn(gateApi, "tickets").mockResolvedValue({ items: [] });
+  vi.spyOn(gateApi, "stripeLink").mockResolvedValue(null);
   vi.spyOn(gateApi, "keys").mockResolvedValue({
     items: [
       {
@@ -567,6 +568,89 @@ describe("the payment gate's rules page", () => {
         vendorId: "nimbus",
         account: "GB33 BUKB 2020 1555 5555 55",
         verifiedBy: "Dana",
+      }),
+    );
+  });
+
+  it("links Stripe for card payments, shows only a hint, and lists the cards", async () => {
+    const linked = {
+      linked: true as const,
+      keyHint: "rk_test_…abcd",
+      livemode: false,
+      cardholderId: "ich_1234567890",
+      webhookSecrets: { authorization: true, events: true },
+      createdAt: `${DAY}T09:00:00Z`,
+      updatedAt: `${DAY}T09:00:00Z`,
+    };
+    const link = vi.spyOn(gateApi, "linkStripe").mockResolvedValue(linked);
+    vi.spyOn(gateApi, "cardIntents").mockResolvedValue({
+      items: [
+        {
+          id: "i1",
+          status: "paid",
+          vendorId: "nimbus",
+          invoiceReference: "NIM-1",
+          amountUsd: 612.4,
+          card: { id: "ic_1", last4: "4242" },
+          createdAt: `${DAY}T09:00:00Z`,
+          updatedAt: `${DAY}T09:00:00Z`,
+        },
+      ],
+      next: null,
+    });
+    signedIn();
+    show();
+    const card = (await screen.findByRole("heading", { name: "Card payments" })).closest(
+      "section",
+    ) as HTMLElement;
+    const button = await within(card).findByRole("button", { name: "Link Stripe" });
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    const fill = (label: string, value: string) =>
+      fireEvent.change(within(card).getByLabelText(label), { target: { value } });
+    // A live key is refused here, before it goes anywhere.
+    fill("Restricted key", "rk_live_abcdefghijklmnop");
+    fill("Cardholder", "ich_1234567890");
+    fill("Authorization webhook secret", "whsec_abcdefghijklmnop");
+    fill("Events webhook secret", "whsec_qrstuvwxyzabcdef");
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    fill("Restricted key", "rk_test_abcdefghijklmnop");
+    expect((button as HTMLButtonElement).disabled).toBe(false);
+    vi.mocked(gateApi.stripeLink).mockResolvedValue(linked);
+    fireEvent.click(button);
+    expect(await within(card).findByText("rk_test_…abcd")).toBeTruthy();
+    expect(link).toHaveBeenCalledWith("sess", ACCOUNT_ID, {
+      secretKey: "rk_test_abcdefghijklmnop",
+      cardholderId: "ich_1234567890",
+      authorizationWebhookSecret: "whsec_abcdefghijklmnop",
+      eventsWebhookSecret: "whsec_qrstuvwxyzabcdef",
+    });
+    expect(await within(card).findByText("•••• 4242")).toBeTruthy();
+    expect(within(card).getByText("paid")).toBeTruthy();
+  });
+
+  it("adds a vendor's card merchant, and needs its id with its name", async () => {
+    const add = vi
+      .spyOn(gateApi, "addVendor")
+      .mockResolvedValue({ id: "nimbus-2", name: "Nimbus 2", account: NIMBUS });
+    signedIn();
+    show();
+    fireEvent.click(await screen.findByRole("button", { name: "Add a vendor" }));
+    const fill = (label: string, value: string) =>
+      fireEvent.change(screen.getByLabelText(label), { target: { value } });
+    fill("Vendor", "Nimbus 2");
+    fill("Verified bank account", NIMBUS);
+    fill("Card merchant (optional)", "NIMBUS CLOUD");
+    const button = screen.getByRole("button", { name: "Add vendor" }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    fill("Card merchant id", "123456789012");
+    expect(button.disabled).toBe(false);
+    fireEvent.click(button);
+    await vi.waitFor(() =>
+      expect(add).toHaveBeenCalledWith("sess", ACCOUNT_ID, {
+        id: "nimbus-2",
+        name: "Nimbus 2",
+        account: NIMBUS,
+        cardMerchant: { name: "NIMBUS CLOUD", networkId: "123456789012" },
       }),
     );
   });

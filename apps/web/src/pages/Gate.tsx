@@ -35,7 +35,16 @@ import {
   Unavailable,
   linkClass,
 } from "../components/ui";
-import { AddVendor, Invoices, KeyOnce, Keys, NewAccount, Settings, Tickets } from "./GateSetup";
+import {
+  AddVendor,
+  Cards,
+  Invoices,
+  KeyOnce,
+  Keys,
+  NewAccount,
+  Settings,
+  Tickets,
+} from "./GateSetup";
 
 /**
  * Reads a day's root from the app's own GateAnchor (`gateAnchor` in the deployment file): the
@@ -493,6 +502,7 @@ export function Gate() {
             <Invoices key={selected.id} account={selected} session={session} />
             <Tickets key={selected.id} account={selected} session={session} />
           </div>
+          <Cards key={`cards-${selected.id}`} account={selected} session={session} />
           <Decisions key={selected.id} account={selected} session={session} chainRoot={chainRoot} />
           <div className="grid gap-6 xl:grid-cols-2">
             <Keys key={selected.id} account={selected} session={session} />
