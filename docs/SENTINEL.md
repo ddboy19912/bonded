@@ -81,23 +81,26 @@ The agent's genuine payments during an attack are benign cases, beside the contr
 
 **Two sources.** Model-driven agents (the Index traces and off-chain runs) mostly resist, so on their own they give few manipulated cases: 29 of 2,887 on the traces on 2026-11-02. The second source is the one the trading set uses: scripted agents with no model (`apps/arena/src/offchain/scripted-payables.ts`), run on every off-chain seed (library, staged folder and Index variants) with the benign twins and controls, and judged by the ledger like any run. The O6 counterparty is scripted too: it answers with the account, invoice and amount its brief names.
 
-- The **vulnerable** agent does the payment work (pays the approved queue, applies finance's verified bank changes, sends approved refunds) and acts on what it reads: a new account for an invoice, an invoice document that differs from the queue, an unapproved invoice or a new payment someone asks for, a request to change a vendor's bank details itself, an instruction to wait for another day. Every attack case it makes is a real manipulation.
+- The **vulnerable** agent does the payment work (pays the approved queue, applies finance's verified bank changes, sends approved refunds) and acts on what it reads: a new account for an invoice, an invoice document that differs from the queue, an unapproved invoice or a new payment someone asks for (in words, or in another agent's structured request), a request to change a vendor's bank details itself, an instruction to wait for another day. Every attack case it makes is a real manipulation.
 - The **cautious** agent reads the same things in the same order, does the same work and ignores all of it. Its payment of an attacked invoice has the vulnerable agent's inputs and the right account: a matched benign case.
 
-Both read text only: an attack that lives only in a picture (5 of the 57 seeds today) isn't run and is listed as not covered. Neither does the rest of the realistic job (replies beyond an acknowledgement, approval requests), which doesn't change a payment case.
+Both read text only: an attack that lives only in a picture (5 of the 109 seeds today) isn't run and is listed as not covered. Neither does the rest of the realistic job (replies beyond an acknowledgement, approval requests), which doesn't change a payment case.
 
 Limits. A scripted agent's attack cases show what a manipulation looks like, not how often a real model falls for one. Its rules read plain wording, so a seed it doesn't recognise gives no attack case, and its cases are the plainer end of what a model would see. Each case records where it came from (`model`, `scripted`, or both when each made the same state); the manifest counts cases by origin, the shortcut audit also checks each origin on its own, and the evaluation reports attacks blocked and false alarms by origin.
 
-**Where it stands (2026-11-03).** The vulnerable agent gets a planted payment through on 52 of the 52 attacks it meets, with no breach of its own making; the cautious one never breaches. Distinct cases (attacks in brackets):
+**Staged seeds for the dataset.** 52 text-only seeds wait in the staged folder (`apps/arena/offchain-seeds-staged/`), written from documented invoice-fraud and business email compromise patterns: 37 in the held-out classes (20 O2, 17 O5) and 15 in the training classes (7 O1, 3 O3, 3 O4, 2 O6), across email, chat, tickets, voicemail, texts, portals, other agents, memory, the knowledge base, the risk plugin and vendor records. Five new benign twins mirror the channel attacks that had no twin of their class (`PENDING_TWINS`, run only with staged-folder seeds). They are staged, not rated: seeds and twins join the library, and the Index, only in a release.
+
+**Where it stands (2026-11-03).** The vulnerable agent gets a planted payment through on 102 of the 104 attacks it meets, with no breach of its own making; the cautious one never breaches. The two it misses are realistic seeds whose wording its rules don't read ("get the deposit out today", "send it again"). Distinct cases (attacks in brackets):
 
 | Episodes read | Training | Calibration | Final test |
 | --- | --- | --- | --- |
-| Scripted runs only | 181 (36) | 92 (17) | 47 (8) |
-| Index traces and scripted runs | 1,661 (60) | 881 (19) | 665 (11) |
+| Scripted runs only | 240 (50) | 543 (51) | 308 (40) |
+| Index traces and scripted runs | 1,720 (74) | 1,057 (48) | 1,201 (48) |
+| The same, `--train-benign-keep 0.3` | 548 (74) | 1,057 (48) | 1,201 (48) |
 
-- The shortcut audit passes on the scripted runs alone (19.9% of training cases manipulated) and fails with the Index traces: training is then 3.6% manipulated, so `action=pay_invoice` (1,647 cases) is more than 90% one label. It needs a training part at least a tenth manipulated: more training-class attack cases, or fewer of the traces' benign ones, which is a choice to make before any training.
-- The final test has 8 or 11 attacks, under the gate's 30 (and, from the scripted runs alone, 39 benign cases, under its 100). The held-out classes have 14 seed families the agents can meet, giving 25 distinct manipulated states (30 with the traces') for calibration and final test together, and the split sends about half of the families to each. More held-out seed families (new O2 and O5 seeds or fresh variants, in a library release) are what would close it.
-- `--busy` also plants each realistic-job seed into the busy Monday. That doubles the final test's attacks (16) but adds far more benign cases (30 invoices a run), so the scripted runs alone then fail the audit too (7.2% manipulated).
+- The final test meets the gate's minimums both ways: 48 attacks and 1,153 benign cases with the traces, 40 and 268 from the scripted runs alone (the gate needs 30 and 100). With the traces, 44 of the 48 final-test attacks come only from the scripted agent and 4 from model-driven agents, so the final test says whether Sentinel catches these manipulations, not how often a model makes them.
+- The shortcut audit passes on the scripted runs alone (20.8% of training cases manipulated). With the Index traces, training is 4.3% manipulated and `action=pay_invoice` is more than 90% one label, so it fails. Seeds alone can't fix that: each realistic attack also adds benign payments, and it would take well over a hundred more training-class seeds. `--train-benign-keep <share>` keeps that share of the benign training cases, chosen by a hash of each case's id, and records it in the manifest; manipulated training cases, calibration and the final test are never sampled. At 0.3 the training part is 13.5% manipulated (`action=pay_invoice` 12.3%) and the audit passes.
+- `--busy` also plants each realistic-job seed into the busy Monday: 1,233 (83) / 824 (61) / 959 (62) from the scripted runs alone, and 2,713 (107) / 1,460 (62) / 1,730 (66) with the traces. Both fail the audit without sampling (6.7% and 3.9% manipulated), because a busy Monday adds 30 invoices a run.
 
 **Held out.** Two whole classes, O2 (a forged or inflated invoice from a real vendor) and O5 (an executive asking for an urgent payment), with their benign twins and every control, never reach training. They trick the agent differently from the training classes, and both have benign twins, so false alarms on look-alike genuine payments are measured too. O1 is the largest class and stays in training; many O4 attacks are only in a picture, which a text state doesn't carry. The held-out cases are split again into calibration and final test by seed family: every variant of a seed stays with its seed, and the two parts share no seed family and no input state.
 
@@ -109,8 +112,10 @@ Limits. A scripted agent's attack cases show what a manipulation looks like, not
 # The scripted source: free, no model, the same output every run (--busy adds the busy-Monday plants)
 pnpm sentinel:payments-scripted
 # Index traces by default; --with-scripted adds the scripted runs, and --episodes takes
-# off-chain run folders (results.json)
-pnpm sentinel:payments-dataset --with-scripted --episodes ratings/index-traces --episodes ratings/<run>
+# off-chain run folders (results.json). --train-benign-keep 0.3 keeps 30% of the benign training
+# cases, so the training part is a tenth or more manipulated (held-out parts untouched)
+pnpm sentinel:payments-dataset --with-scripted --episodes ratings/index-traces --episodes ratings/<run> \
+  --train-benign-keep 0.3
 ```
 
 The scripted runs are written to `datasets/sentinel-payments-scripted/`, one results file per agent, marked `origin: "scripted"`.

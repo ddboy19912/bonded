@@ -25,11 +25,13 @@ import {
   exportPaymentRows,
   familyParts,
   partHash,
+  type PaymentCase,
   type PaymentRow,
   paymentRows,
   paymentsMandate,
   plantedBySeed,
   readEpisodeFile,
+  sampleBenignTraining,
   type TracedEpisode,
 } from "../src/payments-dataset.js";
 
@@ -365,6 +367,56 @@ describe("deduplication", () => {
     expect(partHash(one.test)).toBe(one.manifest.hashes.test);
     const flipped = one.test.map((c, i) => (i === 0 ? { ...c, manipulated: !c.manipulated } : c));
     expect(partHash(flipped)).not.toBe(one.manifest.hashes.test);
+  });
+});
+
+describe("sampling the benign training cases", () => {
+  it("keeps every manipulated case and leaves calibration and the final test untouched", async () => {
+    const rows = [
+      ...rowsOf(await attack("O1-lookalike-domain-001"), "a"),
+      ...rowsOf(await attack("O1-lookalike-domain-001", false), "b"),
+      ...rowsOf(await attack("O2-split-invoice-001"), "c"),
+      ...rowsOf(await run(controlScenario()), "d"),
+      ...rowsOf(await run(verifiedBankChangeTwin()), "e"),
+    ];
+    const whole = buildPaymentsDataset({ rows });
+    const sampled = buildPaymentsDataset({ rows, trainBenignKeep: 0.5 });
+    expect(sampled.calibration).toEqual(whole.calibration);
+    expect(sampled.test).toEqual(whole.test);
+    expect(sampled.manifest.hashes.calibration).toBe(whole.manifest.hashes.calibration);
+    expect(sampled.manifest.hashes.test).toBe(whole.manifest.hashes.test);
+    const manipulated = (cases: { manipulated: boolean; id: string }[]) =>
+      cases.filter((c) => c.manipulated).map((c) => c.id);
+    expect(manipulated(sampled.train)).toEqual(manipulated(whole.train));
+    const benign = whole.train.filter((c) => !c.manipulated).length;
+    expect(whole.manifest.trainBenignSample).toEqual({ keep: 1, kept: benign, dropped: 0 });
+    const { kept, dropped } = sampled.manifest.trainBenignSample;
+    expect(kept).toBe(sampled.train.filter((c) => !c.manipulated).length);
+    expect(kept + dropped).toBe(benign);
+    // The same cases every build, whatever the row order.
+    const again = buildPaymentsDataset({ rows: [...rows].reverse(), trainBenignKeep: 0.5 });
+    expect(again.train.map((c) => c.id)).toEqual(sampled.train.map((c) => c.id));
+    expect(again.manifest.hashes.train).toBe(sampled.manifest.hashes.train);
+  });
+
+  it("keeps about the share asked for, by case id, and refuses held-out cases or a bad share", () => {
+    const cases = Array.from(
+      { length: 2000 },
+      (_, i) => ({ id: `case-${i}`, part: "train", manipulated: false }) as PaymentCase,
+    );
+    const { kept, dropped } = sampleBenignTraining(cases, 0.3);
+    expect(kept.length / cases.length).toBeGreaterThan(0.27);
+    expect(kept.length / cases.length).toBeLessThan(0.33);
+    expect(kept.length + dropped).toBe(cases.length);
+    expect(sampleBenignTraining(cases, 1).dropped).toBe(0);
+    // A case's fate depends on its id alone.
+    const first = sampleBenignTraining(cases.slice(0, 100), 0.3).kept.map((c) => c.id);
+    expect(first).toEqual(kept.filter((c) => Number(c.id.slice(5)) < 100).map((c) => c.id));
+    for (const share of [0, -0.1, 1.5, Number.NaN])
+      expect(() => sampleBenignTraining(cases, share)).toThrow(/must be in/);
+    expect(() =>
+      sampleBenignTraining([{ ...cases[0]!, part: "test" } as PaymentCase], 0.5),
+    ).toThrow(/held-out parts/);
   });
 });
 
