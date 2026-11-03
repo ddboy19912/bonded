@@ -11,9 +11,9 @@ import {
   gateApi,
   verifyDecision,
   type AnchorPost,
+  type ChainRootQuery,
   type GateAccount,
   type GateDecision,
-  type GateProof,
   type Verification,
   type VerifyStep,
 } from "../lib/gate";
@@ -33,8 +33,11 @@ import {
   linkClass,
 } from "../components/ui";
 
-/** Reads a day's root from GateAnchor when it is on this app's chain; null otherwise. */
-export type ChainRoot = (proof: GateProof) => Promise<Hex | null>;
+/**
+ * Reads a day's root from the app's own GateAnchor (`gateAnchor` in the deployment file): the
+ * zero hash when none is posted, null when it can't be read here.
+ */
+export type ChainRoot = (at: ChainRootQuery) => Promise<Hex | null>;
 
 const dollars = (usd: number) =>
   `$${usd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -349,20 +352,25 @@ export function Gate() {
   });
   const list = accounts.data?.items ?? [];
   const selected = list.find((a) => a.id === params.get("account")) ?? list[0];
-  // The root posted on chain, read straight from GateAnchor when it is on this app's chain.
-  const chainRoot: ChainRoot | undefined = client
-    ? async (p) =>
-        p.posted && p.posted.chainId === deployment.chainId
-          ? (
-              await client.readContract({
-                address: p.posted.contract as Hex,
-                abi: gateAnchorAbi,
-                functionName: "logRootOf",
-                args: [p.accountKey, p.dayNumber],
-              })
-            ).hash
-          : null
-    : undefined;
+  // The root posted on chain, read straight from the app's own GateAnchor: never from an address
+  // the API names. Not read when the API says it was posted somewhere else.
+  const anchor = deployment.gateAnchor;
+  const chainRoot: ChainRoot | undefined =
+    client && anchor
+      ? async ({ accountKey, dayNumber, posted }) =>
+          posted &&
+          (posted.chainId !== deployment.chainId ||
+            posted.contract.toLowerCase() !== anchor.toLowerCase())
+            ? null
+            : (
+                await client.readContract({
+                  address: anchor,
+                  abi: gateAnchorAbi,
+                  functionName: "logRootOf",
+                  args: [accountKey, dayNumber],
+                })
+              ).hash
+      : undefined;
   return (
     <Page
       title="Payment gate"

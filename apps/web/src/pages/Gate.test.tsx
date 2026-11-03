@@ -23,11 +23,15 @@ import { gateApi, type GateAccount, type GateDecision, type GateProof } from "..
 import { Gate } from "./Gate";
 
 const WALLET = "0x00000000000000000000000000000000000000a1";
-const wallet = vi.hoisted(() => ({ address: undefined as string | undefined }));
+const wallet = vi.hoisted(() => ({
+  address: undefined as string | undefined,
+  /** The chain client the page reads GateAnchor with; none unless a test sets one. */
+  client: undefined as { readContract: (...args: unknown[]) => Promise<unknown> } | undefined,
+}));
 vi.mock("wagmi", () => ({
   useAccount: () => ({ address: wallet.address, isConnected: Boolean(wallet.address) }),
   useSignMessage: () => ({ signMessageAsync: async () => "0x5151" }),
-  usePublicClient: () => undefined,
+  usePublicClient: () => wallet.client,
 }));
 vi.mock("../components/wallet", () => ({
   ConnectButton: () => <button type="button">Connect wallet</button>,
@@ -211,6 +215,8 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  wallet.client = undefined;
+  delete deployment.gateAnchor;
   vi.restoreAllMocks();
   sessionStorage.clear();
   localStorage.clear();
@@ -294,6 +300,94 @@ describe("the payment gate's rules page", () => {
     expect(within(step("Daily log root")).getByText("Not checked")).toBeTruthy();
     expect(within(step("Daily log root")).getByText(/no log root yet/)).toBeTruthy();
     expect(within(step("Bonded's signature")).getByText("Passed")).toBeTruthy();
+  });
+
+  it("fails a proof for another day than the receipt's", async () => {
+    // A genuine proof of the receipt, but in a root the API says is a later day's.
+    vi.mocked(gateApi.proof).mockImplementation(async (_s, _a, id) => ({
+      ...proofs[id]!,
+      day: "2026-11-05",
+      dayNumber: gateDayNumber("2026-11-05"),
+    }));
+    signedIn();
+    show();
+    const step = await verify(await row(/Allowed: no rule broken/));
+    expect(within(step("Daily log root")).getByText("Failed")).toBeTruthy();
+    expect(within(step("Daily log root")).getByText(/another account or day/)).toBeTruthy();
+  });
+
+  it("fails a genuine receipt that doesn't say what the page shows", async () => {
+    // Bonded's receipt says blocked; the log shows it as allowed.
+    vi.mocked(gateApi.decisions).mockResolvedValue({
+      items: [{ ...blocked, result: "allowed", message: "Allowed: no rule broken." }],
+      next: null,
+    });
+    signedIn();
+    show();
+    const step = await verify(await row(/Allowed: no rule broken/));
+    expect(within(step("Bonded's signature")).getByText("Failed")).toBeTruthy();
+    expect(within(step("Bonded's signature")).getByText(/its result/)).toBeTruthy();
+  });
+
+  it("reads the root from the app's own GateAnchor, for the receipt's account and day", async () => {
+    const anchor = "0x00000000000000000000000000000000000a2c40" as const;
+    deployment.gateAnchor = anchor;
+    const reads: unknown[] = [];
+    const posted = {
+      chainId: deployment.chainId,
+      contract: anchor,
+      txHash: null,
+      postedAt: `${DAY}T00:10:00Z`,
+    };
+    // On chain, the day's root is one the receipt isn't in.
+    wallet.client = {
+      readContract: async (args: unknown) => {
+        reads.push(args);
+        return { hash: `0x${"ee".repeat(32)}`, postedAt: 1n };
+      },
+    };
+    vi.mocked(gateApi.proof).mockImplementation(async (_s, _a, id) => ({
+      ...proofs[id]!,
+      posted,
+    }));
+    signedIn();
+    show();
+    let step = await verify(await row(/Allowed: no rule broken/));
+    expect(within(step("Daily log root")).getByText("Failed")).toBeTruthy();
+    expect(
+      within(step("Daily log root")).getByText(/Not in the root posted on chain/),
+    ).toBeTruthy();
+    expect(reads).toEqual([
+      expect.objectContaining({
+        address: anchor,
+        functionName: "logRootOf",
+        args: [gateAccountKey(ACCOUNT_ID), gateDayNumber(DAY)],
+      }),
+    ]);
+    cleanup();
+
+    // The API names another contract: the page doesn't read it, and says so.
+    reads.length = 0;
+    vi.mocked(gateApi.proof).mockImplementation(async (_s, _a, id) => ({
+      ...proofs[id]!,
+      posted: { ...posted, contract: "0x00000000000000000000000000000000000e0e0e" },
+    }));
+    show();
+    step = await verify(await row(/Allowed: no rule broken/));
+    expect(within(step("Daily log root")).getByText(/this page didn't read it there/)).toBeTruthy();
+    expect(reads).toEqual([]);
+    cleanup();
+
+    // The API says it's posted, but GateAnchor has no root for that day.
+    wallet.client = { readContract: async () => ({ hash: `0x${"0".repeat(64)}`, postedAt: 0n }) };
+    vi.mocked(gateApi.proof).mockImplementation(async (_s, _a, id) => ({
+      ...proofs[id]!,
+      posted,
+    }));
+    show();
+    step = await verify(await row(/Allowed: no rule broken/));
+    expect(within(step("Daily log root")).getByText("Failed")).toBeTruthy();
+    expect(within(step("Daily log root")).getByText(/GateAnchor has none/)).toBeTruthy();
   });
 
   it("says when the wallet has no gate account", async () => {

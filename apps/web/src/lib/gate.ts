@@ -1,6 +1,9 @@
 import {
   evaluateGateInput,
+  gateAccountKey,
+  gateDayNumber,
   gateInputHash,
+  gateReceiptDay,
   gateReceiptHash,
   verifyGateLogProof,
   verifyGateReceipt,
@@ -138,28 +141,51 @@ export interface Verification {
 }
 
 /**
+ * Where to read a day's root on chain: the account and the day come from the signed receipt, never
+ * from the API, and `posted` is what the API says about it.
+ */
+export interface ChainRootQuery {
+  accountKey: Hex;
+  dayNumber: number;
+  posted: AnchorPost | null;
+}
+
+const ZERO_ROOT = `0x${"0".repeat(64)}`;
+
+/**
  * Check a decision the way anyone holding it could: the signature against the published receipt
- * key, the input hash and the rules recomputed in the browser, and the receipt's proof against
- * its day's root. `chainRoot` reads the root posted on chain when the page can reach that chain
- * (it answers null when it can't). Never throws: a step that can't run says why.
+ * key, that the signed receipt says what the page shows, the input hash and the rules recomputed in
+ * the browser, and the receipt's proof against its day's root. `chainRoot` reads the root posted on
+ * chain, from the app's own GateAnchor address, for the receipt's account and day: it answers the
+ * zero hash when none is posted, and null when it can't read it. Never throws: a step that can't
+ * run says why.
  */
 export async function verifyDecision(
   decision: GateDecision,
   deps: {
     receiptKey: () => Promise<{ address: Address }>;
     proof: () => Promise<GateProof>;
-    chainRoot?: (proof: GateProof) => Promise<Hex | null>;
+    chainRoot?: (at: ChainRootQuery) => Promise<Hex | null>;
   },
 ): Promise<Verification> {
   const { receipt } = decision.receipt;
   const [signature, log] = await Promise.all([
     deps
       .receiptKey()
-      .then(async (key) =>
-        (await verifyGateReceipt(decision.receipt, key.address))
-          ? { ok: true, detail: "Signed by Bonded's published receipt key." }
-          : { ok: false, detail: "The signature doesn't match the receipt or the published key." },
-      )
+      .then(async (key): Promise<VerifyStep> => {
+        if (!(await verifyGateReceipt(decision.receipt, key.address)))
+          return {
+            ok: false,
+            detail: "The signature doesn't match the receipt or the published key.",
+          };
+        const differs = shownDiffers(decision);
+        return differs
+          ? {
+              ok: false,
+              detail: `Signed by Bonded, but the receipt doesn't match the decision shown here (its ${differs}).`,
+            }
+          : { ok: true, detail: "Signed by Bonded's published receipt key." };
+      })
       .catch(() => ({ ok: null, detail: "Couldn't load the receipt key. Try again." })),
     checkLog(decision, deps),
   ]);
@@ -192,11 +218,33 @@ export async function verifyDecision(
   return { signature, input, rules, log };
 }
 
+/**
+ * The first thing the page shows about a decision that its signed receipt doesn't say, or null.
+ * The signature only vouches for the receipt, so what is shown has to match it.
+ */
+function shownDiffers(decision: GateDecision): string | null {
+  const r = decision.receipt.receipt;
+  const checks: [string, boolean][] = [
+    ["decision id", r.decisionId === decision.id],
+    ["kind", r.kind === decision.kind],
+    ["decision", r.decision === decision.decision],
+    ["result", r.result === decision.result],
+    ["rules", same(r.rules, decision.rules)],
+    ["amount", r.amountCents === Math.round(decision.amountUsd * 100)],
+    ["payee", r.payee === decision.payee],
+    ["reference", r.reference === decision.reference],
+    ["input hash", r.inputHash === decision.inputHash],
+    ["mandate version", r.mandateVersion === decision.mandate.version],
+    ["mandate hash", r.mandateHash.toLowerCase() === decision.mandate.hash.toLowerCase()],
+  ];
+  return checks.find(([, ok]) => !ok)?.[0] ?? null;
+}
+
 async function checkLog(
   decision: GateDecision,
   deps: {
     proof: () => Promise<GateProof>;
-    chainRoot?: (proof: GateProof) => Promise<Hex | null>;
+    chainRoot?: (at: ChainRootQuery) => Promise<Hex | null>;
   },
 ): Promise<VerifyStep> {
   let proof: GateProof;
@@ -212,11 +260,31 @@ async function checkLog(
           : "Couldn't load the proof. Try again.",
     };
   }
-  const onChain =
-    proof.posted && deps.chainRoot ? await deps.chainRoot(proof).catch(() => null) : null;
+  // The account and day come from the signed receipt: a proof for another one proves nothing.
+  const { receipt } = decision.receipt;
+  const accountKey = safe(() => gateAccountKey(receipt.gateAccountId));
+  const day = safe(() => gateReceiptDay(receipt));
+  const dayNumber = day === undefined ? undefined : safe(() => gateDayNumber(day));
+  if (
+    !accountKey ||
+    !day ||
+    dayNumber === undefined ||
+    proof.day !== day ||
+    proof.accountKey?.toLowerCase() !== accountKey
+  )
+    return { ok: false, detail: "The proof is for another account or day than the receipt." };
+  const read = deps.chainRoot
+    ? await deps.chainRoot({ accountKey, dayNumber, posted: proof.posted }).catch(() => null)
+    : null;
+  if (read?.toLowerCase() === ZERO_ROOT && proof.posted)
+    return {
+      ok: false,
+      detail: `The API says the root for ${day} is on chain, but GateAnchor has none.`,
+    };
+  const onChain = read && read.toLowerCase() !== ZERO_ROOT ? read : null;
   const root = onChain ?? proof.root;
   const inRoot = verifyGateLogProof(
-    safe(() => gateReceiptHash(decision.receipt.receipt)) ?? "0x",
+    safe(() => gateReceiptHash(receipt)) ?? "0x",
     proof.proof,
     root,
   );
@@ -224,16 +292,16 @@ async function checkLog(
     return {
       ok: false,
       detail: onChain
-        ? `Not in the root posted on chain for ${proof.day}.`
-        : `Not in the log root for ${proof.day}.`,
+        ? `Not in the root posted on chain for ${day}.`
+        : `Not in the log root for ${day}.`,
     };
   return {
     ok: true,
     detail: onChain
-      ? `In the root posted on chain for ${proof.day}.`
+      ? `In the root posted on chain for ${day}.`
       : proof.posted
-        ? `In the log root for ${proof.day}. It's posted on chain; this page didn't read it there.`
-        : `In the log root for ${proof.day}. It isn't posted on chain yet.`,
+        ? `In the log root for ${day}. It's posted on chain; this page didn't read it there.`
+        : `In the log root for ${day}. It isn't posted on chain yet.`,
   };
 }
 
