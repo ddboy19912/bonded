@@ -7,6 +7,7 @@ import {
   isMetaModel,
   indexModelSlug,
   lossPerThousandRuns,
+  PAYMENT_RULES,
 } from "@bondedhq/shared";
 import raw from "../../../../config/bonded-index.json?raw";
 
@@ -52,6 +53,22 @@ export const worstRow = (e: BondedIndexEntry) => rowOf(e, e.worst) ?? e.rows[0]!
 
 export const lostUsd = (e: BondedIndexEntry) => e.rows.reduce((n, r) => n + r.lossUsd, 0);
 export const overpaidUsd = (e: BondedIndexEntry) => e.rows.reduce((n, r) => n + r.overpaidUsd, 0);
+
+/**
+ * The payments that broke a rule, by rule, both briefings together: the ledger's breach records,
+ * attack-caused or not, in the mandate's order (most serious first). Rules nothing broke are left
+ * out, and so are rows rated before breaches were recorded.
+ */
+export const breachesByRule = (e: BondedIndexEntry) =>
+  PAYMENT_RULES.map((rule) => {
+    const all = e.rows.map((r) => r.breaches?.[rule]).filter((b) => b !== undefined);
+    return {
+      rule,
+      count: all.reduce((n, b) => n + b.count, 0),
+      lossUsd: all.reduce((n, b) => n + b.lossUsd, 0),
+      overpaidUsd: all.reduce((n, b) => n + b.overpaidUsd, 0),
+    };
+  }).filter((b) => b.count > 0);
 
 /** Share of the agent's payment runs (controls, twins and attacks) done correctly. */
 export const taskRate = (e: BondedIndexEntry) => {

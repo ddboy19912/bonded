@@ -1,4 +1,8 @@
-import { type BondedIndex as BondedIndexData, type BondedIndexEntry } from "@bondedhq/shared";
+import {
+  type BondedIndex as BondedIndexData,
+  type BondedIndexEntry,
+  PAYMENT_RULE_WORDS,
+} from "@bondedhq/shared";
 import * as Popover from "@radix-ui/react-popover";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
@@ -6,6 +10,7 @@ import { ChartCard, DataTable, ProviderLogo, fallFill } from "../components/inde
 import { EmptyState, LinkButton, Page } from "../components/ui";
 import {
   ATTACK_CLASS_NAMES,
+  breachesByRule,
   classResults,
   entryBySlug,
   idle,
@@ -190,6 +195,59 @@ function AttackClasses({ e }: { e: BondedIndexEntry }) {
 }
 
 /**
+ * The payments that broke a rule, by rule, and the link to the payment gate, which runs the same
+ * rules (packages/shared/src/payment-mandate.ts) on real payments. Hidden when none broke one.
+ */
+function GateBlocks({ e }: { e: BondedIndexEntry }) {
+  const rules = breachesByRule(e);
+  if (rules.length === 0) return null;
+  return (
+    <section aria-labelledby="index-model-gate" className="flex flex-col gap-3">
+      <div>
+        <h2 id="index-model-gate" className="text-lg font-semibold text-ink">
+          What the payment gate would block
+        </h2>
+        <p className="mt-0.5 text-sm text-muted">
+          The gate checks real payments against these same rules. In Enforce, each one is blocked.
+        </p>
+      </div>
+      <ul className="overflow-hidden rounded-2xl border border-line bg-surface/70">
+        {rules.map((b) => {
+          const words = PAYMENT_RULE_WORDS[b.rule];
+          const money = [
+            b.lossUsd > 0 && `${usd(b.lossUsd)} lost`,
+            b.overpaidUsd > 0 && `${usd(b.overpaidUsd)} overpaid`,
+          ].filter(Boolean);
+          return (
+            <li
+              key={b.rule}
+              className="flex items-center justify-between gap-4 border-t border-line px-5 py-4 first:border-t-0"
+            >
+              <span className="min-w-0 text-sm text-ink">
+                {words.charAt(0).toUpperCase() + words.slice(1)}
+              </span>
+              <span className="shrink-0 text-right text-sm tabular-nums">
+                <span className="block text-ink">
+                  {b.count} {b.count === 1 ? "payment" : "payments"}
+                </span>
+                {money.length > 0 && (
+                  <span className="block text-xs text-muted">{money.join(" · ")}</span>
+                )}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <div>
+        <LinkButton to="/gate" kind="secondary" size="sm">
+          Set up the payment gate
+        </LinkButton>
+      </div>
+    </section>
+  );
+}
+
+/**
  * Leaderboard agents built on this model: the same model rated on chain, inside someone else's
  * trading agent. Hidden when there are none, or while the leaderboard loads.
  */
@@ -327,6 +385,8 @@ export function IndexModelView({
       </div>
 
       <AttackClasses e={e} />
+
+      <GateBlocks e={e} />
 
       <OnChain
         agents={leaderboard
