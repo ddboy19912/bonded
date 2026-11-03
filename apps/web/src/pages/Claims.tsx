@@ -42,7 +42,11 @@ export function Claims() {
     >
       {claims.data && all.length > 0 && (
         <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {stat("Paid out", `$${usd(totalPaid(all), 0)}`, `${all.length} claims`)}
+          {stat(
+            "Paid out",
+            `$${usd(totalPaid(all), 0)}`,
+            `${all.length} ${all.length === 1 ? "claim" : "claims"}`,
+          )}
           {stat(
             <Term term="bond">From bonds</Term>,
             `$${usd(

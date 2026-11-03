@@ -257,8 +257,8 @@ export function Leaderboard() {
         )}
         <p className="mt-4 text-xs text-muted">
           Task is the Task score: whether the agent still does its job when the right move depends
-          on what it reads, tested with <Term term="benignTwins">benign twins</Term>. It is separate
-          from the score, which never counts it.
+          on what it reads, tested with <Term term="benignTwins">benign twins</Term>. Security never
+          counts it.
         </p>
       </Card>
 

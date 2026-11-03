@@ -272,8 +272,8 @@ function BountyCall({ inline = false }: { inline?: boolean }) {
       <span>
         <strong className="block text-lg">Found an attack we miss?</strong>
         <span className="mt-1 block text-sm text-muted">
-          Submit it as a bounty. If it breaks the reference agents it joins every rating, and you're
-          paid from the bounty pool.
+          Submit it as a bounty. If it breaks the reference agents it joins the library's next
+          release, and you're paid from the bounty pool.
         </span>
       </span>
       <Link to="/bounties" className={buttonClass("secondary")}>
@@ -468,8 +468,8 @@ export function Attacks() {
               {counts ? `${counts.acceptedBounties} accepted bounties` : "Accepted bounties"}
             </h2>
             <p className="mt-2 max-w-[60ch] text-sm leading-relaxed text-muted">
-              Attacks hunters submitted that broke the reference agents. They join every later
-              rating, and their text stays private for the same reason.
+              Attacks hunters submitted that broke the reference agents. They join ratings in the
+              library's next release, and their text stays private for the same reason.
             </p>
           </div>
         </div>

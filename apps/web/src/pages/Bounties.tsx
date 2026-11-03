@@ -568,7 +568,7 @@ export function Bounties() {
     <Page
       eyebrow="For attack researchers"
       title="Bounties"
-      intro="Find an attack our library misses and get paid. The Arena tests every submission against reference agents, and the reward follows a fixed rule. Accepted attacks join the library, and every agent Bonded runs is re-rated against them (agents their operators run never see bounty attacks)."
+      intro="Find an attack our library misses and get paid. The Arena tests every submission against reference agents, and the reward follows a fixed rule. Accepted attacks join the library in its next release, when every agent Bonded runs is re-rated (agents their operators run never see bounty attacks)."
     >
       <div className="-mt-1">
         <GuideButton />

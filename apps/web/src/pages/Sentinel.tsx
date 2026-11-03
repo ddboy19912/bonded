@@ -61,11 +61,12 @@ export function Sentinel() {
           {
             label: "Status",
             value: s ? (
-              <span
-                className={s.available ? "text-safe" : s.configured ? "text-breach" : "text-muted"}
-              >
-                {s.available ? "Running" : s.configured ? "Not answering" : "Off"}
+              <span className={s.available ? "text-safe" : "text-muted"}>
+                {/* It sleeps when idle and wakes in about 15 s (.railway/railway.ts). */}
+                {s.available ? "Running" : s.configured ? "Waking up" : "Off"}
               </span>
+            ) : status.isError ? (
+              "—"
             ) : (
               <StatLoading />
             ),
@@ -82,7 +83,7 @@ export function Sentinel() {
           },
           {
             label: "Checks today",
-            value: s ? s.last24h.checks.toLocaleString() : <StatLoading />,
+            value: s ? s.last24h.checks.toLocaleString() : status.isError ? "—" : <StatLoading />,
             ...(s ? { hint: `${s.last24h.blocked.toLocaleString()} blocked, last 24 hours` } : {}),
           },
         ]}
