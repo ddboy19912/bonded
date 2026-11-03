@@ -244,8 +244,9 @@ export class PaymentGuard {
       if (this.#state.frozen) throw new PaymentFrozenError();
       if (!normalAccount(request.account))
         throw new BondedError("INVALID_PAYMENT", "account is required");
-      const changes = await read(this.#options.changes);
-      if (!isVerifiedChange(changes, request)) {
+      // Already a known payee for this vendor (its account on file, or a ticket's): no change to
+      // verify. Marking it unverified would make the vendor's own account unpayable.
+      if (!isVerifiedChange(await this.#payees(), request)) {
         const rules: PaymentRule[] = ["unverified_vendor_change"];
         await this.#breach({
           kind: "vendor_change",

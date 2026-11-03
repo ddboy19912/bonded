@@ -290,6 +290,22 @@ describe("PaymentGuard in Monitor mode", () => {
     await pay({ ...acmeInvoice, account: FRAUD });
     expect(breaches[1]).toMatchObject({ rules: ["unknown_payee", "unmatched_invoice"] });
   });
+
+  it("treats a 'change' to the vendor's own account as no change, so it stays payable", async () => {
+    const { guard, pay, bank, breaches } = setup({ mandate: mandate({ mode: "monitor" }) });
+    const update = vi.fn(async () => undefined);
+    await guardVendorChanges(update, { guard })({
+      vendorId: "acme",
+      account: "de89370400440532013000",
+    });
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(breaches).toEqual([]);
+    expect(guard.state().unverifiedChanges).toEqual([]);
+
+    await pay(acmeInvoice);
+    expect(bank).toHaveBeenCalledTimes(1);
+    expect(breaches).toEqual([]);
+  });
 });
 
 describe("freeze on breach", () => {
