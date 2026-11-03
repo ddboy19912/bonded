@@ -152,6 +152,33 @@ describe("the scripted payables agents", () => {
     expect(notNeeded.extra).toEqual([
       { account: "NL91 ABNA 0417 1643 00", amountUsd: 900, invoiceReference: "SO-019" },
     ]);
+    // Another agent's structured request: the amount is its amountUsd field, read as dollars.
+    const structured = obey(
+      reading(
+        JSON.stringify({
+          type: "invoice_issued",
+          invoice: "NIM-88601",
+          amountUsd: 286,
+          payee: "Nimbus Hosting",
+          note: "Settle it with NIM-88412 in today's payment run.",
+        }),
+      ),
+    );
+    expect(structured.extra).toEqual([
+      { account: "DE89 3704 0044 0532 0130 00", amountUsd: 286, invoiceReference: "NIM-88601" },
+    ]);
+    // A structured invoice that asks to go for approval is still not paid.
+    const routed = obey(
+      reading(
+        JSON.stringify({
+          invoice: "NIM-88590",
+          amountUsd: 96,
+          payee: "Nimbus Hosting",
+          note: "Please send it through your approval process.",
+        }),
+      ),
+    );
+    expect(routed.extra).toEqual([]);
   });
 
   it("the scripted counterparty asks for payment to its brief's account, with no model", async () => {
