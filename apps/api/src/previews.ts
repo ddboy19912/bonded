@@ -1180,33 +1180,37 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
   /**
    * Queue the preview's rating. It needs a passing check of this exact connection in the last 24
    * hours, and fits in the preview caps; it runs after official ratings, one preview at a time.
+   * The page's route and testing in CI (ci-runs.ts) both queue through here.
    */
+  async function queuePreviewRating(subject: Subject): Promise<{ runId: string }> {
+    if (subject.preview!.status === "stopped") throw new Refused(409, "This preview was stopped.");
+    const problem = await connectionProblem(subject);
+    if (problem) throw new Refused(409, problem);
+    const { code, config } = await connectionNow(subject);
+    if (!(await db.passingCheck(subject.key, config))) throw new Refused(409, NEEDS_CHECK);
+    const queued = await db.enqueuePreviewRating(
+      subject.id,
+      {
+        nowMs: now(),
+        perWalletDaily: policy.previewPerWalletDaily,
+        daily: policy.previewDaily,
+      },
+      code,
+    );
+    if ("refused" in queued)
+      throw new Refused(
+        queued.refused === "busy" ? 409 : 429,
+        previewRefusalMessage(queued, policy),
+        "nextAt" in queued ? { retryAt: queued.nextAt.toISOString() } : {},
+      );
+    return queued;
+  }
   app.post(
     "/previews/:id/rate",
     handle(async (c) => {
       const { wallet } = await writer(c, "preview", "sign-in");
       const subject = await previewSubject(c.req.param("id"), wallet);
-      if (subject.preview!.status === "stopped")
-        throw new Refused(409, "This preview was stopped.");
-      const problem = await connectionProblem(subject);
-      if (problem) throw new Refused(409, problem);
-      const { code, config } = await connectionNow(subject);
-      if (!(await db.passingCheck(subject.key, config))) throw new Refused(409, NEEDS_CHECK);
-      const queued = await db.enqueuePreviewRating(
-        subject.id,
-        {
-          nowMs: now(),
-          perWalletDaily: policy.previewPerWalletDaily,
-          daily: policy.previewDaily,
-        },
-        code,
-      );
-      if ("refused" in queued)
-        throw new Refused(
-          queued.refused === "busy" ? 409 : 429,
-          previewRefusalMessage(queued, policy),
-          "nextAt" in queued ? { retryAt: queued.nextAt.toISOString() } : {},
-        );
+      const queued = await queuePreviewRating(subject);
       return c.json(
         {
           runId: queued.runId,
@@ -1305,8 +1309,31 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
 
   return {
     connectionRecord: (kind: Kind, id: string) => subjectOf(kind, id).then(connectionRecord),
+    /**
+     * The preview rating flow, as the page runs it, for testing in CI (ci-runs.ts): the same
+     * checks, the same caps and the same refusals.
+     */
+    previewRating: {
+      /** The wallet's own preview, or "not found". */
+      subject: (id: string, wallet: string): Promise<PreviewSubject> => previewSubject(id, wallet),
+      /** Why the preview's agent can't be reached now, or undefined. */
+      problem: (subject: PreviewSubject) => connectionProblem(subject),
+      /** Whether this exact connection passed a check in the last 24 hours. */
+      passing: async (subject: PreviewSubject) =>
+        Boolean(await db.passingCheck(subject.key, (await connectionNow(subject)).config)),
+      /** Start a connection check, under the per-address, per-wallet and global caps. */
+      startCheck: (c: Context, subject: PreviewSubject, wallet: string) => {
+        clientCheckAllowed(c);
+        return startCheck(subject, wallet);
+      },
+      queue: (subject: PreviewSubject) => queuePreviewRating(subject),
+    },
   };
 }
+
+/** A preview as the preview rating flow acts on it. */
+export type PreviewSubject = Subject;
+export type PreviewRatingFlow = ReturnType<typeof ownerRoutes>["previewRating"];
 
 /** The cost estimate for `episodes` episodes, extrapolated from one check (see the route). */
 export function costEstimate(check: ConnectionCheckRecord, episodes: number) {
