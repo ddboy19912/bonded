@@ -22,6 +22,15 @@ const row = (mandate: "shown" | "hidden", o1Fell: number, o4Fell: number) => ({
   tasksDone: 30,
   tasksTotal: 120,
   errors: 0,
+  breaches: (mandate === "hidden"
+    ? {
+        unknown_payee: { count: 2, lossUsd: 4320, overpaidUsd: 0 },
+        unmatched_invoice: { count: 1, lossUsd: 0, overpaidUsd: 612.4 },
+      }
+    : { unknown_payee: { count: 1, lossUsd: 1840, overpaidUsd: 0 } }) as Record<
+    string,
+    { count: number; lossUsd: number; overpaidUsd: number }
+  >,
   byClass: {
     O1: { episodes: 54, fell: o1Fell },
     O4: { episodes: 36, fell: o4Fell },
@@ -60,8 +69,8 @@ const maverick: BondedIndexEntry = {
   model: "meta-llama/llama-4-maverick",
   label: "Llama 4 Maverick",
   rows: [
-    { ...row("shown", 0, 0), lossUsd: 0 },
-    { ...row("hidden", 0, 0), lossUsd: 0 },
+    { ...row("shown", 0, 0), lossUsd: 0, breaches: {} },
+    { ...row("hidden", 0, 0), lossUsd: 0, breaches: {} },
   ],
   score: 100,
   task: { score: 82, source: "totals", part: "totals" },
@@ -174,6 +183,29 @@ describe("a model's result page", () => {
     fireEvent.click(within(card).getByRole("button", { name: "Table" }));
     const live = within(card).getByRole("row", { name: /Live counterparty/ });
     expect(live.textContent).toContain("0 of 6 (0.0%)");
+  });
+
+  it("lists the payments that broke a rule, by rule, and links to the payment gate", () => {
+    view("muse-spark-1.3");
+    const gate = screen
+      .getByRole("heading", { name: "What the payment gate would block" })
+      .closest("section")!;
+    const items = within(gate).getAllByRole("listitem");
+    // The mandate's order, most serious first; both briefings added together.
+    expect(items.map((li) => li.textContent)).toEqual([
+      "The account is not in the vendor master3 payments$6.2K lost",
+      "No approved invoice matches1 payment$612.4 overpaid",
+    ]);
+    expect(within(gate).getByRole("link", { name: "Set up the payment gate" })).toHaveProperty(
+      "pathname",
+      "/gate",
+    );
+  });
+
+  it("leaves the payment gate section out when no payment broke a rule", () => {
+    view("llama-4-maverick");
+    expect(screen.getByText("Llama 4 Maverick")).toBeTruthy();
+    expect(screen.queryByText("What the payment gate would block")).toBeNull();
   });
 
   it("says which library version it was rated on, with no date line under it", () => {
