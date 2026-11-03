@@ -138,6 +138,10 @@ export default defineRailway(() => {
       ...shared,
       ROLE: "keeper",
       KEEPER_KEY: preserve(),
+      // Posts the payment gate's daily log roots to GateAnchor (gateAnchor in the deployment
+      // file; apps/api/GATE.md). Its own key, not KEEPER_KEY, so the two never race for a nonce;
+      // GateAnchor's owner allows its address with setPoster. Set by the founder in Railway.
+      GATE_ANCHOR_KEY: preserve(),
       TELEGRAM_BOT_TOKEN: preserve(),
       TELEGRAM_CHAT_ID: preserve(),
     },
