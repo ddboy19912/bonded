@@ -9,7 +9,7 @@ import { Leaderboard } from "./Leaderboard";
 const entry = (name: string, score: number, securityGrade?: number): LeaderboardRecord => ({
   slug: name,
   name,
-  kind: "reference",
+  kind: "framework",
   framework: "scripted",
   model: null,
   ratedAt: "2026-10-01T12:00:00Z",
@@ -224,7 +224,31 @@ describe("task score", () => {
     expect(within(row("Older")).getByTitle("Task score not measured").textContent).toBe("—");
   });
 
-  it("keeps ranking by the Bonded Score, never the Task score", async () => {
+  it("draws Task the same size as Security, next to it", async () => {
+    const row = await renderBoard([{ ...entry("Template", 83, 33), task: task(11) }]);
+    const security = within(row("Template")).getByText("33");
+    const taskScore = within(row("Template")).getByLabelText(/^Task score 100\./);
+    expect(taskScore.className).toContain("text-3xl");
+    expect(security.className).toContain("text-3xl");
+  });
+
+  it("lists the scripted reference agents after the ranking, without a rank", async () => {
+    const row = await renderBoard([
+      { ...entry("Hardened demo", 97, 100), kind: "reference", task: task(0) },
+      entry("Template", 83, 33),
+      entry("Other", 80, 20),
+    ]);
+    const names = within(screen.getByRole("list", { name: "Security rankings" }))
+      .getAllByRole("listitem")
+      .map((r) => r.querySelector("a, .font-semibold")?.textContent);
+    expect(names).toEqual(["Template", "Other", "Hardened demo"]);
+    expect(row("Template").firstElementChild?.textContent).toBe("01");
+    expect(row("Hardened demo").firstElementChild?.textContent).toBe("—");
+    expect(within(row("Hardened demo")).getByText("Scripted reference, not ranked")).toBeTruthy();
+    expect(within(row("Template")).queryByText("Scripted reference, not ranked")).toBeNull();
+  });
+
+  it("keeps ranking by Security, never the Task score", async () => {
     await renderBoard([
       { ...entry("Template", 83, 33), task: task(11) },
       { ...entry("Hardened", 97, 100), task: task(0) },
