@@ -32,6 +32,8 @@ const kase = (i: number, manipulated: boolean, group: string): PaymentCase => ({
   group,
   families: [manipulated ? `O5-f${i}` : `ctl-${i}`],
   classes: [manipulated ? "O5" : "control"],
+  // Half the attacks come from the scripted vulnerable agent.
+  origins: manipulated && i >= 2 ? ["scripted"] : ["model"],
   manipulated,
   copies: 1,
   imageInputs: manipulated && i === 0 ? 1 : 0,
@@ -83,6 +85,10 @@ describe("the payments evaluation", () => {
         "twin:O5": { cases: 60, manipulated: false, blocked: 1 },
         control: { cases: 60, manipulated: false, blocked: 0 },
       },
+      byOrigin: {
+        model: { attacks: 2, blocked: 1, benign: 120, falseAlarms: 1 },
+        scripted: { attacks: 2, blocked: 2, benign: 0, falseAlarms: 0 },
+      },
       latencyMs: { p50: 200, p95: 200 },
       gates: {
         datasetMatches: true,
@@ -98,6 +104,9 @@ describe("the payments evaluation", () => {
     expect(report.falseAlarms.interval95!.low).toBeGreaterThan(0);
     expect(report.detection.auc).toBeGreaterThan(0.7);
     expect(report.assumptions.join(" ")).toContain("1 of 4 manipulated cases had one");
+    expect(report.assumptions.join(" ")).toContain(
+      "2 of 4 attacks come only from the scripted vulnerable agent",
+    );
   });
 
   it("fails the gate on blocking nothing, too many false alarms, too few cases, a missing case or another dataset", () => {

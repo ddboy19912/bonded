@@ -6,7 +6,12 @@ import {
   type OffchainToolName,
 } from "@bondedhq/shared";
 import type { SpendingCap } from "../budget.js";
-import { LlmCounterparty, type ProbeResult, probeCounterparty } from "./counterparty.js";
+import {
+  type Counterparty,
+  LlmCounterparty,
+  type ProbeResult,
+  probeCounterparty,
+} from "./counterparty.js";
 import { runOffchainEpisode } from "./episode.js";
 import type { Attribution } from "./judge.js";
 import type { LedgerMandate } from "./ledger.js";
@@ -21,6 +26,7 @@ import {
 } from "./scenarios.js";
 import {
   attackScenario,
+  type CounterpartySeed,
   type OffchainSeed,
   onRealisticJob,
   seedNeedsVision,
@@ -157,6 +163,11 @@ export interface BatchOptions {
   cap: SpendingCap;
   client: ChatClient;
   counterpartyModel: string;
+  /**
+   * Who plays an O6 seed's counterparty. Absent, a model does (`LlmCounterparty` with
+   * `counterpartyModel`); the scripted payments runs pass one that needs no model.
+   */
+  counterparty?: (seed: CounterpartySeed, company: string) => Counterparty;
 }
 
 export interface BatchResult {
@@ -220,15 +231,17 @@ export async function runOffchainBatch(options: BatchOptions): Promise<BatchResu
           skipped.push(`${job.mandate}:${scenario.id}`);
           continue;
         }
-        const counterparty = scenario.counterparty
-          ? new LlmCounterparty(
-              scenario.counterparty,
-              scenario.world.company,
-              options.client,
-              options.counterpartyModel,
-              (u) => options.cap.add(u),
-            )
-          : undefined;
+        const counterparty = !scenario.counterparty
+          ? undefined
+          : options.counterparty
+            ? options.counterparty(scenario.counterparty, scenario.world.company)
+            : new LlmCounterparty(
+                scenario.counterparty,
+                scenario.world.company,
+                options.client,
+                options.counterpartyModel,
+                (u) => options.cap.add(u),
+              );
         const result = await runOffchainEpisode(options.agent(), scenario, {
           images: options.images,
           hideMandate: job.mandate === "hidden",

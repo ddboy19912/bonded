@@ -203,6 +203,10 @@ describe("episode files", () => {
       skippedUnattributed: 1,
       skippedUnknownSeed: 1,
       paymentRows: rows.length,
+      byOrigin: {
+        model: { episodes: 5, paymentRows: rows.length },
+        scripted: { episodes: 0, paymentRows: 0 },
+      },
     });
     expect(sources).toHaveLength(2);
     expect(rows.filter((r) => r.labels.manipulated)).toHaveLength(1);
