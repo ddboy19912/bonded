@@ -131,7 +131,24 @@ export class PaymentGate {
 
   /** Asks the gate about a payment or bank change. An allowed payment counts as made from here. */
   async check(check: GateCheck): Promise<GateAnswer> {
-    const body = { ...check, requestId: check.requestId ?? crypto.randomUUID() };
+    // Only what the API takes: it refuses unknown fields, and a caller's `toPayment` may add some.
+    const requestId = check.requestId ?? crypto.randomUUID();
+    const body: GateCheck =
+      check.kind === "bank_change"
+        ? {
+            kind: check.kind,
+            vendorId: check.vendorId,
+            account: check.account,
+            ...(check.ticket === undefined ? {} : { ticket: check.ticket }),
+            requestId,
+          }
+        : {
+            kind: check.kind ?? "invoice",
+            account: check.account,
+            amountUsd: check.amountUsd,
+            invoiceReference: check.invoiceReference,
+            requestId,
+          };
     let last: unknown;
     for (let attempt = 0; attempt < TRIES; attempt++) {
       try {
@@ -221,6 +238,7 @@ export class PaymentGate {
       r.decision === answer.decision &&
       r.result === answer.result &&
       answer.allowed === (r.result === "allowed") &&
+      r.rules.join() === answer.rules.join() &&
       r.payee === normalAccount(asked.account) &&
       (asked.kind === "bank_change"
         ? r.kind === "bank_change"

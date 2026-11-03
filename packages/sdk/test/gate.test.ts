@@ -279,6 +279,29 @@ describe("the hosted payment gate", () => {
     expect(update).toHaveBeenCalledOnce();
   });
 
+  it("sends only what the API takes, whatever toPayment returns", async () => {
+    const server = api((asked) => answer(asked).then(json));
+    const pay = guardPayments(() => "paid", {
+      guard: gateOn(server),
+      toPayment: () => ({ ...PAYMENT, memo: "for the API to refuse" }),
+    });
+    await pay(undefined);
+    expect(Object.keys(server.asked[0]!).sort()).toEqual([
+      "account",
+      "amountUsd",
+      "invoiceReference",
+      "kind",
+      "requestId",
+    ]);
+  });
+
+  it("won't report rules its receipt doesn't name", async () => {
+    const server = api(async (asked) =>
+      json({ ...(await answer(asked, { rules: ["unknown_payee"] })), rules: ["over_daily_cap"] }),
+    );
+    await expect(gateOn(server).pay(PAYMENT, vi.fn())).rejects.toBeInstanceOf(PaymentGateError);
+  });
+
   it("keeps a caller's request id, so a retry gets the first decision back", async () => {
     const server = api((asked) => answer(asked).then(json));
     const pay = guardPayments(() => "paid", { guard: gateOn(server) });
