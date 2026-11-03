@@ -1050,7 +1050,7 @@ export function NewAgent() {
                   >
                     {onModule
                       ? "Breaches are blocked (and recorded). The only mode a smart account's module can hold cover in."
-                      : "Breaches are blocked (and recorded). Scores higher, but there's nothing to claim."}
+                      : "Breaches are blocked (and recorded). Raises the insurance score, but there's nothing to claim."}
                   </Choice>
                 </div>
               </fieldset>

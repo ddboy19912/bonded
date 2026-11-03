@@ -22,7 +22,7 @@ export const GLOSSARY = {
   monitor:
     "Monitor mode: actions that break the mandate go through and are recorded, so the loss can be claimed.",
   enforce:
-    "Enforce mode: actions that break the mandate are blocked (and recorded). Scores higher, but there's nothing to claim.",
+    "Enforce mode: actions that break the mandate are blocked (and recorded). Raises the insurance score, but there's nothing to claim.",
   attestation: "A score signed by Bonded's attester and posted to BondedRegistry on chain.",
   reportHash:
     "A fingerprint of the full Arena report. Anyone can download the report and check it matches.",

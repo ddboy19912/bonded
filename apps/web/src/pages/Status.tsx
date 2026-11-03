@@ -29,7 +29,11 @@ export function laneText(lane: LaneStatus): string {
     : "";
   const waiting = lane.queued ? `; ${lane.queued} waiting` : "";
   const stuck = stale ? ` · ${stale === 1 ? "a job looks stuck" : `${stale} jobs look stuck`}` : "";
-  return `${laneHealthy(lane) ? "Running" : "Slow"}, last finished ${jobAge(lane.lastJobAgeSeconds)}${running}${waiting}${stuck}`;
+  const last =
+    lane.lastJobAgeSeconds === null
+      ? "no jobs yet"
+      : `last finished ${jobAge(lane.lastJobAgeSeconds)}`;
+  return `${laneHealthy(lane) ? "Running" : "Slow"}, ${last}${running}${waiting}${stuck}`;
 }
 
 /** Whether Bonded's services are up: the gateway, the check and rating lanes, the preview queue. */

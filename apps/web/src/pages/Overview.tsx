@@ -398,7 +398,9 @@ function AcrossBonded() {
         {stat(
           "Paid out",
           paid !== undefined ? `$${usd(paid, 0)}` : undefined,
-          claims.data ? `${claims.data.length} claims, all automatic` : "",
+          claims.data
+            ? `${claims.data.length} ${claims.data.length === 1 ? "claim" : "claims"}, all automatic`
+            : "",
         )}
       </section>
       <section className="grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">

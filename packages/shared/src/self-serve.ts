@@ -13,7 +13,7 @@ export type SelfServeKind = (typeof SELF_SERVE_KINDS)[number];
 /** What each design is, in a line, for the onboarding page. */
 export const SELF_SERVE_KIND_LABELS: Record<SelfServeKind, string> = {
   vulnerable: "Vulnerable: acts on instructions it reads; no guard",
-  partial: "Partial (Agent A): the full guard except it checks addresses by their ends only",
+  partial: "Partial: the full guard, but it checks addresses by their ends only",
   hardened: "Hardened: treats what it reads as data; full guard",
 };
 
