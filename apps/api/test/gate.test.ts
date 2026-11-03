@@ -364,6 +364,23 @@ describe("the payment gate: checks", () => {
     // The new account is now the vendor's; the old one is a stranger's.
     expect((await pay(key, NIMBUS_NEW, 90, "NIM-9")).body.result).toBe("allowed");
     expect((await pay(key, NIMBUS, 612.4, "NIM-1")).body.rules).toContain("unknown_payee");
+    const tickets = (await call("GET", `${base}/tickets`, undefined, session)).body.items;
+    expect(tickets[0]).toMatchObject({ id: "FIN-1", usedBy: verified.body.id });
+
+    // Finance verifies a move back to the old account. FIN-1 is used up, so an agent can't then
+    // switch the vendor to NIMBUS_NEW again on the strength of it.
+    await call(
+      "POST",
+      `${base}/tickets`,
+      { id: "FIN-2", vendorId: "nimbus", account: NIMBUS, verifiedBy: "called the number on file" },
+      session,
+    );
+    expect(
+      (await check(key, { kind: "bank_change", vendorId: "nimbus", account: NIMBUS })).body,
+    ).toMatchObject({ decision: "pass" });
+    expect(
+      (await check(key, { kind: "bank_change", vendorId: "nimbus", account: NIMBUS_NEW })).body,
+    ).toMatchObject({ rules: ["unverified_vendor_change"], result: "blocked" });
   });
 
   it("checks refunds against the approved queue", async () => {

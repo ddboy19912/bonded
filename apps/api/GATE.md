@@ -36,7 +36,7 @@ Owner (wallet session):
 | `GET`, `POST /gate/accounts/:id/vendors`, `PUT`, `DELETE .../vendors/:vendorId` | The vendor master: `{ id, name, account }`, each vendor's verified account |
 | `GET`, `POST /gate/accounts/:id/invoices`, `DELETE .../invoices/:itemId` | Approved invoices: `{ vendorId, reference, amountUsd }` |
 | `GET`, `POST /gate/accounts/:id/refunds`, `DELETE .../refunds/:itemId` | Approved refunds: `{ reference, account, amountUsd, name?, reason? }` |
-| `GET`, `POST /gate/accounts/:id/tickets`, `DELETE .../tickets/:itemId` | Verified bank-change tickets: `{ id, vendorId, account, verifiedBy }` |
+| `GET`, `POST /gate/accounts/:id/tickets`, `DELETE .../tickets/:itemId` | Verified bank-change tickets: `{ id, vendorId, account, verifiedBy }`; `GET` also shows `usedBy`, the decision that applied it |
 | `GET`, `POST /gate/accounts/:id/payments` | Payments made; `POST` imports one made before the gate (`{ kind?, account, amountUsd, reference, day }`) so the duplicate and daily rules count it |
 | `GET /gate/accounts/:id/decisions`, `.../decisions/:decisionId` | The decision log, as below |
 | `GET /gate/accounts/:id/usage?days=30` | The meter: checks per UTC day |
@@ -75,7 +75,8 @@ an earlier decision, so keep it from the first answer) and `receipt`.
 - A payment that goes out is recorded, so later checks see it (duplicates, the day's total).
 - A verified bank change (a ticket covers that vendor and account) becomes the vendor's verified
   account and a new mandate version. An unverified one never does, even when Monitor lets it
-  through.
+  through. A ticket covers one change: once applied it is used up, so an old ticket can't move
+  the vendor back to an account it has since left. Delete a ticket you no longer want applied.
 - Each check of an account runs in one transaction holding the account's row lock, so two
   checks of the same invoice can't both pass and the day's total is always right.
 - The owner is alerted (in-app list, webhook, email, as set in `/self/notifications`) on a block

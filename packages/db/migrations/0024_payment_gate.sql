@@ -93,6 +93,8 @@ CREATE TABLE gate_refunds (
 );
 
 -- Bank-change tickets finance verified out of band: the only way a vendor's account may change.
+-- A ticket covers one change: once applied, `used_by` holds the decision that applied it, so an
+-- old ticket can't switch the vendor back to an account it has since moved away from.
 CREATE TABLE gate_tickets (
   account_id uuid NOT NULL REFERENCES gate_accounts(id),
   id text NOT NULL,
@@ -100,6 +102,7 @@ CREATE TABLE gate_tickets (
   account text NOT NULL,
   account_norm text NOT NULL,
   verified_by text NOT NULL,
+  used_by text,
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (account_id, id)
 );
