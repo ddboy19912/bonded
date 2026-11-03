@@ -21,8 +21,9 @@ import {
 
 /**
  * Setting a gate account up from the rules page (/gate): a new account, its mode and limits, its
- * vendors, approved invoices, verified bank-change tickets and its agents' API keys. Each form calls
- * one owner route (apps/api/GATE.md, "Routes") and refreshes what it changed.
+ * vendors, approved invoices, verified bank-change tickets, its agents' API keys and its link to
+ * Stripe for the card route. Each form calls one owner route (apps/api/GATE.md, "Routes") and
+ * refreshes what it changed.
  */
 
 /** A form's submit: runs it, keeps its error, and says while it's busy. */
@@ -312,7 +313,13 @@ export function AddVendor({ account, session }: { account: GateAccount; session:
   const action = useAction();
   const [name, setName] = useState("");
   const [bank, setBank] = useState("");
+  const [merchant, setMerchant] = useState("");
+  const [networkId, setNetworkId] = useState("");
   const id = vendorId(name);
+  // A card merchant needs both its name and its id, or neither.
+  const merchantOk =
+    (!merchant.trim() && !networkId.trim()) ||
+    (Boolean(merchant.trim()) && /^[A-Za-z0-9._-]{1,64}$/.test(networkId.trim()));
   return (
     <Adder label="Add a vendor">
       {(close) => (
@@ -320,12 +327,15 @@ export function AddVendor({ account, session }: { account: GateAccount; session:
           className="flex flex-col gap-3"
           onSubmit={(e) => {
             e.preventDefault();
-            if (!id || !bank.trim()) return;
+            if (!id || !bank.trim() || !merchantOk) return;
             void action.run(async () => {
               await gateApi.addVendor(session, account.id, {
                 id,
                 name: name.trim(),
                 account: bank.trim(),
+                ...(merchant.trim()
+                  ? { cardMerchant: { name: merchant.trim(), networkId: networkId.trim() } }
+                  : {}),
               });
               await Promise.all([
                 queryClient.invalidateQueries({ queryKey: ["gate-vendors", session, account.id] }),
@@ -333,6 +343,8 @@ export function AddVendor({ account, session }: { account: GateAccount; session:
               ]);
               setName("");
               setBank("");
+              setMerchant("");
+              setNetworkId("");
               close();
             });
           }}
@@ -352,8 +364,28 @@ export function AddVendor({ account, session }: { account: GateAccount; session:
             placeholder="GB29 NWBK 6016 1331 9268 19"
             hint="The account you know is theirs. Payments to any other account break a rule."
           />
+          <Input
+            label="Card merchant (optional)"
+            value={merchant}
+            onChange={setMerchant}
+            placeholder="NIMBUS CLOUD"
+            mono={false}
+            hint="Only for paying this vendor by card: its name on card charges."
+          />
+          <Input
+            label="Card merchant id"
+            value={networkId}
+            onChange={setNetworkId}
+            placeholder="123456789012"
+            hint="The merchant's network id. A charge from any other merchant breaks a rule."
+          />
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" size="sm" loading={action.busy} disabled={!id || !bank.trim()}>
+            <Button
+              type="submit"
+              size="sm"
+              loading={action.busy}
+              disabled={!id || !bank.trim() || !merchantOk}
+            >
               Add vendor
             </Button>
             <Button size="sm" kind="ghost" onClick={close}>
@@ -767,6 +799,170 @@ export function Keys({ account, session }: { account: GateAccount; session: stri
       <div className="mt-3">
         <ErrorText error={action.error} />
       </div>
+    </Card>
+  );
+}
+
+const STRIPE_KEY = /^(rk|sk)_test_[A-Za-z0-9]{10,247}$/;
+const WEBHOOK_SECRET = /^whsec_[A-Za-z0-9+/=_-]{10,200}$/;
+
+/**
+ * The card route: link a Stripe test account and the gate decides every charge on the single-use
+ * cards it issues (apps/api/GATE.md, "The card route"). The key goes straight to the API, which
+ * stores it encrypted; only a hint of it ever comes back.
+ */
+export function Cards({ account, session }: { account: GateAccount; session: string }) {
+  const queryClient = useQueryClient();
+  const link = useQuery({
+    queryKey: ["gate-stripe", session, account.id],
+    queryFn: () => gateApi.stripeLink(session, account.id),
+    retry: false,
+  });
+  const cards = useQuery({
+    queryKey: ["gate-cards", session, account.id],
+    queryFn: () => gateApi.cardIntents(session, account.id),
+    enabled: Boolean(link.data),
+    retry: false,
+    refetchInterval: 10_000,
+  });
+  const action = useAction();
+  const [key, setKey] = useState("");
+  const [cardholder, setCardholder] = useState("");
+  const [authorization, setAuthorization] = useState("");
+  const [events, setEvents] = useState("");
+  const ready =
+    STRIPE_KEY.test(key.trim()) &&
+    /^ich_[A-Za-z0-9]{1,64}$/.test(cardholder.trim()) &&
+    WEBHOOK_SECRET.test(authorization.trim()) &&
+    WEBHOOK_SECRET.test(events.trim());
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: ["gate-stripe", session, account.id] });
+  return (
+    <Card
+      title="Card payments"
+      description="Link Stripe and your agent pays approved invoices with single-use cards. Stripe asks the gate before every charge, so a charge that breaks a rule is declined. Test mode only."
+    >
+      {link.error ? (
+        <Unavailable error={link.error} onRetry={() => void link.refetch()} />
+      ) : link.data === undefined ? (
+        <Loading what="the Stripe link" />
+      ) : link.data ? (
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+            <Badge tone="safe">Linked</Badge>
+            <span className="font-mono text-[0.92em]">{link.data.keyHint}</span>
+            <span className="font-mono text-[0.92em] text-muted">{link.data.cardholderId}</span>
+            <Button
+              size="sm"
+              kind="ghost"
+              disabled={action.busy}
+              onClick={() =>
+                void action.run(async () => {
+                  await gateApi.unlinkStripe(session, account.id);
+                  await refresh();
+                })
+              }
+            >
+              Unlink
+            </Button>
+          </div>
+          {cards.error ? (
+            <Unavailable error={cards.error} onRetry={() => void cards.refetch()} />
+          ) : !cards.data ? (
+            <Loading what="cards" />
+          ) : !cards.data.items.length ? (
+            <p className="text-sm text-muted">
+              No cards yet. Your agent asks for one with POST /payments/intents.
+            </p>
+          ) : (
+            <Table>
+              <thead>
+                <tr>
+                  <th>Invoice</th>
+                  <th>Amount</th>
+                  <th>Card</th>
+                  <th>Status</th>
+                  <th>Issued</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cards.data.items.map((c) => (
+                  <tr key={c.id}>
+                    <td className="font-mono text-[0.92em]">{c.invoiceReference}</td>
+                    <td>{dollars(c.amountUsd)}</td>
+                    <td className="font-mono text-[0.92em]">
+                      {c.card ? `•••• ${c.card.last4}` : "—"}
+                    </td>
+                    <td>
+                      <Badge>{c.status}</Badge>
+                    </td>
+                    <td className="text-muted">{ago(c.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </div>
+      ) : (
+        <form
+          className="flex flex-col gap-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!ready) return;
+            void action.run(async () => {
+              await gateApi.linkStripe(session, account.id, {
+                secretKey: key.trim(),
+                cardholderId: cardholder.trim(),
+                authorizationWebhookSecret: authorization.trim(),
+                eventsWebhookSecret: events.trim(),
+              });
+              await refresh();
+              setKey("");
+              setCardholder("");
+              setAuthorization("");
+              setEvents("");
+            });
+          }}
+        >
+          <Input
+            label="Restricted key"
+            type="password"
+            value={key}
+            onChange={setKey}
+            placeholder="rk_test_..."
+            hint="Test mode. Stored encrypted and never shown again."
+          />
+          <Input
+            label="Cardholder"
+            value={cardholder}
+            onChange={setCardholder}
+            placeholder="ich_..."
+            hint="The Stripe cardholder the cards are issued to."
+          />
+          <Input
+            label="Authorization webhook secret"
+            type="password"
+            value={authorization}
+            onChange={setAuthorization}
+            placeholder="whsec_..."
+            hint="From Stripe's real-time authorizations endpoint."
+          />
+          <Input
+            label="Events webhook secret"
+            type="password"
+            value={events}
+            onChange={setEvents}
+            placeholder="whsec_..."
+            hint="From the webhook endpoint for Issuing events."
+          />
+          <div>
+            <Button type="submit" size="sm" loading={action.busy} disabled={!ready}>
+              Link Stripe
+            </Button>
+          </div>
+        </form>
+      )}
+      <ErrorText error={action.error} />
     </Card>
   );
 }

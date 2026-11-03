@@ -127,7 +127,8 @@ Without a receipt key the service gives no decisions: `POST /payments/check` ans
 
 The rules page in the web app (`/gate`, signed in with the owner's wallet) sets an account up
 and shows it: a new account (its first API key shown once), the mode, limits and freeze, vendors,
-approved invoices, bank-change tickets and API keys, each through the owner routes above. It shows
+approved invoices, bank-change tickets, API keys and the Stripe link for the card route, each
+through the owner routes above. It shows
 the mandate in plain words, every version with its hash, and the decision log. Its Verify button
 runs these checks, and the log root check below, in the browser. Refunds and imported payments are
 API only.
