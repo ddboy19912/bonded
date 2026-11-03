@@ -444,6 +444,11 @@ describe("the payment gate's rules page", () => {
       freezeOnBreach: false,
     });
     expect(await screen.findByText("No single payment over $5,000.")).toBeTruthy();
+    // Shown once: leaving for another new account and coming back doesn't show it again.
+    fireEvent.click(screen.getByRole("button", { name: "New account" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+    expect(await screen.findByText("No single payment over $5,000.")).toBeTruthy();
+    expect(screen.queryByText("bonded_gk_secret")).toBeNull();
   });
 
   it("switches the mode and saves new limits", async () => {
