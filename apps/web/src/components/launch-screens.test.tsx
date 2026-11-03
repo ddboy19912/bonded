@@ -16,6 +16,7 @@ import { ProblemText } from "./problem";
 import { ErrorText } from "./ui";
 import { Status } from "../pages/Status";
 import { Inbox } from "../pages/Inbox";
+import { InboxBell } from "./inbox-bell";
 
 const WALLET = "0x00000000000000000000000000000000000000a1";
 vi.mock("wagmi", () => ({
@@ -321,6 +322,44 @@ describe("status and notifications", () => {
     expect(read).toHaveBeenLastCalledWith("sess", { ids: ["n1"] });
     // No more pages: no button.
     expect(screen.queryByRole("button", { name: "Load more" })).toBeNull();
+  });
+
+  it("drops the bell's count once the page marks them read, and keeps them new for this visit", async () => {
+    signedIn();
+    let read = false;
+    vi.spyOn(byoaApi, "inbox").mockImplementation(async () => ({
+      items: [
+        {
+          id: "41",
+          kind: "low-gas",
+          type: "low_gas",
+          code: "low-gas",
+          message: "The agent key is low on gas.",
+          action: null,
+          createdAt: iso(-60_000),
+          agentId: "12",
+          subject: "46630:12",
+          read,
+        },
+      ],
+      unread: read ? 0 : 1,
+      next: null,
+    }));
+    const mark = vi.spyOn(byoaApi, "markInboxRead").mockImplementation(async () => {
+      read = true;
+      return { marked: 1 };
+    });
+    wrap(
+      <>
+        <InboxBell />
+        <Inbox />
+      </>,
+    );
+    // The bell's label drops to no count without waiting for the next poll.
+    expect(await screen.findByRole("link", { name: "Notifications" })).toBeTruthy();
+    expect(mark).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("New")).toBeTruthy();
+    expect(screen.getByText("1 new")).toBeTruthy();
   });
 
   it("lists the owner's notifications with links to the agent and the fix", async () => {
