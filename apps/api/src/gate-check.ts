@@ -198,7 +198,8 @@ export async function runGateCheck(
     // A verified bank change becomes the vendor's verified account: a new mandate version. An
     // unverified one never does, even when Monitor mode lets it through, so payments to that
     // account still count as an unknown payee.
-    if (request.kind === "bank_change" && decision === "pass")
+    // The ticket is used up: it can't later switch the vendor back to this account.
+    if (request.kind === "bank_change" && decision === "pass") {
       await store.updateVendor(
         account.id,
         request.vendorId,
@@ -206,6 +207,8 @@ export async function runGateCheck(
         `bank_change:${id}`,
         c,
       );
+      await store.useTickets(c, account.id, request.vendorId, accountNorm, id);
+    }
     const froze = decision === "breach" && account.freezeOnBreach;
     if (froze) await store.freeze(c, account.id, id);
     return {

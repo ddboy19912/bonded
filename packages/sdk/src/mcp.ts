@@ -1,12 +1,15 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { DoneRequest } from "@bondedhq/shared";
 import { BondedError } from "./errors.js";
 import { finishEpisode } from "./done.js";
 import { fromBondedEnv } from "./episode.js";
+import { type GuardPaymentsOptions, guardPayments, isPaymentRefusal } from "./payments.js";
 
 export { isBondedEpisode } from "./episode.js";
 export { finishEpisode } from "./done.js";
+export type { GuardPaymentsOptions } from "./payments.js";
 
 /**
  * Where an episode's tools are. A `BondedEpisode` (from `fromBondedEnv`, or the one an Agent URL
@@ -213,4 +216,36 @@ export function mcpConfigJson(
   options: McpConfigOptions = {},
 ): string {
   return `${JSON.stringify(mcpConfig(episode, options), null, 2)}\n`;
+}
+
+/**
+ * Your MCP server's pay tool handler, with every call checked against the payment mandate first
+ * (see `PaymentGuard`). Register the result in its place:
+ *
+ * ```ts
+ * const guard = paymentGuard({ mandate, vendors, invoices, onBreach: alert });
+ * server.registerTool("pay_invoice", config, guardMcpPayHandler(payInvoice, { guard }));
+ * ```
+ *
+ * When the guard refuses (Enforce mode blocked it, the guard is frozen, or it can't read the
+ * payment) your handler is not called and the client gets an error result (`isError: true`)
+ * naming the rules broken, so the model can react. In Monitor mode a breaking payment goes
+ * through and the guard's `onBreach` reports it. The payment is read from the tool's arguments:
+ * `{ account, amountUsd, invoiceReference }` unless you pass `toPayment`. A local check: no
+ * receipts.
+ */
+export function guardMcpPayHandler<I, Rest extends unknown[]>(
+  handler: (args: I, ...rest: Rest) => CallToolResult | Promise<CallToolResult>,
+  options: GuardPaymentsOptions<I>,
+): (args: I, ...rest: Rest) => Promise<CallToolResult> {
+  const guarded = guardPayments(handler, options);
+  return async (args, ...rest) => {
+    try {
+      return await guarded(args, ...rest);
+    } catch (error) {
+      if (isPaymentRefusal(error))
+        return { content: [{ type: "text", text: error.message }], isError: true };
+      throw error;
+    }
+  };
 }
