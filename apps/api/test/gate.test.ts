@@ -626,6 +626,12 @@ describe("the payment gate: the decision log", () => {
       [id],
     );
     expect(payments.rows).toEqual([{ decision_id: null }]);
+    // Each pruned decision clears its payment's decision_id: an index keeps that from scanning
+    // every payment ever made.
+    const indexed = await pg.db.pool.query(
+      "SELECT 1 FROM pg_indexes WHERE tablename='gate_payments' AND indexdef LIKE '%(decision_id)'",
+    );
+    expect(indexed.rowCount).toBe(1);
     // The payment still counts: paying the invoice again is a duplicate.
     expect((await pay(key, NIMBUS, 612.4, "NIM-1")).body.rules).toEqual(["duplicate_payment"]);
     await expect(store.pruneDecisions(cutoff, 0)).rejects.toThrow(RangeError);

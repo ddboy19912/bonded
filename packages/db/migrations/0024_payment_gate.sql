@@ -25,7 +25,8 @@ CREATE INDEX gate_accounts_owner ON gate_accounts(owner, created_at);
 
 -- Every version of each account's mandate (mode, limits, freeze setting and vendor master), kept
 -- so the rules page can show its history and each hash can be checked later.
---   created_by  the owner's wallet, or "ticket:<id>" for a bank change a verified ticket covered
+--   created_by  the owner's wallet, or "bank_change:<decision id>" for a bank change a verified
+--               ticket covered
 CREATE TABLE gate_mandates (
   account_id uuid NOT NULL REFERENCES gate_accounts(id),
   version integer NOT NULL,
@@ -162,6 +163,9 @@ CREATE TABLE gate_payments (
 );
 CREATE INDEX gate_payments_day ON gate_payments(account_id, day);
 CREATE INDEX gate_payments_reference ON gate_payments(account_id, reference_norm);
+-- Pruning a decision clears its payment's decision_id (ON DELETE SET NULL); without this index each
+-- deleted decision would scan every payment ever made.
+CREATE INDEX gate_payments_decision ON gate_payments(decision_id);
 
 -- The meter: checks per account per UTC day. Counts only; no pricing.
 CREATE TABLE gate_usage_daily (

@@ -66,7 +66,8 @@ with a different check is refused (409).
 The answer always has `decision` (`pass`, `breach`, or `frozen`), `result` (`allowed`, `blocked`
 or `refused`), `allowed`, the `rules` broken with their `reasons` in words, `lossUsd` and
 `overpaidUsd` (what left, when a breach went out), the mandate version and hash it was checked
-against, `input` (exactly what the rules were given) and `receipt`.
+against, `input` (exactly what the rules were given; left out when a repeated request id returns
+an earlier decision, so keep it from the first answer) and `receipt`.
 
 - **Enforce** blocks a payment that breaks a rule. **Monitor** lets it through and records it.
 - A **frozen** account (after a breach, with `freezeOnBreach`) is refused before the rules run,
