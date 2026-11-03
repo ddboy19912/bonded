@@ -19,8 +19,8 @@ async function agent(id: number, config: unknown = remote, enabled = true) {
   return `${CHAIN}:${id}`;
 }
 const hello = { runnerVersion: "0.1.0", mode: "tools" };
-/** The migrations' numbers: 0001 to 0024, 0025 (the gate's card route), 0026 (gate transparency) and 0027 (the data APIs). */
-const MIGRATIONS = [...Array.from({ length: 27 }, (_, i) => i + 1)];
+/** The migrations' numbers: 0001 to 0028 (0028 is the gate's payout route). */
+const MIGRATIONS = [...Array.from({ length: 28 }, (_, i) => i + 1)];
 
 beforeAll(async () => {
   pg = await postgres();
@@ -28,7 +28,7 @@ beforeAll(async () => {
 }, 120_000);
 afterAll(() => pg?.stop());
 
-describe("migrations 0014 to 0027", () => {
+describe("migrations 0014 to 0028", () => {
   it("apply once, in order, and again is a no-op", async () => {
     const versions = (
       await db.pool.query("SELECT version FROM schema_migrations ORDER BY version")
@@ -60,7 +60,7 @@ describe("migrations 0014 to 0027", () => {
       )
     ).rows.map((r) => r.column_name);
     expect(rated).toEqual(["charged_owner", "config", "kind"]);
-    // 0024: the payment gate; 0025: its card route (Stripe Issuing).
+    // 0024: the payment gate; 0025: its card route (Stripe Issuing); 0028: its payout route.
     const gate = (
       await db.pool.query(
         "SELECT table_name FROM information_schema.tables WHERE table_name LIKE 'gate\\_%' ORDER BY 1",
@@ -77,6 +77,8 @@ describe("migrations 0014 to 0027", () => {
       "gate_log_roots",
       "gate_mandates",
       "gate_payments",
+      "gate_payout_links",
+      "gate_payouts",
       "gate_refunds",
       "gate_stripe_events",
       "gate_stripe_links",

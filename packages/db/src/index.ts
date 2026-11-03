@@ -5,6 +5,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 export * from "./schema.js";
 export * from "./gate.js";
 export * from "./gate-card.js";
+export * from "./gate-payout.js";
 export * from "./data-api.js";
 export type Connection = pg.PoolClient;
 /** Serialize public payloads without losing integer precision. */
@@ -601,6 +602,7 @@ export class Database {
       "0025_gate_stripe_card.sql",
       "0026_gate_transparency.sql",
       "0027_data_apis.sql",
+      "0028_gate_payout_proxy.sql",
     ];
     await this.transaction(async (c) => {
       await c.query("SELECT pg_advisory_xact_lock(7001)");

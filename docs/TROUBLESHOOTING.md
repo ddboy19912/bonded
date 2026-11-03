@@ -746,6 +746,60 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 **What to do:** Check the API is up and the real-time authorization endpoint's URL and secret are right. Stripe applied the account's timeout setting, which must be decline.
 
+### gate-payout-off
+
+**Message:** The payout route isn't set up on this service.
+
+**What to do:** The operator deploys the payout proxy and sets GATE_PAYOUT_TEE_URL, GATE_PAYOUT_TEE_CODE_HASH and GATE_PAYOUT_TEE_COMPOSE_HASHES on the API (services/payout-proxy/README.md).
+
+### gate-payout-not-linked
+
+**Message:** This gate account has no payout account linked.
+
+**What to do:** The account's owner links its Stripe payout account (a test-mode restricted key and its financial account) in the gate account's settings.
+
+### gate-payout-live-refused
+
+**Message:** Live payout keys are refused: the payment gate takes test-mode keys only for now.
+
+**What to do:** Use a test-mode restricted key (rk_test_...). Live keys stay off until the operator turns them on, on the API and on the payout proxy.
+
+### gate-payout-unavailable
+
+**Message:** Payout linking is off on this service.
+
+**What to do:** The operator sets AGENT_URL_SECRET_KEY on the API, which encrypts the payout events secret it holds.
+
+### gate-payout-proxy-failed
+
+**Message:** The payout proxy failed its attestation. Nothing was paid.
+
+**What to do:** The proxy isn't one this service trusts (a dev OS image, or a deployment or measurement not on the allowlist). The operator checks the deployment against services/payout-proxy/README.md.
+
+### gate-payout-proxy-down
+
+**Message:** The payout proxy can't be reached. Nothing was paid.
+
+**What to do:** Try again later. The gate fails closed: no payout is made while the proxy is down.
+
+### gate-payout-relink
+
+**Message:** The payout proxy's seal key changed: the payout account must be linked again.
+
+**What to do:** The proxy was redeployed with new keys. The account's owner links the payout account again (the old sealed credential can't be opened).
+
+### gate-payout-bypass
+
+**Message:** A payout went out without the payment gate's approval.
+
+**What to do:** Someone used the payout key outside the gate (Stripe's dashboard or another integration). Check the payout in Stripe, cancel it if it is still processing, and roll the key if nobody you trust made it.
+
+### gate-payout-unchecked
+
+**Message:** Stripe reported a payout the payment gate has no record of, and it couldn't be checked yet.
+
+**What to do:** Check that the payout proxy is up (GET /gate/payout-proxy). The gate checks the payout when Stripe retries the event; look at it in Stripe meanwhile.
+
 ### gate-card-bypass
 
 **Message:** A card charge went through without the payment gate's approval.

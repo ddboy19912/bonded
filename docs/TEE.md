@@ -15,6 +15,8 @@ Some steps below need a Phala account. Nothing here puts a secret in the reposit
 
 The service has two routes: `GET /health` and `GET /attestation?nonce=<32 bytes hex>`. It has no route that signs or returns a key.
 
+The payment gate's payout proxy (`services/payout-proxy`) runs the same way, and the gate API checks it with the same verifier before it seals a payout credential to it and before every payout. Its deploy steps (always `--no-dev-os`) are in its README.
+
 ## Try it locally (no hardware)
 
 ```bash

@@ -99,6 +99,11 @@ export const webhookContext = (owner: string) => `webhook:${owner.toLowerCase()}
  */
 export const gateStripeContext = (accountId: string, what: "key" | "authorization" | "events") =>
   `gate-stripe:${accountId}:${what}`;
+/**
+ * Where a gate account's payout events endpoint secret is bound (gate-payout.ts). The payout
+ * credential itself is never in the secret box: it is sealed to the payout proxy in the TEE.
+ */
+export const gatePayoutContext = (accountId: string) => `gate-payout:${accountId}:events`;
 
 /**
  * Checks a signed webhook call's headers: `bonded-timestamp` and `bonded-signature:

@@ -1,0 +1,32 @@
+{
+  "name": "@bonded/payout-proxy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The payment gate's payout proxy for Phala dstack: holds the payout credential inside the TEE and pays out only what a signed gate receipt allows.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src test",
+    "test": "vitest run",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@bondedhq/shared": "workspace:*",
+    "@noble/hashes": "^1.8.0",
+    "@phala/dstack-sdk": "0.5.8",
+    "viem": "^2.56.9",
+    "zod": "^4.6.5"
+  }
+}

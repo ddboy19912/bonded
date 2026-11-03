@@ -1,0 +1,24 @@
+# Deployed to Phala Cloud with `phala deploy ... --no-dev-os` (services/payout-proxy/README.md).
+# dstack hashes this file into the app's compose hash and the hardware measures that hash, so
+# everything the proxy runs with is fixed here: the image by digest, and its settings. The gate API
+# refuses any compose hash that isn't on its allowlist (GATE_PAYOUT_TEE_COMPOSE_HASHES).
+services:
+  proxy:
+    # Replace REPLACE_WITH_DIGEST with the sha256 that `docker push` printed (README, step 2).
+    image: ghcr.io/ddboy19912/bonded-payout-proxy@sha256:REPLACE_WITH_DIGEST
+    environment:
+      # The payment gate's receipt key address (GET /gate/receipt-key on the API).
+      GATE_RECEIPT_ADDRESS: "REPLACE_WITH_RECEIPT_ADDRESS"
+      # Test-mode credentials only. Stays "false" until the founder has legal advice.
+      GATE_ALLOW_LIVE_CREDENTIALS: "false"
+      PAYOUT_LEDGER_PATH: /data/paid.jsonl
+    ports:
+      - "8080:8080"
+    volumes:
+      # dstack's guest agent socket: key derivation and quotes.
+      - /var/run/dstack.sock:/var/run/dstack.sock
+      # Paid decisions, for replay protection across a restart (dstack encrypts the app's disk).
+      - payout-data:/data
+    restart: unless-stopped
+volumes:
+  payout-data:

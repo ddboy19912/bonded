@@ -232,13 +232,134 @@ and change nothing else. Every event id is stored, so a replay changes nothing.
 5. A restricted key with write access to Issuing cards (and read on Issuing authorizations and
    transactions), linked with `PUT /gate/accounts/:id/stripe`.
 
+## The payout route (bank payouts through a TEE)
+
+For bank payouts the agent never holds the payment credential. It asks the gate to pay; the gate
+runs the rules and only an allowed payout is forwarded to the **payout proxy**
+(`services/payout-proxy`), a small service in a Phala confidential VM that is the only place the
+credential can be opened. Code: `src/gate-payout.ts` (routes), `src/payout-tee.ts` (attesting
+and calling the proxy), `packages/db/src/gate-payout.ts` (migration `0028_gate_payout_proxy.sql`),
+`packages/shared/src/gate-payout.ts` (sealing, signed lookups and answers). Tests:
+`test/gate-payout.test.ts` (the API against a real proxy run locally, with a fake Stripe) and
+`services/payout-proxy/test/proxy.test.ts`.
+
+**Provider: Stripe Global Payouts**, the Outbound Payments API: one OutboundPayment from the
+account's financial account to a recipient's payout method (a bank account), which Stripe never
+retries or reroutes ([Send payouts](https://docs.stripe.com/global-payouts/send-money),
+[the API](https://docs.stripe.com/api/v2/money-management/outbound-payments/create)). Sandbox keys
+work with it and Stripe's test bank accounts simulate failed and returned payouts
+([Test payouts](https://docs.stripe.com/global-payouts/testing)). Treasury's v1 OutboundPayments
+does the same but Stripe marks it legacy. The provider sits behind the `PayoutProvider` interface
+in `services/payout-proxy/src/provider.ts`, so others can be added.
+
+A vendor paid by payout has `stripe:<recipient id>:<payout method id>` as its account in the
+vendor master, for example `stripe:acct_1Nv0FGQ9RKHgCVdK:usba_test_61Nyd9...`. The rules compare
+it like any account (no spaces, upper case); the payout goes to the ids as the vendor master
+writes them, since Stripe's ids are case-sensitive. A new bank account means a new payout method
+id, so it is a vendor change the rules catch, and the linked key can't create one.
+
+| Route | Who | What it does |
+|---|---|---|
+| `GET /gate/payout-proxy` | anyone | Attests the proxy now and shows what it proved: `measurement`, `composeHash`, `sealPublicKey`, `production`, and `custody` in words |
+| `PUT /gate/accounts/:id/payout-link` | owner | Link the account's Stripe account: `{ secretKey, financialAccount, eventsWebhookSecret }`, or `{ sealedCredential, eventsWebhookSecret }` (below). Test-mode keys only unless `GATE_ALLOW_LIVE_CREDENTIALS=true`, at the API and again at the proxy |
+| `GET`, `DELETE /gate/accounts/:id/payout-link` | owner | The link (key hint, financial account, the TEE it is sealed to, `custody`), or unlink: the sealed credential is deleted and no payout can go through the gate |
+| `GET /gate/accounts/:id/payouts` | owner | The payouts, newest first (`?limit=`, `?before=<id>`) |
+| `POST /payments/payouts` | agent | `{ account, amountUsd, invoiceReference, kind? ("invoice" or "refund"), requestId? }` (below) |
+| `GET /payments/payouts/:payoutId` | agent | One payout |
+| `POST /stripe/payouts/events/:accountId` | Stripe | The account's payout events (below) |
+
+**Linking.** The API attests the proxy, seals the key to the proxy's seal key (ECDH on P-256,
+HKDF-SHA256, AES-256-GCM, bound to the gate account), asks the proxy to confirm it opens and is
+a test-mode key, and stores only the sealed copy, with the measurement and compose hash it was
+sealed under. The API holds the plain key only for that request and never writes or logs it. An
+owner who wants the API never to see it seals it themselves with `sealPayoutCredential` from
+`@bondedhq/shared`, to the `sealPublicKey` that `GET /gate/payout-proxy` shows, and sends
+`sealedCredential`. The events secret is stored encrypted with `AGENT_URL_SECRET_KEY`.
+
+**Each payout.** `POST /payments/payouts`:
+
+1. Refused (503) unless the receipt key and the proxy are configured, and (409) unless the account
+   has a payout link.
+2. The proxy is attested again, before every payout. If it can't be reached or fails, the answer
+   is 503 and nothing is checked, recorded or paid, in Enforce and Monitor mode alike (only the
+   proxy can pay). A proxy whose seal key changed (redeployed) answers 409: relink.
+3. The hosted check runs (`runGateCheck`, as `POST /payments/check`), and in the same transaction,
+   holding the account's lock, an allowed decision records its payout (`pending`) next to the
+   payment that holds the invoice. A blocked or refused decision pays nothing (200, `paid: false`).
+4. The decision's signed receipt goes to the proxy with the destination and the sealed credential.
+   The proxy checks the receipt's signature against `GATE_RECEIPT_ADDRESS`, that it allows the
+   payment (`result: "allowed"`, an invoice or a refund), that it is under ten minutes old, that
+   the destination is the receipt's payee, and that the decision wasn't paid before. It pays the
+   receipt's amount and reference, with the decision id as Stripe's idempotency key and in the
+   payout's metadata, and signs its answer with its attested key.
+
+The answer is the decision (as `POST /payments/check` gives it) with `paid`, `payout` and
+`payoutMessage`: **201** paid (`processing`); **502** not sent (the proxy or Stripe refused: the
+payout is `not_sent` and the invoice is released, so it can be asked again); **202** unknown (the
+answer was lost after it was sent: the invoice stays held until Stripe reports, and asking again
+with the same `requestId` within nine minutes retries safely, since the proxy and Stripe both
+dedupe the decision). The same `requestId` otherwise returns the first payout unchanged.
+
+**Payout statuses:** `pending`, `not_sent`, `unknown`, then Stripe's `processing`, `posted`,
+`failed`, `returned`, `canceled`. `failed`, `returned`, `canceled` and `not_sent` release the
+invoice (its payment row is deleted), so the duplicate and daily rules no longer count it. A
+final status doesn't move again, and a late `posted` doesn't undo a return.
+
+**Stripe's events.** Each gate account has its own endpoint,
+`https://<api host>/stripe/payouts/events/<gate account id>`, checked against the account's own
+signing secret (`Stripe-Signature`, as the card route). It takes Stripe's thin events
+`v2.money_management.outbound_payment.created`, `.posted`, `.failed`, `.returned` and `.canceled`
+and acts on the type and the payout id. A payout the gate knows moves to that status. A payout it
+doesn't know is looked up through the proxy (a lookup signed with the receipt key): if its
+metadata names one of the account's decisions whose payout has no Stripe id yet, and it pays
+exactly that decision's amount to its payee, it is that payout (its answer was lost); otherwise
+(the metadata is whatever the payout's maker wrote) it is **a payout the gate never approved**: a
+breach decision with a signed receipt (the rules run on what was paid), the payment and the
+payout recorded (`gateApproved: false`), the owner alerted (`payment_breach`, code
+`gate-payout-bypass`) and the account frozen if `freezeOnBreach` is set.
+If the proxy can't be reached for the lookup, the owner is alerted (`gate-payout-unchecked`) and
+the event answers 503 so Stripe sends it again. Every event id is stored; a replay changes nothing.
+
+**What is claimed about the credential.** The API verifies the proxy with the Arena's verifier
+(`apps/arena/src/tee.ts`): an Intel-signed TDX quote with an acceptable TCB status, committing to
+the expected code hash, the proxy's key and a fresh challenge; an event log that replays to the
+quote; an approved production OS image (dev images, which allow SSH, are refused); and a compose
+hash on `GATE_PAYOUT_TEE_COMPOSE_HASHES` (the pinned image digest and compose file). When
+`GATE_PAYOUT_TEE_MEASUREMENTS` is set, the measurement must be on it too, and only then does the
+API say (`production: true`) that Bonded staff can't read the credential. Until a production
+measurement is configured, `custody` says only that the credential is sealed to the proxy and the
+API can't open it, and makes no claim about staff.
+
+**Limits of the guarantee.** The proxy enforces what the receipt says; the rules decide what the
+receipt says. Anyone holding the Stripe key outside the gate (for example in Stripe's dashboard)
+can still pay from the same financial account: the gate reports it as a breach when Stripe's event
+arrives, after the fact. Use a financial account only the gate pays from, and the narrowest key.
+
+**Stripe settings the founder sets** (a sandbox):
+
+1. Global Payouts turned on in the sandbox (Dashboard, Global Payouts, Get started) and its
+   financial account funded with test money (Balances, Add funds, or the Credit a Financial
+   Address test helper). Check Global Payouts is available for the account's country.
+2. A recipient per vendor with a test bank account (routing `110000000`; account `000123456789`
+   succeeds, `000111111112` fails, `000111111113` is returned). The vendor's account in the gate's
+   vendor master is `stripe:<acct id>:<payout method id>`.
+3. A restricted key (`rk_test_...`) with "Money Management Outbound Payments: Write" and "Money
+   Management Financial Accounts: Read", linked with `PUT /gate/accounts/:id/payout-link` with
+   the financial account's id (`fa_...`). If Stripe refuses a call for a missing permission, add
+   only the one it names.
+4. An event destination (Workbench, Webhooks, thin events) at
+   `https://<api host>/stripe/payouts/events/<gate account id>` for the five OutboundPayment events
+   above. Its signing secret goes in the link's `eventsWebhookSecret`.
+
 ## Storage and retention
 
 Tables: `gate_accounts`, `gate_mandates`, `gate_api_keys`, `gate_vendors`, `gate_invoices`,
 `gate_refunds`, `gate_tickets`, `gate_payments`, `gate_decisions`, `gate_usage_daily`,
-`gate_log_roots` (migration 0026), and for the card route `gate_stripe_links`,
+`gate_log_roots` (migration 0026), for the card route `gate_stripe_links`,
 `gate_card_intents`, `gate_card_authorizations`, `gate_card_transactions`,
-`gate_stripe_events` (event ids, kept 30 days). Amounts are whole cents.
+`gate_stripe_events` (event ids, kept 30 days; the payout route's event ids too), and for
+the payout route `gate_payout_links` (the sealed credential, never a plain key) and
+`gate_payouts`. Amounts are whole cents.
 
 The decision log keeps the record only (rules, amounts, payee account, reference, hashes, the
 receipt and the rules' input: the attempt, limits, payee accounts, approved invoices or refunds,
@@ -255,8 +376,13 @@ the duplicate rule reads them. Log roots and what was posted on chain are kept t
 | `STRIPE_WEBHOOK_SECRET` | API | Signing secret (`whsec_...`) of the real-time authorization endpoint |
 | `STRIPE_EVENTS_WEBHOOK_SECRET` | API | Signing secret of the Issuing events endpoint |
 | `STRIPE_API_VERSION` | API | The `Stripe-Version` sent and answered with (default `2026-09-30.endive`) |
-| `GATE_ALLOW_LIVE_CREDENTIALS` | API | `true` accepts live Stripe keys and live charges. Off: test mode only |
-| `AGENT_URL_SECRET_KEY` | API | Also encrypts the linked Stripe keys and secrets; `pnpm secrets:reencrypt` moves them with the rest |
+| `GATE_ALLOW_LIVE_CREDENTIALS` | API | `true` accepts live Stripe keys and live charges. Off: test mode only. The payout proxy has its own setting of the same name |
+| `AGENT_URL_SECRET_KEY` | API | Also encrypts the linked Stripe keys and secrets and the payout links' events secrets; `pnpm secrets:reencrypt` moves them with the rest |
+| `GATE_PAYOUT_TEE_URL` | API | The payout proxy's https URL. Unset: the payout routes answer 503 |
+| `GATE_PAYOUT_TEE_CODE_HASH` | API | The `CODE_HASH` the proxy's image was built with |
+| `GATE_PAYOUT_TEE_COMPOSE_HASHES` | API | Comma-separated compose hashes of the proxy deployments allowed |
+| `GATE_PAYOUT_TEE_MEASUREMENTS` | API | Comma-separated measurements of allowed production deployments. Until set, nothing claims staff can't read the credential |
+| `GATE_PAYOUT_TEE_LOCAL` | API | `true` only for a mock proxy on this machine (no hardware checks, never a TEE) |
 | `GATE_ANCHOR_ADDRESS` | keeper | GateAnchor's address (default: `gateAnchor` in the deployment file, if any). Without it, roots are made and stored, not posted |
 | `GATE_ANCHOR_KEY` | keeper | 32-byte hex key that posts; GateAnchor's owner must allow its address with `setPoster`. Needed to post, and needs gas on that chain |
 | `GATE_ANCHOR_RPC_URL` | keeper | GateAnchor's chain, when it isn't the protocol's (default `RPC_URL`) |

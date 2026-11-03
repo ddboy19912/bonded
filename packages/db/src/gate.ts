@@ -136,7 +136,7 @@ export interface GateTicketRecord {
 export interface GatePaymentRecord {
   id: string;
   decisionId: string | null;
-  source: "check" | "import" | "card";
+  source: "check" | "import" | "card" | "payout";
   kind: "invoice" | "refund";
   payee: string;
   vendorId: string | null;
@@ -876,7 +876,7 @@ export class GateStore {
     accountId: string,
     p: {
       decisionId?: string | null;
-      source: "check" | "import" | "card";
+      source: "check" | "import" | "card" | "payout";
       kind: "invoice" | "refund";
       payee: string;
       payeeNorm: string;
