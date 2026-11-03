@@ -16,6 +16,7 @@ import {
   WorksWith,
   claimSources,
 } from "./LandingSections";
+import { LandingSentinel } from "./LandingSentinel";
 
 afterEach(cleanup);
 const show = (ui: React.ReactElement) => render(<MemoryRouter>{ui}</MemoryRouter>);
@@ -80,6 +81,22 @@ describe("who it is for", () => {
     );
     expect(screen.getByRole("link", { name: /Underwrite the pool/ }).getAttribute("href")).toBe(
       "/underwrite",
+    );
+  });
+});
+
+describe("the guard section", () => {
+  it("points readers who pay invoices to the payment gate", () => {
+    // The flow illustration asks whether motion is reduced; jsdom has no matchMedia.
+    vi.stubGlobal("matchMedia", () => ({
+      matches: true,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    show(<LandingSentinel />);
+    expect(screen.getByText("Paying invoices, not trading?")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Open the payment gate/ }).getAttribute("href")).toBe(
+      "/gate",
     );
   });
 });
