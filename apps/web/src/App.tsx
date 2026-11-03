@@ -132,6 +132,7 @@ function Sidebar() {
           />
           <Item to="/attacks" icon={ICONS.redteam} label="Red team" />
           <Item to="/sentinel" icon={ICONS.sentinel} label="Sentinel" />
+          <Item to="/gate" icon={ICONS.gate} label="Payment gate" />
           <Item to="/vaults" icon={ICONS.vaults} label="Vaults" />
         </Group>
         <Group label="Yours">
@@ -139,7 +140,6 @@ function Sidebar() {
             <>
               <Item to="/agents?mine=1" icon={ICONS.mine} label="Your agents" />
               <Item to="/underwrite?mine=1" icon={ICONS.deposits} label="Your underwriting" />
-              <Item to="/gate" icon={ICONS.gate} label="Payment gate" />
             </>
           ) : (
             <p className="mx-1 rounded-2xl border border-dashed border-line-strong p-3.5 text-[13px] leading-relaxed text-muted">
