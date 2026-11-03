@@ -645,6 +645,8 @@ export class GateStore {
     const run = async (tx: Connection) => {
       if (!c) await this.lockAccount(tx, accountId);
       const merchant = patch.cardMerchant;
+      // The ticket that covers a merchant change, used up once the change is made.
+      let ticketUsed: string | undefined;
       if (merchant) {
         const current = await tx.query(
           "SELECT card_merchant_norm FROM gate_vendors WHERE account_id=$1 AND id=$2",
@@ -656,11 +658,13 @@ export class GateStore {
           const covered = patch.ticket
             ? await tx.query(
                 `SELECT 1 FROM gate_tickets
-                 WHERE account_id=$1 AND id=$2 AND vendor_id=$3 AND account_norm=$4`,
+                 WHERE account_id=$1 AND id=$2 AND vendor_id=$3 AND account_norm=$4
+                   AND used_by IS NULL`,
                 [accountId, patch.ticket, id, merchant.key],
               )
             : undefined;
           if (!covered?.rowCount) return "needs-ticket" as const;
+          ticketUsed = patch.ticket;
         }
       }
       const r = await tx.query(
@@ -684,6 +688,11 @@ export class GateStore {
         ],
       );
       if (!r.rowCount) return undefined;
+      if (ticketUsed)
+        await tx.query(
+          "UPDATE gate_tickets SET used_by=$3 WHERE account_id=$1 AND id=$2 AND used_by IS NULL",
+          [accountId, ticketUsed, by],
+        );
       await this.newVersion(tx, accountId, by);
       return vendor(r.rows[0]);
     };

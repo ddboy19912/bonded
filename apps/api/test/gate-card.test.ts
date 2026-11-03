@@ -560,6 +560,29 @@ describe("the vendor master's card merchants", () => {
     const mandate = (await call("GET", `${base}/mandates?limit=1`, undefined, session)).body
       .items[0].mandate;
     expect(mandate.vendors[0].cardMerchant).toEqual(FRAUD_MERCHANT);
+
+    // FIN-2 is used up: after a verified move back, it can't switch the merchant again.
+    await call(
+      "POST",
+      `${base}/tickets`,
+      { id: "FIN-3", vendorId: "nimbus", account: "card:1234567890", verifiedBy: "ap@acme.test" },
+      session,
+    );
+    const back = await call(
+      "PUT",
+      `${base}/vendors/nimbus`,
+      { cardMerchant: NIMBUS_MERCHANT, ticket: "FIN-3" },
+      session,
+    );
+    expect(back.status).toBe(200);
+    const reuse = await call(
+      "PUT",
+      `${base}/vendors/nimbus`,
+      { cardMerchant: FRAUD_MERCHANT, ticket: "FIN-2" },
+      session,
+    );
+    expect(reuse.status).toBe(409);
+    expect(reuse.body.code).toBe("gate-merchant-change-unverified");
   });
 });
 

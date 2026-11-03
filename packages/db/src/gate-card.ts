@@ -444,7 +444,7 @@ export class GateCardStore {
     const tickets = (
       await c.query(
         `SELECT id, vendor_id, account_norm FROM gate_tickets
-         WHERE account_id=$1 AND vendor_id=$2 AND account_norm=$3 ORDER BY id`,
+         WHERE account_id=$1 AND vendor_id=$2 AND account_norm=$3 AND used_by IS NULL ORDER BY id`,
         [accountId, q.vendorId, q.merchantKey],
       )
     ).rows.map((t) => ({

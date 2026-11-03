@@ -187,7 +187,7 @@ account's lock, and answers `200 { "approved": true | false }` with a `Stripe-Ve
 | Rule | On the card |
 |---|---|
 | `unknown_payee` | The merchant (`merchant_data.network_id`) isn't any vendor's card merchant on file |
-| `unverified_vendor_change` | The merchant has the card's vendor's name but isn't its merchant on file, and no verified ticket covers it. A ticket covers a merchant when its account is `card:<network id>`; the charge then passes and the merchant becomes the vendor's (a new mandate version). The owner changing a merchant on file needs the same ticket |
+| `unverified_vendor_change` | The merchant has the card's vendor's name but isn't its merchant on file, and no verified ticket covers it. A ticket covers a merchant when its account is `card:<network id>`; the charge then passes and the merchant becomes the vendor's (a new mandate version), and the ticket is used up, as for a bank change. The owner changing a merchant on file needs the same kind of ticket |
 | `unmatched_invoice` | No approved invoice of the card's vendor behind the charge (another vendor's merchant breaks it even when that vendor has an invoice with the same reference), an amount other than the invoice's (the mandate pays exact amounts), or a cash or quasi-cash category |
 | `duplicate_payment` | The invoice is paid, or held by a charge already approved |
 | `over_payment_cap`, `over_daily_cap` | Over the limits; charges approved and still held count toward the day, and so does a captured charge until its transaction arrives |
