@@ -244,6 +244,17 @@ describe("the payment gate's log roots", () => {
     expect(gone.body.error).toMatch(/no longer matches its root/);
   });
 
+  it("never makes a root over part of a day that retention has reached", async () => {
+    const { id, key } = await gateAccount();
+    await dayOfChecks(key);
+    // The retention cutoff falls between the day's second and third checks; the keeper hadn't
+    // made the day's root yet. The whole day is kept, so its root still covers all three.
+    const store = keeper(NEXT_MORNING).store;
+    await store.pruneDecisions(new Date(clock - 30_000));
+    await keeper(NEXT_MORNING).tick();
+    expect(await store.logRoot(id, DAY)).toMatchObject({ receipts: 3 });
+  });
+
   it("publishes each account's roots and mandate hashes to anyone, and nothing they cover", async () => {
     const { id, key, base, session: s } = await gateAccount();
     await dayOfChecks(key);

@@ -960,12 +960,15 @@ export class GateStore {
   }
 
   /**
-   * Delete decisions made before `before`, oldest first, in bounded batches (as `pruneEvents`).
-   * Payments stay: the duplicate rule needs them for as long as the account exists.
+   * Delete decisions made before `before`'s UTC day, oldest first, in bounded batches (as
+   * `pruneEvents`). Whole days only: a day cut part way would leave the keeper a partial day to
+   * make a log root over, or a sealed day whose remaining receipts can't be proved. Payments stay:
+   * the duplicate rule needs them for as long as the account exists.
    */
   async pruneDecisions(before: Date, batchSize = 10_000): Promise<number> {
     if (!Number.isSafeInteger(batchSize) || batchSize < 1)
       throw new RangeError("batchSize must be a positive integer");
+    before = new Date(Math.floor(before.getTime() / 86_400_000) * 86_400_000);
     let deleted = 0;
     for (;;) {
       const r = await this.pool.query(
