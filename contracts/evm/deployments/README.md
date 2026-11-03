@@ -31,6 +31,7 @@ Deployed Oct 20, 2026 by `0xd42FA5ae8949710479954ae78D1b12Ff2e50A841`. Since Oct
 | tNVDA | [`0x3CC1B76c98306D178f7ab992F6760952539022d4`](https://explorer.testnet.chain.robinhood.com/address/0x3CC1B76c98306D178f7ab992F6760952539022d4) | test token |
 | MockOracle | [`0x9d7eAd687fA1C9aD6E1f5ce62CB94c7C9b008304`](https://explorer.testnet.chain.robinhood.com/address/0x9d7eAd687fA1C9aD6E1f5ce62CB94c7C9b008304) | test prices, set by the owner |
 | DemoRouter | [`0x36537761aFBA9b6cBd8D8494AaCB9502B1a231F8`](https://explorer.testnet.chain.robinhood.com/address/0x36537761aFBA9b6cBd8D8494AaCB9502B1a231F8) | test swaps |
+| GateAnchor | [`0x4434F0D9fEF49EE2E017fb1082C1F3EefABcf5a4`](https://explorer.testnet.chain.robinhood.com/address/0x4434F0D9fEF49EE2E017fb1082C1F3EefABcf5a4) | the payment gate's daily log roots and rule hashes. Deployed Nov 3, 2026 by `DeployGateAnchor.s.sol`; owned by `0x6eB9…443b` |
 
 ### Arbitrum Sepolia (421614)
 
