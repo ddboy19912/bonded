@@ -139,16 +139,22 @@ export function ciRunRoutes(
     return run;
   };
 
-  /** Queue the preview's rating for a run, or end the run with the refusal's reason. */
-  async function rate(run: CiRunRecord, from: "checking") {
-    try {
-      const subject = await previewRating.subject(run.previewId, run.owner);
-      const queued = await previewRating.queue(subject);
-      return store.advanceCiRun(run.id, from, { status: "rating", ratingId: queued.runId });
-    } catch (e) {
-      if (!(e instanceof Refused)) throw e;
-      return store.advanceCiRun(run.id, from, { status: "error", reason: e.message });
-    }
+  /**
+   * Queue the preview's rating for a run, or end the run with the refusal's reason. One reader at
+   * a time: another reader polling at once gets the run as it was, so it can't record its own
+   * "already queued" refusal over the rating this one queued.
+   */
+  function rate(run: CiRunRecord) {
+    return store.advanceCiRunOnce(run.id, "checking", async (r) => {
+      try {
+        const subject = await previewRating.subject(r.previewId, r.owner);
+        const queued = await previewRating.queue(subject);
+        return { status: "rating", ratingId: queued.runId };
+      } catch (e) {
+        if (!(e instanceof Refused)) throw e;
+        return { status: "error", reason: e.message };
+      }
+    });
   }
 
   /** Move a run on as far as its check and rating have got. */
@@ -165,7 +171,8 @@ export function ciRunRoutes(
         );
       }
       if (check.status !== "passed") return run;
-      run = (await rate(run, "checking")) ?? run;
+      // Undefined when another reader has the run: read it as it is now.
+      run = (await rate(run)) ?? (await store.ciRun(run.id)) ?? run;
     }
     if (run.status === "rating" && run.ratingId) {
       const r = (

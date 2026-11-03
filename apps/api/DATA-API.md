@@ -53,7 +53,7 @@ Task score moved is one change; a re-run with the same scores is not. Each chang
 per webhook as a `POST`:
 
 ```json
-{ "id": "index:<hash>:muse-spark-1.3", "type": "index.score_changed", "change": "changed",
+{ "id": "index:<n>:<hash>:muse-spark-1.3", "type": "index.score_changed", "change": "changed",
   "model": "muse-spark-1.3", "label": "Muse Spark 1.3",
   "before": { "securityScore": 96, "securityInterval": [87, 99], "taskScore": 29, "libraryVersion": 1, "ranAt": "..." },
   "after": { "securityScore": 89, "...": "..." },

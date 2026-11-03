@@ -232,12 +232,13 @@ type ModelScores = ReturnType<typeof modelScores>;
 
 /**
  * The changes from one Index to the next, by model: added, removed, or a Security or Task score
- * that moved. A new run with the same scores is not a change.
+ * that moved. A new run with the same scores is not a change. Event ids carry the new snapshot's
+ * id (`snapshot`), so the same Index seen again after another (A, B, A, B) is told again.
  */
 export function indexChanges(
   before: Readonly<Record<string, ModelScores>>,
   after: Readonly<Record<string, ModelScores>>,
-  ids: { from: string; to: string; updatedAt: string },
+  ids: { from: string; to: string; updatedAt: string; snapshot: string },
 ): IndexChange[] {
   const out: IndexChange[] = [];
   for (const slug of [...new Set([...Object.keys(before), ...Object.keys(after)])].sort()) {
@@ -246,7 +247,7 @@ export function indexChanges(
     const change = !was ? "added" : !now ? "removed" : undefined;
     if (!change && was!.securityScore === now!.securityScore && was!.taskScore === now!.taskScore)
       continue;
-    const eventId = `index:${ids.to.slice(0, 16)}:${slug}`;
+    const eventId = `index:${ids.snapshot}:${ids.to.slice(0, 16)}:${slug}`;
     out.push({
       eventId,
       slug,
@@ -306,11 +307,12 @@ export class IndexWebhooks {
     );
     const queued = await this.store.recordIndex(
       { hash, models, updatedAt: index.updatedAt },
-      (before) =>
+      (before, snapshot) =>
         indexChanges(before.models as Record<string, ModelScores>, models, {
           from: before.hash,
           to: hash,
           updatedAt: index.updatedAt,
+          snapshot,
         }),
     );
     return queued ?? 0;

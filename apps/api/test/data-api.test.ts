@@ -404,4 +404,30 @@ describe("Index webhooks", () => {
     expect((await deliveries())[0]).toMatchObject({ status: "delivered", attempts: 2 });
     answer = 200;
   });
+
+  it("are told again when an earlier Index comes back and then goes again", async () => {
+    await pg.db.pool.query("UPDATE index_webhooks SET revoked_at=now()");
+    const { key } = await newKey();
+    await call("POST", "/data/webhooks", { url: "https://hooks.example/rollback" }, key);
+    const slug = indexModelSlug(config.entries[3]!.model);
+    const told = async () => {
+      const before = sent.length;
+      await webhooks().deliverDue();
+      return sent.slice(before).map((s) => JSON.parse(s.body));
+    };
+    const original = current.entries[3]!.score;
+    // A deploy moves the score, a rollback moves it back, and the deploy goes out again: three
+    // changes, and the last one told is the score the Index has now.
+    writeIndex((i) => (i.entries[3]!.score = original - 5));
+    expect(await webhooks().sync()).toBe(1);
+    expect((await told()).map((p) => p.after.securityScore)).toEqual([original - 5]);
+    writeIndex((i) => (i.entries[3]!.score = original));
+    expect(await webhooks().sync()).toBe(1);
+    expect((await told()).map((p) => p.after.securityScore)).toEqual([original]);
+    writeIndex((i) => (i.entries[3]!.score = original - 5));
+    expect(await webhooks().sync()).toBe(1);
+    const last = await told();
+    expect(last).toHaveLength(1);
+    expect(last[0]).toMatchObject({ model: slug, after: { securityScore: original - 5 } });
+  });
 });

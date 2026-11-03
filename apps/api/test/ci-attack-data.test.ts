@@ -20,6 +20,8 @@ import { DEFAULT_REMOTE_POLICY } from "../src/remote-policy.js";
 import { SecretBox } from "../src/secrets.js";
 import type { ConnectionCheckRunner } from "../src/connections.js";
 import { ciVerdict } from "../src/ci-runs.js";
+import type { PreviewSubject } from "../src/previews.js";
+import { Refused } from "../src/refused.js";
 import { LIBRARY_SEED_ID, leaksHeldOut, publicAttacks } from "../src/attack-data.js";
 import { postgres } from "./postgres.js";
 
@@ -328,6 +330,58 @@ describe("testing in CI", () => {
     expect(ciVerdict({ minScore: 70, minTaskScore: 50 }, { score: 90, taskScore: 49 }).passed).toBe(
       false,
     );
+  });
+
+  it("queues the rating once when two readers poll at once, and keeps it on the run", async () => {
+    const key = await newKey();
+    const previewId = await urlPreview();
+    const started = await call("POST", "/ci/runs", { previewId, minScore: 1 }, key);
+    expect(started.body.status).toBe("checking");
+    expect(await workCheckOne(pg.db, chainId, { secrets, runCheck: passing })).toBe(true);
+    // The preview rating flow with a slow queue: the first reader's queueing waits until released,
+    // and a reader after it is refused as the real flow refuses one (a rating already queued).
+    let entered!: () => void;
+    const inside = new Promise<void>((resolve) => (entered = resolve));
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    let queues = 0;
+    const slow = makeApi({
+      ci: {
+        previewRating: {
+          subject: async () => ({}) as PreviewSubject,
+          problem: async () => undefined,
+          passing: async () => true,
+          startCheck: async () => {
+            throw new Error("not used");
+          },
+          queue: async () => {
+            if (queues++ > 0)
+              throw new Refused(409, "This preview's rating is already queued or running.");
+            entered();
+            await gate;
+            return (await pg.db.enqueuePreviewRating(previewId, {
+              nowMs: clock,
+              perWalletDaily: 100,
+              daily: 1000,
+            })) as { runId: string };
+          },
+        },
+      },
+    });
+    const status = () => call("GET", started.body.statusUrl, undefined, key, slow);
+    const first = status();
+    await inside;
+    // The second reader finds the first one at work: the run is still checking, not ended.
+    const second = await status();
+    expect(second.body.status).toBe("checking");
+    release();
+    const rating = (await first).body;
+    expect(rating.status).toBe("rating");
+    expect(queues).toBe(1);
+    expect((await status()).body).toMatchObject({ status: "rating", ratingId: rating.ratingId });
+    await finishRating(75);
+    expect((await status()).body).toMatchObject({ status: "passed", score: 75 });
+    await slow.close();
   });
 });
 

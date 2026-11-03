@@ -137,6 +137,33 @@ const ciRun = (r: QueryResultRow): CiRunRecord => ({
   finishedAt: r.finished_at,
 });
 
+/** What moving a run on changes. */
+export interface CiRunPatch {
+  status: CiRunStatus;
+  ratingId?: string;
+  score?: number | null;
+  taskScore?: number | null;
+  reason?: string | null;
+}
+
+/** The update that moves run `id` on from `from`, returning the run. */
+const patchCiRun = (id: string, from: CiRunStatus, patch: CiRunPatch): [string, unknown[]] => [
+  `UPDATE ci_runs SET status=$3, rating_id=coalesce($4,rating_id), score=coalesce($5,score),
+     task_score=coalesce($6,task_score), reason=coalesce($7,reason), updated_at=now(),
+     finished_at=CASE WHEN $8 THEN now() ELSE finished_at END
+   WHERE id=$1 AND status=$2 RETURNING *`,
+  [
+    id,
+    from,
+    patch.status,
+    patch.ratingId ?? null,
+    patch.score ?? null,
+    patch.taskScore ?? null,
+    patch.reason ?? null,
+    patch.status !== "checking" && patch.status !== "rating",
+  ],
+];
+
 export class DataApiStore {
   constructor(private readonly db: Database) {}
 
@@ -300,31 +327,35 @@ export class DataApiStore {
   /**
    * Record the Index with `hash`, unless it is the latest seen. The changes `changes` finds
    * against the one seen before are queued for every live webhook that asked for their model.
-   * The first Index ever seen is the baseline: nothing is queued. Returns the deliveries queued,
-   * or undefined when the Index was already seen. One keeper at a time (an advisory lock).
+   * The first Index ever seen is the baseline: nothing is queued. `changes` is also given the new
+   * snapshot's id, which no other snapshot has, so an Index seen again later (a rollback, then the
+   * deploy again) gets new event ids instead of being dropped as a repeat. Returns the deliveries
+   * queued, or undefined when the Index was already seen. One keeper at a time (an advisory lock).
    */
   async recordIndex(
     snapshot: { hash: string; models: Record<string, unknown>; updatedAt: string },
-    changes: (before: IndexSnapshot) => IndexChange[],
+    changes: (before: IndexSnapshot, snapshotId: string) => IndexChange[],
   ): Promise<number | undefined> {
     return this.db.transaction(async (c) => {
       await c.query("SELECT pg_advisory_xact_lock(7027)");
       const latest = (await c.query("SELECT * FROM index_snapshots ORDER BY id DESC LIMIT 1"))
         .rows[0];
       if (latest?.hash === snapshot.hash) return undefined;
-      await c.query("INSERT INTO index_snapshots(hash,models,updated_at) VALUES($1,$2,$3)", [
-        snapshot.hash,
-        JSON.stringify(snapshot.models),
-        snapshot.updatedAt,
-      ]);
+      const made = await c.query(
+        "INSERT INTO index_snapshots(hash,models,updated_at) VALUES($1,$2,$3) RETURNING id",
+        [snapshot.hash, JSON.stringify(snapshot.models), snapshot.updatedAt],
+      );
       if (!latest) return 0;
-      const found = changes({
-        id: String(latest.id),
-        hash: latest.hash,
-        models: latest.models,
-        updatedAt: latest.updated_at,
-        seenAt: latest.seen_at,
-      });
+      const found = changes(
+        {
+          id: String(latest.id),
+          hash: latest.hash,
+          models: latest.models,
+          updatedAt: latest.updated_at,
+          seenAt: latest.seen_at,
+        },
+        String(made.rows[0].id),
+      );
       if (!found.length) return 0;
       const hooks = (
         await c.query(
@@ -471,32 +502,34 @@ export class DataApiStore {
   async advanceCiRun(
     id: string,
     from: CiRunStatus,
-    patch: {
-      status: CiRunStatus;
-      ratingId?: string;
-      score?: number | null;
-      taskScore?: number | null;
-      reason?: string | null;
-    },
+    patch: CiRunPatch,
   ): Promise<CiRunRecord | undefined> {
-    const done = patch.status !== "checking" && patch.status !== "rating";
-    await this.pool.query(
-      `UPDATE ci_runs SET status=$3, rating_id=coalesce($4,rating_id), score=coalesce($5,score),
-         task_score=coalesce($6,task_score), reason=coalesce($7,reason), updated_at=now(),
-         finished_at=CASE WHEN $8 THEN now() ELSE finished_at END
-       WHERE id=$1 AND status=$2`,
-      [
-        id,
-        from,
-        patch.status,
-        patch.ratingId ?? null,
-        patch.score ?? null,
-        patch.taskScore ?? null,
-        patch.reason ?? null,
-        done,
-      ],
-    );
+    await this.pool.query(...patchCiRun(id, from, patch));
     return this.ciRun(id);
+  }
+
+  /**
+   * Move a run on from `from` by `step`, one reader at a time: the run's row is locked while `step`
+   * runs, and a reader that finds it locked (or moved on) gets undefined at once without running
+   * `step`. For a step with an effect outside the run, such as queueing its rating, so two readers
+   * at once can't both act, or one record the other's refusal over the other's success.
+   */
+  async advanceCiRunOnce(
+    id: string,
+    from: CiRunStatus,
+    step: (run: CiRunRecord) => Promise<CiRunPatch>,
+  ): Promise<CiRunRecord | undefined> {
+    return this.db.transaction(async (c) => {
+      const row = (
+        await c.query("SELECT * FROM ci_runs WHERE id=$1 AND status=$2 FOR UPDATE SKIP LOCKED", [
+          id,
+          from,
+        ])
+      ).rows[0];
+      if (!row) return undefined;
+      const r = await c.query(...patchCiRun(id, from, await step(ciRun(row))));
+      return ciRun(r.rows[0]);
+    });
   }
 
   // The held-out guard for the attack data export.
