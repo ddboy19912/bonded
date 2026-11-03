@@ -40,6 +40,7 @@ import { workCheckOne } from "./check-worker.js";
 import { gatewayCheckRunner } from "./connections.js";
 import { AgentStatusReader } from "./agent-status.js";
 import { OwnerAlerts } from "./owner-alerts.js";
+import { IndexWebhooks } from "./model-risk.js";
 import { adoptDeployment } from "./deployment-guard.js";
 
 loadDotEnv();
@@ -333,6 +334,24 @@ if (role === "migrate") {
           .int()
           .min(10_000)
           .parse(process.env.OWNER_ALERTS_MS ?? 60_000),
+      ),
+    );
+    // Model risk data webhooks (model-risk.ts): a deploy that changes the Bonded Index queues a
+    // signed delivery per changed model and webhook; failed ones are retried with backoff.
+    const indexWebhooks = new IndexWebhooks(db, {
+      ...(secrets ? { secrets } : {}),
+      ...(allowLoopback ? { allowLoopback: true } : {}),
+      log: (line) => console.error(line),
+    });
+    tasks.push(
+      loop(
+        "Index webhooks",
+        () => indexWebhooks.tick(),
+        z.coerce
+          .number()
+          .int()
+          .min(5000)
+          .parse(process.env.INDEX_WEBHOOKS_MS ?? 30_000),
       ),
     );
     // The keeper is deployed once, so it also watches for a lagging keeper, stuck claims and

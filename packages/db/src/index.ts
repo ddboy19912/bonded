@@ -4,6 +4,7 @@ import pg from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 export * from "./schema.js";
 export * from "./gate.js";
+export * from "./data-api.js";
 export type Connection = pg.PoolClient;
 /** Serialize public payloads without losing integer precision. */
 export const json = (value: unknown): string =>
@@ -597,6 +598,7 @@ export class Database {
       "0023_deployments.sql",
       "0024_payment_gate.sql",
       "0026_gate_transparency.sql",
+      "0027_data_apis.sql",
     ];
     await this.transaction(async (c) => {
       await c.query("SELECT pg_advisory_xact_lock(7001)");

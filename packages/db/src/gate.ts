@@ -112,6 +112,8 @@ export interface GateTicketRecord {
   vendorId: string;
   account: string;
   verifiedBy: string;
+  /** The decision that applied this ticket's change; null until then. A ticket covers one change. */
+  usedBy: string | null;
   createdAt: Date;
 }
 
@@ -559,6 +561,24 @@ export class GateStore {
    * Change a vendor's name or verified account: the owner's edit, or (inside a check's
    * transaction, `c`) a bank change a verified ticket covers.
    */
+  /**
+   * Mark the unused tickets covering this vendor and account as applied by `decisionId`, inside
+   * the check's transaction. A ticket covers one change, not every later switch back to it.
+   */
+  async useTickets(
+    c: Connection,
+    accountId: string,
+    vendorId: string,
+    accountNorm: string,
+    decisionId: string,
+  ): Promise<void> {
+    await c.query(
+      `UPDATE gate_tickets SET used_by=$4
+       WHERE account_id=$1 AND vendor_id=$2 AND account_norm=$3 AND used_by IS NULL`,
+      [accountId, vendorId, accountNorm, decisionId],
+    );
+  }
+
   async updateVendor(
     accountId: string,
     id: string,
@@ -812,7 +832,7 @@ export class GateStore {
       state.tickets = (
         await c.query(
           `SELECT vendor_id, account_norm FROM gate_tickets
-           WHERE account_id=$1 AND vendor_id=$2 AND account_norm=$3 ORDER BY id`,
+           WHERE account_id=$1 AND vendor_id=$2 AND account_norm=$3 AND used_by IS NULL ORDER BY id`,
           [accountId, q.vendorId, q.accountNorm],
         )
       ).rows.map((t) => ({ vendorId: t.vendor_id, account: t.account_norm }));
@@ -1125,6 +1145,7 @@ function ticket(r: Record<string, unknown>): GateTicketRecord {
     vendorId: r.vendor_id as string,
     account: r.account as string,
     verifiedBy: r.verified_by as string,
+    usedBy: (r.used_by as string | null) ?? null,
     createdAt: r.created_at as Date,
   };
 }

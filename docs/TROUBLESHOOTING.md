@@ -680,6 +680,62 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 **What to do:** Every check is refused until you lift the freeze. Read the breach in the decision log first, then unfreeze the account.
 
+## Data APIs and testing in CI
+
+### data-key-missing
+
+**Message:** Send your data API key.
+
+**What to do:** Send the key as `Authorization: Bearer bonded_dk_...`. Make one with your wallet session at POST /data/keys; it is shown only once.
+
+### data-key-invalid
+
+**Message:** That data API key isn't valid or was revoked.
+
+**What to do:** Make a new key; a key is shown only once, when it is made.
+
+### data-key-limit
+
+**Message:** This wallet has as many live data API keys as it may.
+
+**What to do:** Revoke a key that is no longer used, then make a new one.
+
+### data-not-found
+
+**Message:** No such data API key.
+
+**What to do:** Check the id, and that you sent the key or session that owns it. Another wallet's keys, webhooks and CI runs show as not found.
+
+### data-rate-limit
+
+**Message:** Too many Index requests from here.
+
+**What to do:** Wait a few minutes. Without a key the limit is per address; send a data API key for a higher one.
+
+### data-webhook-limit
+
+**Message:** This key has as many webhooks as it may.
+
+**What to do:** Remove a webhook that is no longer used, or list several models on one webhook.
+
+### ci-run-limit
+
+**Message:** Too many CI runs for this key. Try again in an hour.
+
+**What to do:** Rate on deploys rather than every commit. The preview caps on the Test your agent page apply too.
+
+### ci-needs-agent-url
+
+**Message:** Testing in CI rates an Agent URL, and this preview connects with the runner.
+
+**What to do:** Make a preview that connects by Agent URL on the Test your agent page, verify the URL, then pass that preview's id.
+
+### attack-data-unavailable
+
+**Message:** The attack data export is unavailable right now.
+
+**What to do:** Try again later. The export refuses to answer rather than risk naming a held-out attack; the operator is told.
+
 ## Bonded's own services
 
 ### agent-urls-off

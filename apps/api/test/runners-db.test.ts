@@ -19,6 +19,8 @@ async function agent(id: number, config: unknown = remote, enabled = true) {
   return `${CHAIN}:${id}`;
 }
 const hello = { runnerVersion: "0.1.0", mode: "tools" };
+/** The migrations' numbers: 0001 to 0024, then 0026 (gate transparency) and 0027 (the data APIs). */
+const MIGRATIONS = [...Array.from({ length: 24 }, (_, i) => i + 1), 26, 27];
 
 beforeAll(async () => {
   pg = await postgres();
@@ -26,10 +28,7 @@ beforeAll(async () => {
 }, 120_000);
 afterAll(() => pg?.stop());
 
-/** Every migration's number: 0001 to 0024, then 0026 (0025 is held for the gate's card route). */
-const MIGRATIONS = [...Array.from({ length: 24 }, (_, i) => i + 1), 26];
-
-describe("migrations 0014 to 0026", () => {
+describe("migrations 0014 to 0027", () => {
   it("apply once, in order, and again is a no-op", async () => {
     const versions = (
       await db.pool.query("SELECT version FROM schema_migrations ORDER BY version")
@@ -87,11 +86,25 @@ describe("migrations 0014 to 0026", () => {
       )
     ).rows.map((r) => r.table_name);
     expect(anchored).toEqual(["gate_decisions", "gate_log_roots", "gate_mandates"]);
+    // 0027: the data APIs.
+    const data = (
+      await db.pool.query(
+        "SELECT table_name FROM information_schema.tables WHERE table_name IN ('data_api_keys','data_api_usage_daily','index_webhooks','index_snapshots','index_webhook_deliveries','ci_runs') ORDER BY 1",
+      )
+    ).rows.map((r) => r.table_name);
+    expect(data).toEqual([
+      "ci_runs",
+      "data_api_keys",
+      "data_api_usage_daily",
+      "index_snapshots",
+      "index_webhook_deliveries",
+      "index_webhooks",
+    ]);
   });
 });
 
 describe("migrations on a database that main already migrated", () => {
-  it("applies only 0020 to 0026 after 0001 to 0019, then nothing", async () => {
+  it("applies only 0020 and later after 0001 to 0019, then nothing", async () => {
     // Before migrations took their version from the file name, the version was the place in the
     // list: on main that put 0001 to 0019 at versions 1 to 19, the same numbers.
     const old = await postgres({ migrate: false });
