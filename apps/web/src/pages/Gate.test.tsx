@@ -260,6 +260,17 @@ describe("the payment gate's rules page", () => {
     expect(gateApi.accounts).not.toHaveBeenCalled();
   });
 
+  it("links to the setup guide and the public receipt check, even with no wallet", () => {
+    wallet.address = undefined;
+    show();
+    expect(screen.getByRole("link", { name: "How to connect an agent" }).getAttribute("href")).toBe(
+      "/docs/guides/payment-gate/",
+    );
+    expect(screen.getByRole("link", { name: "Check a receipt" }).getAttribute("href")).toBe(
+      "/gate/verify",
+    );
+  });
+
   it("shows the rules in plain words, the vendors, every version's hash and the log", async () => {
     signedIn();
     show();

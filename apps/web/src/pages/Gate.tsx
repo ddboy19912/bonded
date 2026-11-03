@@ -6,6 +6,7 @@ import { gateAnchorAbi } from "@bondedhq/shared";
 import type { Hex } from "viem";
 import { deployment, explorerUrl } from "../config";
 import { ago, short, txUrl } from "../lib/format";
+import { DOCS_GATE } from "../lib/routes";
 import { useOwnerSession } from "../lib/owner-session";
 import {
   dollars,
@@ -413,7 +414,18 @@ export function Gate() {
   return (
     <Page
       title="Payment gate"
-      intro="Set the rules your agents' payments must follow, see every decision, and check each one."
+      intro={
+        <>
+          Set the rules your agents' payments must follow, see every decision, and check each one.{" "}
+          <a className={linkClass} href={DOCS_GATE} target="_blank" rel="noreferrer">
+            How to connect an agent
+          </a>
+          {" · "}
+          <Link className={linkClass} to="/gate/verify">
+            Check a receipt
+          </Link>
+        </>
+      }
     >
       {!isConnected ? (
         <EmptyState title="Connect your wallet" action={<ConnectButton />}>
