@@ -326,6 +326,9 @@ function evaluateCardInput(input: GateCardInput): GateVerdict {
   if (changed) broken.add("unverified_vendor_change");
   if ((CARD_BLOCKED_CATEGORIES as readonly string[]).includes(input.merchant.category))
     broken.add("unmatched_invoice");
+  // The card pays its own vendor's invoice only: another vendor's merchant charging it, even for
+  // an approved invoice of that vendor with the same reference, has no invoice behind this card.
+  if (check.vendorId !== null && check.vendorId !== input.vendorId) broken.add("unmatched_invoice");
   return {
     ok: true,
     rules: PAYMENT_RULES.filter((r) => broken.has(r)),

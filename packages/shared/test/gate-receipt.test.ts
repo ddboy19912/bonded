@@ -309,6 +309,19 @@ describe("card inputs (Stripe Issuing)", () => {
       ]);
   });
 
+  it("break unmatched_invoice when another vendor's merchant charges the card, even for that vendor's invoice", () => {
+    // Orbit has its own approved invoice with the same reference and amount as the card's.
+    const orbit = { key: cardMerchantKey("7777"), name: "Orbit Hosting" };
+    const charged = {
+      ...card,
+      attempt: { ...card.attempt, account: orbit.key },
+      merchant: { ...orbit, category: "computer_software_stores" },
+      payees: [{ vendorId: "orbit", account: orbit.key }],
+      invoices: [...card.invoices, { reference: "NIM-1", vendorId: "orbit", amountCents: 61_240 }],
+    };
+    expect(rules(charged)).toEqual(["unmatched_invoice"]);
+  });
+
   it("accept a merchant change a verified ticket covers, as a bank change", () => {
     const changed = from("5555", "Nimbus Cloud");
     const covered = { ...changed, tickets: [{ vendorId: "nimbus", account: "card:5555" }] };

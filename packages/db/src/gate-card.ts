@@ -458,6 +458,9 @@ export class GateCardStore {
   /**
    * Charges approved and still held (status pending) on the account, on `day` or on this
    * invoice, except `exceptId`: they count like payments made, for the duplicate and daily rules.
+   * A charge Stripe reports closed (captured) still counts, at what was approved or held, until
+   * its transaction is recorded: Stripe doesn't send events in order, so the capture's
+   * `issuing_transaction.created` can arrive after the authorization's `.updated`.
    */
   async held(
     c: Connection,
@@ -473,13 +476,16 @@ export class GateCardStore {
     }[]
   > {
     const r = await c.query(
-      `SELECT a.merchant_key, a.vendor_id, a.amount_cents, a.day::text AS day, i.reference
-       FROM gate_card_authorizations a JOIN gate_card_intents i ON i.id=a.intent_id
-       WHERE a.account_id=$1 AND a.status='pending' AND a.amount_cents > 0
-         AND COALESCE(a.stripe_approved, a.gate_approved) AND a.id IS DISTINCT FROM $4
-         AND NOT EXISTS (SELECT 1 FROM gate_card_transactions t WHERE t.authorization_id=a.id)
-         AND (a.day=$2::date OR (i.vendor_id=$3 AND i.reference_norm=$5))
-       ORDER BY a.created_at, a.id`,
+      `SELECT * FROM (SELECT a.merchant_key, a.vendor_id, a.day::text AS day, i.reference,
+           CASE WHEN a.status='closed' THEN GREATEST(a.amount_cents, a.approved_cents)
+             ELSE a.amount_cents END AS amount_cents, a.created_at, a.id
+         FROM gate_card_authorizations a JOIN gate_card_intents i ON i.id=a.intent_id
+         WHERE a.account_id=$1 AND a.status IN ('pending','closed')
+           AND COALESCE(a.stripe_approved, a.gate_approved) AND a.id IS DISTINCT FROM $4
+           AND NOT EXISTS (SELECT 1 FROM gate_card_transactions t WHERE t.authorization_id=a.id)
+           AND (a.day=$2::date OR (i.vendor_id=$3 AND i.reference_norm=$5))) h
+       WHERE h.amount_cents > 0
+       ORDER BY h.created_at, h.id`,
       [accountId, q.day, q.vendorId, q.exceptId ?? null, q.referenceNorm],
     );
     return r.rows.map((h) => ({

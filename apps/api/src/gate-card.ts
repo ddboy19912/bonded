@@ -868,8 +868,12 @@ export function gateCardRoutes(
         at,
       });
     }
-    // Reversed or expired with nothing captured: the invoice is free to pay again.
-    if ((rec.status === "reversed" || rec.status === "expired") && intent.status === "authorized") {
+    // Reversed or expired with nothing captured, or declined by Stripe after all (the gate's
+    // approval reached it too late, so its timeout setting declined): the invoice is free to pay
+    // again.
+    const ended =
+      rec.status === "reversed" || rec.status === "expired" || object.approved === false;
+    if (ended && intent.status === "authorized") {
       const captured = await cards.captured(c, authId);
       const others = (await cards.authorizationsOf(c, intent.id)).filter(
         (a) => a.id !== authId && a.status === "pending" && (a.stripeApproved ?? a.gateApproved),

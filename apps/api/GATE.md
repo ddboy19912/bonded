@@ -135,9 +135,9 @@ account's lock, and answers `200 { "approved": true | false }` with a `Stripe-Ve
 |---|---|
 | `unknown_payee` | The merchant (`merchant_data.network_id`) isn't any vendor's card merchant on file |
 | `unverified_vendor_change` | The merchant has the card's vendor's name but isn't its merchant on file, and no verified ticket covers it. A ticket covers a merchant when its account is `card:<network id>`; the charge then passes and the merchant becomes the vendor's (a new mandate version). The owner changing a merchant on file needs the same ticket |
-| `unmatched_invoice` | No approved invoice of that vendor behind the card, an amount other than the invoice's (the mandate pays exact amounts), or a cash or quasi-cash category |
+| `unmatched_invoice` | No approved invoice of the card's vendor behind the charge (another vendor's merchant breaks it even when that vendor has an invoice with the same reference), an amount other than the invoice's (the mandate pays exact amounts), or a cash or quasi-cash category |
 | `duplicate_payment` | The invoice is paid, or held by a charge already approved |
-| `over_payment_cap`, `over_daily_cap` | Over the limits; charges approved and still held count toward the day |
+| `over_payment_cap`, `over_daily_cap` | Over the limits; charges approved and still held count toward the day, and so does a captured charge until its transaction arrives |
 
 - **Enforce** never approves a charge that breaks a rule. **Monitor** approves it and records the
   breach, except cash and quasi-cash, which are declined in either mode. A **frozen** account
@@ -158,7 +158,7 @@ account's lock, and answers `200 { "approved": true | false }` with a `Stripe-Ve
 | Stripe approved without the gate (timeout fallback, Autopilot, stand-in) | The card is cancelled at once and the owner alerted (`payment_breach`); whatever settles is recorded as a breach | As above, with the timeout setting on approve (only to test) |
 | Force capture or offline transaction (no authorization) | `issuing_transaction.created` without a gate-approved authorization: a breach decision (bypassed), the payment recorded, the card cancelled, the owner alerted, the account frozen if set | `POST /v1/test_helpers/issuing/transactions/create_force_capture` |
 | Capture or increment above the approved amount | The difference is recorded as an overpayment (a breach decision with `overpaidUsd`) and alerted | `.../authorizations/:id/capture` with a larger `capture_amount`; `.../authorizations/:id/increment` |
-| Reversal or expiry | The invoice is released (intent `released`); a new card can be issued for it | `.../authorizations/:id/reverse`, `.../authorizations/:id/expire` |
+| Reversal or expiry, or Stripe declining a charge the gate approved (its answer arrived too late) | The invoice is released (intent `released`); a new card can be issued for it | `.../authorizations/:id/reverse`, `.../authorizations/:id/expire` |
 | Cash, ATM, quasi-cash | Blocked on the card; declined by the gate if a request still arrives | `POST /v1/test_helpers/issuing/authorizations` with `merchant_data[category]=automated_cash_disburse` |
 
 Nothing is marked paid until a transaction settles: a payment (`source: "card"`) is recorded on
