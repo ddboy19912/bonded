@@ -215,6 +215,49 @@ What it doesn't do: it is a local check, so code that calls your pay function di
 Keep the unwrapped function out of the agent's reach. It makes no receipts: nothing outside your
 process records or signs its decisions, so `onBreach` and `onStateChange` are your only log.
 
+## Hosted payment gate (off chain)
+
+The same rules as the guard, run by Bonded instead of inside your process. Your vendors, approved
+invoices and limits live in a gate account (set up at
+[bondedhq.xyz/gate](https://www.bondedhq.xyz/gate)), every decision is logged, and each comes back
+with a signed receipt anyone can check at
+[bondedhq.xyz/gate/verify](https://www.bondedhq.xyz/gate/verify).
+
+```ts
+import { guardPayments, paymentGate } from "@bondedhq/sdk";
+
+const gate = paymentGate({
+  apiKey: process.env.BONDED_GATE_KEY!, // bonded_gk_...: keep it server side
+  onBreach: (breach) => alert(breach), // { rules, reasons, blocked, decisionId, receipt, ... }
+});
+
+const payInvoice = guardPayments(bank.payInvoice, { guard: gate });
+
+await payInvoice({ account: "DE89 3704 0044 0532 0130 00", amountUsd: 1840.5, invoiceReference: "ACM-2291" });
+```
+
+Pass `gate` wherever a `guard` goes: `guardPayments`, `guardVendorChanges` and the framework
+helpers above. Or call it directly: `gate.pay(payment, send)`, `gate.check(payment)`,
+`gate.decisions()`, `gate.proof(decisionId)`.
+
+- **It fails closed.** If the gate can't be reached, your pay function isn't called and
+  `PaymentGateError` says why. A check that got no answer is asked once more with the same request
+  id, which is safe.
+- **It checks the gate.** Each answer's receipt must carry Bonded's signature and match the payment
+  you asked about, or nothing is paid. Pass `receiptKey` to pin the signing address; by default it
+  reads the published one once.
+- **Enforce** throws `PaymentBlockedError`, **Monitor** pays and reports to `onBreach`, and a frozen
+  account throws `PaymentFrozenError` until the owner lifts the freeze at bondedhq.xyz/gate.
+- **Retries:** the gate counts an allowed payment as made, so if your bank call fails and you try
+  again, pass the same `requestId` both times (in the payment, or from `toPayment`). The gate gives
+  back the first decision instead of a duplicate breach. A new id is made when you don't pass one.
+- **Bank changes** go through `gate.changeVendorAccount({ vendorId, account, ticket }, update)`.
+  `ticket` is a finance ticket the owner added to the account.
+
+Like the guard, it only sees payments your code sends it, so keep the unwrapped pay function out of
+the agent's reach. Use the guard to keep invoices inside your system; use the gate for a log and
+receipts someone else can check.
+
 ## Getting rated by the Arena
 
 The Bonded Arena rates an agent by running it through episodes: each one gives the agent a task and
