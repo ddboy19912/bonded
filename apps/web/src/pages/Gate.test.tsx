@@ -27,6 +27,7 @@ import {
   type GateProof,
 } from "../lib/gate";
 import { Gate } from "./Gate";
+import { GateVerify } from "./GateVerify";
 
 const WALLET = "0x00000000000000000000000000000000000000a1";
 const wallet = vi.hoisted(() => ({
@@ -584,6 +585,87 @@ describe("the payment gate's rules page", () => {
     fireEvent.click(make);
     expect(await within(keys).findByText("bonded_gk_second")).toBeTruthy();
     expect(create).toHaveBeenCalledWith("sess", ACCOUNT_ID, "");
+  });
+});
+
+describe("checking a receipt without signing in", () => {
+  function showVerify() {
+    wallet.address = undefined;
+    render(
+      <MemoryRouter initialEntries={["/gate/verify"]}>
+        <Routes>
+          <Route path="/gate/verify" element={<GateVerify />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+  }
+  /** Paste the text and press Check; the step's row once it is done. */
+  async function check(text: string) {
+    fireEvent.change(screen.getByLabelText("Receipt"), { target: { value: text } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    const panel = await screen.findByLabelText("Verification");
+    return (label: string) => within(panel).getByText(label).closest("li") as HTMLElement;
+  }
+  const shared = (d: GateDecision, proof?: GateProof) =>
+    JSON.stringify({ receipt: d.receipt, input: d.input, ...(proof ? { proof } : {}) });
+
+  it("checks a copied receipt and its proof, with no wallet and no API but the receipt key", async () => {
+    showVerify();
+    const step = await check(shared(blocked, proofs[blocked.id]));
+    for (const label of ["Bonded's signature", "Input hash", "Rules, run again", "Daily log root"])
+      expect(within(step(label)).getByText("Passed")).toBeTruthy();
+    expect(screen.getByText("No check failed.")).toBeTruthy();
+    // What the signed receipt says, in plain words.
+    expect(screen.getByText("Blocked")).toBeTruthy();
+    expect(screen.getByText("Payment of $612.40")).toBeTruthy();
+    expect(screen.getByText("the account is not in the vendor master")).toBeTruthy();
+    expect(gateApi.proof).not.toHaveBeenCalled();
+    expect(gateApi.accounts).not.toHaveBeenCalled();
+  });
+
+  it("checks an agent's check answer, which has no log proof", async () => {
+    showVerify();
+    // The API's answer to POST /payments/check: the decision, its receipt and its input.
+    const step = await check(JSON.stringify({ ...blocked, frozen: false, replayed: false }));
+    expect(within(step("Bonded's signature")).getByText("Passed")).toBeTruthy();
+    expect(within(step("Rules, run again")).getByText("Passed")).toBeTruthy();
+    expect(within(step("Daily log root")).getByText("Not checked")).toBeTruthy();
+    expect(within(step("Daily log root")).getByText(/No log proof pasted/)).toBeTruthy();
+  });
+
+  it("fails a receipt changed after it was signed", async () => {
+    showVerify();
+    const forged = {
+      ...blocked,
+      receipt: {
+        ...blocked.receipt,
+        receipt: { ...blocked.receipt.receipt, result: "allowed", rules: [] },
+      },
+    };
+    const step = await check(JSON.stringify(forged));
+    expect(within(step("Bonded's signature")).getByText("Failed")).toBeTruthy();
+    expect(within(step("Rules, run again")).getByText("Failed")).toBeTruthy();
+  });
+
+  it("says when the text isn't a receipt", async () => {
+    showVerify();
+    fireEvent.change(screen.getByLabelText("Receipt"), { target: { value: '{"hello": 1}' } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    expect(await screen.findByText(/That isn't a gate receipt/)).toBeTruthy();
+    expect(gateApi.receiptKey).not.toHaveBeenCalled();
+  });
+
+  it("lets the owner copy a receipt with its proof once Verify has loaded it", async () => {
+    signedIn();
+    show();
+    const item = await row(/Blocked: the account is not in the vendor master/);
+    expect(within(item).getByRole("button", { name: "Copy receipt" })).toBeTruthy();
+    await verify(item);
+    expect(within(item).getByRole("button", { name: "Copy receipt and proof" })).toBeTruthy();
+    expect(within(item).getByRole("link", { name: "Anyone can check it" })).toHaveProperty(
+      "pathname",
+      "/gate/verify",
+    );
   });
 });
 

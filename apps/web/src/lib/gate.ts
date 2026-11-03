@@ -5,6 +5,7 @@ import {
   gateInputHash,
   gateReceiptDay,
   gateReceiptHash,
+  PAYMENT_RULE_WORDS,
   verifyGateLogProof,
   verifyGateReceipt,
   type GateInput,
@@ -423,6 +424,84 @@ async function checkLog(
       : proof.posted
         ? `In the log root for ${day}. It's posted on chain; this page didn't read it there.`
         : `In the log root for ${day}. It isn't posted on chain yet.`,
+  };
+}
+
+/**
+ * What anyone can paste to check a decision on its own (/gate/verify): the signed receipt, the
+ * input the rules were given, and the receipt's proof in its day's log when there is one. An
+ * agent's check answer has the first two; the owner's "Copy receipt" adds the proof.
+ */
+export interface SharedReceipt {
+  receipt: SignedGateReceipt;
+  input: GateInput | null;
+  proof: GateProof | null;
+}
+
+const isObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+const isSigned = (v: unknown): v is SignedGateReceipt =>
+  isObject(v) &&
+  typeof v.signature === "string" &&
+  typeof v.signer === "string" &&
+  isObject(v.receipt) &&
+  typeof v.receipt.decisionId === "string" &&
+  typeof v.receipt.gateAccountId === "string" &&
+  Array.isArray(v.receipt.rules) &&
+  typeof v.receipt.amountCents === "number" &&
+  typeof v.receipt.inputHash === "string" &&
+  typeof v.receipt.mandateHash === "string" &&
+  typeof v.receipt.mandateVersion === "number" &&
+  typeof v.receipt.checkedAt === "number";
+
+/**
+ * Reads pasted text as a receipt to check: a check's answer, a copied receipt, or the signed
+ * receipt alone. Null when it is none of them. Only the shape is checked here; whether it is
+ * genuine is what `verifyDecision` decides.
+ */
+export function parseSharedReceipt(text: string): SharedReceipt | null {
+  let v: unknown;
+  try {
+    v = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (!isObject(v)) return null;
+  // The signed receipt alone carries neither the input nor the proof.
+  if (isSigned(v)) return { receipt: v, input: null, proof: null };
+  if (!isSigned(v.receipt)) return null;
+  return {
+    receipt: v.receipt,
+    input: isObject(v.input) ? (v.input as GateInput) : null,
+    proof: isObject(v.proof) && isObject(v.proof.proof) ? (v.proof as unknown as GateProof) : null,
+  };
+}
+
+/**
+ * The decision a signed receipt states, for checking it on its own: everything shown comes from
+ * the receipt, so nothing here can differ from what Bonded signed.
+ */
+export function decisionFromReceipt(shared: SharedReceipt): GateDecision {
+  const r = shared.receipt.receipt;
+  const rules = r.rules as string[];
+  return {
+    id: r.decisionId,
+    kind: r.kind as GateDecision["kind"],
+    decision: r.decision,
+    result: r.result,
+    message: "",
+    rules,
+    reasons: r.rules.map((rule) => ({ rule, words: PAYMENT_RULE_WORDS[rule] ?? rule })),
+    amountUsd: r.amountCents / 100,
+    payee: r.payee,
+    vendorId: null,
+    reference: r.reference,
+    inputHash: r.inputHash,
+    input: shared.input,
+    mandate: { version: r.mandateVersion, hash: r.mandateHash },
+    createdAt: new Date(r.checkedAt * 1000).toISOString(),
+    receipt: shared.receipt,
   };
 }
 

@@ -11,7 +11,7 @@ migrations `0024_payment_gate.sql` and `0026_gate_transparency.sql`),
 `packages/shared/src/gate-receipt.ts` (receipts, input and mandate hashing, offline verification),
 `packages/shared/src/gate-log.ts` (daily log roots and proofs), `apps/keeper/src/gate-anchor.ts`
 (the keeper job that makes and posts them), `contracts/evm/src/GateAnchor.sol` (where they go on
-chain) and `apps/web/src/pages/Gate.tsx` and `GateSetup.tsx` (the rules page). Tests: `test/gate.test.ts`,
+chain) and `apps/web/src/pages/Gate.tsx` and `GateSetup.tsx` (the rules page), `GateVerify.tsx` (checking a receipt). Tests: `test/gate.test.ts`,
 `test/gate-anchor.test.ts`, `packages/shared/test/gate-receipt.test.ts` and `gate-log.test.ts`,
 `contracts/evm/test/GateAnchor.t.sol` and `apps/web/src/pages/Gate.test.tsx`.
 
@@ -127,6 +127,10 @@ approved invoices, bank-change tickets and API keys, each through the owner rout
 the mandate in plain words, every version with its hash, and the decision log. Its Verify button
 runs these checks, and the log root check below, in the browser. Refunds and imported payments are
 API only.
+
+Anyone can run the same checks without signing in at `/gate/verify` (`GateVerify.tsx`): paste an
+agent's check answer (the receipt and its input), or a receipt the owner copied from a decision
+(with its log proof once Verify has loaded it). The root is read from GateAnchor on chain.
 
 ## Hashes on chain
 
