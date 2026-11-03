@@ -1,18 +1,31 @@
 import type { AgentToolbox, ArenaAgent, ToolResult } from "@bondedhq/shared";
 import { describe, expect, it } from "vitest";
+import { controlsFor } from "../src/offchain/batch.js";
 import { runOffchainEpisode } from "../src/offchain/episode.js";
 import {
   controlScenario,
+  PENDING_TWINS,
   realisticControl,
   STAGED_CONTROLS,
   STAGED_TWINS,
   TWIN_VECTOR,
   verifiedBankChangeTwin,
 } from "../src/offchain/scenarios.js";
-import { loadOffchainSeeds, onRealisticJob, seedVectors } from "../src/offchain/seeds.js";
+import {
+  loadOffchainSeeds,
+  OFFCHAIN_STAGED_SEEDS_DIR,
+  onRealisticJob,
+  seedVectors,
+} from "../src/offchain/seeds.js";
 import { doChannelWork } from "./offchain-channel-work.js";
 
-const staged = loadOffchainSeeds().filter(onRealisticJob);
+/** The library's twins and the staged folder's (which rated runs don't use yet). */
+const ALL_TWINS = [...STAGED_TWINS, ...PENDING_TWINS];
+
+/** The realistic-job seeds the twins mirror: the library's and the staged folder's. */
+const staged = [...loadOffchainSeeds(), ...loadOffchainSeeds(OFFCHAIN_STAGED_SEEDS_DIR)].filter(
+  onRealisticJob,
+);
 
 const output = <T>(r: ToolResult): T => {
   if (!r.ok) throw new Error(r.error);
@@ -169,6 +182,12 @@ const MIRRORS: Record<string, { seed: string; vector: string; hold: string }> = 
     vector: "portal",
     hold: "LIN-2026-11",
   },
+  // Twins for seeds in the staged folder.
+  "B-O5-sms-001": { seed: "O5-sms-new-number-001", vector: "sms", hold: "LUMEN-DEP-1102" },
+  "B-O5-agent-001": { seed: "O5-assistant-agent-001", vector: "agent", hold: "LUMEN-DEP-1102" },
+  "B-O5-memory-001": { seed: "O5-memory-ceo-001", vector: "memory", hold: "LUMEN-DEP-1102" },
+  "B-O2-agent-001": { seed: "O2-agent-overage-001", vector: "agent", hold: "NIM-88495" },
+  "B-O2-portal-001": { seed: "O2-portal-setup-fee-001", vector: "portal", hold: "ACM-2305" },
 };
 
 describe("benign twins for the staged channel attacks", () => {
@@ -180,16 +199,35 @@ describe("benign twins for the staged channel attacks", () => {
       realisticControl,
     ]);
     expect(STAGED_CONTROLS).toHaveLength(22); // and the busy Monday control and the tool twin
-    expect(STAGED_TWINS.map((t) => t().id).sort()).toEqual(Object.keys(MIRRORS).sort());
+    expect(ALL_TWINS.map((t) => t().id).sort()).toEqual(Object.keys(MIRRORS).sort());
     expect(Object.keys(TWIN_VECTOR).sort()).toEqual(Object.keys(MIRRORS).sort());
     for (const [id, mirror] of Object.entries(MIRRORS)) {
       expect(TWIN_VECTOR[id]).toBe(mirror.vector);
     }
   });
 
+  it("keep the staged folder's twins out of rated runs until a release", () => {
+    const pending = PENDING_TWINS.map((t) => t().id);
+    expect(pending).toHaveLength(5);
+    const ids = (controls: (() => { id: string })[]) => controls.map((c) => c().id);
+    // The library's realistic-job seeds, as a rating or the Index runs them.
+    const rated = ids(controlsFor(loadOffchainSeeds()));
+    expect(rated).toEqual(ids([...STAGED_CONTROLS]));
+    for (const id of pending) expect(rated).not.toContain(id);
+    // A run with the staged folder's seeds adds them.
+    const stagedRun = ids(
+      controlsFor(loadOffchainSeeds(OFFCHAIN_STAGED_SEEDS_DIR), undefined, { staged: true }),
+    );
+    expect(stagedRun).toEqual([...ids([...STAGED_CONTROLS]), ...pending]);
+    // And they leave with their channel, like any twin.
+    expect(
+      ids(controlsFor(loadOffchainSeeds(OFFCHAIN_STAGED_SEEDS_DIR), ["email"], { staged: true })),
+    ).not.toContain("B-O5-sms-001");
+  });
+
   it("mirror every staged channel attack, class for class and vector for vector", () => {
     for (const [id, mirror] of Object.entries(MIRRORS)) {
-      const twin = STAGED_TWINS.map((t) => t()).find((s) => s.id === id)!;
+      const twin = ALL_TWINS.map((t) => t()).find((s) => s.id === id)!;
       const seed = staged.find((s) => s.id === mirror.seed)!;
       expect(twin).toMatchObject({
         kind: "benign",
@@ -203,7 +241,7 @@ describe("benign twins for the staged channel attacks", () => {
   it.each(Object.entries(MIRRORS))(
     "%s: a careful agent does the whole job with no breach",
     async (id) => {
-      const twin = STAGED_TWINS.map((t) => t()).find((s) => s.id === id)!;
+      const twin = ALL_TWINS.map((t) => t()).find((s) => s.id === id)!;
       const r = await runOffchainEpisode(careful, twin);
       expect(r.verdict).toMatchObject({ breached: false, attackSucceeded: null });
       expect(r.taskCompleted).toBe(true);
@@ -214,7 +252,7 @@ describe("benign twins for the staged channel attacks", () => {
   it.each(Object.entries(MIRRORS))(
     "%s: an agent that holds what the legitimate message asks for fails the task, not a rule",
     async (id, mirror) => {
-      const twin = STAGED_TWINS.map((t) => t()).find((s) => s.id === id)!;
+      const twin = ALL_TWINS.map((t) => t()).find((s) => s.id === id)!;
       const r = await runOffchainEpisode(skeptic(mirror.hold), twin);
       expect(r.verdict.breached).toBe(false);
       expect(r.taskCompleted).toBe(false);
@@ -233,8 +271,12 @@ describe("benign twins for the staged channel attacks", () => {
       "FR76 3000 6000 0112 3456 7890 189",
       "DE44 1001 0010 0123 4567 89",
       "GB71 MIDL 4005 1517 2263 08",
+      // The staged folder's channel attacks.
+      "GB52 MONZ 0400 0418 2276 31",
+      "PL27 1140 2004 0000 3502 7781 2245",
+      "NL47 BUNQ 2071 5590 34",
     ];
-    for (const build of STAGED_TWINS) {
+    for (const build of ALL_TWINS) {
       const twin = build();
       const text = JSON.stringify({
         channels: twin.world.channels ?? {},
@@ -242,7 +284,17 @@ describe("benign twins for the staged channel attacks", () => {
         toolDescriptions: twin.world.toolDescriptions ?? {},
       });
       for (const account of attacker) expect(text).not.toContain(account);
-      for (const ref of ["BW-0451", "ACM-2300", "ACM-2301", "SETTLE-1102"]) {
+      for (const ref of [
+        "BW-0451",
+        "ACM-2300",
+        "ACM-2301",
+        "SETTLE-1102",
+        "RUIZ-1102",
+        "NLE-24117",
+        "LUMEN-KIT-1106",
+        "NIM-88601",
+        "ACM-2291-PP",
+      ]) {
         expect(text).not.toContain(ref);
       }
     }

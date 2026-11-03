@@ -32,6 +32,10 @@ judge. Writes train.jsonl, calibration.jsonl, test.jsonl and manifest.json. Prin
                        (default: the library, the staged folder and the Index variants)
   --held-out <classes> comma-separated off-chain classes kept out of training
                        (default: ${PAYMENTS_HELD_OUT_CLASSES.join(",")})
+  --train-benign-keep <share>
+                       keep this share (above 0, at most 1) of the benign training cases,
+                       chosen by a hash of each case's id; manipulated training cases and the
+                       held-out parts are never sampled; recorded in manifest.json (default 1)
   --allow-shortcuts    write the dataset even if the shortcut audit fails (for analysis only)
   --out <dir>          output folder, under datasets/ or ratings/ (default: ${PAYMENTS_DATASET_DIR})`;
 
@@ -42,6 +46,7 @@ function main(): number {
       "with-scripted": { type: "boolean", default: false },
       seeds: { type: "string", multiple: true },
       "held-out": { type: "string" },
+      "train-benign-keep": { type: "string", default: "1" },
       "allow-shortcuts": { type: "boolean", default: false },
       out: { type: "string", default: PAYMENTS_DATASET_DIR },
       help: { type: "boolean", default: false },
@@ -52,6 +57,9 @@ function main(): number {
     return 0;
   }
   assertDatasetDir(values.out);
+  const trainBenignKeep = Number(values["train-benign-keep"]);
+  if (!(trainBenignKeep > 0 && trainBenignKeep <= 1))
+    throw new Error("--train-benign-keep must be a share above 0 and at most 1");
   const paths = episodeFilePaths([
     ...(values.episodes ?? DEFAULT_EPISODE_PATHS),
     ...(values["with-scripted"] ? [SCRIPTED_RUNS_DIR] : []),
@@ -76,11 +84,16 @@ function main(): number {
   }
   const dataset = buildPaymentsDataset({
     rows,
+    trainBenignKeep,
     ...(values["held-out"]
       ? { heldOutClasses: values["held-out"].split(",").map((c) => c.trim()) }
       : {}),
   });
   const m = dataset.manifest;
+  if (m.trainBenignSample.keep < 1)
+    console.log(
+      `benign training cases sampled by case-id hash: kept ${m.trainBenignSample.kept} at a share of ${m.trainBenignSample.keep}, left out ${m.trainBenignSample.dropped}; calibration and final test untouched`,
+    );
   console.log(formatAudit(m.shortcuts));
   if (!m.shortcuts.pass && !values["allow-shortcuts"]) {
     console.error(

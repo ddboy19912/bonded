@@ -460,9 +460,37 @@ export interface PaymentsDataset {
      * model's.
      */
     origins: Record<PaymentsPart, Record<string, { cases: number; manipulated: number }>>;
+    /**
+     * The share of benign training cases kept (`sampleBenignTraining`): 1 keeps them all.
+     * Manipulated training cases, calibration and the final test are never sampled.
+     */
+    trainBenignSample: { keep: number; kept: number; dropped: number };
     /** Whether a surface rule predicts the training labels (shortcuts.ts). Don't train on a fail. */
     shortcuts: ShortcutAudit;
   };
+}
+
+/**
+ * Keeps a share of the benign training cases, chosen by a hash of each case's id, so a build keeps
+ * the same cases every time and a case's fate doesn't depend on the others. It exists because the
+ * Index traces bring far more benign payments than attacks: the training part must be about a
+ * tenth manipulated or the shortcut audit's purity rule fails on `action=pay_invoice`. Manipulated
+ * cases are all kept, and the held-out parts are never touched, so held-out numbers don't change.
+ */
+export function sampleBenignTraining(
+  cases: readonly PaymentCase[],
+  keep: number,
+): { kept: PaymentCase[]; dropped: number } {
+  if (!(keep > 0 && keep <= 1))
+    throw new Error(`the share of benign cases kept (${keep}) must be in (0, 1]`);
+  if (cases.some((c) => c.part !== "train"))
+    throw new Error("only training cases are sampled; the held-out parts stay whole");
+  const kept = cases.filter(
+    (c) =>
+      c.manipulated ||
+      Number.parseInt(sha(`train-benign:${c.id}`).slice(0, 8), 16) / 2 ** 32 < keep,
+  );
+  return { kept, dropped: cases.length - kept.length };
 }
 
 /**
@@ -474,8 +502,11 @@ export interface PaymentsDataset {
 export function buildPaymentsDataset(input: {
   rows: readonly PaymentRow[];
   heldOutClasses?: readonly string[];
+  /** The share of benign training cases to keep (sampleBenignTraining); 1, all, by default. */
+  trainBenignKeep?: number;
 }): PaymentsDataset {
   const heldOutClasses = input.heldOutClasses ?? PAYMENTS_HELD_OUT_CLASSES;
+  const trainBenignKeep = input.trainBenignKeep ?? 1;
   const parts = familyParts(input.rows, heldOutClasses);
   const byState = new Map<string, PaymentRow[]>();
   for (const row of input.rows) {
@@ -524,6 +555,8 @@ export function buildPaymentsDataset(input: {
       imageInputs: first.imageInputs,
     });
   }
+  const sampled = sampleBenignTraining(out.train, trainBenignKeep);
+  out.train = sampled.kept;
   for (const p of PARTS) out[p].sort((a, b) => a.id.localeCompare(b.id));
   assertPaymentSplits(out, heldOutClasses);
 
@@ -571,6 +604,11 @@ export function buildPaymentsDataset(input: {
           return acc;
         }, {}),
       ),
+      trainBenignSample: {
+        keep: trainBenignKeep,
+        kept: out.train.filter((c) => !c.manipulated).length,
+        dropped: sampled.dropped,
+      },
       // Audited by origin too: a source with many rows mustn't be solvable on its own.
       shortcuts: auditShortcuts(
         out.train.map((c) => ({ ...auditRowFromLaya(c), source: originOf(c) })),

@@ -286,6 +286,8 @@ const EACH =
 const RANGE = /\b([A-Z]{2,}-[A-Z0-9-]*?)(\d+) (?:to|through) \1(\d+)\b/g;
 /** Paperwork ids, not invoices: change tickets, helpdesk tickets, bank letters. */
 const NOT_INVOICE = /^(?:CHG|HD|[A-Z]+-BL)-/;
+/** A structured message's amount field (another agent's JSON), read as dollars. */
+const AMOUNT_FIELD = /"amountUsd"\s*:\s*(\d+(?:\.\d+)?)/g;
 
 const usd = (text: string) => Number(text.replace(/[$,]/g, ""));
 const urges = (text: string) => {
@@ -398,7 +400,11 @@ export function obey(reading: Reading): Obeyed {
         (a) => !known.has(accountKey(a)) && (!doc || accountKey(a) !== accountKey(doc.account)),
       );
     const refs = referencesIn(text);
-    const amounts = matches(text, DOLLARS);
+    // Written amounts, and the amount fields of a structured request ("amountUsd": 286).
+    const amounts = [
+      ...matches(text, DOLLARS),
+      ...[...text.matchAll(AMOUNT_FIELD)].map((m) => ({ value: `$${m[1]}`, index: m.index })),
+    ];
     const vendorIds = unit.vendorId ? [unit.vendorId] : named(text).map((v) => v.id);
     const queuedRefs = refs.filter((r) => queued.has(ref(r.value)));
     const refundRefs = refs.filter((r) => refunds.has(ref(r.value)));

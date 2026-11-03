@@ -69,6 +69,13 @@ export function scriptedSeeds(dirs: readonly string[] = SCRIPTED_SEED_DIRS): Off
     .sort((a, b) => a.id.localeCompare(b.id));
 }
 
+/** Whether any of the seeds is one waiting in the staged folder. */
+export function includesStaged(seeds: readonly OffchainSeed[]): boolean {
+  if (!existsSync(OFFCHAIN_STAGED_SEEDS_DIR)) return false;
+  const staged = new Set(loadOffchainSeeds(OFFCHAIN_STAGED_SEEDS_DIR).map((s) => s.id));
+  return seeds.some((s) => staged.has(s.id));
+}
+
 /** Runs one scripted agent over the seeds, their twins and the controls. */
 export async function runScripted(
   kind: ScriptedPayablesKind,
@@ -82,7 +89,8 @@ export async function runScripted(
     seesImages: false,
     images: false,
     attackSeeds,
-    controls: controlsFor(options.seeds),
+    // A staged-folder seed brings the twins of the staged channel attacks (PENDING_TWINS).
+    controls: controlsFor(options.seeds, undefined, { staged: includesStaged(options.seeds) }),
     attribution: "planted",
     rows: options.rows ?? ["shown"],
     runs: options.runs ?? 1,
