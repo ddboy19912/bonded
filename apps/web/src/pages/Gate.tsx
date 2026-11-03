@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { useAccount, usePublicClient } from "wagmi";
 import { gateAnchorAbi } from "@bondedhq/shared";
 import type { Hex } from "viem";
@@ -15,6 +15,7 @@ import {
   type ChainRootQuery,
   type GateAccount,
   type GateDecision,
+  type GateProof,
   type Verification,
   type VerifyStep,
 } from "../lib/gate";
@@ -65,12 +66,14 @@ function OnChain({ posted }: { posted: AnchorPost | null }) {
   return <Badge tone="safe">Posted</Badge>;
 }
 
-const RESULT: Record<GateDecision["result"], { label: string; tone: "safe" | "breach" | "warn" }> =
-  {
-    allowed: { label: "Allowed", tone: "safe" },
-    blocked: { label: "Blocked", tone: "breach" },
-    refused: { label: "Refused", tone: "warn" },
-  };
+export const RESULT: Record<
+  GateDecision["result"],
+  { label: string; tone: "safe" | "breach" | "warn" }
+> = {
+  allowed: { label: "Allowed", tone: "safe" },
+  blocked: { label: "Blocked", tone: "breach" },
+  refused: { label: "Refused", tone: "warn" },
+};
 
 const STEPS: { key: keyof Verification; label: string }[] = [
   { key: "signature", label: "Bonded's signature" },
@@ -99,13 +102,19 @@ export function VerifyPanel({
 }) {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<Verification>();
+  // The log proof Verify loaded, so the copied receipt carries it.
+  const [proof, setProof] = useState<GateProof>();
   const run = async () => {
     setRunning(true);
     try {
       setResult(
         await verifyDecision(decision, {
           receiptKey: gateApi.receiptKey,
-          proof: () => gateApi.proof(session, accountId, decision.id),
+          proof: async () => {
+            const p = await gateApi.proof(session, accountId, decision.id);
+            setProof(p);
+            return p;
+          },
           ...(chainRoot ? { chainRoot } : {}),
         }),
       );
@@ -113,35 +122,49 @@ export function VerifyPanel({
       setRunning(false);
     }
   };
-  const failed = result ? STEPS.filter((s) => result[s.key].ok === false).length : 0;
+  const shared = JSON.stringify({
+    receipt: decision.receipt,
+    input: decision.input,
+    ...(proof ? { proof } : {}),
+  });
   return (
     <div className="flex flex-col gap-3">
-      <div>
+      <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" kind="secondary" loading={running} onClick={() => void run()}>
           {result ? "Verify again" : "Verify"}
         </Button>
+        <CopyButton text={shared} label={proof ? "Copy receipt and proof" : "Copy receipt"} />
+        <Link to="/gate/verify" className={`${linkClass} text-xs`}>
+          Anyone can check it
+        </Link>
       </div>
-      {result && (
-        <div
-          aria-label="Verification"
-          className="flex flex-col gap-2.5 rounded-2xl border border-line p-4"
-        >
-          <p className="text-sm font-semibold" role="status">
-            {failed === 0
-              ? "No check failed."
-              : `${failed} ${failed === 1 ? "check" : "checks"} failed.`}
-          </p>
-          <ul className="flex flex-col gap-2.5">
-            {STEPS.map((s) => (
-              <li key={s.key} className="flex flex-wrap items-start gap-x-3 gap-y-1 text-sm">
-                <span className="w-40 shrink-0 text-muted">{s.label}</span>
-                <StepBadge step={result[s.key]} />
-                <span className="min-w-0 flex-1 text-soft">{result[s.key].detail}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {result && <VerificationList result={result} />}
+    </div>
+  );
+}
+
+/** Which checks of a decision passed, failed or couldn't run, each with why. */
+export function VerificationList({ result }: { result: Verification }) {
+  const failed = STEPS.filter((s) => result[s.key].ok === false).length;
+  return (
+    <div
+      aria-label="Verification"
+      className="flex flex-col gap-2.5 rounded-2xl border border-line p-4"
+    >
+      <p className="text-sm font-semibold" role="status">
+        {failed === 0
+          ? "No check failed."
+          : `${failed} ${failed === 1 ? "check" : "checks"} failed.`}
+      </p>
+      <ul className="flex flex-col gap-2.5">
+        {STEPS.map((s) => (
+          <li key={s.key} className="flex flex-wrap items-start gap-x-3 gap-y-1 text-sm">
+            <span className="w-40 shrink-0 text-muted">{s.label}</span>
+            <StepBadge step={result[s.key]} />
+            <span className="min-w-0 flex-1 text-soft">{result[s.key].detail}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -340,12 +363,35 @@ function Decisions({
   );
 }
 
+/**
+ * The root posted on chain, read straight from the app's own GateAnchor: never from an address
+ * the API or a pasted receipt names. Not read when the API says it was posted somewhere else.
+ */
+export function useChainRoot(): ChainRoot | undefined {
+  const client = usePublicClient();
+  const anchor = deployment.gateAnchor;
+  return client && anchor
+    ? async ({ accountKey, dayNumber, posted }) =>
+        posted &&
+        (posted.chainId !== deployment.chainId ||
+          posted.contract.toLowerCase() !== anchor.toLowerCase())
+          ? null
+          : (
+              await client.readContract({
+                address: anchor,
+                abi: gateAnchorAbi,
+                functionName: "logRootOf",
+                args: [accountKey, dayNumber],
+              })
+            ).hash
+    : undefined;
+}
+
 /** The payment gate's rules page: the owner's mandate, its history and every decision. */
 export function Gate() {
   const { isConnected } = useAccount();
   const owner = useOwnerSession();
   const session = owner.session?.session;
-  const client = usePublicClient();
   const [params, setParams] = useSearchParams();
   const accounts = useQuery({
     queryKey: ["gate-accounts", session],
@@ -363,25 +409,7 @@ export function Gate() {
     setCreating(false);
     setParams({ account: accountId }, { replace: true });
   };
-  // The root posted on chain, read straight from the app's own GateAnchor: never from an address
-  // the API names. Not read when the API says it was posted somewhere else.
-  const anchor = deployment.gateAnchor;
-  const chainRoot: ChainRoot | undefined =
-    client && anchor
-      ? async ({ accountKey, dayNumber, posted }) =>
-          posted &&
-          (posted.chainId !== deployment.chainId ||
-            posted.contract.toLowerCase() !== anchor.toLowerCase())
-            ? null
-            : (
-                await client.readContract({
-                  address: anchor,
-                  abi: gateAnchorAbi,
-                  functionName: "logRootOf",
-                  args: [accountKey, dayNumber],
-                })
-              ).hash
-      : undefined;
+  const chainRoot = useChainRoot();
   return (
     <Page
       title="Payment gate"
