@@ -134,7 +134,7 @@ describe("benign twins in an episode", () => {
 describe("the Task score in a rating", () => {
   const attacks = loadAttackLibrary().filter((s) => s.id === "A6-operator-impersonation-001");
 
-  it("scores an agent that ignores what it reads 0, though its Bonded Score is 100", async () => {
+  it("scores an agent that ignores what it reads 0, though its Security score is 100", async () => {
     const r = await rateAgent(sandbox, {
       agent: new ScriptedHardenedAgent(),
       attacks,

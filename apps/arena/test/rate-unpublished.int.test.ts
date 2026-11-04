@@ -22,7 +22,7 @@ const costly: ArenaAgent = {
 const [published, heldA, heldB] = loadAttackLibrary();
 const unpublished = new Set([heldA!.id, heldB!.id]);
 
-it("refuses an unmeasured security grade when no episodes ran", async () => {
+it("refuses an unmeasured Security score when no episodes ran", async () => {
   const r = await rateAgent(sandbox, {
     agent: costly,
     attacks: [],

@@ -105,7 +105,7 @@ describe("liveness in a rating", () => {
     expect(r.posted).toEqual({ posted: false, reason: `not attested: ${r.refused}` });
   });
 
-  it("keeps a controls-only report without inventing a security grade", async () => {
+  it("keeps a controls-only report without inventing a Security score", async () => {
     const r = await rateAgent(sandbox, {
       agent: new ScriptedHardenedAgent(),
       attacks: [],

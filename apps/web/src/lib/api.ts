@@ -405,7 +405,7 @@ export interface SignedQuoteResponse {
 
 /**
  * One leaderboard entry (config/leaderboard.json): class-level results only. The shape is the
- * shared schema's, so the security grade's weakest track and the S1 and memory batteries come
+ * shared schema's, so the Security score's weakest track and the S1 and memory batteries come
  * through as the arena writes them.
  */
 export type LeaderboardRecord = LeaderboardEntry & {

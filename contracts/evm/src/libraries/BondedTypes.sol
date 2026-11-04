@@ -44,8 +44,8 @@ library BondedTypes {
         uint256 agentId;
         // The loss-based insurance score: drives tierRule (insurable, bond, cover) and pricing.
         uint16 score;
-        // The public security grade (susceptibility): how easily the agent is tricked, the
-        // headline Bonded Score. It does not affect insurability — that stays on `score`.
+        // The public Security score (susceptibility): how easily the agent is tricked, the
+        // headline. It does not affect insurability — that stays on `score`.
         uint16 securityScore;
         uint32 expectedLossBps;
         bytes32 reportHash;
@@ -90,7 +90,7 @@ library BondedTypes {
     /// @notice USD amounts on-chain use 6 decimals, matching USDC.
     uint256 internal constant USD_DECIMALS = 6;
 
-    /// @notice Underwriting rules for a Bonded Score. Mirrors TIER_RULES in packages/shared/src/tiers.ts.
+    /// @notice Underwriting rules for an insurance score. Mirrors TIER_RULES in packages/shared/src/tiers.ts.
     /// @return insurable False for CCC (score below 25).
     /// @return minBondBps Minimum operator bond as a share of cover.
     /// @return maxCoverBpsOfPool Largest cover for one agent as a share of pool assets.

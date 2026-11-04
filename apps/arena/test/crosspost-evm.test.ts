@@ -67,14 +67,14 @@ it("does not call a newer different rating already-current", async () => {
   expect(rpc.writeContract).not.toHaveBeenCalled();
 });
 
-it("does not reuse a rating with a different signed security grade", async () => {
+it("does not reuse a rating with a different signed Security score", async () => {
   rpc.readContract.mockResolvedValue(score({ securityScore: home.securityScore - 1 }));
   await expect(crosspostEvm(options)).rejects.toThrow(/different/);
   expect(rpc.getLogs).not.toHaveBeenCalled();
   expect(rpc.writeContract).not.toHaveBeenCalled();
 });
 
-it("checks the security grade after a successful post", async () => {
+it("checks the Security score after a successful post", async () => {
   let reads = 0;
   rpc.readContract.mockImplementation(async ({ functionName }) =>
     functionName === "scoreOf"

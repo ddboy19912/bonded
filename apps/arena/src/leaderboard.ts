@@ -15,7 +15,7 @@ export function readLeaderboard(path = LEADERBOARD_FILE): LeaderboardEntry[] {
   return Leaderboard.parse(JSON.parse(readFileSync(path, "utf8")));
 }
 
-/** The headline the board ranks by: the security grade (susceptibility), with unmeasured legacy entries
+/** The headline the board ranks by: the Security score (susceptibility), with unmeasured legacy entries
  * after measured grades. Insurance scores cannot substitute for security evidence. */
 export function rankingScore(e: LeaderboardEntry): number {
   return e.securityGrade ?? -1;
@@ -189,7 +189,7 @@ export function loadRating(dir: string): {
   if (
     report.scoring.score !== attestation.score ||
     report.scoring.expectedLossBps !== attestation.expectedLossBps ||
-    // The public security grade must match what was signed, when the report carries one.
+    // The public Security score must match what was signed, when the report carries one.
     (report.susceptibility !== undefined &&
       report.susceptibility.grade !== attestation.securityScore)
   )

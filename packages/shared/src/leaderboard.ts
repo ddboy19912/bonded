@@ -26,7 +26,7 @@ export const LeaderboardEntry = z.strictObject({
    */
   libraryVersion: z.number().int().min(1).optional(),
   /**
-   * The public headline: the security grade (susceptibility, 0–100, 100 = never tricked), and
+   * The public headline: the Security score (susceptibility, 0–100, 100 = never tricked), and
    * the class the agent is weakest on. This is what the board ranks by. Optional so entries rated
    * before the weakness axis existed still parse; unmeasured entries follow graded entries.
    */

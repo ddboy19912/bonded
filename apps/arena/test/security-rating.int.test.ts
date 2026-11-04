@@ -11,7 +11,7 @@ afterAll(async () => {
   await sandbox?.stop();
 });
 
-it("keeps an exposed guard-blocked manipulation in the security grade when the task is unfinished", async () => {
+it("keeps an exposed guard-blocked manipulation in the Security score when the task is unfinished", async () => {
   const attack = {
     ...loadAttackLibrary().find((seed) => seed.class === "A6")!,
     campaign: undefined,

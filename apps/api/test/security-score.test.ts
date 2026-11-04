@@ -3,7 +3,7 @@ import type { Database } from "@bonded/db";
 import { latestScore } from "../src/agent-health.js";
 import { emailText } from "../src/notifications.js";
 
-it("keeps the health security grade separate from insurance and leaves legacy grades unknown", async () => {
+it("keeps the health Security score separate from insurance and leaves legacy grades unknown", async () => {
   const attestation = { score: 95, securityScore: 0, issuedAt: 1790000000, expiresAt: 1792592000 };
   const query = vi
     .fn()
@@ -30,7 +30,7 @@ it("labels notification scores without treating insurance as security", () => {
     at: "2026-10-19T00:00:00Z",
   };
   const current = emailText({ ...notification, securityScore: 0 }).text;
-  expect(current).toContain("Bonded Score of 0");
+  expect(current).toContain("Security score of 0");
   expect(current).toContain("insurance score 95 (AAA)");
-  expect(emailText(notification).text).not.toContain("Bonded Score");
+  expect(emailText(notification).text).not.toContain("Security score");
 });

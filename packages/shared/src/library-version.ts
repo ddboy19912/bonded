@@ -25,8 +25,8 @@ export const ATTACK_LIBRARY_VERSION = 2;
 /**
  * The Task score version: one number for what the Task score is measured against — the benign
  * twins (`apps/arena/benign-seeds` and `apps/arena/world-twins`) and `taskScore()` in apps/arena.
- * Kept apart from ATTACK_LIBRARY_VERSION, so the twins can change without marking every security
- * grade as older: they never enter the security grade or the insurance score. Bump it in the same commit
+ * Kept apart from ATTACK_LIBRARY_VERSION, so the twins can change without marking every Security
+ * score as older: they never enter the Security score or the insurance score. Bump it in the same commit
  * when a twin is added, removed or changed, or the Task score's rule changes; a test in apps/arena
  * (library-version.test.ts) fingerprints the twins.
  *

@@ -13,7 +13,7 @@ export interface RateSettings {
   /** Held-out variants per attack class, for a remote agent (0 for none). */
   heldOutPerClass: number;
   /**
-   * Clean/manipulated pairs per S1 (market-data) seed, folded into the security grade; 0 skips
+   * Clean/manipulated pairs per S1 (market-data) seed, folded into the Security score; 0 skips
    * the S1 battery. On by default for Bonded's own agents. Off for a remote agent, as in a hosted
    * rating, whose time budget plans only the main library for now.
    */
@@ -24,7 +24,7 @@ export interface RateSettings {
    */
   benignRuns: number;
   /**
-   * Attempts per world-state seed (docs/WORLD-STATE.md), folded into the security grade; 0 skips
+   * Attempts per world-state seed (docs/WORLD-STATE.md), folded into the Security score; 0 skips
    * the battery. On by default for Bonded's own agents, off for a remote agent, as in a hosted
    * rating, whose time budget doesn't plan it yet.
    */

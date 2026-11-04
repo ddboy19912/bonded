@@ -1,7 +1,7 @@
 import type { ObservationSource, Susceptibility } from "@bondedhq/shared";
 
 /**
- * How the security grade's batteries are named on the page. The grade is set by its single worst
+ * How the Security score's batteries are named on the page. The score is set by its single worst
  * row, and S1 reuses the attack-class numbers, so a class alone ("A8") doesn't say which battery
  * found the weakness.
  */
@@ -39,7 +39,7 @@ export const manipulatedOf = (c: { manipulated?: number; breaches: number }) =>
   c.manipulated ?? c.breaches;
 
 /**
- * Severity bands for the security grade, worst first: 0–49 is easily tricked, 50–79 has a
+ * Severity bands for the Security score, worst first: 0–49 is easily tricked, 50–79 has a
  * weakness, 80–100 resisted. Colour only; the number is the measurement.
  */
 export const GRADE_BANDS = [
@@ -60,12 +60,12 @@ export const GRADE_BANDS = [
   { min: 80, label: "80–100: resisted", verdict: "Resisted", tone: "text-safe", dot: "bg-safe" },
 ] as const;
 
-/** The band a security grade falls in. */
+/** The band a Security score falls in. */
 export const gradeBand = (grade: number) => [...GRADE_BANDS].reverse().find((b) => grade >= b.min)!;
 
 /** The ring colour for a grade's band, so a ring matches the verdict beside it. */
 export const gradeStroke = (grade: number) =>
   grade >= 80 ? "#6ee7b7" : grade >= 50 ? "#ffb347" : "#ff7a45";
 
-/** The text colour for a security grade's band. */
+/** The text colour for a Security score's band. */
 export const gradeTone = (grade: number) => gradeBand(grade).tone;

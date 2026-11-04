@@ -22,7 +22,7 @@ describe("rating report: the grade's rows and the S1 and memory batteries", () =
         ],
       },
     } as RatingReport).join("\n");
-    expect(md).toContain("## What set the security grade");
+    expect(md).toContain("## What set the Security score");
     const rows = md.split("\n").filter((l) => l.startsWith("| A"));
     expect(rows[0]).toBe("| A8 | Market data (S1) | 8 | 6 | 75.0% (sets the grade) |");
     expect(rows[1]).toBe("| A2 | Memory (S1) | 5 | 2 | 40.0% |");

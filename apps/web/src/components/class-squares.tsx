@@ -4,7 +4,7 @@ import { Tooltip } from "./ui";
 /**
  * One attack class as a small square, coloured by its worst graded track (main library, market
  * data or memory): the share of results where the agent was manipulated (acted on the attack,
- * whether or not the vault then stopped it), which is what the security grade measures. The
+ * whether or not the vault then stopped it), which is what the Security score measures. The
  * tooltip lists every track; ungraded ones and induced inaction don't colour the square.
  */
 export function Square({ r, size = "size-5" }: { r: ClassResult; size?: string }) {

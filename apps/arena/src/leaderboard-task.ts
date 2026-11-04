@@ -5,7 +5,7 @@ import { entryTask } from "./leaderboard.js";
 import { pickEntries, type RefreshTarget, refreshTarget } from "./leaderboard-refresh.js";
 import type { TaskBatteryResult } from "./task-battery.js";
 
-// `pnpm leaderboard task`: adds the Task score to entries whose security grade was already
+// `pnpm leaderboard task`: adds the Task score to entries whose Security score was already
 // measured, by running only the controls and benign twins (`arena task`), never the attack
 // library. The entries' grades, scores and on-chain posts are left as they are.
 

@@ -194,7 +194,7 @@ it("publishes the grade's weakest track and the S1 and memory batteries at class
   expect(plain.worldClasses).toBeUndefined();
 });
 
-it("keeps one entry per slug and ranks measured security grades before legacy insurance scores", () => {
+it("keeps one entry per slug and ranks measured Security scores before legacy insurance scores", () => {
   const dir = mkdtempSync(join(tmpdir(), "lb-"));
   try {
     const file = join(dir, "leaderboard.json");
