@@ -583,6 +583,28 @@ describe("the payment gate's rules page", () => {
     expect(within(modal).queryByRole("alert")).toBeNull();
   });
 
+  it("keeps a confirmation open while its change is running", async () => {
+    vi.spyOn(gateApi, "revokeKey").mockReturnValue(new Promise(() => {}));
+    signedIn();
+    showAccount("keys");
+    const modal = await press("Revoke");
+    fireEvent.click(within(modal).getByRole("button", { name: "Revoke key" }));
+    const cancel = within(modal).getByRole("button", { name: "Cancel" }) as HTMLButtonElement;
+    await vi.waitFor(() => expect(cancel.disabled).toBe(true));
+    fireEvent.keyDown(modal, { key: "Escape" });
+    expect(screen.getByRole("dialog")).toBeTruthy();
+  });
+
+  it("ties a field's error to the field", async () => {
+    signedIn();
+    showAccount();
+    const modal = await press("Edit rules");
+    fill(modal, "Most in one day", "lots");
+    const field = within(modal).getByLabelText("Most in one day");
+    const note = document.getElementById(field.getAttribute("aria-describedby")!);
+    expect(note?.textContent).toBe("Enter an amount in dollars.");
+  });
+
   it("can retry vendors that failed to load, and still add one", async () => {
     vi.mocked(gateApi.vendors).mockRejectedValueOnce(new ApiError(500, "Couldn't load them."));
     signedIn();

@@ -18,7 +18,8 @@ import { useMediaQuery } from "./overlay";
 
 /**
  * A modal on wide screens and a drawer from the bottom on phones (shadcn/ui's responsive dialog).
- * `locked` keeps it open until something in it closes it, for a secret that's shown once.
+ * `locked` keeps it open until something in it closes it: for a secret that's shown once, or a
+ * change that's still running.
  */
 export function ResponsiveModal({
   open,

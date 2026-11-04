@@ -140,6 +140,7 @@ export function TextField({
           inputMode={inputMode}
           onChange={(e) => onChange(e.target.value)}
           aria-invalid={error ? true : undefined}
+          aria-describedby={error || hint ? `${id}-note` : undefined}
           autoComplete="off"
           spellCheck={false}
           className={cn("h-11 rounded-xl", mono && "font-mono", suffix && "pr-14")}
@@ -151,9 +152,13 @@ export function TextField({
         )}
       </div>
       {error ? (
-        <FieldError>{error}</FieldError>
+        <FieldError id={`${id}-note`}>{error}</FieldError>
       ) : (
-        hint && <FieldDescription className="text-xs">{hint}</FieldDescription>
+        hint && (
+          <FieldDescription id={`${id}-note`} className="text-xs">
+            {hint}
+          </FieldDescription>
+        )
       )}
     </Field>
   );
@@ -283,10 +288,16 @@ export function ConfirmButton({
       >
         {label}
       </Button>
-      <ResponsiveModal open={open} onOpenChange={setOpen} title={title} description={description}>
+      <ResponsiveModal
+        open={open}
+        onOpenChange={setOpen}
+        title={title}
+        description={description}
+        locked={action.busy}
+      >
         <ErrorText error={action.error} />
         <ModalActions>
-          <Button variant="ghost" onClick={() => setOpen(false)}>
+          <Button variant="ghost" disabled={action.busy} onClick={() => setOpen(false)}>
             Cancel
           </Button>
           <Button
