@@ -505,30 +505,6 @@ export function EmptyState({
   );
 }
 
-const CALLOUT: Record<Exclude<Tone, "neutral">, string> = {
-  brand: "border-accent/30 bg-accent-soft",
-  warn: "border-warn/30 bg-warn-soft",
-  breach: "border-breach/35 bg-breach-soft",
-  safe: "border-safe/30 bg-safe-soft",
-};
-
-export function Callout({
-  tone = "brand",
-  title,
-  children,
-}: {
-  tone?: Exclude<Tone, "neutral">;
-  title?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <div className={`rounded-2xl border p-4 text-sm ${CALLOUT[tone]}`}>
-      {title && <p className="mb-1 font-semibold">{title}</p>}
-      <div className="text-soft">{children}</div>
-    </div>
-  );
-}
-
 const NOTE_BAR: Record<Exclude<Tone, "neutral">, string> = {
   brand: "border-accent/60",
   warn: "border-warn/60",
@@ -648,15 +624,6 @@ export function Table({ children }: { children: ReactNode }) {
         {children}
       </table>
     </div>
-  );
-}
-
-/** A label and value list, e.g. hashes and addresses under a card's stats. */
-export function Details({ children }: { children: ReactNode }) {
-  return (
-    <dl className="mt-5 grid gap-x-6 gap-y-2.5 border-t border-line pt-5 text-sm sm:grid-cols-[11rem_1fr] [&_dd]:min-w-0 [&_dt]:text-muted">
-      {children}
-    </dl>
   );
 }
 

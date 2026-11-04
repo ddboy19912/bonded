@@ -1,431 +1,292 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Link, useSearchParams } from "react-router";
-import { useAccount, usePublicClient } from "wagmi";
-import { gateAnchorAbi } from "@bondedhq/shared";
-import type { Hex } from "viem";
-import { deployment, explorerUrl } from "../config";
-import { ago, short, txUrl } from "../lib/format";
-import { DOCS_GATE } from "../lib/routes";
-import { useOwnerSession } from "../lib/owner-session";
+import { useState, type ReactNode } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useNavigate } from "react-router";
+import { ChevronRightIcon, PlusIcon } from "lucide-react";
+import { Button } from "@/components/shadcn/button";
 import {
-  dollars,
-  gateApi,
-  verifyDecision,
-  type AnchorPost,
-  type ChainRootQuery,
-  type GateAccount,
-  type GateDecision,
-  type GateProof,
-  type Verification,
-  type VerifyStep,
-} from "../lib/gate";
-import { CopyButton } from "../components/copy";
-import { ConnectButton } from "../components/wallet";
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@/components/shadcn/empty";
 import {
-  Badge,
-  Button,
-  Card,
-  Details,
-  EmptyState,
-  ErrorText,
-  Loading,
-  Page,
   Table,
-  Unavailable,
-  linkClass,
-} from "../components/ui";
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/shadcn/table";
 import {
-  AddVendor,
-  Cards,
-  Invoices,
+  AccountStatus,
   KeyOnce,
-  Keys,
-  NewAccount,
-  Settings,
-  Tickets,
-} from "./GateSetup";
+  Submit,
+  TextField,
+  limit,
+  useAction,
+} from "../components/gate/common";
+import { SignedIn } from "../components/gate/owner";
+import { FreezeSwitch, ModeChoice } from "../components/gate/rules";
+import { useMediaQuery } from "../components/overlay";
+import { ModalActions, ResponsiveModal } from "../components/responsive-modal";
+import { ErrorText, Loading, Page, Unavailable, linkClass } from "../components/ui";
+import { ago, short } from "../lib/format";
+import { gateApi, parseUsd, type GateAccount } from "../lib/gate";
+import { DOCS_GATE } from "../lib/routes";
 
-/**
- * Reads a day's root from the app's own GateAnchor (`gateAnchor` in the deployment file): the
- * zero hash when none is posted, null when it can't be read here.
- */
-export type ChainRoot = (at: ChainRootQuery) => Promise<Hex | null>;
-
-/** A hash in short form, with a button to copy it whole. */
-function HashText({ hash }: { hash: string }) {
-  return (
-    <span className="inline-flex items-center gap-2">
-      <span className="font-mono text-[0.92em]" title={hash}>
-        {short(hash, 6)}
-      </span>
-      <CopyButton text={hash} variant="icon" />
-    </span>
-  );
-}
-
-/** Where a hash is on chain: its transaction, "Posted", or "Not yet". */
-function OnChain({ posted }: { posted: AnchorPost | null }) {
-  if (!posted) return <span className="text-muted">Not yet</span>;
-  if (posted.txHash && posted.chainId === deployment.chainId && explorerUrl)
-    return (
-      <a className={linkClass} href={txUrl(posted.txHash)} target="_blank" rel="noreferrer">
-        Posted
-      </a>
-    );
-  return <Badge tone="safe">Posted</Badge>;
-}
-
-export const RESULT: Record<
-  GateDecision["result"],
-  { label: string; tone: "safe" | "breach" | "warn" }
-> = {
-  allowed: { label: "Allowed", tone: "safe" },
-  blocked: { label: "Blocked", tone: "breach" },
-  refused: { label: "Refused", tone: "warn" },
-};
-
-const STEPS: { key: keyof Verification; label: string }[] = [
-  { key: "signature", label: "Bonded's signature" },
-  { key: "input", label: "Input hash" },
-  { key: "rules", label: "Rules, run again" },
-  { key: "log", label: "Daily log root" },
-];
-
-function StepBadge({ step }: { step: VerifyStep }) {
-  if (step.ok === true) return <Badge tone="safe">Passed</Badge>;
-  if (step.ok === false) return <Badge tone="breach">Failed</Badge>;
-  return <Badge>Not checked</Badge>;
-}
-
-/** Check one decision in the browser, and show which checks passed. */
-export function VerifyPanel({
-  decision,
+/** A new account's limits and mode. It sits inside the modal, so closing it clears the form. */
+function NewAccountForm({
   session,
-  accountId,
-  chainRoot,
+  onMade,
+  onCancel,
 }: {
-  decision: GateDecision;
   session: string;
-  accountId: string;
-  chainRoot?: ChainRoot | undefined;
+  onMade: (made: { accountId: string; key: string }) => void;
+  onCancel: () => void;
 }) {
-  const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<Verification>();
-  // The log proof Verify loaded, so the copied receipt carries it.
-  const [proof, setProof] = useState<GateProof>();
-  const run = async () => {
-    setRunning(true);
-    try {
-      setResult(
-        await verifyDecision(decision, {
-          receiptKey: gateApi.receiptKey,
-          proof: async () => {
-            const p = await gateApi.proof(session, accountId, decision.id);
-            setProof(p);
-            return p;
-          },
-          ...(chainRoot ? { chainRoot } : {}),
-        }),
-      );
-    } finally {
-      setRunning(false);
-    }
+  const queryClient = useQueryClient();
+  const action = useAction();
+  const [name, setName] = useState("");
+  const [perPayment, setPerPayment] = useState("");
+  const [perDay, setPerDay] = useState("");
+  const [mode, setMode] = useState<GateAccount["mode"]>("monitor");
+  const [freeze, setFreeze] = useState(false);
+  const [touched, setTouched] = useState(false);
+  const maxPaymentUsd = parseUsd(perPayment);
+  const maxDailyUsd = parseUsd(perDay);
+  const submit = () => {
+    setTouched(true);
+    if (maxPaymentUsd === null || maxDailyUsd === null) return;
+    void action.run(async () => {
+      const account = await gateApi.createAccount(session, {
+        ...(name.trim() ? { name: name.trim() } : {}),
+        mode,
+        maxPaymentUsd,
+        maxDailyUsd,
+        freezeOnBreach: freeze,
+      });
+      await queryClient.invalidateQueries({ queryKey: ["gate-accounts"] });
+      onMade({ accountId: account.account.id, key: account.apiKey.key });
+    });
   };
-  const shared = JSON.stringify({
-    receipt: decision.receipt,
-    input: decision.input,
-    ...(proof ? { proof } : {}),
-  });
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" kind="secondary" loading={running} onClick={() => void run()}>
-          {result ? "Verify again" : "Verify"}
-        </Button>
-        <CopyButton text={shared} label={proof ? "Copy receipt and proof" : "Copy receipt"} />
-        <Link to="/gate/verify" className={`${linkClass} text-xs`}>
-          Anyone can check it
-        </Link>
+    <form
+      className="flex flex-col gap-5"
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit();
+      }}
+    >
+      <TextField
+        label="Name"
+        value={name}
+        onChange={setName}
+        placeholder="Acme payables"
+        mono={false}
+      />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <TextField
+          label="Most for one payment"
+          value={perPayment}
+          onChange={setPerPayment}
+          placeholder="5000"
+          inputMode="decimal"
+          suffix="USD"
+          error={touched && maxPaymentUsd === null ? "Enter an amount in dollars." : null}
+        />
+        <TextField
+          label="Most in one day"
+          value={perDay}
+          onChange={setPerDay}
+          placeholder="20000"
+          inputMode="decimal"
+          suffix="USD"
+          error={touched && maxDailyUsd === null ? "Enter an amount in dollars." : null}
+        />
       </div>
-      {result && <VerificationList result={result} />}
-    </div>
+      <ModeChoice mode={mode} onChange={setMode} />
+      <FreezeSwitch checked={freeze} onChange={setFreeze} />
+      <ErrorText error={action.error} />
+      <ModalActions>
+        <Button variant="ghost" type="button" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Submit busy={action.busy}>Make the account</Submit>
+      </ModalActions>
+    </form>
   );
 }
 
-/** Which checks of a decision passed, failed or couldn't run, each with why. */
-export function VerificationList({ result }: { result: Verification }) {
-  const failed = STEPS.filter((s) => result[s.key].ok === false).length;
-  return (
-    <div
-      aria-label="Verification"
-      className="flex flex-col gap-2.5 rounded-2xl border border-line p-4"
-    >
-      <p className="text-sm font-semibold" role="status">
-        {failed === 0
-          ? "No check failed."
-          : `${failed} ${failed === 1 ? "check" : "checks"} failed.`}
-      </p>
-      <ul className="flex flex-col gap-2.5">
-        {STEPS.map((s) => (
-          <li key={s.key} className="flex flex-wrap items-start gap-x-3 gap-y-1 text-sm">
-            <span className="w-40 shrink-0 text-muted">{s.label}</span>
-            <StepBadge step={result[s.key]} />
-            <span className="min-w-0 flex-1 text-soft">{result[s.key].detail}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function Rules({ account, session }: { account: GateAccount; session: string }) {
-  const vendors = useQuery({
-    queryKey: ["gate-vendors", session, account.id],
-    queryFn: () => gateApi.vendors(session, account.id),
-    retry: false,
-  });
-  return (
-    <Card
-      title="Rules"
-      description="What every payment is checked against."
-      actions={
-        <div className="flex gap-2">
-          <Badge tone={account.mode === "enforce" ? "brand" : "warn"}>
-            {account.mode === "enforce" ? "Enforce" : "Monitor"}
-          </Badge>
-          {account.frozen && <Badge tone="breach">Frozen</Badge>}
-        </div>
-      }
-    >
-      <ul className="flex list-disc flex-col gap-1.5 pl-5 text-sm">
-        {account.rules.map((r) => (
-          <li key={r}>{r}</li>
-        ))}
-      </ul>
-      <h3 className="eyebrow mt-6 mb-2">Vendors</h3>
-      {vendors.error ? (
-        <ErrorText error={vendors.error} />
-      ) : !vendors.data ? (
-        <Loading what="vendors" />
-      ) : !vendors.data.items.length ? (
-        <p className="text-sm text-muted">
-          No vendors yet, so every payment is to an unknown payee.
-        </p>
-      ) : (
-        <Table>
-          <thead>
-            <tr>
-              <th>Vendor</th>
-              <th>Verified account</th>
-            </tr>
-          </thead>
-          <tbody>
-            {vendors.data.items.map((v) => (
-              <tr key={v.id}>
-                <td>
-                  {v.name} <span className="text-muted">({v.id})</span>
-                </td>
-                <td className="font-mono text-[0.92em]">{v.account}</td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
-      )}
-      <AddVendor key={account.id} account={account} session={session} />
-      <Details>
-        <dt>Version</dt>
-        <dd>{account.mandate.version}</dd>
-        <dt>Hash</dt>
-        <dd>
-          <HashText hash={account.mandate.hash} />
-        </dd>
-      </Details>
-    </Card>
-  );
-}
-
-function History({ account, session }: { account: GateAccount; session: string }) {
-  const versions = useQuery({
-    queryKey: ["gate-mandates", session, account.id, account.mandate.version],
-    queryFn: () => gateApi.mandates(session, account.id),
-    retry: false,
-  });
-  return (
-    <Card title="Changes" description="Each version of the rules, with its hash.">
-      {versions.error ? (
-        <Unavailable error={versions.error} onRetry={() => void versions.refetch()} />
-      ) : !versions.data ? (
-        <Loading what="the history" />
-      ) : (
-        <Table>
-          <thead>
-            <tr>
-              <th>Version</th>
-              <th>When</th>
-              <th>Hash</th>
-              <th>On chain</th>
-            </tr>
-          </thead>
-          <tbody>
-            {versions.data.items.map((v) => (
-              <tr key={v.version}>
-                <td>{v.version}</td>
-                <td className="whitespace-nowrap text-muted">{ago(v.createdAt)}</td>
-                <td>
-                  <HashText hash={v.hash} />
-                </td>
-                <td>
-                  <OnChain posted={v.posted} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
-      )}
-    </Card>
-  );
-}
-
-function Decisions({
-  account,
+/** Make a gate account, then show its first API key once. */
+function NewAccount({
   session,
-  chainRoot,
+  open,
+  onOpenChange,
 }: {
-  account: GateAccount;
   session: string;
-  chainRoot?: ChainRoot | undefined;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
-  const [older, setOlder] = useState<{ items: GateDecision[]; next: string | null }>();
-  const first = useQuery({
-    queryKey: ["gate-decisions", session, account.id],
-    queryFn: () => gateApi.decisions(session, account.id),
-    retry: false,
-    // Agents check payments from elsewhere: new decisions show without a reload. Not once older
-    // pages are loaded, whose cursor a refreshed first page would leave a gap before.
-    refetchInterval: older ? false : 10_000,
-  });
-  const [loading, setLoading] = useState(false);
-  const [moreError, setMoreError] = useState<unknown>(null);
-  const items = [...(first.data?.items ?? []), ...(older?.items ?? [])];
-  const next = older ? older.next : (first.data?.next ?? null);
-  const loadMore = async () => {
-    if (!next) return;
-    setLoading(true);
-    setMoreError(null);
-    try {
-      const page = await gateApi.decisions(session, account.id, next);
-      setOlder((o) => ({ items: [...(o?.items ?? []), ...page.items], next: page.next }));
-    } catch (e) {
-      setMoreError(e);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const navigate = useNavigate();
+  const [made, setMade] = useState<{ accountId: string; key: string }>();
   return (
-    <Card
-      title="Decisions"
-      description="Every check, newest first, with its signed receipt. Verify checks it here, in your browser."
+    <ResponsiveModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title={made ? "Copy your key" : "New gate account"}
+      description={
+        made ? undefined : "One per business or team. Your agents check every payment against it."
+      }
+      locked={Boolean(made)}
     >
-      {first.error ? (
-        <Unavailable error={first.error} onRetry={() => void first.refetch()} />
-      ) : !first.data ? (
-        <Loading what="decisions" />
-      ) : !items.length ? (
-        <EmptyState title="No checks yet">Your agent's checks show here.</EmptyState>
+      {made ? (
+        <>
+          <KeyOnce apiKey={made.key} />
+          <ModalActions>
+            <Button onClick={() => void navigate(`/gate/${encodeURIComponent(made.accountId)}`)}>
+              Open the account
+            </Button>
+          </ModalActions>
+        </>
       ) : (
-        <ul className="flex flex-col divide-y divide-line" aria-label="Decisions">
-          {items.map((d) => (
-            <li key={d.id} className="flex flex-col gap-2 py-4 text-sm">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                <Badge tone={RESULT[d.result].tone}>{RESULT[d.result].label}</Badge>
-                <span className="font-semibold">
-                  {d.kind === "bank_change"
-                    ? `Bank change for ${d.vendorId}`
-                    : `${d.kind === "refund" ? "Refund" : "Payment"} of ${dollars(d.amountUsd)}`}
-                </span>
-                <span className="font-mono text-[0.92em] text-muted">{d.payee}</span>
-                {d.reference && <span className="text-muted">{d.reference}</span>}
-                <time dateTime={d.createdAt} className="ml-auto text-xs text-muted">
-                  {ago(d.createdAt)}
-                </time>
-              </div>
-              <p className="text-soft">{d.message}</p>
-              <VerifyPanel
-                decision={d}
-                session={session}
-                accountId={account.id}
-                chainRoot={chainRoot}
-              />
-            </li>
-          ))}
-        </ul>
+        <NewAccountForm session={session} onMade={setMade} onCancel={() => onOpenChange(false)} />
       )}
-      {next && (
-        <div className="mt-4 flex flex-col items-start gap-2">
-          <Button size="sm" kind="secondary" loading={loading} onClick={() => void loadMore()}>
-            Load more
-          </Button>
-          <ErrorText error={moreError} />
-        </div>
-      )}
-    </Card>
+    </ResponsiveModal>
   );
 }
 
-/**
- * The root posted on chain, read straight from the app's own GateAnchor: never from an address
- * the API or a pasted receipt names. Not read when the API says it was posted somewhere else.
- */
-export function useChainRoot(): ChainRoot | undefined {
-  const client = usePublicClient();
-  const anchor = deployment.gateAnchor;
-  return client && anchor
-    ? async ({ accountKey, dayNumber, posted }) =>
-        posted &&
-        (posted.chainId !== deployment.chainId ||
-          posted.contract.toLowerCase() !== anchor.toLowerCase())
-          ? null
-          : (
-              await client.readContract({
-                address: anchor,
-                abi: gateAnchorAbi,
-                functionName: "logRootOf",
-                args: [accountKey, dayNumber],
-              })
-            ).hash
-    : undefined;
+/** When the account last checked a payment. Its column only shows on wide screens. */
+function LastCheck({ account, session }: { account: GateAccount; session: string }) {
+  const shown = useMediaQuery("(min-width: 1024px)");
+  const decisions = useQuery({
+    queryKey: ["gate-last-check", session, account.id],
+    queryFn: () => gateApi.lastDecision(session, account.id),
+    enabled: shown,
+    retry: false,
+  });
+  const last = decisions.data?.items[0];
+  return last ? (
+    <time dateTime={last.createdAt}>{ago(last.createdAt)}</time>
+  ) : decisions.data ? (
+    "Never"
+  ) : (
+    "—"
+  );
 }
 
-/** The payment gate's rules page: the owner's mandate, its history and every decision. */
-export function Gate() {
-  const { isConnected } = useAccount();
-  const owner = useOwnerSession();
-  const session = owner.session?.session;
-  const [params, setParams] = useSearchParams();
+/** One account in the list. The whole row opens it. */
+function AccountRow({ account, session }: { account: GateAccount; session: string }) {
+  return (
+    <TableRow className="relative">
+      <TableCell className="max-w-0">
+        <Link
+          to={`/gate/${encodeURIComponent(account.id)}`}
+          className="block outline-none after:absolute after:inset-0 focus-visible:after:rounded-lg focus-visible:after:ring-2 focus-visible:after:ring-ring"
+        >
+          <span className="block truncate text-[15px] font-medium">
+            {account.name || short(account.id, 6)}
+          </span>
+          <span className="mt-1 flex items-center gap-2 text-muted md:hidden">
+            <AccountStatus account={account} />
+            <span className="truncate">
+              {limit(account.maxPaymentUsd)} · {limit(account.maxDailyUsd)} a day
+            </span>
+          </span>
+        </Link>
+      </TableCell>
+      <TableCell className="hidden w-32 md:table-cell">
+        <AccountStatus account={account} />
+      </TableCell>
+      <TableCell className="hidden w-32 text-right tabular-nums md:table-cell">
+        {limit(account.maxPaymentUsd)}
+      </TableCell>
+      <TableCell className="hidden w-32 text-right tabular-nums md:table-cell">
+        {limit(account.maxDailyUsd)}
+      </TableCell>
+      <TableCell className="hidden w-32 text-right text-muted lg:table-cell">
+        <LastCheck account={account} session={session} />
+      </TableCell>
+      <TableCell className="w-8 text-muted">
+        <ChevronRightIcon className="size-4" aria-hidden />
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function Accounts({
+  session,
+  page,
+}: {
+  session: string;
+  page: (body: ReactNode, actions?: ReactNode) => ReactNode;
+}) {
   const accounts = useQuery({
     queryKey: ["gate-accounts", session],
-    queryFn: () => gateApi.accounts(session!),
-    enabled: Boolean(session),
+    queryFn: () => gateApi.accounts(session),
     retry: false,
   });
-  const list = accounts.data?.items ?? [];
-  const selected = list.find((a) => a.id === params.get("account")) ?? list[0];
   const [creating, setCreating] = useState(false);
-  // A new account's first API key, shown once above it.
-  const [madeKey, setMadeKey] = useState<{ accountId: string; key: string }>();
-  const made = (accountId: string, key: string) => {
-    setMadeKey({ accountId, key });
-    setCreating(false);
-    setParams({ account: accountId }, { replace: true });
-  };
-  const chainRoot = useChainRoot();
-  return (
+  const list = accounts.data?.items ?? [];
+  return page(
+    <>
+      {accounts.isPending ? (
+        <Loading what="your gate accounts" height="md" />
+      ) : accounts.error ? (
+        <Unavailable error={accounts.error} onRetry={() => void accounts.refetch()} />
+      ) : !list.length ? (
+        <Empty>
+          <EmptyHeader>
+            <EmptyTitle>No gate accounts yet</EmptyTitle>
+            <EmptyDescription>
+              Make one, and your agents check every payment against its rules.
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button onClick={() => setCreating(true)}>New account</Button>
+          </EmptyContent>
+        </Empty>
+      ) : (
+        <Table aria-label="Gate accounts" className="table-fixed">
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead>Account</TableHead>
+              <TableHead className="hidden w-32 md:table-cell">Status</TableHead>
+              <TableHead className="hidden w-32 text-right md:table-cell">Per payment</TableHead>
+              <TableHead className="hidden w-32 text-right md:table-cell">Per day</TableHead>
+              <TableHead className="hidden w-32 text-right lg:table-cell">Last check</TableHead>
+              <TableHead className="w-8">
+                <span className="sr-only">Open</span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {list.map((a) => (
+              <AccountRow key={a.id} account={a} session={session} />
+            ))}
+          </TableBody>
+        </Table>
+      )}
+      <NewAccount session={session} open={creating} onOpenChange={setCreating} />
+    </>,
+    list.length > 0 && (
+      <Button onClick={() => setCreating(true)}>
+        <PlusIcon aria-hidden />
+        New account
+      </Button>
+    ),
+  );
+}
+
+/** The payment gate: every account the owner has. Each opens on its own page (GateAccount). */
+export function Gate() {
+  const page = (body: ReactNode, actions?: ReactNode) => (
     <Page
       title="Payment gate"
+      actions={actions}
       intro={
         <>
-          Set the rules your agents' payments must follow, see every decision, and check each one.{" "}
+          Set the rules your agents' payments must follow.{" "}
           <a className={linkClass} href={DOCS_GATE} target="_blank" rel="noreferrer">
             How to connect an agent
           </a>
@@ -436,80 +297,8 @@ export function Gate() {
         </>
       }
     >
-      {!isConnected ? (
-        <EmptyState title="Connect your wallet" action={<ConnectButton />}>
-          The gate accounts your wallet owns show here.
-        </EmptyState>
-      ) : !session ? (
-        <EmptyState
-          title="Sign in to see them"
-          action={
-            <div className="flex flex-col items-center gap-2">
-              <Button loading={owner.signingIn} onClick={() => void owner.signIn()}>
-                {owner.signingIn ? "Sign in your wallet…" : "Sign in"}
-              </Button>
-              <ErrorText error={owner.error} />
-            </div>
-          }
-        >
-          One signature, no gas.
-        </EmptyState>
-      ) : accounts.isPending ? (
-        <Card>
-          <Loading what="your gate accounts" />
-        </Card>
-      ) : accounts.error ? (
-        <Unavailable error={accounts.error} onRetry={() => void accounts.refetch()} />
-      ) : !selected ? (
-        <NewAccount session={session} onMade={made} />
-      ) : creating ? (
-        <NewAccount session={session} onMade={made} onCancel={() => setCreating(false)} />
-      ) : (
-        <>
-          <nav aria-label="Gate accounts" className="flex flex-wrap gap-2">
-            {list.length > 1 &&
-              list.map((a) => (
-                <Button
-                  key={a.id}
-                  size="sm"
-                  kind={a.id === selected.id ? "primary" : "secondary"}
-                  onClick={() => {
-                    if (a.id !== selected.id) setMadeKey(undefined);
-                    setParams({ account: a.id }, { replace: true });
-                  }}
-                >
-                  {a.name || short(a.id, 6)}
-                </Button>
-              ))}
-            <Button
-              size="sm"
-              kind="ghost"
-              onClick={() => {
-                // The key is shown once: leaving the account hides it for good.
-                setMadeKey(undefined);
-                setCreating(true);
-              }}
-            >
-              New account
-            </Button>
-          </nav>
-          {madeKey?.accountId === selected.id && <KeyOnce apiKey={madeKey.key} />}
-          <div className="grid gap-6 xl:grid-cols-2">
-            <Rules account={selected} session={session} />
-            <Settings key={selected.id} account={selected} session={session} />
-          </div>
-          <div className="grid gap-6 xl:grid-cols-2">
-            <Invoices key={selected.id} account={selected} session={session} />
-            <Tickets key={selected.id} account={selected} session={session} />
-          </div>
-          <Cards key={`cards-${selected.id}`} account={selected} session={session} />
-          <Decisions key={selected.id} account={selected} session={session} chainRoot={chainRoot} />
-          <div className="grid gap-6 xl:grid-cols-2">
-            <Keys key={selected.id} account={selected} session={session} />
-            <History account={selected} session={session} />
-          </div>
-        </>
-      )}
+      {body}
     </Page>
   );
+  return <SignedIn page={page}>{(session) => <Accounts session={session} page={page} />}</SignedIn>;
 }

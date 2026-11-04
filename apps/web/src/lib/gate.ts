@@ -180,6 +180,9 @@ export const gateApi = {
   /** GET …/decisions: the decision log, newest first. */
   decisions: (session: string, id: string, cursor?: string) =>
     request<Page<GateDecision>>(`${account(id)}/decisions${before(cursor)}`, bearer(session)),
+  /** GET …/decisions?limit=1: the latest decision, for when only its time is wanted. */
+  lastDecision: (session: string, id: string) =>
+    request<Page<GateDecision>>(`${account(id)}/decisions?limit=1`, bearer(session)),
   /** GET …/decisions/:id/proof: where the receipt sits in its day's log root. */
   proof: (session: string, id: string, decisionId: string) =>
     request<GateProof>(

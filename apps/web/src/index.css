@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 @import "@fontsource-variable/geist/index.css";
 @import "@fontsource/instrument-serif/400.css";
 @import "@fontsource/instrument-serif/400-italic.css";
@@ -70,6 +71,28 @@
   --color-warn: #ffb347;
   --color-warn-soft: rgb(255 179 71 / 0.14);
 
+  /*
+   * shadcn/ui's token names, on the same palette. `muted` and `accent` already name text colours
+   * here, so the shadcn files use `bg-hover` where they shipped with `bg-muted` and `bg-accent`.
+   */
+  --color-background: var(--color-paper);
+  --color-foreground: var(--color-ink);
+  --color-card: var(--color-surface);
+  --color-card-foreground: var(--color-ink);
+  --color-popover: var(--color-raised);
+  --color-popover-foreground: var(--color-ink);
+  --color-primary: var(--color-brand);
+  --color-primary-foreground: var(--color-on-brand);
+  --color-secondary: rgb(255 255 255 / 0.07);
+  --color-secondary-foreground: var(--color-soft);
+  --color-muted-foreground: var(--color-muted);
+  --color-accent-foreground: var(--color-ink);
+  --color-destructive: var(--color-breach-solid);
+  --color-border: var(--color-line);
+  --color-input: var(--color-line-strong);
+  --color-ring: var(--color-accent);
+  --color-hover: rgb(255 255 255 / 0.06);
+
   --font-sans: "Geist Variable", "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Instrument Serif", "Instrument Serif Fallback", Georgia, serif;
   --font-mono:
@@ -104,6 +127,10 @@
   }
   ::selection {
     background: rgb(60 107 255 / 0.4);
+  }
+  /* shadcn/ui components draw bare `border` classes in the app's hairline colour. */
+  [data-slot] {
+    border-color: var(--color-border);
   }
   :focus-visible {
     outline: 2px solid var(--color-accent);
