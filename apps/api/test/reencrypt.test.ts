@@ -128,6 +128,30 @@ describe("re-encrypting stored secrets for a new AGENT_URL_SECRET_KEY", () => {
     });
   });
 
+  it("skips a connected Stripe account, which has no key to move", async () => {
+    const account = randomUUID();
+    await pg.db.pool.query(
+      `INSERT INTO gate_accounts(id,owner,mode,max_payment_cents,max_daily_cents,mandate_hash)
+       VALUES($1,$2,'enforce',100,100,'0x00')`,
+      [account, OWNER],
+    );
+    await pg.db.pool.query(
+      `INSERT INTO gate_stripe_links(account_id,connected_account,key_hint,livemode,cardholder_id,
+         linked_by) VALUES($1,'acct_1','acct_…0001',false,'ich_1',$2)`,
+      [account, OWNER],
+    );
+    expect((await reencryptSecrets(pg.db, oldKey, newKey)).gateStripe).toEqual({
+      reencrypted: 0,
+      already: 0,
+    });
+    const row = (
+      await pg.db.pool.query("SELECT * FROM gate_stripe_links WHERE account_id=$1", [account])
+    ).rows[0];
+    expect(row.key_ciphertext).toBeNull();
+    expect(row.connected_account).toBe("acct_1");
+    await pg.db.pool.query("DELETE FROM gate_stripe_links");
+  });
+
   it("moves the payout links' events secrets, and leaves the sealed credential alone", async () => {
     const account = randomUUID();
     await pg.db.pool.query(

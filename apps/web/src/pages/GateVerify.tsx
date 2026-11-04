@@ -10,7 +10,8 @@ import {
   type Verification,
 } from "../lib/gate";
 import { Badge, Button, Card, Page } from "../components/ui";
-import { RESULT, VerificationList, useChainRoot } from "./Gate";
+import { RESULT } from "../components/gate/activity";
+import { VerificationList, useChainRoot } from "../components/gate/verification";
 
 const AREA =
   "min-h-40 w-full rounded-xl border border-line bg-white/[0.03] px-3.5 py-3 font-mono text-xs text-ink outline-none transition placeholder:text-muted/70 focus:border-accent focus:ring-3 focus:ring-accent/15";

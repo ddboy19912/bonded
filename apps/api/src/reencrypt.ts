@@ -106,7 +106,7 @@ export async function reencryptSecrets(
     const gateStripe: ReencryptCount = { reencrypted: 0, already: 0 };
     const links = await client.query<{
       account_id: string;
-      key_ciphertext: string;
+      key_ciphertext: string | null;
       authorization_secret_ciphertext: string | null;
       events_secret_ciphertext: string | null;
     }>(
@@ -115,7 +115,10 @@ export async function reencryptSecrets(
     );
     for (const r of links.rows) {
       const row = `Stripe link of gate account ${r.account_id}`;
-      const key = move(r.key_ciphertext, gateStripeContext(r.account_id, "key"), row, gateStripe);
+      // A connected account has no key of its own.
+      const key = r.key_ciphertext
+        ? move(r.key_ciphertext, gateStripeContext(r.account_id, "key"), row, gateStripe)
+        : undefined;
       const auth = r.authorization_secret_ciphertext
         ? move(
             r.authorization_secret_ciphertext,

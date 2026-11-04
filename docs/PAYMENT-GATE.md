@@ -24,7 +24,7 @@ You need a wallet to sign in. Signing costs no gas.
 1. Open [bondedhq.xyz/gate](https://www.bondedhq.xyz/gate), sign in and make an account. Set the per-payment and daily limits. Your API key is shown once, so copy it.
 2. Add your vendors, each with the bank account on file.
 3. Add the invoices you've approved for payment.
-4. Add a ticket for each bank change finance has verified, for example by calling the number on file.
+4. Open a vendor to add a ticket for each bank change finance has verified, for example by calling the number on file.
 5. Start in **Monitor**, then switch to **Enforce** when the decisions look right.
 
 | Mode | A payment that breaks a rule |
@@ -32,7 +32,7 @@ You need a wallet to sign in. Signing costs no gas.
 | Monitor | goes through, and is logged as a breach |
 | Enforce | is blocked |
 
-With **freeze on breach** on, the first breach refuses every check until you lift the freeze on the gate page.
+With **freeze on breach** on, the first breach refuses every check until you lift the freeze on the account's page.
 
 ## Check a payment
 
@@ -93,7 +93,7 @@ On the check route your code decides whether to obey the answer. On the card rou
 1. In Stripe, in test mode, make a cardholder, top up the Issuing balance, and make a restricted key with write access to Issuing cards and read access to Issuing authorizations and transactions.
 2. Set Stripe's real-time authorizations endpoint to `https://api-production-ba50.up.railway.app/stripe/issuing/authorization`, with the timeout set to decline and Autopilot off.
 3. Add a webhook endpoint at `https://api-production-ba50.up.railway.app/stripe/issuing/events` for `issuing_authorization.created`, `issuing_authorization.updated` and `issuing_transaction.created`.
-4. On the gate page, fill in **Card payments** with the key, the cardholder and both signing secrets.
+4. On the account's **Cards** tab, press **Link Stripe** and fill in the key, the cardholder and both signing secrets.
 5. Add the vendor with its card merchant name and network id, and approve its invoice.
 
 Your agent then asks for a card for that invoice:
@@ -109,7 +109,7 @@ The card works once, for the exact invoice amount, at that vendor's merchant. It
 
 ## Check a receipt
 
-Anyone holding a receipt can check it, with no sign-in. Paste it at [bondedhq.xyz/gate/verify](https://www.bondedhq.xyz/gate/verify): the answer from a check works as it is, or use **Copy receipt** on a decision in the gate page. The checks run in the browser:
+Anyone holding a receipt can check it, with no sign-in. Paste it at [bondedhq.xyz/gate/verify](https://www.bondedhq.xyz/gate/verify): the answer from a check works as it is, or open a decision on the account's **Activity** tab and use **Copy receipt**. The checks run in the browser:
 
 | Check | What it proves |
 |---|---|
@@ -118,7 +118,7 @@ Anyone holding a receipt can check it, with no sign-in. Paste it at [bondedhq.xy
 | Rules, run again | the same inputs give the same decision |
 | Daily log root | the receipt is in that day's log, and the log wasn't rewritten |
 
-The last check needs a proof, which exists once the day has ended (UTC). Press Verify on the gate page first, and **Copy receipt** then includes it. An agent can fetch one from `GET /payments/decisions/:id/proof`.
+The last check needs a proof, which exists once the day has ended (UTC). Press Verify on the decision first, and **Copy receipt** then includes it. An agent can fetch one from `GET /payments/decisions/:id/proof`.
 
 ## On chain
 
