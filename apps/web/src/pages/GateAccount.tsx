@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useSearchParams } from "react-router";
 import { Alert, AlertDescription, AlertTitle } from "@/components/shadcn/alert";
@@ -55,6 +56,17 @@ function Detail({ account, session }: { account: Account; session: string }) {
   const [params, setParams] = useSearchParams();
   const chainRoot = useChainRoot();
   const tab = TABS.find((t) => t.id === params.get("tab"))?.id ?? "activity";
+  // On a phone the strip scrolls sideways: a link to a late tab must still show it selected.
+  const strip = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const list = strip.current;
+    const active = list?.querySelector('[data-state="active"]');
+    if (list && active)
+      list.scrollLeft += Math.max(
+        0,
+        active.getBoundingClientRect().right - list.getBoundingClientRect().right,
+      );
+  }, [tab]);
   return (
     <Page
       back={BACK}
@@ -74,6 +86,7 @@ function Detail({ account, session }: { account: Account; session: string }) {
         className="gap-6"
       >
         <TabsList
+          ref={strip}
           variant="line"
           className="h-auto! w-full justify-start gap-5 overflow-x-auto rounded-none border-b p-0 [scrollbar-width:none]"
         >

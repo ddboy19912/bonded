@@ -27,7 +27,7 @@ import {
 } from "./common";
 
 /** A vendor id from its name: what agents send for a bank change. */
-export const vendorId = (name: string) =>
+const vendorId = (name: string) =>
   name
     .trim()
     .toLowerCase()
@@ -340,15 +340,17 @@ export function Vendors({ account, session }: { account: GateAccount; session: s
       {(close) => <VendorForm account={account} session={session} close={close} />}
     </ModalButton>
   );
-  if (vendors.error) return <ErrorText error={vendors.error} />;
-  if (!vendors.data) return <Loading what="vendors" />;
   return (
     <div className="flex flex-col gap-5">
       <TabBar action={add}>Who your agents may pay, and the account you know is theirs.</TabBar>
       {tickets.error && (
         <Unavailable error={tickets.error} onRetry={() => void tickets.refetch()} />
       )}
-      {!vendors.data.items.length ? (
+      {vendors.error ? (
+        <Unavailable error={vendors.error} onRetry={() => void vendors.refetch()} />
+      ) : !vendors.data ? (
+        <Loading what="vendors" />
+      ) : !vendors.data.items.length ? (
         <Empty>
           <EmptyHeader>
             <EmptyTitle>No vendors yet</EmptyTitle>

@@ -28,6 +28,7 @@ function NewKey({ account, session }: { account: GateAccount; session: string })
     setOpen(false);
     setMade(undefined);
     setLabel("");
+    action.reset();
   };
   return (
     <>

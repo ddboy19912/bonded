@@ -28,24 +28,24 @@ import {
 } from "../components/gate/common";
 import { SignedIn } from "../components/gate/owner";
 import { FreezeSwitch, ModeChoice } from "../components/gate/rules";
+import { useMediaQuery } from "../components/overlay";
 import { ModalActions, ResponsiveModal } from "../components/responsive-modal";
 import { ErrorText, Loading, Page, Unavailable, linkClass } from "../components/ui";
 import { ago, short } from "../lib/format";
 import { gateApi, parseUsd, type GateAccount } from "../lib/gate";
 import { DOCS_GATE } from "../lib/routes";
 
-/** Make a gate account, then show its first API key once. */
-function NewAccount({
+/** A new account's limits and mode. It sits inside the modal, so closing it clears the form. */
+function NewAccountForm({
   session,
-  open,
-  onOpenChange,
+  onMade,
+  onCancel,
 }: {
   session: string;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  onMade: (made: { accountId: string; key: string }) => void;
+  onCancel: () => void;
 }) {
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const action = useAction();
   const [name, setName] = useState("");
   const [perPayment, setPerPayment] = useState("");
@@ -53,7 +53,6 @@ function NewAccount({
   const [mode, setMode] = useState<GateAccount["mode"]>("monitor");
   const [freeze, setFreeze] = useState(false);
   const [touched, setTouched] = useState(false);
-  const [made, setMade] = useState<{ accountId: string; key: string }>();
   const maxPaymentUsd = parseUsd(perPayment);
   const maxDailyUsd = parseUsd(perDay);
   const submit = () => {
@@ -68,9 +67,69 @@ function NewAccount({
         freezeOnBreach: freeze,
       });
       await queryClient.invalidateQueries({ queryKey: ["gate-accounts"] });
-      setMade({ accountId: account.account.id, key: account.apiKey.key });
+      onMade({ accountId: account.account.id, key: account.apiKey.key });
     });
   };
+  return (
+    <form
+      className="flex flex-col gap-5"
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit();
+      }}
+    >
+      <TextField
+        label="Name"
+        value={name}
+        onChange={setName}
+        placeholder="Acme payables"
+        mono={false}
+      />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <TextField
+          label="Most for one payment"
+          value={perPayment}
+          onChange={setPerPayment}
+          placeholder="5000"
+          inputMode="decimal"
+          suffix="USD"
+          error={touched && maxPaymentUsd === null ? "Enter an amount in dollars." : null}
+        />
+        <TextField
+          label="Most in one day"
+          value={perDay}
+          onChange={setPerDay}
+          placeholder="20000"
+          inputMode="decimal"
+          suffix="USD"
+          error={touched && maxDailyUsd === null ? "Enter an amount in dollars." : null}
+        />
+      </div>
+      <ModeChoice mode={mode} onChange={setMode} />
+      <FreezeSwitch checked={freeze} onChange={setFreeze} />
+      <ErrorText error={action.error} />
+      <ModalActions>
+        <Button variant="ghost" type="button" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Submit busy={action.busy}>Make the account</Submit>
+      </ModalActions>
+    </form>
+  );
+}
+
+/** Make a gate account, then show its first API key once. */
+function NewAccount({
+  session,
+  open,
+  onOpenChange,
+}: {
+  session: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const navigate = useNavigate();
+  const [made, setMade] = useState<{ accountId: string; key: string }>();
   return (
     <ResponsiveModal
       open={open}
@@ -91,60 +150,19 @@ function NewAccount({
           </ModalActions>
         </>
       ) : (
-        <form
-          className="flex flex-col gap-5"
-          onSubmit={(e) => {
-            e.preventDefault();
-            submit();
-          }}
-        >
-          <TextField
-            label="Name"
-            value={name}
-            onChange={setName}
-            placeholder="Acme payables"
-            mono={false}
-          />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <TextField
-              label="Most for one payment"
-              value={perPayment}
-              onChange={setPerPayment}
-              placeholder="5000"
-              inputMode="decimal"
-              suffix="USD"
-              error={touched && maxPaymentUsd === null ? "Enter an amount in dollars." : null}
-            />
-            <TextField
-              label="Most in one day"
-              value={perDay}
-              onChange={setPerDay}
-              placeholder="20000"
-              inputMode="decimal"
-              suffix="USD"
-              error={touched && maxDailyUsd === null ? "Enter an amount in dollars." : null}
-            />
-          </div>
-          <ModeChoice mode={mode} onChange={setMode} />
-          <FreezeSwitch checked={freeze} onChange={setFreeze} />
-          <ErrorText error={action.error} />
-          <ModalActions>
-            <Button variant="ghost" type="button" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Submit busy={action.busy}>Make the account</Submit>
-          </ModalActions>
-        </form>
+        <NewAccountForm session={session} onMade={setMade} onCancel={() => onOpenChange(false)} />
       )}
     </ResponsiveModal>
   );
 }
 
-/** When the account last checked a payment, from the same log its Activity tab shows. */
+/** When the account last checked a payment. Its column only shows on wide screens. */
 function LastCheck({ account, session }: { account: GateAccount; session: string }) {
+  const shown = useMediaQuery("(min-width: 1024px)");
   const decisions = useQuery({
-    queryKey: ["gate-decisions", session, account.id],
-    queryFn: () => gateApi.decisions(session, account.id),
+    queryKey: ["gate-last-check", session, account.id],
+    queryFn: () => gateApi.lastDecision(session, account.id),
+    enabled: shown,
     retry: false,
   });
   const last = decisions.data?.items[0];

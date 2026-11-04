@@ -60,10 +60,11 @@ function StripeForm({
             authorizationWebhookSecret: authorization.trim(),
             eventsWebhookSecret: events.trim(),
           });
+          // Closed first: the refresh swaps this form's branch of the tab for the linked view.
+          close();
           await queryClient.invalidateQueries({
             queryKey: ["gate-stripe", session, account.id],
           });
-          close();
         });
       }}
     >

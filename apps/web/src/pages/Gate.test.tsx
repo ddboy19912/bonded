@@ -250,6 +250,7 @@ beforeEach(() => {
     next: null,
   });
   vi.spyOn(gateApi, "decisions").mockResolvedValue({ items: [blocked, paid], next: null });
+  vi.spyOn(gateApi, "lastDecision").mockResolvedValue({ items: [], next: null });
   vi.spyOn(gateApi, "receiptKey").mockResolvedValue({ address: SIGNER });
   vi.spyOn(gateApi, "proof").mockImplementation(async (_s, _a, id) => proofs[id]!);
   vi.spyOn(gateApi, "invoices").mockResolvedValue({
@@ -321,7 +322,12 @@ describe("the payment gate's rules page", () => {
     expect(rows).toHaveLength(3);
     expect(within(rows[0]!).getAllByText("Enforcing").length).toBeGreaterThan(0);
     expect(within(rows[1]!).getAllByText("Monitoring").length).toBeGreaterThan(0);
-    expect(within(rows[1]!).getAllByText("$1,500.5").length).toBeGreaterThan(0);
+    expect(within(rows[1]!).getAllByText("$1,500.50").length).toBeGreaterThan(0);
+    expect(within(rows[0]!).getAllByText("$5,000").length).toBeGreaterThan(0);
+    // Each row asks for one decision, not the account's whole log.
+    expect(await within(rows[0]!).findByText("Never")).toBeTruthy();
+    expect(gateApi.lastDecision).toHaveBeenCalledTimes(3);
+    expect(gateApi.decisions).not.toHaveBeenCalled();
     expect(within(rows[2]!).getAllByText("Frozen").length).toBeGreaterThan(0);
     // No account's detail is on the list.
     expect(screen.queryByText("No single payment over $5,000.")).toBeNull();
@@ -547,6 +553,43 @@ describe("the payment gate's rules page", () => {
     fireEvent.click(within(modal).getByRole("button", { name: "Open the account" }));
     expect(await screen.findByRole("heading", { name: "Acme AP" })).toBeTruthy();
     expect(screen.queryByText("bonded_gk_secret")).toBeNull();
+  });
+
+  it("clears a new account's form when it's cancelled", async () => {
+    vi.mocked(gateApi.accounts).mockResolvedValue({ items: [] });
+    signedIn();
+    show();
+    let modal = await press("New account");
+    fill(modal, "Name", "Half done");
+    fireEvent.click(within(modal).getByRole("button", { name: "Make the account" }));
+    expect(within(modal).getAllByText("Enter an amount in dollars.")).toHaveLength(2);
+    fireEvent.click(within(modal).getByRole("button", { name: "Cancel" }));
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    modal = await press("New account");
+    expect((within(modal).getByLabelText("Name") as HTMLInputElement).value).toBe("");
+    expect(within(modal).queryByText("Enter an amount in dollars.")).toBeNull();
+  });
+
+  it("doesn't show an old failure when a confirmation opens again", async () => {
+    vi.spyOn(gateApi, "revokeKey").mockRejectedValue(new ApiError(500, "Couldn't revoke it."));
+    signedIn();
+    showAccount("keys");
+    let modal = await press("Revoke");
+    fireEvent.click(within(modal).getByRole("button", { name: "Revoke key" }));
+    expect(await within(modal).findByRole("alert")).toBeTruthy();
+    fireEvent.click(within(modal).getByRole("button", { name: "Cancel" }));
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    modal = await press("Revoke");
+    expect(within(modal).queryByRole("alert")).toBeNull();
+  });
+
+  it("can retry vendors that failed to load, and still add one", async () => {
+    vi.mocked(gateApi.vendors).mockRejectedValueOnce(new ApiError(500, "Couldn't load them."));
+    signedIn();
+    showAccount("vendors");
+    fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("Nimbus Cloud")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add a vendor" })).toBeTruthy();
   });
 
   it("saves the mode and limits as one change", async () => {

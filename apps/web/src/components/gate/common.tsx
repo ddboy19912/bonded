@@ -36,7 +36,7 @@ export function useAction() {
       setBusy(false);
     }
   };
-  return { busy, error, run };
+  return { busy, error, run, reset: () => setError(null) };
 }
 
 /** The vendor master, shared by the tabs through the query cache. */
@@ -53,7 +53,7 @@ export const vendorName = (vendors: GateVendor[], id: string) =>
 
 /** A limit: $5,000, with cents only when it has them. */
 export const limit = (usd: number) =>
-  `$${usd.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+  `$${usd.toLocaleString("en-US", { minimumFractionDigits: usd % 1 ? 2 : 0 })}`;
 
 /** Is the account stopped, blocking, or only watching? */
 export function AccountStatus({ account }: { account: GateAccount }) {
@@ -273,7 +273,14 @@ export function ConfirmButton({
   const action = useAction();
   return (
     <>
-      <Button variant={variant} size="sm" onClick={() => setOpen(true)}>
+      <Button
+        variant={variant}
+        size="sm"
+        onClick={() => {
+          action.reset();
+          setOpen(true);
+        }}
+      >
         {label}
       </Button>
       <ResponsiveModal open={open} onOpenChange={setOpen} title={title} description={description}>
