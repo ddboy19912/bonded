@@ -124,6 +124,11 @@ export default defineRailway(() => {
       // Signs the payment gate's check receipts (apps/api/GATE.md): a new 32-byte key set by the
       // founder in Railway, never the attester's. Without it, checks are refused.
       GATE_RECEIPT_PRIVATE_KEY: preserve(),
+      // "Connect with Stripe" on the gate page (apps/api/GATE.md): Bonded's Connect client id and
+      // its secret key, set by the founder in Railway. Test mode only for now. Without them the
+      // button doesn't show and owners use the guided steps.
+      STRIPE_CONNECT_CLIENT_ID: preserve(),
+      STRIPE_PLATFORM_SECRET_KEY: preserve(),
       ...previews,
       // Telegram alerts (docs/PLAN.md, Day 13 workstream 6): set by the founder, kept here.
       TELEGRAM_BOT_TOKEN: preserve(),

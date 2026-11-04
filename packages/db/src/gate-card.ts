@@ -13,8 +13,13 @@ type Queryable = pg.Pool | Connection;
 
 export interface GateStripeLinkRecord {
   accountId: string;
-  /** Encrypted with the API's secret box; never returned by the API. */
-  keyCiphertext: string;
+  /**
+   * The account's own restricted key, encrypted with the API's secret box and never returned by
+   * the API. Null for a connected account.
+   */
+  keyCiphertext: string | null;
+  /** The Stripe account connected to Bonded's platform (`acct_`). Null with a key of its own. */
+  connectedAccount: string | null;
   keyHint: string;
   livemode: boolean;
   cardholderId: string;
@@ -86,7 +91,8 @@ const num = (v: unknown) => Number(v);
 
 const link = (r: Record<string, unknown>): GateStripeLinkRecord => ({
   accountId: r.account_id as string,
-  keyCiphertext: r.key_ciphertext as string,
+  keyCiphertext: (r.key_ciphertext as string | null) ?? null,
+  connectedAccount: (r.connected_account as string | null) ?? null,
   keyHint: r.key_hint as string,
   livemode: r.livemode as boolean,
   cardholderId: r.cardholder_id as string,
@@ -166,9 +172,10 @@ export class GateCardStore {
   ): Promise<GateStripeLinkRecord> {
     const r = await this.pool.query(
       `INSERT INTO gate_stripe_links(account_id,key_ciphertext,key_hint,livemode,cardholder_id,
-         authorization_secret_ciphertext,events_secret_ciphertext,linked_by)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+         authorization_secret_ciphertext,events_secret_ciphertext,linked_by,connected_account)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
        ON CONFLICT(account_id) DO UPDATE SET key_ciphertext=EXCLUDED.key_ciphertext,
+         connected_account=EXCLUDED.connected_account,
          key_hint=EXCLUDED.key_hint, livemode=EXCLUDED.livemode,
          cardholder_id=EXCLUDED.cardholder_id,
          authorization_secret_ciphertext=EXCLUDED.authorization_secret_ciphertext,
@@ -184,6 +191,7 @@ export class GateCardStore {
         l.authorizationSecretCiphertext,
         l.eventsSecretCiphertext,
         l.linkedBy,
+        l.connectedAccount,
       ],
     );
     return link(r.rows[0]);

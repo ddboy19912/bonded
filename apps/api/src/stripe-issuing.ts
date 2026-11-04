@@ -24,6 +24,10 @@ import { CARD_BLOCKED_CATEGORIES } from "@bondedhq/shared";
  *   and `blocked_categories` (https://docs.stripe.com/issuing/controls/spending-controls).
  *   The number and CVC come only from retrieving the card with `expand[]=number&expand[]=cvc`.
  *   A card is cancelled with `status=canceled`.
+ * - Connecting an account: https://docs.stripe.com/connect/oauth-reference (`/oauth/authorize`,
+ *   `/oauth/token`, `/oauth/deauthorize`; a code works once, for 5 minutes; use the `Stripe-Account`
+ *   header, not the deprecated `access_token`). Issuing on accounts with their own dashboard has to
+ *   be enabled by Stripe support: https://docs.stripe.com/issuing/connect.
  * - Test helpers that simulate each path in test mode:
  *   https://docs.stripe.com/issuing/purchases/transactions and
  *   https://docs.stripe.com/issuing/purchases/authorizations (`/v1/test_helpers/issuing/...`:
@@ -60,13 +64,54 @@ export interface NewGateCard {
   metadata: Record<string, string>;
 }
 
-/** What the gate asks of Stripe. `key` is the gate account's restricted key. */
+/**
+ * Who a call runs as: the gate account's own restricted key, or Bonded's platform key acting for a
+ * connected account (the `Stripe-Account` header).
+ */
+export type StripeAuth = string | { key: string; account: string };
+
+/** A company cardholder made for a connected account. Stripe's name rules apply. */
+export interface NewGateCardholder {
+  name: string;
+  line1: string;
+  city: string;
+  state?: string | undefined;
+  postalCode: string;
+  country: string;
+}
+
+/** What the gate asks of Stripe. */
 export interface StripeIssuingClient {
   /** A single-use virtual USD card limited to the amount, cash categories blocked. */
-  createCard(key: string, card: NewGateCard, idempotencyKey: string): Promise<StripeCard>;
+  createCard(key: StripeAuth, card: NewGateCard, idempotencyKey: string): Promise<StripeCard>;
   /** The card's number and CVC (retrieve with expand). */
-  revealCard(key: string, cardId: string): Promise<StripeCardDetails>;
-  cancelCard(key: string, cardId: string): Promise<void>;
+  revealCard(key: StripeAuth, cardId: string): Promise<StripeCardDetails>;
+  cancelCard(key: StripeAuth, cardId: string): Promise<void>;
+  /** Turns the code Stripe sent back after the owner approved Bonded into their account id. */
+  exchangeCode(platformKey: string, code: string): Promise<{ account: string; livemode: boolean }>;
+  createCardholder(
+    key: StripeAuth,
+    cardholder: NewGateCardholder,
+    idempotencyKey: string,
+  ): Promise<{ id: string }>;
+  /** Ends Bonded's access to a connected account. */
+  deauthorize(platformKey: string, clientId: string, account: string): Promise<void>;
+}
+
+/** Sends the owner to Stripe to approve Bonded. `state` comes back with the code. */
+export function stripeConnectUrl(options: {
+  clientId: string;
+  redirectUri: string;
+  state: string;
+}): string {
+  const query = new URLSearchParams({
+    response_type: "code",
+    client_id: options.clientId,
+    scope: "read_write",
+    redirect_uri: options.redirectUri,
+    state: options.state,
+  });
+  return `https://connect.stripe.com/oauth/authorize?${query}`;
 }
 
 /** Stripe refused or failed a call. Never carries the key, the card number or the CVC. */
@@ -102,26 +147,27 @@ const card = (c: Record<string, unknown>): StripeCard => ({
   status: c.status as string,
 });
 
+const CONNECT_HOST = "https://connect.stripe.com";
+
 /** The real client, over fetch. Each call times out after `timeoutMs` (default 10 s). */
 export function stripeIssuingClient(
   options: { apiVersion?: string; fetch?: typeof fetch; timeoutMs?: number } = {},
 ): StripeIssuingClient {
   const send = async (
-    key: string,
+    auth: StripeAuth,
     method: "GET" | "POST",
     path: string,
     params?: Record<string, unknown>,
     idempotencyKey?: string,
+    host = "https://api.stripe.com",
   ) => {
     const form = params ? stripeForm(params) : undefined;
-    const url =
-      method === "GET" && form
-        ? `https://api.stripe.com${path}?${form}`
-        : `https://api.stripe.com${path}`;
+    const url = method === "GET" && form ? `${host}${path}?${form}` : `${host}${path}`;
     const res = await (options.fetch ?? fetch)(url, {
       method,
       headers: {
-        Authorization: `Bearer ${key}`,
+        Authorization: `Bearer ${typeof auth === "string" ? auth : auth.key}`,
+        ...(typeof auth === "string" ? {} : { "Stripe-Account": auth.account }),
         "Stripe-Version": options.apiVersion ?? STRIPE_API_VERSION,
         ...(method === "POST" ? { "Content-Type": "application/x-www-form-urlencoded" } : {}),
         ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
@@ -169,6 +215,50 @@ export function stripeIssuingClient(
       await send(key, "POST", `/v1/issuing/cards/${encodeURIComponent(cardId)}`, {
         status: "canceled",
       });
+    },
+    async exchangeCode(platformKey, code) {
+      const body = await send(
+        platformKey,
+        "POST",
+        "/oauth/token",
+        { grant_type: "authorization_code", code },
+        undefined,
+        CONNECT_HOST,
+      );
+      return { account: body.stripe_user_id as string, livemode: body.livemode === true };
+    },
+    async createCardholder(key, c, idempotencyKey) {
+      const body = await send(
+        key,
+        "POST",
+        "/v1/issuing/cardholders",
+        {
+          type: "company",
+          status: "active",
+          name: c.name,
+          billing: {
+            address: {
+              line1: c.line1,
+              city: c.city,
+              state: c.state,
+              postal_code: c.postalCode,
+              country: c.country,
+            },
+          },
+        },
+        idempotencyKey,
+      );
+      return { id: body.id as string };
+    },
+    async deauthorize(platformKey, clientId, account) {
+      await send(
+        platformKey,
+        "POST",
+        "/oauth/deauthorize",
+        { client_id: clientId, stripe_user_id: account },
+        undefined,
+        CONNECT_HOST,
+      );
     },
   };
 }

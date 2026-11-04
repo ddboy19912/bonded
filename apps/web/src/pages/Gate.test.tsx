@@ -27,6 +27,7 @@ import {
   type GateProof,
 } from "../lib/gate";
 import { Gate } from "./Gate";
+import { GateStripeReturn } from "./GateStripeReturn";
 import { GateVerify } from "./GateVerify";
 
 const WALLET = "0x00000000000000000000000000000000000000a1";
@@ -227,6 +228,7 @@ beforeEach(() => {
   });
   vi.spyOn(gateApi, "tickets").mockResolvedValue({ items: [] });
   vi.spyOn(gateApi, "stripeLink").mockResolvedValue(null);
+  vi.spyOn(gateApi, "stripeConnect").mockResolvedValue({ available: false });
   vi.spyOn(gateApi, "keys").mockResolvedValue({
     items: [
       {
@@ -575,6 +577,7 @@ describe("the payment gate's rules page", () => {
   it("links Stripe for card payments, shows only a hint, and lists the cards", async () => {
     const linked = {
       linked: true as const,
+      connected: false,
       keyHint: "rk_test_…abcd",
       livemode: false,
       cardholderId: "ich_1234567890",
@@ -771,6 +774,92 @@ describe("checking a receipt without signing in", () => {
       "pathname",
       "/gate/verify",
     );
+  });
+});
+
+describe("connecting Stripe", () => {
+  const STATE = `${ACCOUNT_ID}.1234.abcd`;
+  const returned = (query: string) => {
+    render(
+      <MemoryRouter initialEntries={[`/gate/stripe-return?${query}`]}>
+        <Routes>
+          <Route path="/gate/stripe-return" element={<GateStripeReturn />} />
+          <Route path="/gate" element={<p>Back on the gate page</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+  };
+  const fill = (label: string, value: string) =>
+    fireEvent.change(screen.getByLabelText(label), { target: { value } });
+
+  it("offers the button when it's on, with setting it up by hand beside it", async () => {
+    vi.mocked(gateApi.stripeConnect).mockResolvedValue({
+      available: true,
+      url: "https://connect.stripe.com/oauth/authorize?state=x",
+    });
+    signedIn();
+    show();
+    const button = await screen.findByRole("link", { name: "Connect with Stripe" });
+    expect(button.getAttribute("href")).toContain("https://connect.stripe.com/oauth/authorize");
+    expect(screen.getByRole("button", { name: "Set it up by hand instead" })).toBeTruthy();
+  });
+
+  it("leaves the button out when the service hasn't turned it on", async () => {
+    signedIn();
+    show();
+    expect(await screen.findByRole("button", { name: "Set up card payments" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Connect with Stripe" })).toBeNull();
+  });
+
+  it("finishes connecting with the company's details, then goes back to the account", async () => {
+    const finish = vi.spyOn(gateApi, "finishStripeConnect").mockResolvedValue({
+      linked: true,
+      connected: true,
+      keyHint: "acct_…0000",
+      livemode: false,
+      cardholderId: "ich_1",
+      webhookSecrets: { authorization: false, events: false },
+      createdAt: `${DAY}T09:00:00Z`,
+      updatedAt: `${DAY}T09:00:00Z`,
+    });
+    signedIn();
+    returned(`code=ac_1&state=${STATE}`);
+    const button = screen.getByRole("button", { name: "Finish connecting" }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    fill("Company name", "Acme");
+    expect(screen.getByText(/at least two words/)).toBeTruthy();
+    fill("Company name", "Acme Ltd");
+    fill("Address", "1 Main St");
+    fill("City", "London");
+    fill("Postcode", "EC1A 1BB");
+    fill("Country code", "gb");
+    expect(button.disabled).toBe(false);
+    fireEvent.click(button);
+    expect(await screen.findByText("Back on the gate page")).toBeTruthy();
+    expect(finish).toHaveBeenCalledWith("sess", ACCOUNT_ID, {
+      code: "ac_1",
+      state: STATE,
+      cardholder: {
+        name: "Acme Ltd",
+        line1: "1 Main St",
+        city: "London",
+        postalCode: "EC1A 1BB",
+        country: "GB",
+      },
+    });
+  });
+
+  it("says so when the owner declined on Stripe's page", () => {
+    signedIn();
+    returned("error=access_denied&state=x");
+    expect(screen.getByText("Stripe wasn't connected")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Back to the payment gate" })).toBeTruthy();
+  });
+
+  it("asks for a sign-in first when the session has gone", () => {
+    returned(`code=ac_1&state=${STATE}`);
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Finish connecting" })).toBeNull();
   });
 });
 

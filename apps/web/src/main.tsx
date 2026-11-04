@@ -31,6 +31,7 @@ import { Sentinel } from "./pages/Sentinel";
 import { Status } from "./pages/Status";
 import { Inbox } from "./pages/Inbox";
 import { Gate } from "./pages/Gate";
+import { GateStripeReturn } from "./pages/GateStripeReturn";
 import { GateVerify } from "./pages/GateVerify";
 import "./index.css";
 
@@ -61,6 +62,7 @@ const router = createBrowserRouter([
       { path: "/inbox", element: <Inbox /> },
       { path: "/gate", element: <Gate /> },
       { path: "/gate/verify", element: <GateVerify /> },
+      { path: "/gate/stripe-return", element: <GateStripeReturn /> },
       { path: "*", element: <NotFound /> },
     ],
   },

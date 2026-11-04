@@ -17,9 +17,13 @@ import { createApi } from "../src/index.js";
 import type { GateOptions } from "../src/gate.js";
 import { SecretBox } from "../src/secrets.js";
 import {
+  stripeConnectUrl,
   stripeForm,
+  stripeIssuingClient,
   verifyStripeSignature,
   type NewGateCard,
+  type NewGateCardholder,
+  type StripeAuth,
   type StripeIssuingClient,
 } from "../src/stripe-issuing.js";
 import { postgres } from "./postgres.js";
@@ -58,16 +62,35 @@ const chainId = chain.deployment.chainId;
 /** A fake Stripe: cards in memory, every call recorded. */
 class FakeStripe implements StripeIssuingClient {
   cards = new Map<string, NewGateCard & { status: string }>();
-  calls: { method: string; key: string; idempotencyKey?: string; card?: NewGateCard }[] = [];
+  calls: { method: string; key: StripeAuth; idempotencyKey?: string; card?: NewGateCard }[] = [];
   fail = false;
-  async createCard(key: string, card: NewGateCard, idempotencyKey: string) {
+  /** What connecting answers. */
+  connected = { account: "acct_1Connected0000", livemode: false };
+  cardholders: { key: StripeAuth; cardholder: NewGateCardholder }[] = [];
+  deauthorized: string[] = [];
+  failCardholder = false;
+  failCode = false;
+  async exchangeCode(key: string, code: string) {
+    this.calls.push({ method: `exchangeCode:${code}`, key });
+    if (this.failCode) throw new Error("invalid_grant");
+    return this.connected;
+  }
+  async createCardholder(key: StripeAuth, cardholder: NewGateCardholder) {
+    if (this.failCardholder) throw new Error("Issuing isn't on");
+    this.cardholders.push({ key, cardholder });
+    return { id: "ich_connected1" };
+  }
+  async deauthorize(_key: string, _clientId: string, account: string) {
+    this.deauthorized.push(account);
+  }
+  async createCard(key: StripeAuth, card: NewGateCard, idempotencyKey: string) {
     this.calls.push({ method: "createCard", key, idempotencyKey, card });
     if (this.fail) throw new Error("Stripe is down");
     const id = `ic_${idempotencyKey.slice(-12)}`;
     if (!this.cards.has(id)) this.cards.set(id, { ...card, status: "active" });
     return { id, last4: "5556", brand: "Visa", expMonth: 12, expYear: 2029, status: "active" };
   }
-  async revealCard(key: string, cardId: string) {
+  async revealCard(key: StripeAuth, cardId: string) {
     this.calls.push({ method: "revealCard", key });
     return {
       id: cardId,
@@ -80,7 +103,7 @@ class FakeStripe implements StripeIssuingClient {
       cvc: CARD_CVC,
     };
   }
-  async cancelCard(key: string, cardId: string) {
+  async cancelCard(key: StripeAuth, cardId: string) {
     this.calls.push({ method: "cancelCard", key });
     this.cards.get(cardId)!.status = "canceled";
   }
@@ -1384,5 +1407,241 @@ describe("secrets and card details", () => {
     expect(gateInputHash(input)).toBe(row.input_hash);
     const verdict = evaluateGateInput(input);
     expect(verdict.ok && verdict.rules).toEqual(row.rules);
+  });
+});
+
+describe("connecting a Stripe account (Connect with Stripe)", () => {
+  const PLATFORM_KEY = `sk_test_${randomBytes(24).toString("hex")}`;
+  const connect = {
+    clientId: "ca_test123",
+    platformKey: PLATFORM_KEY,
+    redirectUri: "https://www.bondedhq.xyz/gate/stripe-return",
+  };
+  const cardholder = {
+    name: "Acme Ltd",
+    line1: "1 Main St",
+    city: "London",
+    postalCode: "EC1A 1BB",
+    country: "GB",
+  };
+  let connected: ReturnType<typeof createApi>;
+  beforeAll(() => {
+    connected = makeApi({ connect });
+  });
+  afterAll(async () => {
+    await connected?.close();
+  });
+  const stateOf = (url: string) => new URL(url).searchParams.get("state")!;
+  /** Starts connecting, and answers with what Stripe's page would send back. */
+  async function start(base: string, session: string) {
+    const r = await call("GET", `${base}/stripe/connect`, undefined, session, connected);
+    expect(r.status).toBe(200);
+    return { url: r.body.url as string, state: stateOf(r.body.url) };
+  }
+  const finish = (base: string, session: string, body: Record<string, unknown>) =>
+    call("POST", `${base}/stripe/connect`, { cardholder, ...body }, session, connected);
+
+  it("isn't offered without the platform's settings, or with a live key on a test service", async () => {
+    const { base, session } = await cardAccount({}, false);
+    const off = await call("GET", `${base}/stripe/connect`, undefined, session);
+    expect(off.body).toEqual({ available: false });
+    const live = makeApi({
+      connect: { ...connect, platformKey: `sk_live_${"a".repeat(24)}` },
+    });
+    const refused = await call("GET", `${base}/stripe/connect`, undefined, session, live);
+    expect(refused.body).toEqual({ available: false });
+    await live.close();
+  });
+
+  it("sends the owner to Stripe, then links the account with no customer key stored", async () => {
+    const { id, base, session } = await cardAccount({}, false);
+    const { url, state } = await start(base, session);
+    expect(url).toContain("https://connect.stripe.com/oauth/authorize?");
+    const query = new URL(url).searchParams;
+    expect(query.get("client_id")).toBe("ca_test123");
+    expect(query.get("scope")).toBe("read_write");
+    expect(query.get("redirect_uri")).toBe(connect.redirectUri);
+
+    const done = await finish(base, session, { code: "ac_good1", state });
+    expect(done.status).toBe(200);
+    expect(done.body).toMatchObject({
+      connected: true,
+      cardholderId: "ich_connected1",
+      keyHint: "acct_…0000",
+    });
+    const on = { key: PLATFORM_KEY, account: "acct_1Connected0000" };
+    expect(stripe.cardholders.at(-1)).toEqual({ key: on, cardholder });
+    const row = (
+      await pg.db.pool.query("SELECT * FROM gate_stripe_links WHERE account_id=$1", [id])
+    ).rows[0];
+    expect(row.key_ciphertext).toBeNull();
+    expect(row.connected_account).toBe("acct_1Connected0000");
+    expect(JSON.stringify(done.body)).not.toContain(PLATFORM_KEY);
+  });
+
+  it("issues cards on the connected account and decides its charges", async () => {
+    const { id, key, base, session } = await cardAccount({}, false);
+    const { state } = await start(base, session);
+    expect((await finish(base, session, { code: "ac_good2", state })).status).toBe(200);
+
+    const calls = stripe.calls.length;
+    const made = await call(
+      "POST",
+      "/payments/intents",
+      { invoiceReference: "NIM-1" },
+      key,
+      connected,
+    );
+    expect(made.status).toBe(201);
+    const on = { key: PLATFORM_KEY, account: "acct_1Connected0000" };
+    expect(stripe.calls[calls]).toMatchObject({ method: "createCard", key: on });
+    expect(stripe.calls[calls]!.card).toMatchObject({ cardholder: "ich_connected1" });
+
+    const cardId = made.body.card.id as string;
+    const fraud = await webhook(
+      "/stripe/issuing/authorization",
+      authRequest(cardId, 61_240, { merchant: FRAUD_MERCHANT }),
+      { a: connected },
+    );
+    expect(fraud.body).toEqual({ approved: false });
+    const good = await webhook("/stripe/issuing/authorization", authRequest(cardId, 61_240), {
+      a: connected,
+    });
+    expect(good.body).toEqual({ approved: true });
+    expect((await decisions(id)).map((d) => d.result)).toEqual(["blocked", "allowed"]);
+  });
+
+  it("refuses a state from another account, another owner, or past its time", async () => {
+    const a = await cardAccount({}, false);
+    const b = await cardAccount({}, false);
+    const { state } = await start(a.base, a.session);
+    const swapped = await finish(b.base, b.session, { code: "ac_x", state });
+    expect(swapped.status).toBe(400);
+    const forged = await finish(a.base, a.session, {
+      code: "ac_x",
+      state: `${a.id}.${clock + 60_000}.${"0".repeat(64)}`,
+    });
+    expect(forged.status).toBe(400);
+    const expired = `${a.id}.${clock - 1}.${state.split(".")[2]}`;
+    expect((await finish(a.base, a.session, { code: "ac_x", state: expired })).status).toBe(400);
+    expect(stripe.calls.some((c) => c.method === "exchangeCode:ac_x")).toBe(false);
+  });
+
+  it("hides connecting from other wallets", async () => {
+    const { base } = await cardAccount({}, false);
+    const stranger = await sessionFor(privateKeyToAccount(generatePrivateKey()));
+    const r = await call("GET", `${base}/stripe/connect`, undefined, stranger, connected);
+    expect(r.status).toBe(404);
+  });
+
+  it("refuses a cardholder name Stripe wouldn't take, before spending the code", async () => {
+    const { base, session } = await cardAccount({}, false);
+    const { state } = await start(base, session);
+    const bad = await finish(base, session, {
+      code: "ac_name",
+      state,
+      cardholder: { ...cardholder, name: "Acme" },
+    });
+    expect(bad.status).toBe(400);
+    expect(stripe.calls.some((c) => c.method === "exchangeCode:ac_name")).toBe(false);
+  });
+
+  it("disconnects a live account on a test-only service, and links nothing", async () => {
+    const { id, base, session } = await cardAccount({}, false);
+    const { state } = await start(base, session);
+    stripe.connected = { account: "acct_live", livemode: true };
+    const r = await finish(base, session, { code: "ac_live", state });
+    stripe.connected = { account: "acct_1Connected0000", livemode: false };
+    expect(r.status).toBe(403);
+    expect(stripe.deauthorized).toContain("acct_live");
+    const rows = await pg.db.pool.query("SELECT 1 FROM gate_stripe_links WHERE account_id=$1", [
+      id,
+    ]);
+    expect(rows.rowCount).toBe(0);
+  });
+
+  it("says to connect again when Stripe refuses the code or the cardholder", async () => {
+    const { id, base, session } = await cardAccount({}, false);
+    const { state } = await start(base, session);
+    stripe.failCode = true;
+    const code = await finish(base, session, { code: "ac_used", state });
+    stripe.failCode = false;
+    expect(code.status).toBe(503);
+
+    stripe.failCardholder = true;
+    stripe.connected = { account: "acct_noissuing", livemode: false };
+    const holder = await finish(base, session, { code: "ac_ok", state });
+    stripe.failCardholder = false;
+    stripe.connected = { account: "acct_1Connected0000", livemode: false };
+    expect(holder.status).toBe(503);
+    expect(holder.body.error).toContain("Issuing");
+    expect(stripe.deauthorized).toContain("acct_noissuing");
+    const rows = await pg.db.pool.query("SELECT 1 FROM gate_stripe_links WHERE account_id=$1", [
+      id,
+    ]);
+    expect(rows.rowCount).toBe(0);
+  });
+
+  it("ends Bonded's access when the owner unlinks", async () => {
+    const { base, session } = await cardAccount({}, false);
+    const { state } = await start(base, session);
+    stripe.connected = { account: "acct_leaving", livemode: false };
+    await finish(base, session, { code: "ac_leave", state });
+    stripe.connected = { account: "acct_1Connected0000", livemode: false };
+    const r = await call("DELETE", `${base}/stripe`, undefined, session, connected);
+    expect(r.status).toBe(200);
+    expect(stripe.deauthorized).toContain("acct_leaving");
+  });
+
+  it("switches to a key of its own, and back, keeping exactly one way", async () => {
+    const { id, base, session } = await cardAccount({}, false);
+    const { state } = await start(base, session);
+    await finish(base, session, { code: "ac_swap", state });
+    const manual = await call(
+      "PUT",
+      `${base}/stripe`,
+      { secretKey: STRIPE_KEY, cardholderId: "ich_test1" },
+      session,
+      connected,
+    );
+    expect(manual.body.connected).toBe(false);
+    const row = (
+      await pg.db.pool.query("SELECT * FROM gate_stripe_links WHERE account_id=$1", [id])
+    ).rows[0];
+    expect(row.connected_account).toBeNull();
+    expect(row.key_ciphertext).not.toBeNull();
+  });
+
+  it("sends the real calls Stripe's docs describe", async () => {
+    const sent: { url: string; init: RequestInit }[] = [];
+    const real = stripeIssuingClient({
+      fetch: (async (url: string, init: RequestInit) => {
+        sent.push({ url, init });
+        return new Response(
+          JSON.stringify({ stripe_user_id: "acct_1", livemode: false, id: "ich_1" }),
+        );
+      }) as unknown as typeof fetch,
+    });
+    await expect(real.exchangeCode("sk_test_x", "ac_1")).resolves.toEqual({
+      account: "acct_1",
+      livemode: false,
+    });
+    expect(sent[0]!.url).toBe("https://connect.stripe.com/oauth/token");
+    expect(sent[0]!.init.body).toBe("grant_type=authorization_code&code=ac_1");
+
+    await real.createCardholder({ key: "sk_test_x", account: "acct_1" }, cardholder, "idem-1");
+    const headers = sent[1]!.init.headers as Record<string, string>;
+    expect(sent[1]!.url).toBe("https://api.stripe.com/v1/issuing/cardholders");
+    expect(headers["Stripe-Account"]).toBe("acct_1");
+    expect(headers["Idempotency-Key"]).toBe("idem-1");
+    const form = new URLSearchParams(sent[1]!.init.body as string);
+    expect(form.get("type")).toBe("company");
+    expect(form.get("billing[address][postal_code]")).toBe("EC1A 1BB");
+
+    await real.deauthorize("sk_test_x", "ca_1", "acct_1");
+    expect(sent[2]!.url).toBe("https://connect.stripe.com/oauth/deauthorize");
+    expect(
+      stripeConnectUrl({ clientId: "ca_1", redirectUri: "https://x.test/r", state: "s" }),
+    ).toContain("response_type=code");
   });
 });

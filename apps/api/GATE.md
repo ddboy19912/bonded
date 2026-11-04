@@ -180,6 +180,8 @@ signs them.
 |---|---|---|
 | `PUT /gate/accounts/:id/stripe` | owner | Link the account's Stripe account: `{ secretKey, cardholderId, authorizationWebhookSecret?, eventsWebhookSecret? }`. `secretKey` is a restricted key (`rk_test_...`) that can create, read and update Issuing cards; `cardholderId` (`ich_...`) is the cardholder the cards are issued to. Test-mode keys only unless `GATE_ALLOW_LIVE_CREDENTIALS=true`. Stored encrypted with `AGENT_URL_SECRET_KEY`, never shown again |
 | `GET`, `DELETE /gate/accounts/:id/stripe` | owner | The link (key hint only), or unlink: no new cards. Cards already issued are still checked |
+| `GET /gate/accounts/:id/stripe/connect` | owner | Whether "Connect with Stripe" is on: `{ available, url? }`. `url` is Stripe's approval page, with a state tied to this account and owner for 15 minutes |
+| `POST /gate/accounts/:id/stripe/connect` | owner | Finish connecting: `{ code, state, cardholder: { name, line1, city, state?, postalCode, country } }`. Links the Stripe account and makes its company cardholder. A code works once |
 | `GET /gate/accounts/:id/card-intents` | owner | The cards issued, newest first |
 | `POST /payments/intents` | agent | `{ invoiceReference, vendorId? }`. If the invoice is approved and unpaid, its vendor has a card merchant, the charge would pass the rules and the account isn't frozen, Stripe issues a virtual card: single use (`lifecycle_controls.cancel_after.payment_count=1`), an all-time spending limit of the invoice amount, cash, ATM and quasi-cash categories blocked. The answer carries the card number, CVC and expiry once, as Stripe returns them (`Cache-Control: no-store`); only the card's id and last four digits are kept. The same invoice again, while its card is unused, returns the same card |
 | `GET /payments/intents/:intentId` | agent | One intent, without card details |
@@ -243,6 +245,20 @@ and change nothing else. Every event id is stored, so a replay changes nothing.
    `issuing_transaction.created`. Its signing secret goes in `STRIPE_EVENTS_WEBHOOK_SECRET`.
 5. A restricted key with write access to Issuing cards (and read on Issuing authorizations and
    transactions), linked with `PUT /gate/accounts/:id/stripe`.
+
+**Connect with Stripe (no keys to copy).** Instead of pasting a key, an owner can approve Bonded on
+Stripe's own page. Bonded then calls Stripe with its platform key and the `Stripe-Account` header,
+so no customer key is stored (`connected_account` on `gate_stripe_links`, migration
+`0029_gate_stripe_connect.sql`). Unlinking also ends Bonded's access to the account. The page Stripe
+returns to is `/gate/stripe-return` in the web app, which asks for the cardholder's company details.
+
+It's off until the service has `STRIPE_CONNECT_CLIENT_ID` and `STRIPE_PLATFORM_SECRET_KEY`, and a
+platform key that's live is ignored unless `GATE_ALLOW_LIVE_CREDENTIALS=true`. It also depends on
+Stripe: Issuing on accounts that keep their own dashboard has to be enabled by Stripe support
+([Issuing and Connect](https://docs.stripe.com/issuing/connect)), and the real-time authorization
+and event endpoints must receive the connected accounts' traffic, signed with
+`STRIPE_WEBHOOK_SECRET` and `STRIPE_EVENTS_WEBHOOK_SECRET`. Neither has been tried against Stripe
+yet: the tests use a fake client.
 
 ## The payout route (bank payouts through a TEE)
 
@@ -388,6 +404,9 @@ the duplicate rule reads them. Log roots and what was posted on chain are kept t
 | `STRIPE_WEBHOOK_SECRET` | API | Signing secret (`whsec_...`) of the real-time authorization endpoint |
 | `STRIPE_EVENTS_WEBHOOK_SECRET` | API | Signing secret of the Issuing events endpoint |
 | `STRIPE_API_VERSION` | API | The `Stripe-Version` sent and answered with (default `2026-09-30.endive`) |
+| `STRIPE_CONNECT_CLIENT_ID` | API | Bonded's Connect client id (`ca_...`). With the next one, turns on "Connect with Stripe" |
+| `STRIPE_PLATFORM_SECRET_KEY` | API | Bonded's own Stripe secret key, for calls on connected accounts. Test mode unless live credentials are allowed |
+| `STRIPE_CONNECT_REDIRECT_URI` | API | Where Stripe returns the owner (default `https://www.bondedhq.xyz/gate/stripe-return`). Must be listed in Stripe's Connect settings |
 | `GATE_ALLOW_LIVE_CREDENTIALS` | API | `true` accepts live Stripe keys and live charges. Off: test mode only. The payout proxy has its own setting of the same name |
 | `AGENT_URL_SECRET_KEY` | API | Also encrypts the linked Stripe keys and secrets and the payout links' events secrets; `pnpm secrets:reencrypt` moves them with the rest |
 | `GATE_PAYOUT_TEE_URL` | API | The payout proxy's https URL. Unset: the payout routes answer 503 |

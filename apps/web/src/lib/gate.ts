@@ -129,12 +129,24 @@ export interface GateTicket {
 /** A gate account's Stripe link: never the key itself, only a hint of it. */
 export interface GateStripeLink {
   linked: true;
+  /** Connected to Bonded's platform, with no key of its own. */
+  connected: boolean;
   keyHint: string;
   livemode: boolean;
   cardholderId: string;
   webhookSecrets: { authorization: boolean; events: boolean };
   createdAt: string;
   updatedAt: string;
+}
+
+/** The company a connected account's cards are issued to. */
+export interface GateCardholder {
+  name: string;
+  line1: string;
+  city: string;
+  state?: string;
+  postalCode: string;
+  country: string;
 }
 
 /** A single-use card issued for one approved invoice. */
@@ -241,6 +253,15 @@ export const gateApi = {
       eventsWebhookSecret: string;
     },
   ) => request<GateStripeLink>(`${account(id)}/stripe`, send(session, "PUT", link)),
+  /** GET …/stripe/connect: whether "Connect with Stripe" is on, and where it sends the owner. */
+  stripeConnect: (session: string, id: string) =>
+    request<{ available: boolean; url?: string }>(`${account(id)}/stripe/connect`, bearer(session)),
+  /** POST …/stripe/connect: finish connecting, with what Stripe sent back. */
+  finishStripeConnect: (
+    session: string,
+    id: string,
+    body: { code: string; state: string; cardholder: GateCardholder },
+  ) => request<GateStripeLink>(`${account(id)}/stripe/connect`, send(session, "POST", body)),
   /** DELETE …/stripe: no new cards. Cards already issued are still checked on every charge. */
   unlinkStripe: (session: string, id: string) =>
     request<{ unlinked: true }>(`${account(id)}/stripe`, send(session, "DELETE")),

@@ -218,6 +218,19 @@ if (role === "migrate") {
           ...(process.env.STRIPE_API_VERSION?.trim()
             ? { apiVersion: process.env.STRIPE_API_VERSION.trim() }
             : {}),
+          // "Connect with Stripe" (apps/api/GATE.md): needs Bonded's platform client id and key.
+          ...(process.env.STRIPE_CONNECT_CLIENT_ID?.trim() &&
+          process.env.STRIPE_PLATFORM_SECRET_KEY?.trim()
+            ? {
+                connect: {
+                  clientId: process.env.STRIPE_CONNECT_CLIENT_ID.trim(),
+                  platformKey: process.env.STRIPE_PLATFORM_SECRET_KEY.trim(),
+                  redirectUri:
+                    process.env.STRIPE_CONNECT_REDIRECT_URI?.trim() ||
+                    "https://www.bondedhq.xyz/gate/stripe-return",
+                },
+              }
+            : {}),
           // Off until the founder has legal advice: live keys and live charges are refused.
           allowLiveCredentials: process.env.GATE_ALLOW_LIVE_CREDENTIALS === "true",
         },

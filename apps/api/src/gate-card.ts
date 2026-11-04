@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { performance } from "node:perf_hooks";
 import type { Context, Hono } from "hono";
 import { z } from "zod";
@@ -8,6 +8,7 @@ import {
   type Database,
   type GateAccountRecord,
   type GateCardIntentRecord,
+  type GateStripeLinkRecord,
   type GateStore,
 } from "@bonded/db";
 import {
@@ -28,7 +29,9 @@ import { gateNotification, type GateNotification, type Notifier } from "./notifi
 import { gateStripeContext, type SecretBox } from "./secrets.js";
 import {
   STRIPE_API_VERSION,
+  stripeConnectUrl,
   stripeIssuingClient,
+  type StripeAuth,
   verifyStripeSignature,
   type StripeIssuingClient,
 } from "./stripe-issuing.js";
@@ -63,6 +66,12 @@ export interface GateCardOptions {
   /** STRIPE_API_VERSION: sent to Stripe and answered with (default STRIPE_API_VERSION). */
   apiVersion?: string;
   /**
+   * Connecting an owner's Stripe account to Bonded's platform, so they copy no keys: the platform's
+   * client id (STRIPE_CONNECT_CLIENT_ID), its secret key (STRIPE_PLATFORM_SECRET_KEY) and where
+   * Stripe sends the owner back. Without it the "Connect with Stripe" button doesn't show.
+   */
+  connect?: { clientId: string; platformKey: string; redirectUri: string };
+  /**
    * How long the gate may take to answer an authorization request (default 1,500 ms, inside
    * Stripe's 2 seconds). Past it the gate declines, and nothing it was deciding is kept.
    */
@@ -82,6 +91,27 @@ const text = (max: number) =>
     .max(max)
     .regex(/^[^\p{Cc}]*$/u);
 const vendorIdInput = z.string().regex(/^[A-Za-z0-9._:-]{1,64}$/);
+
+/** How long the owner has to approve Bonded on Stripe's page. */
+const CONNECT_STATE_MS = 15 * 60_000;
+
+const connectInput = z.strictObject({
+  code: z.string().regex(/^[A-Za-z0-9_-]{1,255}$/),
+  state: z.string().max(200),
+  // Stripe's rules for a company cardholder: its characters, 24 at most, at least two words.
+  cardholder: z.strictObject({
+    name: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z0-9/\-&:().' ]{1,24}$/)
+      .refine((v) => v.split(/\s+/).length >= 2),
+    line1: text(200),
+    city: text(100),
+    state: text(100).optional(),
+    postalCode: text(20),
+    country: z.string().regex(/^[A-Z]{2}$/),
+  }),
+});
 const linkInput = z.strictObject({
   /** A restricted key (rk_) or secret key (sk_); test mode unless live credentials are allowed. */
   secretKey: z.string().regex(/^(rk|sk)_(test|live)_[A-Za-z0-9]{10,247}$/),
@@ -180,13 +210,45 @@ export function gateCardRoutes(
       "Live Stripe keys are refused: the payment gate takes test-mode keys only for now.",
     );
 
-  /** The linked account's Stripe key, decrypted for one call. */
-  const stripeKey = async (accountId: string) => {
-    if (!secrets) throw unavailable();
+  /** The platform settings, unless they'd mean live credentials on a test-only service. */
+  const connect =
+    options.connect && (allowLive || !options.connect.platformKey.includes("_live_"))
+      ? options.connect
+      : undefined;
+
+  /**
+   * Who to call Stripe as for a linked account: Bonded's platform key for a connected account, or
+   * the account's own key, decrypted for one call.
+   */
+  const stripeKey = async (
+    accountId: string,
+  ): Promise<{ key: StripeAuth; link: GateStripeLinkRecord }> => {
     const l = await cards.link(accountId);
     if (!l) throw notLinked();
     if (l.livemode && !allowLive) throw liveRefused();
-    return { key: secrets.decrypt(l.keyCiphertext, gateStripeContext(accountId, "key")), link: l };
+    if (l.connectedAccount) {
+      if (!connect) throw new Refused(503, "Stripe Connect is off on this service.");
+      return { key: { key: connect.platformKey, account: l.connectedAccount }, link: l };
+    }
+    if (!secrets) throw unavailable();
+    return { key: secrets.decrypt(l.keyCiphertext!, gateStripeContext(accountId, "key")), link: l };
+  };
+
+  /**
+   * Ties a connection to the gate account and owner who started it, so a code can't be attached to
+   * anyone else's account: `<account id>.<expiry>.<HMAC>`.
+   */
+  const connectState = (accountId: string, owner: string, expires: number) => {
+    const sign = (key: string) =>
+      createHmac("sha256", key).update(`${accountId}|${owner}|${expires}`).digest("hex");
+    return `${accountId}.${expires}.${sign(connect!.platformKey)}`;
+  };
+  const validState = (state: string, accountId: string, owner: string) => {
+    const expires = Number(state.split(".")[1]);
+    if (!Number.isSafeInteger(expires) || expires < now()) return false;
+    const want = Buffer.from(connectState(accountId, owner, expires));
+    const got = Buffer.from(state);
+    return want.length === got.length && timingSafeEqual(want, got);
   };
 
   /** The secrets a webhook may be signed with: the account's own endpoint's, then the service's. */
@@ -362,6 +424,7 @@ export function gateCardRoutes(
   const linkView = (l: Awaited<ReturnType<GateCardStore["link"]>>) =>
     l && {
       linked: true,
+      connected: l.connectedAccount !== null,
       keyHint: l.keyHint,
       livemode: l.livemode,
       cardholderId: l.cardholderId,
@@ -396,6 +459,7 @@ export function gateCardRoutes(
       const l = await cards.setLink({
         accountId: account.id,
         keyCiphertext: seal(input.secretKey, "key")!,
+        connectedAccount: null,
         keyHint: `${input.secretKey.slice(0, 8)}…${input.secretKey.slice(-4)}`,
         livemode,
         cardholderId: input.cardholderId,
@@ -412,9 +476,86 @@ export function gateCardRoutes(
     "/gate/accounts/:id/stripe",
     handle(async (c) => {
       const { account } = await deps.owned(c, deps.writes);
+      const l = await cards.link(account.id);
       if (!(await cards.unlink(account.id)))
         throw new Refused(404, "This gate account isn't linked to Stripe.");
+      // Bonded keeps no access to an account its owner disconnected.
+      if (l?.connectedAccount && connect)
+        await stripe
+          .deauthorize(connect.platformKey, connect.clientId, l.connectedAccount)
+          .catch((error: unknown) =>
+            log(
+              `stripe: could not disconnect ${l.connectedAccount}: ${error instanceof Error ? error.message : "error"}`,
+            ),
+          );
       return c.json({ unlinked: true });
+    }),
+  );
+  /** Whether "Connect with Stripe" is on, and where it sends the owner. */
+  app.get(
+    "/gate/accounts/:id/stripe/connect",
+    handle(async (c) => {
+      const { owner, account } = await deps.owned(c, deps.reads);
+      c.header("Cache-Control", "no-store");
+      if (!connect) return c.json({ available: false });
+      const state = connectState(account.id, owner, now() + CONNECT_STATE_MS);
+      return c.json({ available: true, url: stripeConnectUrl({ ...connect, state }) });
+    }),
+  );
+  /**
+   * Finish connecting: the code Stripe sent back, the state it was started with, and the company
+   * its cards are issued to. A code works once, so a failure here means connecting again.
+   */
+  app.post(
+    "/gate/accounts/:id/stripe/connect",
+    handle(async (c) => {
+      const { owner, account } = await deps.owned(c, deps.writes);
+      if (!connect) throw new Refused(503, "Stripe Connect is off on this service.");
+      const input = connectInput.parse(await c.req.json());
+      if (!validState(input.state, account.id, owner))
+        throw new Refused(400, "This connection has expired. Connect with Stripe again.");
+      const refused = () =>
+        new Refused(503, "Stripe didn't finish the connection. Connect with Stripe again.");
+      const made = await stripe
+        .exchangeCode(connect.platformKey, input.code)
+        .catch((error: unknown) => {
+          log(`stripe: connecting failed: ${error instanceof Error ? error.message : "error"}`);
+          throw refused();
+        });
+      const disconnect = () =>
+        stripe
+          .deauthorize(connect.platformKey, connect.clientId, made.account)
+          .catch(() => log(`stripe: could not disconnect ${made.account}`));
+      if (made.livemode && !allowLive) {
+        await disconnect();
+        throw liveRefused();
+      }
+      const key = { key: connect.platformKey, account: made.account };
+      const cardholder = await stripe
+        .createCardholder(key, input.cardholder, `gate-cardholder-${account.id}-${made.account}`)
+        .catch(async (error: unknown) => {
+          log(
+            `stripe: no cardholder on ${made.account}: ${error instanceof Error ? error.message : "error"}`,
+          );
+          await disconnect();
+          throw new Refused(
+            503,
+            "Stripe connected, but couldn't set up the cardholder. Check Issuing is on for that Stripe account, then connect again.",
+          );
+        });
+      const l = await cards.setLink({
+        accountId: account.id,
+        keyCiphertext: null,
+        connectedAccount: made.account,
+        keyHint: `${made.account.slice(0, 5)}…${made.account.slice(-4)}`,
+        livemode: made.livemode,
+        cardholderId: cardholder.id,
+        authorizationSecretCiphertext: null,
+        eventsSecretCiphertext: null,
+        linkedBy: owner,
+      });
+      c.header("Cache-Control", "no-store");
+      return c.json(linkView(l));
     }),
   );
   app.get(

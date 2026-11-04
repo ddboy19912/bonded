@@ -18,6 +18,7 @@ import {
   Switch,
   Table,
   Unavailable,
+  buttonClass,
   linkClass,
 } from "../components/ui";
 
@@ -872,6 +873,14 @@ export function Cards({ account, session }: { account: GateAccount; session: str
     queryFn: () => gateApi.stripeLink(session, account.id),
     retry: false,
   });
+  const connect = useQuery({
+    queryKey: ["gate-stripe-connect", session, account.id],
+    queryFn: () => gateApi.stripeConnect(session, account.id),
+    enabled: link.data === null,
+    retry: false,
+    // Its link carries a state that expires, so it's read fresh.
+    staleTime: 0,
+  });
   const cards = useQuery({
     queryKey: ["gate-cards", session, account.id],
     queryFn: () => gateApi.cardIntents(session, account.id),
@@ -903,7 +912,7 @@ export function Cards({ account, session }: { account: GateAccount; session: str
       ) : link.data ? (
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-            <Badge tone="safe">Linked</Badge>
+            <Badge tone="safe">{link.data.connected ? "Connected" : "Linked"}</Badge>
             <span className="font-mono text-[0.92em]">{link.data.keyHint}</span>
             <span className="font-mono text-[0.92em] text-muted">{link.data.cardholderId}</span>
             <Button
@@ -958,125 +967,137 @@ export function Cards({ account, session }: { account: GateAccount; session: str
           )}
         </div>
       ) : (
-        <Adder label="Set up card payments">
-          {(close) => (
-            <form
-              className="flex flex-col gap-6"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!ready) return;
-                void action.run(async () => {
-                  await gateApi.linkStripe(session, account.id, {
-                    secretKey: key.trim(),
-                    cardholderId: cardholder.trim(),
-                    authorizationWebhookSecret: authorization.trim(),
-                    eventsWebhookSecret: events.trim(),
-                  });
-                  await refresh();
-                  setKey("");
-                  setCardholder("");
-                  setAuthorization("");
-                  setEvents("");
-                });
-              }}
-            >
-              <p className="text-sm text-soft">
-                This takes about ten minutes in your Stripe dashboard. Turn on <b>Test mode</b>{" "}
-                there first: no real money moves.
+        <>
+          {connect.data?.url && (
+            <div className="flex flex-col items-start gap-2">
+              <a className={buttonClass("primary", "sm")} href={connect.data.url}>
+                Connect with Stripe
+              </a>
+              <p className="text-xs text-muted">
+                You approve Bonded on Stripe's page. No keys to copy.
               </p>
-              <Step
-                n={1}
-                title="Make a cardholder"
-                link={STRIPE.cardholders}
-                linkText="Cardholders"
-              >
-                <p>
-                  Create a cardholder: it's who your agent's cards are issued to. Add some test
-                  funds to your Issuing balance too, or Stripe declines every charge.
-                </p>
-                <Input
-                  label="Cardholder ID"
-                  value={cardholder}
-                  onChange={setCardholder}
-                  placeholder="ich_..."
-                  error={wrong(cardholder, CARDHOLDER, "A cardholder ID starts with ich_.")}
-                  hint="Shown on the cardholder's page."
-                />
-              </Step>
-              <Step
-                n={2}
-                title="Let Stripe ask the gate before each charge"
-                link={STRIPE.settings}
-                linkText="Issuing settings"
-              >
-                <p>
-                  Under real-time authorizations, paste this address. If it asks what to do on a
-                  timeout, choose <b>decline</b>.
-                </p>
-                <Address url={`${apiUrl}/stripe/issuing/authorization`} />
-                <Input
-                  label="Signing secret for this address"
-                  type="password"
-                  value={authorization}
-                  onChange={setAuthorization}
-                  placeholder="whsec_..."
-                  error={wrong(
-                    authorization,
-                    WEBHOOK_SECRET,
-                    "A signing secret starts with whsec_.",
-                  )}
-                  hint="Stripe shows it once the address is saved."
-                />
-              </Step>
-              <Step
-                n={3}
-                title="Tell the gate how each charge ended"
-                link={STRIPE.webhooks}
-                linkText="Webhooks"
-              >
-                <p>Add a destination with this address, and tick these three events:</p>
-                <Address url={`${apiUrl}/stripe/issuing/events`} />
-                <ul className="list-disc pl-5 font-mono text-xs">
-                  <li>issuing_authorization.created</li>
-                  <li>issuing_authorization.updated</li>
-                  <li>issuing_transaction.created</li>
-                </ul>
-                <Input
-                  label="Signing secret for this destination"
-                  type="password"
-                  value={events}
-                  onChange={setEvents}
-                  placeholder="whsec_..."
-                  error={wrong(events, WEBHOOK_SECRET, "A signing secret starts with whsec_.")}
-                  hint="On the destination's page, after you save it."
-                />
-              </Step>
-              <Step n={4} title="Give the gate a key" link={STRIPE.keys} linkText="API keys">
-                <p>
-                  Create a restricted key. Set Issuing Cards to <b>Write</b>, and Issuing
-                  Authorizations and Issuing Transactions to <b>Read</b>. Leave the rest as None.
-                </p>
-                <Input
-                  label="Restricted key"
-                  type="password"
-                  value={key}
-                  onChange={setKey}
-                  placeholder="rk_test_..."
-                  error={wrong(key, STRIPE_KEY, "Use a test key: it starts with rk_test_.")}
-                  hint="Stored encrypted and never shown again."
-                />
-              </Step>
-              <div className="flex flex-wrap gap-2">
-                <Button type="submit" size="sm" loading={action.busy} disabled={!ready}>
-                  Link Stripe
-                </Button>
-                <Button size="sm" kind="ghost" onClick={close}>
-                  Cancel
-                </Button>
-              </div>
-            </form>
+            </div>
           )}
-        </Adder>
+          <Adder label={connect.data?.url ? "Set it up by hand instead" : "Set up card payments"}>
+            {(close) => (
+              <form
+                className="flex flex-col gap-6"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!ready) return;
+                  void action.run(async () => {
+                    await gateApi.linkStripe(session, account.id, {
+                      secretKey: key.trim(),
+                      cardholderId: cardholder.trim(),
+                      authorizationWebhookSecret: authorization.trim(),
+                      eventsWebhookSecret: events.trim(),
+                    });
+                    await refresh();
+                    setKey("");
+                    setCardholder("");
+                    setAuthorization("");
+                    setEvents("");
+                  });
+                }}
+              >
+                <p className="text-sm text-soft">
+                  This takes about ten minutes in your Stripe dashboard. Turn on <b>Test mode</b>{" "}
+                  there first: no real money moves.
+                </p>
+                <Step
+                  n={1}
+                  title="Make a cardholder"
+                  link={STRIPE.cardholders}
+                  linkText="Cardholders"
+                >
+                  <p>
+                    Create a cardholder: it's who your agent's cards are issued to. Add some test
+                    funds to your Issuing balance too, or Stripe declines every charge.
+                  </p>
+                  <Input
+                    label="Cardholder ID"
+                    value={cardholder}
+                    onChange={setCardholder}
+                    placeholder="ich_..."
+                    error={wrong(cardholder, CARDHOLDER, "A cardholder ID starts with ich_.")}
+                    hint="Shown on the cardholder's page."
+                  />
+                </Step>
+                <Step
+                  n={2}
+                  title="Let Stripe ask the gate before each charge"
+                  link={STRIPE.settings}
+                  linkText="Issuing settings"
+                >
+                  <p>
+                    Under real-time authorizations, paste this address. If it asks what to do on a
+                    timeout, choose <b>decline</b>.
+                  </p>
+                  <Address url={`${apiUrl}/stripe/issuing/authorization`} />
+                  <Input
+                    label="Signing secret for this address"
+                    type="password"
+                    value={authorization}
+                    onChange={setAuthorization}
+                    placeholder="whsec_..."
+                    error={wrong(
+                      authorization,
+                      WEBHOOK_SECRET,
+                      "A signing secret starts with whsec_.",
+                    )}
+                    hint="Stripe shows it once the address is saved."
+                  />
+                </Step>
+                <Step
+                  n={3}
+                  title="Tell the gate how each charge ended"
+                  link={STRIPE.webhooks}
+                  linkText="Webhooks"
+                >
+                  <p>Add a destination with this address, and tick these three events:</p>
+                  <Address url={`${apiUrl}/stripe/issuing/events`} />
+                  <ul className="list-disc pl-5 font-mono text-xs">
+                    <li>issuing_authorization.created</li>
+                    <li>issuing_authorization.updated</li>
+                    <li>issuing_transaction.created</li>
+                  </ul>
+                  <Input
+                    label="Signing secret for this destination"
+                    type="password"
+                    value={events}
+                    onChange={setEvents}
+                    placeholder="whsec_..."
+                    error={wrong(events, WEBHOOK_SECRET, "A signing secret starts with whsec_.")}
+                    hint="On the destination's page, after you save it."
+                  />
+                </Step>
+                <Step n={4} title="Give the gate a key" link={STRIPE.keys} linkText="API keys">
+                  <p>
+                    Create a restricted key. Set Issuing Cards to <b>Write</b>, and Issuing
+                    Authorizations and Issuing Transactions to <b>Read</b>. Leave the rest as None.
+                  </p>
+                  <Input
+                    label="Restricted key"
+                    type="password"
+                    value={key}
+                    onChange={setKey}
+                    placeholder="rk_test_..."
+                    error={wrong(key, STRIPE_KEY, "Use a test key: it starts with rk_test_.")}
+                    hint="Stored encrypted and never shown again."
+                  />
+                </Step>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="submit" size="sm" loading={action.busy} disabled={!ready}>
+                    Link Stripe
+                  </Button>
+                  <Button size="sm" kind="ghost" onClick={close}>
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            )}
+          </Adder>
+        </>
       )}
       <ErrorText error={action.error} />
     </Card>
