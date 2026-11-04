@@ -808,12 +808,21 @@ describe("the payment gate's rules page", () => {
     const modal = await press("Link Stripe");
     const button = within(modal).getByRole("button", { name: "Link Stripe" }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
+    // The steps say where each value comes from, with the addresses to paste.
+    expect(within(modal).getByText(/\/stripe\/issuing\/authorization$/)).toBeTruthy();
+    expect(within(modal).getByText(/\/stripe\/issuing\/events$/)).toBeTruthy();
+    expect(
+      within(modal)
+        .getByRole("link", { name: /Open Cardholders in Stripe/ })
+        .getAttribute("href"),
+    ).toBe("https://dashboard.stripe.com/issuing/cardholders");
     // A live key is refused here, before it goes anywhere.
     fill(modal, "Restricted key", "rk_live_abcdefghijklmnop");
-    fill(modal, "Cardholder", "ich_1234567890");
-    fill(modal, "Authorization webhook secret", "whsec_abcdefghijklmnop");
-    fill(modal, "Events webhook secret", "whsec_qrstuvwxyzabcdef");
+    fill(modal, "Cardholder ID", "ich_1234567890");
+    fill(modal, "Signing secret for this address", "whsec_abcdefghijklmnop");
+    fill(modal, "Signing secret for this destination", "whsec_qrstuvwxyzabcdef");
     expect(button.disabled).toBe(true);
+    expect(within(modal).getByText("Use a test key: it starts with rk_test_.")).toBeTruthy();
     fill(modal, "Restricted key", "rk_test_abcdefghijklmnop");
     expect(button.disabled).toBe(false);
     vi.mocked(gateApi.stripeLink).mockResolvedValue(linked);

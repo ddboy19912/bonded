@@ -109,7 +109,7 @@ function VendorForm({
           value={networkId}
           onChange={setNetworkId}
           placeholder="123456789012"
-          hint="Any other merchant breaks a rule."
+          hint="Shown as the network ID on a past card charge from this vendor in Stripe. Any other merchant breaks a rule."
         />
       </div>
       <ErrorText error={action.error} />
