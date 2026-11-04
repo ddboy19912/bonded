@@ -98,7 +98,7 @@ URL**, give your agent its secret and verify the URL. Then pass that preview's i
 
 A run's `status` is `checking`, `rating`, then `passed`, `failed` (under the minimum) or `error`
 (the check failed, a cap refused the rating, or the rating stopped; `reason` says which). `result`
-is `"pass"` only when the Bonded Score is at or over `minScore`, and the Task score at or over
+is `"pass"` only when the Security score is at or over `minScore`, and the Task score at or over
 `minTaskScore` when one is given. Runs and reports are visible to the keys of the wallet that owns
 the preview, and "not found" to anyone else.
 

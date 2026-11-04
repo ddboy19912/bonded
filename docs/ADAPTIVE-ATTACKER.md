@@ -215,7 +215,7 @@ What the winning rewrites changed: they swapped the published seed's plain reque
 - The loop, with a capable non-refusing attacker, breaches weak LLM agents on seeds the published text misses. That is the case for a score that can separate agents the fixed library ties.
 - **It does not breach the strong agent.** With a working attacker (item 7), 111 real episodes found nothing. So the adaptive score separates weak agents from this strong one, but the strong agent isn't broken by this attacker.
 - 8 campaigns in section 3 were cut off at 2 to 4 tries by the cost cap. The "held" seeds there are weak evidence.
-- Not run: other memory designs (raw message storage, user-editable memory), a human-guided attacker, a strong model run at greater length, or the hardened agent as a target. These adaptive memory runs are not part of any score; memory poisoning now enters the security grade through the seeded memory battery that ratings run ([Scoring](SCORING.md)).
+- Not run: other memory designs (raw message storage, user-editable memory), a human-guided attacker, a strong model run at greater length, or the hardened agent as a target. These adaptive memory runs are not part of any score; memory poisoning now enters the Security score through the seeded memory battery that ratings run ([Scoring](SCORING.md)).
 
 ## Limits
 

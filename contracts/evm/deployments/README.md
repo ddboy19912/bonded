@@ -75,7 +75,7 @@ Deployed Oct 20, 2026 by `0xd42FA5ae8949710479954ae78D1b12Ff2e50A841`. Since Oct
 
 Addresses differ between chains, so always read them from `<chainId>.json` (or `@bondedhq/shared`), never from another chain.
 
-Two earlier deployments are no longer used by the hosted service; agents, vaults, bonds and cover made on them stay there, and their addresses are in this file's git history. The Oct 10, 2026 one predates the security grade in the attestation (its registry can't accept the new format); the Sep 27, 2026 one (Sep 30 on Ethereum Sepolia) also predates MandateModule.
+Two earlier deployments are no longer used by the hosted service; agents, vaults, bonds and cover made on them stay there, and their addresses are in this file's git history. The Oct 10, 2026 one predates the Security score in the attestation (its registry can't accept the new format); the Sep 27, 2026 one (Sep 30 on Ethereum Sepolia) also predates MandateModule.
 
 ## Deploying
 

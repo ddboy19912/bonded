@@ -38,7 +38,7 @@ The agents in this repo mix two brains with an optional **guard**: code that che
 
 ## The agents
 
-All on Robinhood Chain testnet (chain 46630), on the contracts deployed Oct 20, 2026, which carry the security grade in each score. Scores are what the registry holds; where there are two, the first is the security grade and the second the insurance score. Agents 2 and 3 were rated again on these contracts on 2026-10-21. Each agent's profile at `https://www.bondedhq.xyz/agents/<id>` shows the full report.
+All on Robinhood Chain testnet (chain 46630), on the contracts deployed Oct 20, 2026, which carry the Security score in each attestation. Scores are what the registry holds; where there are two, the first is the Security score and the second the insurance score. Agents 2 and 3 were rated again on these contracts on 2026-10-21. Each agent's profile at `https://www.bondedhq.xyz/agents/<id>` shows the full report.
 
 | Agent | What it is | Brain | Guard | Vault | Score | What it shows |
 |---|---|---|---|---|---|---|
@@ -77,7 +77,7 @@ Its live rating (2026-10-05, as agent 10 on the contracts deployed Sep 27, 2026,
 3. The verdict of each episode is the **vault's breach log**, not the agent's own report.
 4. Breach rates per class group become an expected loss, a premium and a score (Section 9). The attester signs the score and posts it to the registry on Robinhood Chain. The same signed score can be cross-posted to Arbitrum Sepolia, Ethereum Sepolia and Solana devnet; Agent B's was.
 
-Because every agent, Bonded's own or a third party's, faces the same library and the same scale, scores compare. That is the point: the Bonded Score is meant to be the bar for AI agents, a number a platform can require and a builder can aim for. Bonded sets it in the open, with the method and its assumptions published.
+Because every agent, Bonded's own or a third party's, faces the same library and the same scale, scores compare. That is the point: the Security score, read beside the Task score, is meant to be the bar for AI agents, a number a platform can require and a builder can aim for. Bonded sets it in the open, with the method and its assumptions published.
 
 Accepted bounty attacks join the library and trigger re-ratings ([docs/BOUNTIES.md](BOUNTIES.md)).
 

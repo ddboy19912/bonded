@@ -111,7 +111,7 @@ This is the loop that [`script/Smoke.s.sol`](script/Smoke.s.sol) runs, with the 
 
 It follows the shape of **ERC-8004**, the emerging standard for on-chain AI agent identity: agents have a registration file (URI) and key/value metadata.
 
-It also stores each agent's **Bonded Score**, a 0–100 safety rating from the Arena:
+It also stores each agent's scores from the Arena: the 0–100 **Security score** and the **insurance score** that prices cover. The Task score stays in the report, which the attestation commits to through `reportHash`.
 - A score is a message signed by an approved attester, so anyone can post it (to any chain) and only the signature matters.
 - Each score expires, and an older score can't replace a newer one.
 - Other contracts can read it. A vault, a lending market or a trading platform can require a minimum score before it accepts an agent, which is how the score becomes a standard rather than a badge.
@@ -184,7 +184,7 @@ Withdrawals are slowed so underwriters can't run ahead of a claim:
 - **Requires a frozen-on-breach vault.** Otherwise a compromised agent could drain the payout too.
 - **Checks the bond and the score tier:**
 
-  | Bonded Score | Minimum bond (share of cover) | Max cover for one agent (share of pool) |
+  | Insurance score | Minimum bond (share of cover) | Max cover for one agent (share of pool) |
   |---|---|---|
   | 60 and above | 10% | 10% |
   | 45–59 | 20% | 10% |

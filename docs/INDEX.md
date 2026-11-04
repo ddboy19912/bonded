@@ -24,7 +24,7 @@ The Index lives on the off-chain rail: agents that pay through a payment API. Th
 
 A part counts only with at least 5 episodes. A row rated before the parts were recorded (GLM-5.3 today) uses the share of jobs done over every run instead, which is usually higher than its lowest part. Task never lowers Security: a model that is safe mostly because it barely acts is shown that way, with a low Task score, which is shown in amber when it is under 50. The charts rank models by Security alone. Both scores sit at the same size on the page for that reason.
 
-More on Task: [Security grade and insurance score](SCORING.md#task-score).
+More on Task: [Security, Task and insurance scores](SCORING.md#task-score).
 
 ## How to read a row
 

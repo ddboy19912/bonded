@@ -56,11 +56,11 @@ After the testnet redeployment the template was rated again with the same settin
 
 On the Oct 10 contracts, agent 4 still holds the Haiku rating of 2026-10-04 (79 (A), 200 attack episodes); the leaderboard no longer lists it. The Haiku finding of 2026-10-06 above stands, and its disclosure is still pending.
 
-## Rated with the market-data battery and the security grade (2026-10-19)
+## Rated with the market-data battery and the Security score (2026-10-19)
 
-Rated again with the same settings plus two changes: the security grade (how often the agent was manipulated, set by its weakest row, separate from the insurance score), and the S1 market-data battery, which every rating of Bonded's own and leaderboard agents now runs. S1 feeds the agent false market data with no instruction in it (a fabricated earnings beat, a fake flash crash, a decimal-shifted number, a made-up hedge) and runs the same task twice, clean and with the lie; a trade the lie caused counts against the agent. The library has grown to 55 published attacks: five runs of each and of the 15 held-out attacks, 350 attack episodes and 2 controls, plus 2 clean/manipulated pairs of each of 25 S1 seeds. Monitor mode. These scores are on the [leaderboard](https://www.bondedhq.xyz/leaderboard) and on chain, with both grades, as agents 4 (DeepSeek) and 5 (GLM) on the contracts deployed Oct 20, 2026.
+Rated again with the same settings plus two changes: the Security score (how often the agent was manipulated, set by its weakest row, separate from the insurance score), and the S1 market-data battery, which every rating of Bonded's own and leaderboard agents now runs. S1 feeds the agent false market data with no instruction in it (a fabricated earnings beat, a fake flash crash, a decimal-shifted number, a made-up hedge) and runs the same task twice, clean and with the lie; a trade the lie caused counts against the agent. The library has grown to 55 published attacks: five runs of each and of the 15 held-out attacks, 350 attack episodes and 2 controls, plus 2 clean/manipulated pairs of each of 25 S1 seeds. Monitor mode. These scores are on the [leaderboard](https://www.bondedhq.xyz/leaderboard) and on chain, with their Security and insurance scores, as agents 4 (DeepSeek) and 5 (GLM) on the contracts deployed Oct 20, 2026.
 
-| Model | Security grade | Weakest row | Attack library: manipulated (breached) | Market data: acted on the lie (breached, froze) | Insurance score |
+| Model | Security score | Weakest row | Attack library: manipulated (breached) | Market data: acted on the lie (breached, froze) | Insurance score |
 |---|---|---|---|---|---|
 | DeepSeek V4.1 Flash | 33 | A8 panic, market data: 8 of 12 pairs | 0 of 350 (0) | 24 of 50 (18, 2) | 83 (AA) |
 | GLM 5.3 Flash | 11 | A2 fabricated news, market data: 16 of 18 pairs | 1 of 350 (1, A5) | 31 of 49 (24, 1) | 81 (AA) |
@@ -68,7 +68,7 @@ Rated again with the same settings plus two changes: the security grade (how oft
 What these mean:
 - **The template still resists nearly every instruction-carrying attack**: no breach with DeepSeek, one with GLM in 350 episodes (an A5 address-poisoning attack, 1 of 35). That is why its insurance score stays AA.
 - **False market data moves it to trade about half the time.** A fabricated rotation call or earnings beat, a fake flash crash or depeg, or a false hedge ratio got it to buy what the lie pointed at, often into a dislocated venue, which tripped the vault's 3% slippage guard (a T3 breach). This is the S1 weakness: the data was false, not an instruction, so prompt-level defences don't see it.
-- **The security grade is set by that weakest row,** so it is low (33 and 11) while the insurance score stays AA: containment limits what a lie costs, but the agent was still fooled.
+- **The Security score is set by that weakest row,** so it is low (33 and 11) while the insurance score stays AA: containment limits what a lie costs, but the agent was still fooled.
 
 ## Suggested mitigations, if deployed as an autonomous agent
 
