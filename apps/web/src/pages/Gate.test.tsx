@@ -603,16 +603,26 @@ describe("the payment gate's rules page", () => {
     const card = (await screen.findByRole("heading", { name: "Card payments" })).closest(
       "section",
     ) as HTMLElement;
+    // One button until the owner wants it, then the steps, with the addresses to paste.
+    fireEvent.click(await within(card).findByRole("button", { name: "Set up card payments" }));
     const button = await within(card).findByRole("button", { name: "Link Stripe" });
     expect((button as HTMLButtonElement).disabled).toBe(true);
+    expect(within(card).getByText(/\/stripe\/issuing\/authorization$/)).toBeTruthy();
+    expect(within(card).getByText(/\/stripe\/issuing\/events$/)).toBeTruthy();
+    expect(
+      within(card)
+        .getByRole("link", { name: /Open Cardholders in Stripe/ })
+        .getAttribute("href"),
+    ).toBe("https://dashboard.stripe.com/issuing/cardholders");
     const fill = (label: string, value: string) =>
       fireEvent.change(within(card).getByLabelText(label), { target: { value } });
     // A live key is refused here, before it goes anywhere.
     fill("Restricted key", "rk_live_abcdefghijklmnop");
-    fill("Cardholder", "ich_1234567890");
-    fill("Authorization webhook secret", "whsec_abcdefghijklmnop");
-    fill("Events webhook secret", "whsec_qrstuvwxyzabcdef");
+    fill("Cardholder ID", "ich_1234567890");
+    fill("Signing secret for this address", "whsec_abcdefghijklmnop");
+    fill("Signing secret for this destination", "whsec_qrstuvwxyzabcdef");
     expect((button as HTMLButtonElement).disabled).toBe(true);
+    expect(within(card).getByText("Use a test key: it starts with rk_test_.")).toBeTruthy();
     fill("Restricted key", "rk_test_abcdefghijklmnop");
     expect((button as HTMLButtonElement).disabled).toBe(false);
     vi.mocked(gateApi.stripeLink).mockResolvedValue(linked);
