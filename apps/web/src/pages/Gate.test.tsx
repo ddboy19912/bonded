@@ -27,6 +27,7 @@ import {
   type GateProof,
 } from "../lib/gate";
 import { Gate } from "./Gate";
+import { GateAccount as AccountPage } from "./GateAccount";
 import { GateVerify } from "./GateVerify";
 
 const WALLET = "0x00000000000000000000000000000000000000a1";
@@ -154,18 +155,21 @@ beforeAll(async () => {
   );
 });
 
-function show() {
+function show(at = "/gate") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
-    <MemoryRouter initialEntries={["/gate"]}>
+    <MemoryRouter initialEntries={[at]}>
       <QueryClientProvider client={client}>
         <Routes>
           <Route path="/gate" element={<Gate />} />
+          <Route path="/gate/:accountId" element={<AccountPage />} />
         </Routes>
       </QueryClientProvider>
     </MemoryRouter>,
   );
 }
+/** The account's page, on one of its tabs. */
+const showAccount = (tab?: string) => show(`/gate/${ACCOUNT_ID}${tab ? `?tab=${tab}` : ""}`);
 const signedIn = () =>
   saveSession(deployment.chainId, {
     session: "sess",
@@ -173,14 +177,43 @@ const signedIn = () =>
     expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
   });
 
-/** The decision's row in the log. */
-const row = async (text: RegExp) => (await screen.findByText(text)).closest("li") as HTMLElement;
-/** Press Verify on a row, and the step's badge once it is done. */
-async function verify(item: HTMLElement) {
-  fireEvent.click(within(item).getByRole("button", { name: "Verify" }));
-  const panel = await within(item).findByLabelText("Verification");
+/** Open the decision whose row says this, and the modal it opens. */
+async function open(text: RegExp) {
+  fireEvent.click(await screen.findByRole("button", { name: text }));
+  return await screen.findByRole("dialog");
+}
+/** Press Verify in a decision's modal, and the step's row once it is done. */
+async function verify(modal: HTMLElement) {
+  fireEvent.click(within(modal).getByRole("button", { name: "Verify" }));
+  const panel = await within(modal).findByLabelText("Verification");
   return (label: string) => within(panel).getByText(label).closest("li") as HTMLElement;
 }
+/** Press a button that opens a modal, and the modal. */
+async function press(name: string) {
+  fireEvent.click(await screen.findByRole("button", { name }));
+  return await screen.findByRole("dialog");
+}
+const fill = (where: HTMLElement, label: string, value: string) =>
+  fireEvent.change(within(where).getByLabelText(label), { target: { value } });
+
+/** Wide screens get modals, phones get drawers: `wide` picks which this test sees. */
+let wide = true;
+beforeAll(() => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: wide,
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+});
 
 beforeEach(() => {
   wallet.address = WALLET;
@@ -242,6 +275,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  wide = true;
   wallet.client = undefined;
   delete deployment.gateAnchor;
   vi.restoreAllMocks();
@@ -272,32 +306,83 @@ describe("the payment gate's rules page", () => {
     );
   });
 
-  it("shows the rules in plain words, the vendors, every version's hash and the log", async () => {
+  it("lists every account, and each row opens that account", async () => {
+    vi.mocked(gateApi.accounts).mockResolvedValue({
+      items: [
+        account,
+        { ...account, id: "second", name: "Growth", mode: "monitor", maxPaymentUsd: 1500.5 },
+        { ...account, id: "third", name: "Travel", frozen: true },
+      ],
+    });
     signedIn();
     show();
+    const list = await screen.findByRole("table", { name: "Gate accounts" });
+    const rows = within(list).getAllByRole("row").slice(1);
+    expect(rows).toHaveLength(3);
+    expect(within(rows[0]!).getAllByText("Enforcing").length).toBeGreaterThan(0);
+    expect(within(rows[1]!).getAllByText("Monitoring").length).toBeGreaterThan(0);
+    expect(within(rows[1]!).getAllByText("$1,500.5").length).toBeGreaterThan(0);
+    expect(within(rows[2]!).getAllByText("Frozen").length).toBeGreaterThan(0);
+    // No account's detail is on the list.
+    expect(screen.queryByText("No single payment over $5,000.")).toBeNull();
+    expect(within(rows[0]!).getByRole("link").getAttribute("href")).toBe(`/gate/${ACCOUNT_ID}`);
+    fireEvent.click(within(rows[0]!).getByRole("link"));
+    expect(await screen.findByRole("heading", { name: "Acme AP" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Activity", selected: true })).toBeTruthy();
+  });
+
+  it("says when the wallet doesn't own the account", async () => {
+    signedIn();
+    show("/gate/someone-elses");
+    expect(await screen.findByText("Account not found")).toBeTruthy();
+  });
+
+  it("opens the tab the link names, and shows one tab at a time", async () => {
+    signedIn();
+    showAccount("rules");
+    expect(await screen.findByRole("tab", { name: "Rules", selected: true })).toBeTruthy();
     expect(await screen.findByText("No single payment over $5,000.")).toBeTruthy();
-    const rules = screen.getByRole("heading", { name: "Rules" }).closest("section") as HTMLElement;
-    expect(within(rules).getByText("Enforce")).toBeTruthy();
-    expect(await within(rules).findByText("GB29 NWBK 6016 1331 9268 19")).toBeTruthy();
+    expect(gateApi.decisions).not.toHaveBeenCalled();
+    expect(gateApi.keys).not.toHaveBeenCalled();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "API keys" }));
+    expect(await screen.findByText("bonded_gk_AbCd…")).toBeTruthy();
+    expect(screen.queryByText("No single payment over $5,000.")).toBeNull();
+  });
+
+  it("shows the rules in plain words, every version's hash and the log", async () => {
+    signedIn();
+    showAccount("rules");
+    expect(await screen.findByText("No single payment over $5,000.")).toBeTruthy();
     // Version 2 is on chain, version 1 isn't yet.
-    const history = (await screen.findByRole("heading", { name: "Changes" })).closest(
-      "section",
-    ) as HTMLElement;
+    const history = await press("Version history");
     const rows = await within(history).findAllByRole("row");
     expect(within(rows[1]!).getByText("Posted")).toBeTruthy();
     expect(within(rows[2]!).getByText("Not yet")).toBeTruthy();
     expect(within(rows[2]!).getByTitle(`0x${"11".repeat(32)}`)).toBeTruthy();
+    cleanup();
+
     // The decisions, newest first.
-    const log = await screen.findByRole("list", { name: "Decisions" });
-    const items = within(log).getAllByRole("listitem");
-    expect(within(items[0]!).getByText("Blocked")).toBeTruthy();
-    expect(within(items[1]!).getByText("Allowed")).toBeTruthy();
+    showAccount();
+    const log = await screen.findByRole("table", { name: "Decisions" });
+    const items = (await within(log).findAllByRole("row")).slice(1);
+    expect(within(items[0]!).getAllByText("Blocked").length).toBeGreaterThan(0);
+    expect(within(items[1]!).getAllByText("Allowed").length).toBeGreaterThan(0);
+  });
+
+  it("opens forms in a modal on wide screens and a drawer on phones", async () => {
+    signedIn();
+    showAccount("keys");
+    expect((await press("New key")).getAttribute("data-vaul-drawer-direction")).toBeNull();
+    cleanup();
+    wide = false;
+    showAccount("keys");
+    expect((await press("New key")).getAttribute("data-vaul-drawer-direction")).toBe("bottom");
   });
 
   it("verifies a genuine receipt: signature, input hash, rules and log root", async () => {
     signedIn();
-    show();
-    const step = await verify(await row(/Blocked: the account is not in the vendor master/));
+    showAccount();
+    const step = await verify(await open(/Blocked: the account is not in the vendor master/));
     for (const label of ["Bonded's signature", "Input hash", "Rules, run again", "Daily log root"])
       expect(within(step(label)).getByText("Passed")).toBeTruthy();
     expect(screen.getByText("No check failed.")).toBeTruthy();
@@ -316,8 +401,8 @@ describe("the payment gate's rules page", () => {
       next: null,
     });
     signedIn();
-    show();
-    const step = await verify(await row(/Blocked: the account is not in the vendor master/));
+    showAccount();
+    const step = await verify(await open(/Blocked: the account is not in the vendor master/));
     expect(within(step("Bonded's signature")).getByText("Failed")).toBeTruthy();
     expect(within(step("Daily log root")).getByText("Failed")).toBeTruthy();
     // Its input is untouched, but the rules, run again, still break two rules.
@@ -334,8 +419,8 @@ describe("the payment gate's rules page", () => {
       ),
     );
     signedIn();
-    show();
-    const step = await verify(await row(/Allowed: no rule broken/));
+    showAccount();
+    const step = await verify(await open(/Allowed: no rule broken/));
     expect(within(step("Daily log root")).getByText("Not checked")).toBeTruthy();
     expect(within(step("Daily log root")).getByText(/no log root yet/)).toBeTruthy();
     expect(within(step("Bonded's signature")).getByText("Passed")).toBeTruthy();
@@ -349,8 +434,8 @@ describe("the payment gate's rules page", () => {
       dayNumber: gateDayNumber("2026-11-05"),
     }));
     signedIn();
-    show();
-    const step = await verify(await row(/Allowed: no rule broken/));
+    showAccount();
+    const step = await verify(await open(/Allowed: no rule broken/));
     expect(within(step("Daily log root")).getByText("Failed")).toBeTruthy();
     expect(within(step("Daily log root")).getByText(/another account or day/)).toBeTruthy();
   });
@@ -362,8 +447,8 @@ describe("the payment gate's rules page", () => {
       next: null,
     });
     signedIn();
-    show();
-    const step = await verify(await row(/Allowed: no rule broken/));
+    showAccount();
+    const step = await verify(await open(/Allowed: no rule broken/));
     expect(within(step("Bonded's signature")).getByText("Failed")).toBeTruthy();
     expect(within(step("Bonded's signature")).getByText(/its result/)).toBeTruthy();
   });
@@ -390,8 +475,8 @@ describe("the payment gate's rules page", () => {
       posted,
     }));
     signedIn();
-    show();
-    let step = await verify(await row(/Allowed: no rule broken/));
+    showAccount();
+    let step = await verify(await open(/Allowed: no rule broken/));
     expect(within(step("Daily log root")).getByText("Failed")).toBeTruthy();
     expect(
       within(step("Daily log root")).getByText(/Not in the root posted on chain/),
@@ -411,8 +496,8 @@ describe("the payment gate's rules page", () => {
       ...proofs[id]!,
       posted: { ...posted, contract: "0x00000000000000000000000000000000000e0e0e" },
     }));
-    show();
-    step = await verify(await row(/Allowed: no rule broken/));
+    showAccount();
+    step = await verify(await open(/Allowed: no rule broken/));
     expect(within(step("Daily log root")).getByText(/this page didn't read it there/)).toBeTruthy();
     expect(reads).toEqual([]);
     cleanup();
@@ -423,8 +508,8 @@ describe("the payment gate's rules page", () => {
       ...proofs[id]!,
       posted,
     }));
-    show();
-    step = await verify(await row(/Allowed: no rule broken/));
+    showAccount();
+    step = await verify(await open(/Allowed: no rule broken/));
     expect(within(step("Daily log root")).getByText("Failed")).toBeTruthy();
     expect(within(step("Daily log root")).getByText(/GateAnchor has none/)).toBeTruthy();
   });
@@ -437,18 +522,17 @@ describe("the payment gate's rules page", () => {
     });
     signedIn();
     show();
-    expect(await screen.findByRole("heading", { name: "New gate account" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Make the account" }));
-    expect(screen.getAllByText("Enter an amount in dollars.")).toHaveLength(2);
+    expect(await screen.findByText("No gate accounts yet")).toBeTruthy();
+    const modal = await press("New account");
+    fireEvent.click(within(modal).getByRole("button", { name: "Make the account" }));
+    expect(within(modal).getAllByText("Enter an amount in dollars.")).toHaveLength(2);
     expect(create).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Acme AP" } });
-    fireEvent.change(screen.getByLabelText("Most for one payment"), {
-      target: { value: "5,000" },
-    });
-    fireEvent.change(screen.getByLabelText("Most in one day"), { target: { value: "8000" } });
-    fireEvent.click(screen.getByLabelText(/^Enforce/));
-    fireEvent.click(screen.getByRole("button", { name: "Make the account" }));
-    expect(await screen.findByText("bonded_gk_secret")).toBeTruthy();
+    fill(modal, "Name", "Acme AP");
+    fill(modal, "Most for one payment", "5,000");
+    fill(modal, "Most in one day", "8000");
+    fireEvent.click(within(modal).getByLabelText(/^Enforce/));
+    fireEvent.click(within(modal).getByRole("button", { name: "Make the account" }));
+    expect(await within(modal).findByText("bonded_gk_secret")).toBeTruthy();
     expect(create).toHaveBeenCalledWith("sess", {
       name: "Acme AP",
       mode: "enforce",
@@ -456,53 +540,64 @@ describe("the payment gate's rules page", () => {
       maxDailyUsd: 8000,
       freezeOnBreach: false,
     });
-    expect(await screen.findByText("No single payment over $5,000.")).toBeTruthy();
-    // Shown once: leaving for another new account and coming back doesn't show it again.
-    fireEvent.click(screen.getByRole("button", { name: "New account" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
-    expect(await screen.findByText("No single payment over $5,000.")).toBeTruthy();
+    // It stays until the owner has it: Escape doesn't lose the key.
+    fireEvent.keyDown(modal, { key: "Escape" });
+    expect(screen.getByText("bonded_gk_secret")).toBeTruthy();
+    // Shown once: on the account's page, it's gone.
+    fireEvent.click(within(modal).getByRole("button", { name: "Open the account" }));
+    expect(await screen.findByRole("heading", { name: "Acme AP" })).toBeTruthy();
     expect(screen.queryByText("bonded_gk_secret")).toBeNull();
   });
 
-  it("switches the mode and saves new limits", async () => {
+  it("saves the mode and limits as one change", async () => {
     const update = vi.spyOn(gateApi, "updateAccount").mockResolvedValue(account);
     signedIn();
-    show();
-    const settings = (await screen.findByRole("heading", { name: "Settings" })).closest(
-      "section",
-    ) as HTMLElement;
-    fireEvent.click(within(settings).getByLabelText(/^Monitor/));
-    await vi.waitFor(() =>
-      expect(update).toHaveBeenCalledWith("sess", ACCOUNT_ID, { mode: "monitor" }),
-    );
-    const save = within(settings).getByRole("button", { name: "Save limits" });
-    expect((save as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.change(within(settings).getByLabelText("Most for one payment"), {
-      target: { value: "2500.50" },
-    });
-    // Once the mode change is done, the button takes the new limit.
-    await vi.waitFor(() => expect((save as HTMLButtonElement).disabled).toBe(false));
+    showAccount();
+    const modal = await press("Edit rules");
+    const save = within(modal).getByRole("button", { name: "Save changes" }) as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    fireEvent.click(within(modal).getByLabelText(/^Monitor/));
+    fill(modal, "Most for one payment", "2500.50");
+    expect(save.disabled).toBe(false);
     fireEvent.click(save);
     await vi.waitFor(() =>
       expect(update).toHaveBeenCalledWith("sess", ACCOUNT_ID, {
+        mode: "monitor",
         maxPaymentUsd: 2500.5,
-        maxDailyUsd: 8000,
       }),
     );
+    expect(update).toHaveBeenCalledTimes(1);
   });
 
-  it("adds a vendor, approves an invoice and adds a verified bank change", async () => {
+  it("won't save a limit that isn't an amount", async () => {
+    signedIn();
+    showAccount();
+    const modal = await press("Edit rules");
+    fireEvent.click(within(modal).getByLabelText(/^Monitor/));
+    fill(modal, "Most in one day", "lots");
+    expect(within(modal).getByText("Enter an amount in dollars.")).toBeTruthy();
+    expect(
+      (within(modal).getByRole("button", { name: "Save changes" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+  });
+
+  it("says a frozen account is frozen on every tab, and asks before lifting it", async () => {
+    const lift = vi.spyOn(gateApi, "unfreeze").mockResolvedValue(account);
+    vi.mocked(gateApi.accounts).mockResolvedValue({ items: [{ ...account, frozen: true }] });
+    signedIn();
+    showAccount("invoices");
+    expect(await screen.findByText(/Every check is refused until you lift it/)).toBeTruthy();
+    const modal = await press("Lift the freeze");
+    expect(lift).not.toHaveBeenCalled();
+    fireEvent.click(within(modal).getByRole("button", { name: "Lift the freeze" }));
+    await vi.waitFor(() => expect(lift).toHaveBeenCalledWith("sess", ACCOUNT_ID));
+  });
+
+  it("adds a vendor, and a verified bank change on the vendor", async () => {
     const vendor = vi.spyOn(gateApi, "addVendor").mockResolvedValue({
       id: "orbit-print",
       name: "Orbit Print",
       account: "DE89 3704 0044 0532 0130 00",
-    });
-    const invoice = vi.spyOn(gateApi, "addInvoice").mockResolvedValue({
-      id: "8",
-      vendorId: "nimbus",
-      reference: "NIM-2",
-      amountCents: 1,
-      createdAt: DAY,
     });
     const ticket = vi.spyOn(gateApi, "addTicket").mockResolvedValue({
       id: "FIN-1",
@@ -513,20 +608,13 @@ describe("the payment gate's rules page", () => {
       createdAt: DAY,
     });
     signedIn();
-    show();
-    const section = async (name: string) =>
-      (await screen.findByRole("heading", { name })).closest("section") as HTMLElement;
-
-    const rules = await section("Rules");
-    fireEvent.click(within(rules).getByRole("button", { name: "Add a vendor" }));
-    fireEvent.change(within(rules).getByLabelText("Vendor"), {
-      target: { value: "Orbit Print" },
-    });
-    expect(within(rules).getByText(/Its id is orbit-print/)).toBeTruthy();
-    fireEvent.change(within(rules).getByLabelText("Verified bank account"), {
-      target: { value: "DE89 3704 0044 0532 0130 00" },
-    });
-    fireEvent.click(within(rules).getByRole("button", { name: "Add vendor" }));
+    showAccount("vendors");
+    expect(await screen.findByText("Nimbus Cloud")).toBeTruthy();
+    let modal = await press("Add a vendor");
+    fill(modal, "Vendor", "Orbit Print");
+    expect(within(modal).getByText(/Its id is orbit-print/)).toBeTruthy();
+    fill(modal, "Verified bank account", "DE89 3704 0044 0532 0130 00");
+    fireEvent.click(within(modal).getByRole("button", { name: "Add vendor" }));
     await vi.waitFor(() =>
       expect(vendor).toHaveBeenCalledWith("sess", ACCOUNT_ID, {
         id: "orbit-print",
@@ -534,34 +622,15 @@ describe("the payment gate's rules page", () => {
         account: "DE89 3704 0044 0532 0130 00",
       }),
     );
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
-    const invoices = await section("Approved invoices");
-    expect(await within(invoices).findByText("$612.40")).toBeTruthy();
-    expect(within(invoices).getByText("Nimbus Cloud")).toBeTruthy();
-    fireEvent.click(within(invoices).getByRole("button", { name: "Approve an invoice" }));
-    fireEvent.change(within(invoices).getByLabelText("Invoice number"), {
-      target: { value: "NIM-2" },
-    });
-    fireEvent.change(within(invoices).getByLabelText("Amount"), { target: { value: "612.40" } });
-    fireEvent.click(within(invoices).getByRole("button", { name: "Approve" }));
-    await vi.waitFor(() =>
-      expect(invoice).toHaveBeenCalledWith("sess", ACCOUNT_ID, {
-        vendorId: "nimbus",
-        reference: "NIM-2",
-        amountUsd: 612.4,
-      }),
-    );
-
-    const changes = await section("Bank changes");
-    fireEvent.click(await within(changes).findByRole("button", { name: "Add a verified change" }));
-    fireEvent.change(within(changes).getByLabelText("Ticket"), { target: { value: "FIN-1" } });
-    fireEvent.change(within(changes).getByLabelText("New bank account"), {
-      target: { value: "GB33 BUKB 2020 1555 5555 55" },
-    });
-    fireEvent.change(within(changes).getByLabelText("Verified by"), {
-      target: { value: "Dana" },
-    });
-    fireEvent.click(within(changes).getByRole("button", { name: "Add ticket" }));
+    modal = await open(/Nimbus Cloud/);
+    expect(within(modal).getByText("GB29 NWBK 6016 1331 9268 19")).toBeTruthy();
+    fireEvent.click(within(modal).getByRole("button", { name: "Add a verified change" }));
+    fill(modal, "Ticket", "FIN-1");
+    fill(modal, "New bank account", "GB33 BUKB 2020 1555 5555 55");
+    fill(modal, "Verified by", "Dana");
+    fireEvent.click(within(modal).getByRole("button", { name: "Add ticket" }));
     await vi.waitFor(() =>
       expect(ticket).toHaveBeenCalledWith("sess", ACCOUNT_ID, {
         id: "FIN-1",
@@ -570,6 +639,77 @@ describe("the payment gate's rules page", () => {
         verifiedBy: "Dana",
       }),
     );
+  });
+
+  it("shows a vendor's own tickets, and how many are ready", async () => {
+    const ticket = (id: string, vendorId: string, usedBy: string | null) => ({
+      id,
+      vendorId,
+      account: "GB33 BUKB 2020 1555 5555 55",
+      verifiedBy: "Dana",
+      usedBy,
+      createdAt: DAY,
+    });
+    vi.mocked(gateApi.tickets).mockResolvedValue({
+      items: [
+        ticket("FIN-1", "nimbus", null),
+        ticket("FIN-2", "nimbus", "d1"),
+        ticket("FIN-3", "other", null),
+      ],
+    });
+    const remove = vi.spyOn(gateApi, "deleteTicket").mockResolvedValue({ deleted: true });
+    signedIn();
+    showAccount("vendors");
+    expect(await screen.findByText("1 bank change ready")).toBeTruthy();
+    const modal = await open(/Nimbus Cloud/);
+    expect(within(modal).getByText("FIN-1")).toBeTruthy();
+    expect(within(modal).getByText("FIN-2")).toBeTruthy();
+    expect(within(modal).queryByText("FIN-3")).toBeNull();
+    // A used ticket can't be removed: only FIN-1 has the button.
+    fireEvent.click(within(modal).getByRole("button", { name: "Remove" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Remove ticket" }));
+    await vi.waitFor(() => expect(remove).toHaveBeenCalledWith("sess", ACCOUNT_ID, "FIN-1"));
+  });
+
+  it("approves an invoice, and asks before removing one", async () => {
+    const invoice = vi.spyOn(gateApi, "addInvoice").mockResolvedValue({
+      id: "8",
+      vendorId: "nimbus",
+      reference: "NIM-2",
+      amountCents: 1,
+      createdAt: DAY,
+    });
+    const remove = vi.spyOn(gateApi, "deleteInvoice").mockResolvedValue({ deleted: true });
+    signedIn();
+    showAccount("invoices");
+    expect(await screen.findByText("$612.40")).toBeTruthy();
+    expect(await screen.findByText("Nimbus Cloud")).toBeTruthy();
+    let modal = await press("Approve an invoice");
+    fill(modal, "Invoice number", "NIM-2");
+    fill(modal, "Amount", "612.40");
+    fireEvent.click(within(modal).getByRole("button", { name: "Approve" }));
+    await vi.waitFor(() =>
+      expect(invoice).toHaveBeenCalledWith("sess", ACCOUNT_ID, {
+        vendorId: "nimbus",
+        reference: "NIM-2",
+        amountUsd: 612.4,
+      }),
+    );
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    modal = await press("Remove");
+    expect(remove).not.toHaveBeenCalled();
+    fireEvent.click(within(modal).getByRole("button", { name: "Remove invoice" }));
+    await vi.waitFor(() => expect(remove).toHaveBeenCalledWith("sess", ACCOUNT_ID, "7"));
+  });
+
+  it("asks for a vendor before an invoice can be approved", async () => {
+    vi.mocked(gateApi.vendors).mockResolvedValue({ items: [] });
+    vi.mocked(gateApi.invoices).mockResolvedValue({ items: [], next: null });
+    signedIn();
+    showAccount("invoices");
+    expect(await screen.findByText("Add a vendor first.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Approve an invoice" })).toBeNull();
   });
 
   it("links Stripe for card payments, shows only a hint, and lists the cards", async () => {
@@ -599,33 +739,49 @@ describe("the payment gate's rules page", () => {
       next: null,
     });
     signedIn();
-    show();
-    const card = (await screen.findByRole("heading", { name: "Card payments" })).closest(
-      "section",
-    ) as HTMLElement;
-    const button = await within(card).findByRole("button", { name: "Link Stripe" });
-    expect((button as HTMLButtonElement).disabled).toBe(true);
-    const fill = (label: string, value: string) =>
-      fireEvent.change(within(card).getByLabelText(label), { target: { value } });
+    showAccount("cards");
+    const modal = await press("Link Stripe");
+    const button = within(modal).getByRole("button", { name: "Link Stripe" }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
     // A live key is refused here, before it goes anywhere.
-    fill("Restricted key", "rk_live_abcdefghijklmnop");
-    fill("Cardholder", "ich_1234567890");
-    fill("Authorization webhook secret", "whsec_abcdefghijklmnop");
-    fill("Events webhook secret", "whsec_qrstuvwxyzabcdef");
-    expect((button as HTMLButtonElement).disabled).toBe(true);
-    fill("Restricted key", "rk_test_abcdefghijklmnop");
-    expect((button as HTMLButtonElement).disabled).toBe(false);
+    fill(modal, "Restricted key", "rk_live_abcdefghijklmnop");
+    fill(modal, "Cardholder", "ich_1234567890");
+    fill(modal, "Authorization webhook secret", "whsec_abcdefghijklmnop");
+    fill(modal, "Events webhook secret", "whsec_qrstuvwxyzabcdef");
+    expect(button.disabled).toBe(true);
+    fill(modal, "Restricted key", "rk_test_abcdefghijklmnop");
+    expect(button.disabled).toBe(false);
     vi.mocked(gateApi.stripeLink).mockResolvedValue(linked);
     fireEvent.click(button);
-    expect(await within(card).findByText("rk_test_…abcd")).toBeTruthy();
+    expect(await screen.findByText("rk_test_…abcd")).toBeTruthy();
     expect(link).toHaveBeenCalledWith("sess", ACCOUNT_ID, {
       secretKey: "rk_test_abcdefghijklmnop",
       cardholderId: "ich_1234567890",
       authorizationWebhookSecret: "whsec_abcdefghijklmnop",
       eventsWebhookSecret: "whsec_qrstuvwxyzabcdef",
     });
-    expect(await within(card).findByText("•••• 4242")).toBeTruthy();
-    expect(within(card).getByText("paid")).toBeTruthy();
+    expect(await screen.findByText("•••• 4242")).toBeTruthy();
+    expect(screen.getByText("paid")).toBeTruthy();
+  });
+
+  it("asks before unlinking Stripe", async () => {
+    vi.mocked(gateApi.stripeLink).mockResolvedValue({
+      linked: true,
+      keyHint: "rk_test_…abcd",
+      livemode: false,
+      cardholderId: "ich_1234567890",
+      webhookSecrets: { authorization: true, events: true },
+      createdAt: DAY,
+      updatedAt: DAY,
+    });
+    vi.spyOn(gateApi, "cardIntents").mockResolvedValue({ items: [], next: null });
+    const unlink = vi.spyOn(gateApi, "unlinkStripe").mockResolvedValue({ unlinked: true });
+    signedIn();
+    showAccount("cards");
+    const modal = await press("Unlink");
+    expect(unlink).not.toHaveBeenCalled();
+    fireEvent.click(within(modal).getByRole("button", { name: "Unlink Stripe" }));
+    await vi.waitFor(() => expect(unlink).toHaveBeenCalledWith("sess", ACCOUNT_ID));
   });
 
   it("adds a vendor's card merchant, and needs its id with its name", async () => {
@@ -633,16 +789,14 @@ describe("the payment gate's rules page", () => {
       .spyOn(gateApi, "addVendor")
       .mockResolvedValue({ id: "nimbus-2", name: "Nimbus 2", account: NIMBUS });
     signedIn();
-    show();
-    fireEvent.click(await screen.findByRole("button", { name: "Add a vendor" }));
-    const fill = (label: string, value: string) =>
-      fireEvent.change(screen.getByLabelText(label), { target: { value } });
-    fill("Vendor", "Nimbus 2");
-    fill("Verified bank account", NIMBUS);
-    fill("Card merchant (optional)", "NIMBUS CLOUD");
-    const button = screen.getByRole("button", { name: "Add vendor" }) as HTMLButtonElement;
+    showAccount("vendors");
+    const modal = await press("Add a vendor");
+    fill(modal, "Vendor", "Nimbus 2");
+    fill(modal, "Verified bank account", NIMBUS);
+    fill(modal, "Card merchant (optional)", "NIMBUS CLOUD");
+    const button = within(modal).getByRole("button", { name: "Add vendor" }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
-    fill("Card merchant id", "123456789012");
+    fill(modal, "Card merchant id", "123456789012");
     expect(button.disabled).toBe(false);
     fireEvent.click(button);
     await vi.waitFor(() =>
@@ -655,7 +809,7 @@ describe("the payment gate's rules page", () => {
     );
   });
 
-  it("makes an API key, shown once, and revokes one", async () => {
+  it("makes an API key, shown once, and asks before revoking one", async () => {
     const create = vi.spyOn(gateApi, "createKey").mockResolvedValue({
       id: "k2",
       prefix: "bonded_gk_ZzZz",
@@ -667,19 +821,21 @@ describe("the payment gate's rules page", () => {
     });
     const revoke = vi.spyOn(gateApi, "revokeKey").mockResolvedValue({ revoked: true });
     signedIn();
-    show();
-    const keys = (await screen.findByRole("heading", { name: "API keys" })).closest(
-      "section",
-    ) as HTMLElement;
-    expect(await within(keys).findByText("bonded_gk_AbCd…")).toBeTruthy();
-    fireEvent.click(within(keys).getByRole("button", { name: "Revoke" }));
+    showAccount("keys");
+    expect(await screen.findByText("bonded_gk_AbCd…")).toBeTruthy();
+    let modal = await press("Revoke");
+    expect(revoke).not.toHaveBeenCalled();
+    fireEvent.click(within(modal).getByRole("button", { name: "Revoke key" }));
     await vi.waitFor(() => expect(revoke).toHaveBeenCalledWith("sess", ACCOUNT_ID, "k1"));
-    fireEvent.click(within(keys).getByRole("button", { name: "New key" }));
-    const make = within(keys).getByRole("button", { name: "Make key" }) as HTMLButtonElement;
-    await vi.waitFor(() => expect(make.disabled).toBe(false));
-    fireEvent.click(make);
-    expect(await within(keys).findByText("bonded_gk_second")).toBeTruthy();
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    modal = await press("New key");
+    fireEvent.click(within(modal).getByRole("button", { name: "Make key" }));
+    expect(await within(modal).findByText("bonded_gk_second")).toBeTruthy();
     expect(create).toHaveBeenCalledWith("sess", ACCOUNT_ID, "");
+    // Gone once it's closed.
+    fireEvent.click(within(modal).getByRole("button", { name: "Done" }));
+    await vi.waitFor(() => expect(screen.queryByText("bonded_gk_second")).toBeNull());
   });
 });
 
@@ -752,12 +908,12 @@ describe("checking a receipt without signing in", () => {
 
   it("lets the owner copy a receipt with its proof once Verify has loaded it", async () => {
     signedIn();
-    show();
-    const item = await row(/Blocked: the account is not in the vendor master/);
-    expect(within(item).getByRole("button", { name: "Copy receipt" })).toBeTruthy();
-    await verify(item);
-    expect(within(item).getByRole("button", { name: "Copy receipt and proof" })).toBeTruthy();
-    expect(within(item).getByRole("link", { name: "Anyone can check it" })).toHaveProperty(
+    showAccount();
+    const modal = await open(/Blocked: the account is not in the vendor master/);
+    expect(within(modal).getByRole("button", { name: "Copy receipt" })).toBeTruthy();
+    await verify(modal);
+    expect(within(modal).getByRole("button", { name: "Copy receipt and proof" })).toBeTruthy();
+    expect(within(modal).getByRole("link", { name: "Anyone can check it" })).toHaveProperty(
       "pathname",
       "/gate/verify",
     );

@@ -11,7 +11,7 @@ migrations `0024_payment_gate.sql` and `0026_gate_transparency.sql`),
 `packages/shared/src/gate-receipt.ts` (receipts, input and mandate hashing, offline verification),
 `packages/shared/src/gate-log.ts` (daily log roots and proofs), `apps/keeper/src/gate-anchor.ts`
 (the keeper job that makes and posts them), `contracts/evm/src/GateAnchor.sol` (where they go on
-chain) and `apps/web/src/pages/Gate.tsx` and `GateSetup.tsx` (the rules page), `GateVerify.tsx` (checking a receipt). Tests: `test/gate.test.ts`,
+chain) and `apps/web/src/pages/Gate.tsx` (the account list), `GateAccount.tsx` and `src/components/gate` (an account's page), `GateVerify.tsx` (checking a receipt). Tests: `test/gate.test.ts`,
 `test/gate-anchor.test.ts`, `packages/shared/test/gate-receipt.test.ts` and `gate-log.test.ts`,
 `contracts/evm/test/GateAnchor.t.sol` and `apps/web/src/pages/Gate.test.tsx`.
 
@@ -125,13 +125,12 @@ evaluateGateInput(answer.input).rules; // the same rules
 
 Without a receipt key the service gives no decisions: `POST /payments/check` answers 503.
 
-The rules page in the web app (`/gate`, signed in with the owner's wallet) sets an account up
-and shows it: a new account (its first API key shown once), the mode, limits and freeze, vendors,
-approved invoices, bank-change tickets, API keys and the Stripe link for the card route, each
-through the owner routes above. It shows
-the mandate in plain words, every version with its hash, and the decision log. Its Verify button
-runs these checks, and the log root check below, in the browser. Refunds and imported payments are
-API only.
+The web app (signed in with the owner's wallet) lists the owner's accounts at `/gate`, and each
+opens at `/gate/:id` with a tab for its activity, rules, vendors (with their bank-change tickets),
+invoices, cards (the Stripe link for the card route) and API keys, each through the owner routes
+above. Forms and details open in modals, and a new API key is shown once. Each decision opens with
+its receipt, and its Verify button runs these checks, and the log root check below, in the browser.
+Refunds and imported payments are API only.
 
 Anyone can run the same checks without signing in at `/gate/verify` (`GateVerify.tsx`): paste an
 agent's check answer (the receipt and its input), or a receipt the owner copied from a decision

@@ -9,7 +9,8 @@
     "noEmit": true,
     "declaration": false,
     "declarationMap": false,
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "paths": { "@/*": ["./src/*"] }
   },
   "include": ["src", "build", "vite.config.ts"]
 }
