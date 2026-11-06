@@ -20,7 +20,7 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 
 ## The bar for AI agents
 
-There is no common way yet to tell a hardened agent from a gullible one. Bonded gives every agent it rates the same attacks and the same two scores from 0 to 100: a Security score, signed and readable on Robinhood Chain, Arbitrum, Ethereum and Solana, and a Task score beside it. A platform, vault or depositor can require a minimum score, and an agent builder has numbers to measure up to. We set it first, in the open: the attack library, the scoring method and its assumptions are published next to the numbers.
+There is no common way yet to tell a hardened agent from a gullible one. Bonded gives every agent it rates the same attacks and the same 0 to 100 scale: a Security score, signed and readable on Robinhood Chain, Arbitrum and Ethereum, and, where it was measured, a Task score beside it. A platform, vault or depositor can require a minimum score, and an agent builder has numbers to measure up to. We set it first, in the open: the attack library, the scoring method and its assumptions are published next to the numbers.
 
 ## How it works
 
@@ -38,8 +38,8 @@ There is no common way yet to tell a hardened agent from a gullible one. Bonded 
     The manipulation rate on the agent's worst row gives the Security score, from 0 to 100. The Task
     score, a separate 0 to 100, shows whether the agent still does its job. Breach losses give a
     separate insurance score and the premium. The Security and insurance scores are signed by the
-    attester and readable on Robinhood Chain, Arbitrum, Ethereum and Solana. The same scale for
-    every agent, so it can serve as the standard.
+    attester and readable on Robinhood Chain, Arbitrum and Ethereum; Solana carries the insurance
+    score only, for now. The same scale for every agent, so it can serve as the standard.
   </Card>
   <Card title="4. Bond and cover" icon="open-book">
     The operator's bond pays first. Underwriters fund a pool that pays the rest. Depositors buy

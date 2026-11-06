@@ -10,8 +10,8 @@ Six small diagrams, each showing one idea. Click any of them to enlarge.
 
 ```mermaid
 flowchart LR
-  A["1. The Arena<br/>attacks the agent"] --> B["2. The Security score<br/>is signed on chain"]
-  B --> C["3. Cover is priced<br/>from the score"]
+  A["1. The Arena<br/>attacks the agent"] --> B["2. Security and insurance<br/>scores are signed on chain"]
+  B --> C["3. Cover is priced from<br/>the insurance score"]
   C --> D["4. A breach pays<br/>the claim automatically"]
 ```
 

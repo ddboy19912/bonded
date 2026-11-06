@@ -53,9 +53,9 @@ flowchart LR
 
 ### If you put money in an agent
 
-- **Check before you trust.** Every rated agent has a Security score and a Task score, each from 0 to 100, and a report of which attacks it fell for. You no longer have to take the builder's word for it.
+- **Check before you trust.** A rated agent has a Security score from 0 to 100 and a report of which attacks it fell for. Ratings that measured it also show a Task score from 0 to 100. You no longer have to take the builder's word for it.
 - **Know the rules.** The agent trades from a vault that lists which tokens it may hold, which contracts it may call, where funds may go, and how much it may spend per trade and per day.
-- **Get paid when it breaks them.** Buy cover priced from the score. If the vault records a breach, the claim files itself within seconds, with no forms and no adjuster. On Robinhood Chain testnet, a lookalike of Agent A's depositor asked for a "refund"; Agent A paid 5,000 tUSDG; the claim paid back 4,500 (the loss minus a 10% deductible), 4,000 of it from the operator's bond and 500 from the pool ([evidence](progress/evidence/demo-break-testnet.json)).
+- **Get paid when it breaks them.** Buy cover priced from the insurance score. If the vault records a breach, the claim files itself within seconds, with no forms and no adjuster. On Robinhood Chain testnet, a lookalike of Agent A's depositor asked for a "refund"; Agent A paid 5,000 tUSDG; the claim paid back 4,500 (the loss minus a 10% deductible), 4,000 of it from the operator's bond and 500 from the pool ([evidence](progress/evidence/demo-break-testnet.json)).
 - **Covered means tricked or broken, not unlucky.** A bad trade that respected every rule is a market loss and isn't covered, just as a bank's rogue-trader insurance doesn't cover an honest bad call (specification Section 3.1).
 
 ### If you build agents
