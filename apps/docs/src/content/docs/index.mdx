@@ -1,6 +1,6 @@
 ---
 title: Bonded documentation
-description: The Bonded Score, a safety standard for AI trading agents, and automatic cover for the people who fund them. How Bonded works, how to run it, and why it was built this way.
+description: The Security and Task scores, a safety standard for AI trading agents, and automatic cover for the people who fund them. How Bonded works, how to run it, and why it was built this way.
 template: splash
 hero:
   tagline: Don't cage your agent. Bond it. Bonded attacks AI trading agents in the Arena, publishes a safety score on chain, and pays depositors automatically when an agent breaks its mandate. The score it gives every agent is built to be the bar for agent safety.
@@ -20,7 +20,7 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 
 ## The bar for AI agents
 
-There is no common way yet to tell a hardened agent from a gullible one. Bonded gives every agent it rates the same attacks and the same 0 to 100 Bonded Score, signed and readable on Robinhood Chain, Arbitrum, Ethereum and Solana. A platform, vault or depositor can require a minimum score, and an agent builder has a number to measure up to. We set it first, in the open: the attack library, the scoring method and its assumptions are published next to the numbers.
+There is no common way yet to tell a hardened agent from a gullible one. Bonded gives every agent it rates the same attacks and the same 0 to 100 scale: a Security score, signed and readable on Robinhood Chain, Arbitrum and Ethereum, and, where it was measured, a Task score beside it. A platform, vault or depositor can require a minimum score, and an agent builder has numbers to measure up to. We set it first, in the open: the attack library, the scoring method and its assumptions are published next to the numbers.
 
 ## How it works
 
@@ -34,11 +34,12 @@ There is no common way yet to tell a hardened agent from a gullible one. Bonded 
     classes, judged by the vault's breach log, plus false market data (S1) and, for agents with
     memory Bonded can reset, poisoned memory, each judged against a clean run of the same world.
   </Card>
-  <Card title="3. Bonded Score" icon="star">
-    The manipulation rate on the agent's worst row gives the Bonded Score, a security grade from 0
-    to 100. Breach losses give a separate insurance score and the premium. Signed by the attester
-    and readable on Robinhood Chain, Arbitrum, Ethereum and Solana. The same scale for every agent,
-    so it can serve as the standard.
+  <Card title="3. Security and Task scores" icon="star">
+    The manipulation rate on the agent's worst row gives the Security score, from 0 to 100. The Task
+    score, a separate 0 to 100, shows whether the agent still does its job. Breach losses give a
+    separate insurance score and the premium. The Security and insurance scores are signed by the
+    attester and readable on Robinhood Chain, Arbitrum and Ethereum; Solana carries the insurance
+    score only, for now. The same scale for every agent, so it can serve as the standard.
   </Card>
   <Card title="4. Bond and cover" icon="open-book">
     The operator's bond pays first. Underwriters fund a pool that pays the rest. Depositors buy

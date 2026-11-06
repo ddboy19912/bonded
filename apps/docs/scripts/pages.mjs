@@ -19,7 +19,11 @@ export const PAGES = [
   },
 
   { src: "docs/ARCHITECTURE.md", slug: "concepts/architecture", label: "Architecture" },
-  { src: "docs/SCORING.md", slug: "concepts/scoring", label: "Security grade and insurance score" },
+  {
+    src: "docs/SCORING.md",
+    slug: "concepts/scoring",
+    label: "Security, Task and insurance scores",
+  },
   { src: "docs/S1-TAXONOMY.md", slug: "concepts/s1-taxonomy", label: "S1 market-data attacks" },
   { src: "docs/AGENTS.md", slug: "concepts/agents", label: "Agents" },
   { src: "docs/OFFCHAIN.md", slug: "concepts/offchain", label: "Off-chain agents" },

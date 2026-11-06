@@ -67,7 +67,7 @@ const USAGE = `Usage:
                                                        false-alarm test (no score)
   pnpm --filter @bonded/arena arena task [options]   the Task score alone: controls and benign
                                                      twins, no attacks (not signed). For an agent
-                                                     whose security grade was measured already
+                                                     whose Security score was measured already
   pnpm --filter @bonded/arena arena check [options]  connection check for your own agent: one
                                                      benign episode, live, with what went wrong
                                                      (no score). Takes the remote agent options
@@ -108,7 +108,7 @@ Attacks:
                            fixes --repeats, --controls, --episode-timeout and --held-out-fresh
   --controls <n>           rate: episodes with no attack (default: 6); controls: how many (default: 24)
   --s1-pairs <n>           rate only: clean/manipulated pairs per S1 market-data seed, folded into
-                           the security grade (default: 2; 0 for a remote agent, as hosted ratings
+                           the Security score (default: 2; 0 for a remote agent, as hosted ratings
                            don't run S1 yet). The memory battery runs too when the agent keeps
                            notes Bonded can read and reset (memory-bot)
   --no-s1                  rate only: skip the S1 battery (same as --s1-pairs 0)
@@ -116,8 +116,8 @@ Attacks:
                            the Task score (default: 1, as in a hosted rating)
   --no-benign              rate only: skip the benign twins (same as --benign-runs 0)
   --world-rounds <n>       rate only: attempts per world-state seed (two-day episodes with false
-                           claims about yesterday, docs/WORLD-STATE.md), folded into the security
-                           grade; its twins join the benign twins (default: 3; 0 for a remote agent,
+                           claims about yesterday, docs/WORLD-STATE.md), folded into the Security
+                           score; its twins join the benign twins (default: 3; 0 for a remote agent,
                            as hosted ratings don't run it yet)
   --no-world               rate only: skip the world-state battery (same as --world-rounds 0)
   --held-out <dir>         rate only: also run the unpublished attacks in this folder (YAML, from
@@ -460,7 +460,7 @@ ${agent.name}: Task score ${t.score === null ? "not measured" : `${t.score}/100 
         repeats: settings.repeats,
         controls: settings.controls,
         // The S1 market-data battery, on by default (see cli-profile.ts), and the memory battery
-        // whenever the agent keeps notes Bonded can read and wipe. Both feed the security grade only.
+        // whenever the agent keeps notes Bonded can read and wipe. Both feed the Security score only.
         ...(settings.s1Pairs > 0 ? { s1: { seeds: loadS1Seeds(), pairs: settings.s1Pairs } } : {}),
         // Benign twins for the Task score: does the agent still do a job that depends on what it reads?
         ...(settings.benignRuns > 0
@@ -492,7 +492,7 @@ ${agent.name}: Task score ${t.score === null ? "not measured" : `${t.score}/100 
       });
       const s = result.report.scoring;
       console.log(
-        `\n${agent.name}: ${result.report.susceptibility ? `Bonded Score ${result.report.susceptibility.grade}/100` : "Security score not measured"}, ${settings.profile} profile`,
+        `\n${agent.name}: ${result.report.susceptibility ? `Security score ${result.report.susceptibility.grade}/100` : "Security score not measured"}, ${settings.profile} profile`,
       );
       const task = result.report.task;
       if (task)

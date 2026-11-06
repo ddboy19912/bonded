@@ -44,7 +44,7 @@ describe("security score labels", () => {
   });
 });
 
-describe("security grade bands", () => {
+describe("Security score bands", () => {
   it("colours 0–49, 50–79 and 80–100 differently, at the edges too", () => {
     expect([0, 49, 50, 79, 80, 100].map(gradeTone)).toEqual([
       "text-breach-solid",

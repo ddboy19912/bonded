@@ -13,7 +13,7 @@ function GradedClass({ row }: { row: { class: string; graded: boolean } }) {
 }
 
 /**
- * The security grade's extra batteries, from a rating report: the S1 market-data battery per
+ * The Security score's extra batteries, from a rating report: the S1 market-data battery per
  * seed (false prices, news and numbers), the cross-session memory battery and the world-state
  * battery (false claims about yesterday). Induced action counts toward the grade; a freeze (the
  * agent held or skipped a trade) is shown apart and isn't graded. Renders nothing for a report

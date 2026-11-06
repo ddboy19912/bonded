@@ -40,7 +40,7 @@ export const TRACK_LABEL: Record<TrackResult["track"], string> = {
 /**
  * Every attack class of a leaderboard entry with its results on each track that ran. Market data
  * and memory run the same classes as the main library through another channel, so a class's
- * standing is its worst graded track: the rate the security grade uses.
+ * standing is its worst graded track: the rate the Security score uses.
  */
 export function classResults(e: LeaderboardRecord): ClassResult[] {
   return CLASSES.map((cls) => {
@@ -94,7 +94,7 @@ export function classResults(e: LeaderboardRecord): ClassResult[] {
 }
 
 /**
- * The same per-class view from a hosted report's security grade. Its rows are the graded ones
+ * The same per-class view from a hosted report's Security score. Its rows are the graded ones
  * (main library "s2", market data "s1", memory and world state "s1" with source "memory" or
  * "world").
  */

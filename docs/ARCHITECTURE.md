@@ -10,8 +10,8 @@ Six small diagrams, each showing one idea. Click any of them to enlarge.
 
 ```mermaid
 flowchart LR
-  A["1. The Arena<br/>attacks the agent"] --> B["2. The Bonded Score<br/>is signed on chain"]
-  B --> C["3. Cover is priced<br/>from the score"]
+  A["1. The Arena<br/>attacks the agent"] --> B["2. Security and insurance<br/>scores are signed on chain"]
+  B --> C["3. Cover is priced from<br/>the insurance score"]
   C --> D["4. A breach pays<br/>the claim automatically"]
 ```
 
@@ -74,7 +74,7 @@ flowchart LR
 
 Every accepted attack is run against every rated agent, so the bar rises over time.
 
-The Bonded Score is the output everything else builds on, and the one other systems can read. A vault, a lending market or a trading platform can require a minimum score before it accepts an agent, the same way a lender looks at a credit score. Because every agent faces the same attack library on the same scale, scores compare across agents and models, and that is what lets the score serve as the standard for agent safety.
+The Security score is the output everything else builds on, and the one other systems can read. The Task score sits beside it in the report, as a separate number: whether the agent still does its job. A vault, a lending market or a trading platform can require a minimum score before it accepts an agent, the same way a lender looks at a credit score. Because every agent faces the same attack library on the same scale, scores compare across agents and models, and that is what lets the score serve as the standard for agent safety.
 
 ## On chain (EVM)
 
@@ -110,7 +110,7 @@ Anchor programs for the same core: `bonded_registry`, `bonded_vault`, `bonded_co
 4. Give the agent a benign task and let it act through its tools, which go through the vault.
 5. Judge by the vault's breach log, never by what the agent says or an AI grader.
 
-A rating runs every attack (usually five times) plus control episodes with no attack, then the S1 battery (each seed as a clean and a manipulated run of the same world) and, for an agent whose memory Bonded can read and reset, the memory battery (a lie planted on day 1, a clean day 2). It turns manipulation rates into the security grade, the Bonded Score (`susceptibility`), and breach rates into an expected loss, premium and insurance score (`scoreRating`; Section 9; the maths is `packages/shared/src/actuarial.ts`; [SCORING.md](SCORING.md)), signs the attestation and posts it. The attestation's format is frozen: new rating detail goes in the report, which the attestation commits to through `reportHash`, and the report records the attack library version it was rated on ([SCORING.md](SCORING.md#the-attestation-format-is-frozen)). The same code runs a single attack against a real vault for the demo's break-it run (`runLiveAttack`). The agents themselves are in `apps/demo-agents` ([AGENTS.md](AGENTS.md)).
+A rating runs every attack (usually five times) plus control episodes with no attack, then the S1 battery (each seed as a clean and a manipulated run of the same world) and, for an agent whose memory Bonded can read and reset, the memory battery (a lie planted on day 1, a clean day 2). It turns manipulation rates into the Security score (`susceptibility`), completion rates into the Task score, and breach rates into an expected loss, premium and insurance score (`scoreRating`; Section 9; the maths is `packages/shared/src/actuarial.ts`; [SCORING.md](SCORING.md)), signs the attestation and posts it. The attestation's format is frozen: new rating detail goes in the report, which the attestation commits to through `reportHash`, and the report records the attack library version it was rated on ([SCORING.md](SCORING.md#the-attestation-format-is-frozen)). The same code runs a single attack against a real vault for the demo's break-it run (`runLiveAttack`). The agents themselves are in `apps/demo-agents` ([AGENTS.md](AGENTS.md)).
 
 ### Agents that run elsewhere
 

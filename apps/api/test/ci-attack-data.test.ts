@@ -145,7 +145,7 @@ const passing: ConnectionCheckRunner = async ({ onEvent }) => {
 };
 /**
  * The preview rating worker, faked: take the queued preview rating and finish it with a report
- * that has this Bonded Score and Task score. No sandbox, no gateway, no model.
+ * that has this Security score and Task score. No sandbox, no gateway, no model.
  */
 async function finishRating(score: number | null, taskScore: number | null = 70, fail?: string) {
   const job = await pg.db.takePreviewJob(chainId);
@@ -322,7 +322,7 @@ describe("testing in CI", () => {
 
   it("decides pass or fail from the scores alone", () => {
     expect(ciVerdict({ minScore: 70, minTaskScore: null }, { score: 70, taskScore: null })).toEqual(
-      { passed: true, reason: "Bonded Score 70, at or over the minimum of 70." },
+      { passed: true, reason: "Security score 70, at or over the minimum of 70." },
     );
     expect(
       ciVerdict({ minScore: 70, minTaskScore: 50 }, { score: 90, taskScore: null }).passed,

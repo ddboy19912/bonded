@@ -13,7 +13,7 @@ export const BLOG_HOME = "/blog/";
 export const DOCS_SECURITY = "/docs/security/policy/";
 export const DOCS_BOUNTY_GUIDE = "/docs/guides/bounties/#try-it-locally-first";
 export const DOCS_DISCLOSURES = "/docs/security/disclosures/";
-/** How the security grade and the insurance score are worked out (docs/SCORING.md). */
+/** How the Security score and the insurance score are worked out (docs/SCORING.md). */
 export const DOCS_SCORING = "/docs/concepts/scoring/";
 /** The market-data (S1) and memory batteries (docs/S1-TAXONOMY.md). */
 export const DOCS_S1 = "/docs/concepts/s1-taxonomy/";

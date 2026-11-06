@@ -51,7 +51,7 @@ export const Attestation = z
     agentId: uintString,
     /** The loss-based insurance score, 0–100: drives insurability, bond and cover, and pricing. */
     score: z.number().int().min(0).max(100),
-    /** The public security grade (susceptibility), 0–100: the headline Bonded Score. */
+    /** The public Security score (susceptibility), 0–100: the headline. */
     securityScore: z.number().int().min(0).max(100),
     /** Expected annual loss as a fraction of cover, in basis points. */
     expectedLossBps: z.number().int().min(0).max(10_000),

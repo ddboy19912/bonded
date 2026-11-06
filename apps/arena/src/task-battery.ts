@@ -43,7 +43,7 @@ export interface TaskBatteryResult {
 
 /**
  * The Task score on its own: control episodes and benign twins, in a random order, with no
- * attacks. For an agent whose security grade was already measured (the leaderboard), so its Task
+ * attacks. For an agent whose Security score was already measured (the leaderboard), so its Task
  * score can be added without re-running the attack library. Nothing is signed or posted.
  */
 export async function runTaskBattery(

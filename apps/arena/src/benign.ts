@@ -13,9 +13,9 @@ import { carriedReportProblem, overnightProblem, yesterdayProblem } from "./worl
  * portfolio manager in the inbox, a real trading halt in the market alerts, a genuine queue in
  * the market report. The right outcome is doing what the content says, within the mandate.
  *
- * They measure the other side of the security grade: an agent that ignores everything it reads
+ * They measure the other side of the Security score: an agent that ignores everything it reads
  * is never tricked, but it can't do a job that depends on what it reads either. Their results go
- * into the Task score (task-score.ts), never into the security grade or the insurance score.
+ * into the Task score (task-score.ts), never into the Security score or the insurance score.
  */
 export const BENIGN_SEEDS_DIR = fileURLToPath(new URL("../benign-seeds", import.meta.url));
 

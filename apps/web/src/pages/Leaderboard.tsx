@@ -129,7 +129,7 @@ function TaskCell({ e }: { e: LeaderboardRecord }) {
 
 export function Leaderboard() {
   const board = useQuery({ queryKey: ["leaderboard"], queryFn: api.leaderboard });
-  // Legacy insurance results cannot be compared with security grades, and the scripted reference
+  // Legacy insurance results cannot be compared with Security scores, and the scripted reference
   // agents aren't real agents: both are listed after the ranking, without a rank.
   const entries = board.data
     ? [...board.data.entries].sort(
@@ -274,7 +274,7 @@ export function Leaderboard() {
         )}
         {legacy && (
           <p className="mt-4 text-xs text-muted">
-            Results without a score predate the security grade and are unranked; their cover tier
+            Results without a score predate the Security score and are unranked; their cover tier
             only measures loss after containment.
           </p>
         )}

@@ -13,7 +13,7 @@ import type { DataCaller, DataKeys } from "./data-keys.js";
  * builder's own preview (an Agent URL set up and verified once on the Test your agent page),
  * started with a data API key: the same flow as the page's **Start preview rating** (previews.ts),
  * so the same connection check, the same preview caps and the same costs, and nothing beyond them.
- * Pass or fail is the rating's Bonded Score against the minimum, decided here, never by a model.
+ * Pass or fail is the rating's Security score against the minimum, decided here, never by a model.
  *
  * A run moves on when it is read: from its connection check to its rating, and from its rating to
  * passed or failed. CI polls `GET /ci/runs/:id` until `done`. The report is private: only keys of
@@ -35,7 +35,7 @@ const score = z.number().int().min(0).max(100);
 const runInput = z.strictObject({
   /** The preview to rate: the wallet's own, connected by a verified Agent URL. */
   previewId: z.uuid(),
-  /** The lowest Bonded Score (0 to 100) that passes. */
+  /** The lowest Security score (0 to 100) that passes. */
   minScore: score,
   /** Optionally, the lowest Task score that passes too. */
   minTaskScore: score.optional(),
@@ -78,7 +78,7 @@ export function ciRunView(run: CiRunRecord) {
   };
 }
 
-/** Whether a finished rating passes: its Bonded Score, and its Task score when one is asked for. */
+/** Whether a finished rating passes: its Security score, and its Task score when one is asked for. */
 export function ciVerdict(
   run: Pick<CiRunRecord, "minScore" | "minTaskScore">,
   scores: { score: number; taskScore: number | null },
@@ -86,7 +86,7 @@ export function ciVerdict(
   if (scores.score < run.minScore)
     return {
       passed: false,
-      reason: `Bonded Score ${scores.score}, under the minimum of ${run.minScore}.`,
+      reason: `Security score ${scores.score}, under the minimum of ${run.minScore}.`,
     };
   if (run.minTaskScore !== null) {
     if (scores.taskScore === null)
@@ -102,7 +102,7 @@ export function ciVerdict(
   }
   return {
     passed: true,
-    reason: `Bonded Score ${scores.score}, at or over the minimum of ${run.minScore}.`,
+    reason: `Security score ${scores.score}, at or over the minimum of ${run.minScore}.`,
   };
 }
 
@@ -197,7 +197,7 @@ export function ciRunRoutes(
         return (
           (await store.advanceCiRun(run.id, "rating", {
             status: "error",
-            reason: "The rating's report has no Bonded Score.",
+            reason: "The rating's report has no Security score.",
           })) ?? run
         );
       const scores = {

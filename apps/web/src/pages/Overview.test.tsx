@@ -5,7 +5,7 @@ import { topAgents } from "./Overview";
 
 const OWNER = "0x00000000000000000000000000000000000000a1";
 
-/** An on-chain agent with a security grade and an insurance score. */
+/** An on-chain agent with a Security score and an insurance score. */
 const agent = (id: number, securityScore?: number, score = 50): AgentRow => ({
   agentId: BigInt(id),
   owner: OWNER,

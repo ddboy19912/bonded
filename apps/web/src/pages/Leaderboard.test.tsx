@@ -50,7 +50,7 @@ afterEach(() => {
 });
 
 describe("leaderboard rankings", () => {
-  it("ranks security grades, including zero, and leaves legacy insurance results unranked", async () => {
+  it("ranks Security scores, including zero, and leaves legacy insurance results unranked", async () => {
     vi.spyOn(api, "leaderboard").mockResolvedValue({
       headline: NO_HEADLINE,
       entries: [entry("Legacy", 100), entry("Weak", 99, 0), entry("Strong", 40, 90)],
@@ -79,12 +79,12 @@ describe("leaderboard rankings", () => {
     expect(rows[2]!.firstElementChild?.textContent).toBe("—");
     expect(within(rows[2]!).getByText("Not measured")).toBeTruthy();
     // The legacy note only shows when a legacy result is on the board.
-    expect(screen.getByText(/predate the security grade and are unranked/)).toBeTruthy();
+    expect(screen.getByText(/predate the Security score and are unranked/)).toBeTruthy();
   });
 
   it("leaves out the legacy note and the podium when there's nothing to explain", async () => {
     await renderBoard([entry("A", 50, 90), entry("B", 50, 80), entry("C", 50, 70)]);
-    expect(screen.queryByText(/predate the security grade/)).toBeNull();
+    expect(screen.queryByText(/predate the Security score/)).toBeNull();
     expect(screen.queryByText("#1")).toBeNull();
     // No headline stats; the scoring docs open in a new tab.
     expect(screen.queryByRole("region", { name: "Headline" })).toBeNull();

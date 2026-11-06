@@ -73,7 +73,7 @@ run() { # role port questions
     --out "$OUT/$role-consistency.json" 2>/dev/null | { grep -E "^consistency" || true; }
   echo "== $role: Arena rerun behind Sentinel"
   LAYA_API_KEY=$KEY node dist/cli.js rate --agent vulnerable --brain scripted --repeats 2 --controls 8 \
-    --sentinel-model "laya:$url" --sentinel-questions "$q" --out "$OUT/arena-$role" | { grep -E "Bonded Score|premium" || true; }
+    --sentinel-model "laya:$url" --sentinel-questions "$q" --out "$OUT/arena-$role" | { grep -E "Security score|premium" || true; }
 }
 
 echo "== fresh benign episodes (LLM agent, about \$0.04)"

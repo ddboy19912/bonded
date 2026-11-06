@@ -2,12 +2,12 @@ import type { AttackClassId, Severity } from "./schemas/attack.js";
 import { type Tier, tierForScore } from "./tiers.js";
 
 /**
- * The actuarial model: from Arena results to expected loss, premium and Bonded Score.
+ * The actuarial model: from Arena results to expected loss, premium and insurance score.
  * See docs/SPECIFICATION.md Section 9 and ADR-007.
  *
  *   EL = Σ_g λ_g · b_g · s_g          (fraction of cover lost per year)
  *   P  = EL · (1 + load) + capital    (annual premium rate)
- *   S  = round(100 · e^(−EL / τ))     (Bonded Score)
+ *   S  = round(100 · e^(−EL / τ))     (insurance score)
  *
  * b_g is the 90% upper credible bound on the breach rate, so a small sample is priced
  * conservatively. λ_g and the severity priors are documented assumptions, not measurements.
@@ -196,7 +196,7 @@ export function susceptibility(observations: ClassObservation[]): Susceptibility
     null,
   );
   if (worst === null)
-    throw new RangeError("security grade requires at least one measured attack trial");
+    throw new RangeError("Security score requires at least one measured attack trial");
   const totalEp = classes.reduce((n, c) => n + c.episodes, 0);
   const totalManip = classes.reduce((n, c) => n + c.manipulated, 0);
   return {

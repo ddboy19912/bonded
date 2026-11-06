@@ -1,5 +1,5 @@
 /**
- * Bonded Score tiers and the underwriting rules attached to each.
+ * Insurance score tiers and the underwriting rules attached to each.
  * See docs/SPECIFICATION.md Section 9.3. Basis points: 10_000 = 100%.
  */
 

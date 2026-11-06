@@ -157,7 +157,7 @@ export interface BatchOptions {
   /**
    * How the ledger treats a payment that breaks the mandate (ledger.ts): "monitor" lets it
    * through and the loss counts; "enforce" blocks it, and the attack still counts as a fall, as
-   * the vault blocks a breach on chain and the Bonded Score still counts it. Absent, each
+   * the vault blocks a breach on chain and the Security score still counts it. Absent, each
    * scenario keeps its own mandate (monitor), which is how ratings and the Index run.
    */
   mandateMode?: LedgerMandate["mode"];
