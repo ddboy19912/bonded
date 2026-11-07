@@ -1,6 +1,6 @@
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { ANVIL_KEYS } from "@bonded/arena";
 import { connectChain } from "@bonded/keeper";
 import {
@@ -346,7 +346,7 @@ describe("setting up a card hook", () => {
     const a = await account();
     const stripe = await addHook(a, "stripe");
     expect(stripe.path).toBe(`/payments/card-hook/${stripe.id}`);
-    expect(stripe.secretHint).toMatch(/^whsec_.{3}….{4}$/);
+    expect(stripe.secretHint).toBe(`whsec_…${STRIPE_SECRET.slice(-4)}`);
     expect(JSON.stringify(stripe)).not.toContain(STRIPE_SECRET);
     const marqeta = await addHook(a, "marqeta");
     expect(marqeta.username).toMatch(/^bonded_/);
@@ -460,7 +460,41 @@ describe("Stripe Issuing asking before a charge", () => {
     const [d] = await decisions(a.id);
     expect(d).toMatchObject({ decision: "breach", result: "blocked", rules: ["unknown_payee"] });
     expect(await payments(a.id)).toHaveLength(0);
-    expect(await notices(a.id)).toContain("payment_blocked");
+    // The alert is sent after the answer, so it may land a moment later.
+    await vi.waitFor(async () => expect(await notices(a.id)).toContain("payment_blocked"));
+  });
+
+  it("reads a Stripe event over the API's usual 16 KB cap", async () => {
+    const a = await account();
+    const hook = await addHook(a, "stripe");
+    n++;
+    const body = JSON.stringify({
+      id: `evt_${n}`,
+      type: "issuing_authorization.request",
+      livemode: false,
+      data: {
+        object: {
+          id: `iauth_big_${n}`,
+          // Stripe sends the card with its spending controls: long category lists.
+          card: {
+            id: "ic_theirs",
+            spending_controls: {
+              allowed_categories: Array(1_500).fill("computer_software_stores"),
+            },
+          },
+          pending_request: { amount: 4_200, currency: "usd" },
+          merchant_data: { network_id: CLOUD.networkId, name: CLOUD.name, category_code: "7372" },
+        },
+      },
+    });
+    expect(body.length).toBeGreaterThan(16 * 1024);
+    const sig = createHmac("sha256", STRIPE_SECRET).update(`${seconds}.${body}`).digest("hex");
+    const r = await ask(hook.path, {
+      body,
+      headers: { "Stripe-Signature": `t=${seconds},v1=${sig}` },
+    });
+    expect(r.status).toBe(200);
+    expect(r.body).toEqual({ approved: true });
   });
 
   it("answers the same charge asked twice the same way, with one decision", async () => {
@@ -514,6 +548,16 @@ describe("Lithic asking before a charge", () => {
     expect(await decisions(a.id)).toHaveLength(1);
     const activity = await call("GET", `${a.base}/activity`, undefined, a.session);
     expect(activity.body.items[0].rail).toBe("Lithic card");
+    // A status it doesn't know is checked like a charge, never waved through.
+    const odd = await ask(
+      hook.path,
+      lithicRequest(4_200, { status: "SOMETHING_NEW", merchant: STRANGER }),
+    );
+    expect(odd.body.result).toBe("UNAUTHORIZED_MERCHANT");
+    // A $0 check that the card works moves nothing: approved, with nothing to record.
+    const zero = await ask(hook.path, lithicRequest(0, { merchant: STRANGER }));
+    expect(zero.body.result).toBe("APPROVED");
+    expect(await decisions(a.id)).toHaveLength(2);
   });
 
   it("lets a stranger through in Monitor mode, but never cash or gambling", async () => {
@@ -556,6 +600,15 @@ describe("Marqeta asking before a charge", () => {
     expect(no.status).toBe(402);
     expect(no.text).toContain('"amount":10.00');
     expect(no.body.jit_funding.decline_reason).toBe("INVALID_MERCHANT");
+  });
+
+  it("declines a balance inquiry, since it can't give the card's balances", async () => {
+    const a = await account();
+    const hook = await addHook(a, "marqeta");
+    const auth = { username: hook.username as string, password: hook.password as string };
+    const r = await ask(hook.path, marqetaRequest(0.01, auth, { method: "pgfs.balanceinquiry" }));
+    expect(r.status).toBe(402);
+    expect(await decisions(a.id)).toHaveLength(0);
   });
 
   it("refuses the wrong password, and declines everything once a breach freezes the account", async () => {

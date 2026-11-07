@@ -225,13 +225,18 @@ Answers: Stripe `{ approved }` with `Stripe-Version`. Lithic `{ token, result }`
 `UNAUTHORIZED_MERCHANT` (a merchant rule), `VELOCITY_EXCEEDED` (a limit) or `CARD_PAUSED` (frozen,
 or anything the gate couldn't decide). Marqeta echoes the funding request with the amount to two
 decimals: 200 approves, 402 declines with `decline_reason` `INVALID_MERCHANT` or
-`TRANSACTION_NOT_PERMITTED`. A request that spends nothing (Lithic credits and balance inquiries,
-Marqeta methods other than an authorization, its increment, or auth plus capture) is approved
-without a decision.
+`TRANSACTION_NOT_PERMITTED`. A request that spends nothing is approved without a decision: a $0 check that a card works,
+Lithic's refunds to the card and balance inquiries, and Marqeta methods other than an
+authorization, its increment, or auth plus capture. A Lithic status Bonded doesn't know is checked
+like a charge. Marqeta balance inquiries are declined: the answer needs the card's balances, which
+Bonded doesn't have.
 
 Anything the gate can't decide declines: a request it can't read, a non-USD charge, an error, or
-an answer not ready inside 1.5 seconds (Stripe waits 2, Marqeta 3, Lithic 6). Past the budget the
-transaction rolls back, so no "allowed" receipt is kept. Stripe live-mode charges are declined
+an answer not ready inside 1.5 seconds (Stripe waits 2, Marqeta 3, Lithic 6). The budget is checked
+as the transaction's last step, and the answer waits for COMMIT, so it always matches the record: a
+late one rolls back and declines. Only a database that hangs 300 ms past the budget gets a decline
+without its outcome. Card hook requests may be up to 64 KB (Stripe's events carry the card), above
+the API's usual 16 KB. Stripe live-mode charges are declined
 unless `GATE_ALLOW_LIVE_CREDENTIALS=true`; Lithic and Marqeta requests don't say whether they're
 live.
 

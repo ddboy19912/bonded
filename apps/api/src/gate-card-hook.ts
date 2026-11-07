@@ -44,6 +44,11 @@ import { alertOwner, type GateCheckOutcome } from "./gate-check.js";
 export interface GateCardHookOptions {
   /** How long the gate may take to decide (default 1,500 ms). Past it the gate declines. */
   budgetMs?: number;
+  /**
+   * How long past the budget the gate waits for the database to commit or roll back (default
+   * 300 ms), so the answer always matches what was recorded.
+   */
+  graceMs?: number;
   /** Card hooks per gate account (default 5). */
   maxHooksPerAccount?: number;
   /**
@@ -99,7 +104,14 @@ export function stripeCharge(body: Json): CardCharge | undefined {
   };
 }
 
-/** Lithic's Auth Stream Access request. Only authorizations spend. */
+/** Lithic's statuses that move no money to a merchant: a refund to the card, a balance inquiry. */
+const LITHIC_NO_SPEND = [
+  "CREDIT_AUTHORIZATION",
+  "FINANCIAL_CREDIT_AUTHORIZATION",
+  "BALANCE_INQUIRY",
+];
+
+/** Lithic's Auth Stream Access request. */
 export function lithicCharge(body: Json): CardCharge | undefined {
   const token = str(body.token);
   if (!token) return undefined;
@@ -108,7 +120,8 @@ export function lithicCharge(body: Json): CardCharge | undefined {
   const m = obj(body.merchant);
   return {
     requestId: `lithic:${token}`,
-    spend: status === "AUTHORIZATION" || status === "FINANCIAL_AUTHORIZATION",
+    // Anything not known to spend nothing is checked, so a new status can't slip through.
+    spend: !LITHIC_NO_SPEND.includes(status),
     amountCents: intCents(holder.amount) ?? 0,
     currency: str(holder.currency).toUpperCase(),
     merchant: { id: str(m.acceptor_id), name: str(m.descriptor), mcc: str(m.mcc) },
@@ -259,6 +272,7 @@ export function gateCardHookRoutes(
   const { db, store, notifier, now, secrets } = deps;
   const hooks = new GateCardHookStore(db);
   const budgetMs = options.budgetMs ?? 1_500;
+  const graceMs = options.graceMs ?? 300;
   const maxHooks = options.maxHooksPerAccount ?? 5;
   const allowLive = options.allowLiveCharges === true;
   const stripeVersion = options.stripeApiVersion ?? STRIPE_API_VERSION;
@@ -279,7 +293,7 @@ export function gateCardHookRoutes(
       );
     return {
       sealed: secrets.encrypt(secret, context(hookId)) as string | null,
-      hint: `${secret.slice(0, 9)}…${secret.slice(-4)}`,
+      hint: `whsec_…${secret.slice(-4)}`,
     };
   };
 
@@ -473,8 +487,16 @@ export function gateCardHookRoutes(
       log(`card hook ${hook.id}: declined a request it can't read`);
       return answer(c, hook.provider, body, false, "undecided");
     }
-    // Nothing spent (a refund to the card, a balance inquiry, a capture): nothing to decide.
-    if (!charge.spend) {
+    // Marqeta needs the card's balances in the answer to a balance inquiry, which Bonded doesn't
+    // know: decline it rather than send an answer Marqeta can't read.
+    if (
+      hook.provider === "marqeta" &&
+      str(obj(obj(body.gpa_order).jit_funding).method) === "pgfs.balanceinquiry"
+    )
+      return answer(c, hook.provider, body, false, "undecided");
+    // Nothing spent (a refund to the card, a balance inquiry, a capture, or a $0 check that a
+    // card works, as merchants make when a card is saved): nothing to decide.
+    if (!charge.spend || (charge.amountCents === 0 && charge.currency !== "")) {
       await hooks.asked(hook.id, new Date(now()));
       return answer(c, hook.provider, body, true, "undecided");
     }
@@ -485,20 +507,26 @@ export function gateCardHookRoutes(
     if (charge.livemode && !allowLive)
       return decline("live-mode charges are declined until live credentials are allowed");
     if (charge.currency !== "USD") return decline("not a USD charge");
-    if (charge.amountCents <= 0) return decline("no positive amount");
+    if (charge.amountCents < 0) return decline("a negative amount");
     if (!deps.receiptKey) return decline("no receipt key");
     if (!deps.checks.allow(hook.accountId)) return decline("over the account's checks per minute");
 
     const work = decide(hook, charge, deadline);
-    // A late answer is never used: decline, and the transaction rolls back on its own.
     work.catch(() => undefined);
+    // The transaction checks the budget as its last step, so its outcome is the answer: a late
+    // one has rolled back and declines. Waiting for COMMIT keeps the answer and the record the
+    // same. Only a database that hangs past the grace gets a decline without its outcome.
     let timer: NodeJS.Timeout | undefined;
     const late = new Promise<"late">((resolve) => {
-      timer = setTimeout(() => resolve("late"), Math.max(0, deadline - performance.now()));
+      timer = setTimeout(
+        () => resolve("late"),
+        Math.max(0, deadline + graceMs - performance.now()),
+      );
     });
     try {
       const outcome = await Promise.race([work, late]);
-      if (outcome === "late") return decline(`over the ${budgetMs} ms budget`);
+      if (outcome === "late")
+        return decline(`no answer from the database ${budgetMs + graceMs} ms in`);
       if (outcome.check) alertOwner(notifier, outcome.check);
       return answer(c, hook.provider, body, outcome.approved, outcome.why);
     } catch (error) {
@@ -628,18 +656,14 @@ export function gateCardHookRoutes(
         );
       const froze = decision === "breach" && account.freezeOnBreach;
       if (froze) await store.freeze(c, account.id, decisionId);
-      // Past the budget the answer is decline: roll back so no "allowed" receipt is kept.
+      const after = (await store.account(account.id, c))!;
+      // Past the budget the answer is decline: roll back so no "allowed" receipt is kept. This is
+      // the last step before COMMIT, and the handler waits for COMMIT, so the answer matches it.
       if (performance.now() > deadline) throw new OutOfTime();
       return {
         approved: wentOut,
         why: frozen ? "frozen" : whyOf(rules),
-        check: {
-          decision: record,
-          input,
-          replayed: false,
-          froze,
-          account: (await store.account(account.id, c))!,
-        },
+        check: { decision: record, input, replayed: false, froze, account: after },
       };
     });
   }
