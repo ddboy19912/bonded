@@ -285,6 +285,54 @@ describe("payment inputs (invoice matching off)", () => {
   });
 });
 
+describe("card charge inputs (a card hook)", () => {
+  const charge: GateInput = {
+    kind: "card_charge",
+    provider: "lithic",
+    day: "2026-11-07",
+    limits: { maxPaymentCents: 50_000, maxDailyCents: 80_000, maxPaymentsPerHour: null },
+    attempt: { account: cardMerchantKey("445566778"), amountCents: 4_200, reference: "" },
+    merchant: { key: cardMerchantKey("445566778"), name: "Cloud Hosting Co", mcc: "7372" },
+    payees: [{ vendorId: "cloud", account: cardMerchantKey("445566778") }],
+    payments: [],
+    paymentsLastHour: 0,
+  };
+
+  it("pass a vendor's merchant within the limits, with no invoice", () => {
+    expect(evaluateGateInput(charge)).toEqual({
+      ok: true,
+      rules: [],
+      vendorId: "cloud",
+      lossCents: 0,
+      overpaidCents: 0,
+    });
+  });
+
+  it("break unknown_payee for a merchant no vendor has on file, and the caps as any payment", () => {
+    expect(evaluateGateInput({ ...charge, payees: [] })).toMatchObject({
+      rules: ["unknown_payee"],
+      lossCents: 4_200,
+    });
+    expect(
+      evaluateGateInput({ ...charge, attempt: { ...charge.attempt, amountCents: 60_000 } }),
+    ).toMatchObject({ rules: ["over_payment_cap"] });
+  });
+
+  it("break blocked_merchant for cash, money orders and gambling, even at a known merchant", () => {
+    for (const mcc of ["6011", "6051", "7995"])
+      expect(evaluateGateInput({ ...charge, merchant: { ...charge.merchant, mcc } })).toMatchObject(
+        { rules: ["blocked_merchant"] },
+      );
+  });
+
+  it("commit to the provider and the merchant's category in the hash", () => {
+    expect(gateInputHash(charge)).not.toBe(gateInputHash({ ...charge, provider: "stripe" }));
+    expect(gateInputHash(charge)).not.toBe(
+      gateInputHash({ ...charge, merchant: { ...charge.merchant, mcc: "5734" } }),
+    );
+  });
+});
+
 describe("card inputs (Stripe Issuing)", () => {
   const nimbus = { key: cardMerchantKey("1234567890"), name: "Nimbus Cloud" };
   const card: GateCardInput = {

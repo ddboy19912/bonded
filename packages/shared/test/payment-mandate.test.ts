@@ -258,8 +258,14 @@ describe("payment mandate: payments with no invoice", () => {
 
   it("keeps the gate's own rules out of the list the Arena and the Index read", () => {
     expect(PAYMENT_RULES).not.toContain("over_hourly_limit");
-    expect(GATE_RULES).toEqual([...PAYMENT_RULES, "over_hourly_limit", "skipped_gate"]);
+    expect(GATE_RULES).toEqual([
+      ...PAYMENT_RULES,
+      "over_hourly_limit",
+      "skipped_gate",
+      "blocked_merchant",
+    ]);
     expect(PAYMENT_RULES).not.toContain("skipped_gate");
+    expect(PAYMENT_RULES).not.toContain("blocked_merchant");
     for (const rule of GATE_RULES) expect(GATE_RULE_WORDS[rule]).toBeTruthy();
   });
 

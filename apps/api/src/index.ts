@@ -214,13 +214,17 @@ export function createApi(options: {
     onError: (c) => c.json({ error: "the request body is over 16 KB" }, 413),
   });
   // A Sentinel check carries what the agent read (up to 20 reads of 4,000 characters), so its
-  // route has its own, larger cap: the most its schema allows (sentinel.ts).
+  // route has its own, larger cap: the most its schema allows (sentinel.ts). Card programs'
+  // events (Stripe Issuing's carry the card and cardholder) can pass 16 KB too: the Stripe routes
+  // and card hooks (gate-card-hook.ts, which caps its own requests at 64 KB) get it.
   const checkBodies = bodyLimit({
     maxSize: SENTINEL_CHECK_MAX_BYTES,
     onError: (c) => c.json({ error: "the check is over 256 KB" }, 413),
   });
   app.use("*", (c, next) =>
-    c.req.path === "/sentinel/check" || stripeWebhookPath(c.req.path)
+    c.req.path === "/sentinel/check" ||
+    stripeWebhookPath(c.req.path) ||
+    c.req.path.startsWith("/payments/card-hook/")
       ? checkBodies(c, next)
       : smallBodies(c, next),
   );

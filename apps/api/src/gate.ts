@@ -36,6 +36,7 @@ import { alertOwner, decisionView, runGateCheck, type GateCheckRequest } from ".
 import { gateCardRoutes, type GateCardOptions } from "./gate-card.js";
 import { gatePayoutRoutes, type GatePayoutOptions } from "./gate-payout.js";
 import { gateWatchRoutes } from "./gate-watch.js";
+import { gateCardHookRoutes, type GateCardHookOptions } from "./gate-card-hook.js";
 
 /**
  * The payment gate's hosted check (apps/api/GATE.md). A business makes a gate account with its
@@ -67,6 +68,8 @@ export interface GateOptions {
   notifier?: Notifier;
   /** The card route with Stripe Issuing (gate-card.ts). */
   card?: GateCardOptions;
+  /** Card hooks: the business's own card program asks before each charge (gate-card-hook.ts). */
+  cardHook?: GateCardHookOptions;
   /** The payout route through the payout proxy in a TEE (gate-payout.ts). */
   payout?: GatePayoutOptions;
   /** Chains wallets can be watched on (GATE_WATCH_RPC_URLS, gate-watch.ts). */
@@ -879,6 +882,25 @@ export function gateRoutes(
     keyed,
     allowCheck: (accountId) => checks.allow(accountId),
   });
+  gateCardHookRoutes(
+    app,
+    {
+      db,
+      store,
+      notifier,
+      receiptKey: options.receiptKey,
+      now,
+      secrets: options.secrets,
+      checks,
+      owned: (c, write) => owned(c, write ? options.writes : options.reads),
+    },
+    {
+      allowLiveCharges: options.card?.allowLiveCredentials === true,
+      ...(options.card?.apiVersion ? { stripeApiVersion: options.card.apiVersion } : {}),
+      ...(options.card?.log ? { log: options.card.log } : {}),
+      ...options.cardHook,
+    },
+  );
   gateCardRoutes(
     app,
     {

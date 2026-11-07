@@ -13,6 +13,7 @@ import {
   checkGeneralPayment,
   checkInvoicePayment,
   checkRefundPayment,
+  GATE_RULES,
   isVerifiedChange,
   normalAccount,
   PAYMENT_RULES,
@@ -138,7 +139,8 @@ export type GateInput =
       tickets: { vendorId: string; account: string }[];
     }
   | GateCardInput
-  | GatePaymentInput;
+  | GatePaymentInput
+  | GateCardChargeInput;
 
 /** A payment on an account with invoice matching off (`checkGeneralPayment`). */
 export interface GatePaymentInput {
@@ -152,6 +154,42 @@ export interface GatePaymentInput {
   /** Payments made in the hour before this check. */
   paymentsLastHour: number;
 }
+
+/** The card programs whose real-time approval question the gate answers (a card hook). */
+export const CARD_HOOK_PROVIDERS = ["stripe", "lithic", "marqeta"] as const;
+export type CardHookProvider = (typeof CARD_HOOK_PROVIDERS)[number];
+
+/**
+ * A charge on a card the business issued in its own card program, which asked the gate before
+ * approving it (a card hook). Bonded holds no key for the program. Checked with the general rules
+ * (`checkGeneralPayment`), the merchant as the payee: `unknown_payee` when the merchant isn't any
+ * vendor's card merchant on file, the limits, and the hourly limit. A charge has no invoice, so
+ * invoice matching doesn't apply. A merchant whose category is cash, quasi-cash or gambling
+ * (`CARD_HOOK_BLOCKED_MCCS`) breaks `blocked_merchant`.
+ */
+export interface GateCardChargeInput {
+  kind: "card_charge";
+  provider: CardHookProvider;
+  day: string;
+  limits: Limits & { maxPaymentsPerHour: number | null };
+  /** `account` is the merchant's key (`cardMerchantKey`); `reference` is empty. */
+  attempt: Attempt;
+  /** The merchant charging, as the card program reports it. `mcc` is its category code. */
+  merchant: { key: string; name: string; mcc: string };
+  /** Vendors whose card merchant on file is this merchant. */
+  payees: KnownPayee[];
+  payments: GatePaidPayment[];
+  /** Payments made in the hour before this charge. */
+  paymentsLastHour: number;
+}
+
+/**
+ * Merchant category codes a card hook never lets an agent pay without breaking a rule: cash at a
+ * bank or ATM (6010, 6011), financial institutions (6012), money orders and quasi-cash (6051),
+ * stored-value loads (6540), wires and money orders (4829), and gambling (7995). The same
+ * categories as `CARD_BLOCKED_CATEGORIES`, by code, since every card program reports the code.
+ */
+export const CARD_HOOK_BLOCKED_MCCS = ["4829", "6010", "6011", "6012", "6051", "6540", "7995"];
 
 /**
  * A charge on a gate card, checked as an invoice payment whose payee is the card merchant
@@ -268,6 +306,7 @@ export function evaluateGateInput(input: GateInput): GateVerdict {
   }
   if (input.kind === "card") return evaluateCardInput(input);
   if (input.kind === "payment") return evaluatePaymentInput(input);
+  if (input.kind === "card_charge") return evaluateCardChargeInput(input);
   const limits = {
     maxPaymentUsd: usd(input.limits.maxPaymentCents),
     maxDailyUsd: usd(input.limits.maxDailyCents),
@@ -388,6 +427,21 @@ function evaluatePaymentInput(input: GatePaymentInput): GateVerdict {
     lossCents: cents(check.lossUsd),
     overpaidCents: cents(check.overpaidUsd),
   };
+}
+
+function evaluateCardChargeInput(input: GateCardChargeInput): GateVerdict {
+  const verdict = evaluatePaymentInput({
+    kind: "payment",
+    day: input.day,
+    limits: input.limits,
+    attempt: input.attempt,
+    payees: input.payees,
+    payments: input.payments,
+    paymentsLastHour: input.paymentsLastHour,
+  });
+  if (!verdict.ok || !CARD_HOOK_BLOCKED_MCCS.includes(input.merchant.mcc)) return verdict;
+  const rules = new Set([...verdict.rules, "blocked_merchant"]);
+  return { ...verdict, rules: GATE_RULES.filter((r) => rules.has(r)) };
 }
 
 /** A decision as Bonded signs it. */

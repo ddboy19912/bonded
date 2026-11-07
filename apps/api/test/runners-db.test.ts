@@ -19,8 +19,8 @@ async function agent(id: number, config: unknown = remote, enabled = true) {
   return `${CHAIN}:${id}`;
 }
 const hello = { runnerVersion: "0.1.0", mode: "tools" };
-/** The migrations' numbers: 0001 to 0030 (0030 is the gate's Watch mode). */
-const MIGRATIONS = [...Array.from({ length: 30 }, (_, i) => i + 1)];
+/** The migrations' numbers: 0001 to 0031 (0031 is the gate's card hooks). */
+const MIGRATIONS = [...Array.from({ length: 31 }, (_, i) => i + 1)];
 
 beforeAll(async () => {
   pg = await postgres();
@@ -28,7 +28,7 @@ beforeAll(async () => {
 }, 120_000);
 afterAll(() => pg?.stop());
 
-describe("migrations 0014 to 0030", () => {
+describe("migrations 0014 to 0031", () => {
   it("apply once, in order, and again is a no-op", async () => {
     const versions = (
       await db.pool.query("SELECT version FROM schema_migrations ORDER BY version")
@@ -70,6 +70,7 @@ describe("migrations 0014 to 0030", () => {
       "gate_accounts",
       "gate_api_keys",
       "gate_card_authorizations",
+      "gate_card_hooks",
       "gate_card_intents",
       "gate_card_transactions",
       "gate_decisions",

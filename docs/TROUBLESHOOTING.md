@@ -710,6 +710,36 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 **What to do:** Stop watching a wallet you no longer need, or check the wallet isn't already on the list.
 
+### gate-card-hook-missing
+
+**Message:** No such card hook.
+
+**What to do:** Check the hook address in the card program matches one on the gate account's Cards tab. A removed hook stops answering.
+
+### gate-card-hook-limit
+
+**Message:** This gate account has as many card hooks as it may.
+
+**What to do:** Remove a card hook you no longer use on the Cards tab, then add the new one.
+
+### gate-card-hook-secret
+
+**Message:** A Marqeta card hook takes no secret.
+
+**What to do:** Marqeta signs in with the username and password Bonded made for the hook. Only Stripe and Lithic hooks take a signing secret (whsec_...).
+
+### gate-card-hook-unavailable
+
+**Message:** Card hooks for Stripe and Lithic are off on this service.
+
+**What to do:** The operator sets AGENT_URL_SECRET_KEY on the API, which encrypts the signing secrets it keeps.
+
+### gate-card-hook-unsigned
+
+**Message:** The request isn't signed by the card hook's card program.
+
+**What to do:** Only the card program calls this address. Check the signing secret on the hook is the one the program shows (Stripe, Lithic), or the username and password Bonded gave (Marqeta), and that the server's clock is right.
+
 ### gate-stripe-not-linked
 
 **Message:** This gate account isn't linked to Stripe.

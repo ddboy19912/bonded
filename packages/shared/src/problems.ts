@@ -845,6 +845,42 @@ export const PROBLEMS: readonly ProblemEntry[] = [
     "Stop watching a wallet you no longer need, or check the wallet isn't already on the list.",
     /as many wallets as it may|wallet is already on this gate account/i,
   ),
+  // Card hooks: the business's own card program asks before each charge.
+  entry(
+    "gate-card-hook-missing",
+    "gate",
+    "No such card hook.",
+    "Check the hook address in the card program matches one on the gate account's Cards tab. A removed hook stops answering.",
+    /no such card hook/i,
+  ),
+  entry(
+    "gate-card-hook-limit",
+    "gate",
+    "This gate account has as many card hooks as it may.",
+    "Remove a card hook you no longer use on the Cards tab, then add the new one.",
+    /as many card hooks as it may/i,
+  ),
+  entry(
+    "gate-card-hook-secret",
+    "gate",
+    "A Marqeta card hook takes no secret.",
+    "Marqeta signs in with the username and password Bonded made for the hook. Only Stripe and Lithic hooks take a signing secret (whsec_...).",
+    /card hook takes no secret/i,
+  ),
+  entry(
+    "gate-card-hook-unavailable",
+    "gate",
+    "Card hooks for Stripe and Lithic are off on this service.",
+    "The operator sets AGENT_URL_SECRET_KEY on the API, which encrypts the signing secrets it keeps.",
+    /card hooks for stripe and lithic are off/i,
+  ),
+  entry(
+    "gate-card-hook-unsigned",
+    "gate",
+    "The request isn't signed by the card hook's card program.",
+    "Only the card program calls this address. Check the signing secret on the hook is the one the program shows (Stripe, Lithic), or the username and password Bonded gave (Marqeta), and that the server's clock is right.",
+    /isn't signed by this hook's card program/i,
+  ),
   // The card route (Stripe Issuing).
   entry(
     "gate-stripe-not-linked",

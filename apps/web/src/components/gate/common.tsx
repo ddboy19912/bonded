@@ -280,6 +280,9 @@ export function ConfirmButton({
   act,
   then,
   variant = "ghost",
+  size = "sm",
+  className,
+  ariaLabel,
 }: {
   label: ReactNode;
   title: ReactNode;
@@ -288,6 +291,10 @@ export function ConfirmButton({
   act: () => Promise<unknown>;
   then?: () => Promise<unknown>;
   variant?: ComponentProps<typeof Button>["variant"];
+  size?: ComponentProps<typeof Button>["size"];
+  className?: string;
+  /** The button's name when its label is only an icon. */
+  ariaLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const action = useAction();
@@ -295,7 +302,10 @@ export function ConfirmButton({
     <>
       <Button
         variant={variant}
-        size="sm"
+        size={size}
+        className={className}
+        aria-label={ariaLabel}
+        title={ariaLabel}
         onClick={() => {
           action.reset();
           setOpen(true);

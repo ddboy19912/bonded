@@ -278,6 +278,7 @@ beforeEach(() => {
   });
   vi.spyOn(gateApi, "tickets").mockResolvedValue({ items: [] });
   vi.spyOn(gateApi, "stripeLink").mockResolvedValue(null);
+  vi.spyOn(gateApi, "cardHooks").mockResolvedValue({ items: [] });
   vi.spyOn(gateApi, "keys").mockResolvedValue({
     items: [
       {
@@ -1020,17 +1021,106 @@ describe("the payment gate's rules page", () => {
     expect(screen.queryByRole("button", { name: "Approve an invoice" })).toBeNull();
   });
 
-  it("links Stripe for card payments, shows only a hint, and lists the cards", async () => {
-    const linked = {
-      linked: true as const,
+  it("connects a card provider: the address first, then the signing secret", async () => {
+    const hook = {
+      id: "h1",
+      provider: "lithic" as const,
+      label: "Agent cards",
+      path: "/payments/card-hook/h1",
+      secretHint: null,
+      ready: false,
+      username: null,
+      createdAt: `${DAY}T09:00:00Z`,
+      lastRequestAt: null,
+    };
+    const add = vi.spyOn(gateApi, "addCardHook").mockResolvedValue(hook);
+    const setSecret = vi
+      .spyOn(gateApi, "setCardHookSecret")
+      .mockResolvedValue({ ...hook, ready: true, secretHint: "whsec_abc…wxyz" });
+    signedIn();
+    showAccount("cards");
+    expect(await screen.findByText("No card provider yet")).toBeTruthy();
+    // No Stripe key is asked for anywhere.
+    expect(screen.queryByText(/Restricted key/)).toBeNull();
+    const modal = await press("Connect a provider");
+    fireEvent.click(within(modal).getByRole("combobox", { name: "Card provider" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Lithic" }));
+    fill(modal, "Label", "Agent cards");
+    fireEvent.click(within(modal).getByRole("button", { name: "Get the address" }));
+    expect(await within(modal).findByText(/\/payments\/card-hook\/h1$/)).toBeTruthy();
+    expect(add).toHaveBeenCalledWith("sess", ACCOUNT_ID, {
+      provider: "lithic",
+      label: "Agent cards",
+    });
+    const save = within(modal).getByRole("button", { name: "Save secret" }) as HTMLButtonElement;
+    fill(modal, "Signing secret", "sk_test_nope");
+    expect(save.disabled).toBe(true);
+    fill(modal, "Signing secret", "whsec_abcdefghijklmnopwxyz");
+    fireEvent.click(save);
+    await vi.waitFor(() =>
+      expect(setSecret).toHaveBeenCalledWith(
+        "sess",
+        ACCOUNT_ID,
+        "h1",
+        "whsec_abcdefghijklmnopwxyz",
+      ),
+    );
+  });
+
+  it("shows Marqeta's password once, and lists each provider with what it needs", async () => {
+    vi.spyOn(gateApi, "addCardHook").mockResolvedValue({
+      id: "h2",
+      provider: "marqeta",
+      label: "",
+      path: "/payments/card-hook/h2",
+      secretHint: null,
+      ready: true,
+      username: "bonded_h2",
+      createdAt: `${DAY}T09:00:00Z`,
+      lastRequestAt: null,
+      password: "Abcdefghijklmnopqrstuvwxyz234567",
+    });
+    vi.mocked(gateApi.cardHooks).mockResolvedValue({
+      items: [
+        {
+          id: "h1",
+          provider: "stripe",
+          label: "",
+          path: "/payments/card-hook/h1",
+          secretHint: null,
+          ready: false,
+          username: null,
+          createdAt: `${DAY}T09:00:00Z`,
+          lastRequestAt: null,
+        },
+      ],
+    });
+    signedIn();
+    showAccount("cards");
+    // A hook without its secret: a note under its name, and the button that adds it.
+    expect(await screen.findByRole("button", { name: "Add secret" })).toBeTruthy();
+    expect(screen.getByText("No signing secret yet")).toBeTruthy();
+    expect(screen.queryByText("Needs its secret")).toBeNull();
+    expect(screen.getByRole("button", { name: "Remove" })).toBeTruthy();
+    const modal = await press("Connect a provider");
+    fireEvent.click(within(modal).getByRole("combobox", { name: "Card provider" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Marqeta" }));
+    fireEvent.click(within(modal).getByRole("button", { name: "Get the address" }));
+    expect(await within(modal).findByText("Abcdefghijklmnopqrstuvwxyz234567")).toBeTruthy();
+    expect(within(modal).getByText("bonded_h2")).toBeTruthy();
+    expect(within(modal).getByText(/Shown once/)).toBeTruthy();
+  });
+
+  it("still lists the cards Bonded issued on an account linked the old way", async () => {
+    vi.mocked(gateApi.stripeLink).mockResolvedValue({
+      linked: true,
       keyHint: "rk_test_…abcd",
       livemode: false,
       cardholderId: "ich_1234567890",
       webhookSecrets: { authorization: true, events: true },
-      createdAt: `${DAY}T09:00:00Z`,
-      updatedAt: `${DAY}T09:00:00Z`,
-    };
-    const link = vi.spyOn(gateApi, "linkStripe").mockResolvedValue(linked);
+      createdAt: DAY,
+      updatedAt: DAY,
+    });
     vi.spyOn(gateApi, "cardIntents").mockResolvedValue({
       items: [
         {
@@ -1048,37 +1138,8 @@ describe("the payment gate's rules page", () => {
     });
     signedIn();
     showAccount("cards");
-    const modal = await press("Link Stripe");
-    const button = within(modal).getByRole("button", { name: "Link Stripe" }) as HTMLButtonElement;
-    expect(button.disabled).toBe(true);
-    // The steps say where each value comes from, with the addresses to paste.
-    expect(within(modal).getByText(/\/stripe\/issuing\/authorization$/)).toBeTruthy();
-    expect(within(modal).getByText(/\/stripe\/issuing\/events$/)).toBeTruthy();
-    expect(
-      within(modal)
-        .getByRole("link", { name: /Open Cardholders in Stripe/ })
-        .getAttribute("href"),
-    ).toBe("https://dashboard.stripe.com/issuing/cardholders");
-    // A live key is refused here, before it goes anywhere.
-    fill(modal, "Restricted key", "rk_live_abcdefghijklmnop");
-    fill(modal, "Cardholder ID", "ich_1234567890");
-    fill(modal, "Signing secret for this address", "whsec_abcdefghijklmnop");
-    fill(modal, "Signing secret for this destination", "whsec_qrstuvwxyzabcdef");
-    expect(button.disabled).toBe(true);
-    expect(within(modal).getByText("Use a test key: it starts with rk_test_.")).toBeTruthy();
-    fill(modal, "Restricted key", "rk_test_abcdefghijklmnop");
-    expect(button.disabled).toBe(false);
-    vi.mocked(gateApi.stripeLink).mockResolvedValue(linked);
-    fireEvent.click(button);
-    expect(await screen.findByText("rk_test_…abcd")).toBeTruthy();
-    expect(link).toHaveBeenCalledWith("sess", ACCOUNT_ID, {
-      secretKey: "rk_test_abcdefghijklmnop",
-      cardholderId: "ich_1234567890",
-      authorizationWebhookSecret: "whsec_abcdefghijklmnop",
-      eventsWebhookSecret: "whsec_qrstuvwxyzabcdef",
-    });
+    expect(await screen.findByText("Cards Bonded issued")).toBeTruthy();
     expect(await screen.findByText("•••• 4242")).toBeTruthy();
-    expect(screen.getByText("paid")).toBeTruthy();
   });
 
   it("asks before unlinking Stripe", async () => {

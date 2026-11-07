@@ -94,6 +94,32 @@ export interface GateConnections {
   keys: { id: string; label: string; lastUsedAt: string | null }[];
   wallets: GateWatchWallet[];
   log: { lastReportedAt: string | null };
+  /** Card programs that ask before each charge. Missing from an API older than card hooks. */
+  cardHooks?: {
+    id: string;
+    provider: GateCardProvider;
+    label: string;
+    lastRequestAt: string | null;
+  }[];
+}
+
+export type GateCardProvider = "stripe" | "lithic" | "marqeta";
+
+/** A card program that asks the gate before each charge. Bonded holds no key for it. */
+export interface GateCardHook {
+  id: string;
+  provider: GateCardProvider;
+  label: string;
+  /** Where the program sends its question, after the API's address. */
+  path: string;
+  /** The start and end of the signing secret (Stripe, Lithic), or null until it's set. */
+  secretHint: string | null;
+  /** Whether it can answer: Marqeta always, Stripe and Lithic once their secret is set. */
+  ready: boolean;
+  /** Marqeta: the username it signs in with. */
+  username: string | null;
+  createdAt: string;
+  lastRequestAt: string | null;
 }
 
 export interface GateVendor {
@@ -256,6 +282,31 @@ export const gateApi = {
     request<GateProof>(
       `${account(id)}/decisions/${encodeURIComponent(decisionId)}/proof`,
       bearer(session),
+    ),
+  /** GET …/card-hooks: the card programs that ask before each charge. */
+  cardHooks: (session: string, id: string) =>
+    request<{ items: GateCardHook[] }>(`${account(id)}/card-hooks`, bearer(session)),
+  /** POST …/card-hooks: a new hook. Marqeta's password comes back this once. */
+  addCardHook: (
+    session: string,
+    id: string,
+    input: { provider: GateCardProvider; label?: string; secret?: string },
+  ) =>
+    request<GateCardHook & { password?: string }>(
+      `${account(id)}/card-hooks`,
+      send(session, "POST", input),
+    ),
+  /** PUT …/card-hooks/:hookId/secret: the signing secret Stripe or Lithic shows. */
+  setCardHookSecret: (session: string, id: string, hookId: string, secret: string) =>
+    request<GateCardHook>(
+      `${account(id)}/card-hooks/${encodeURIComponent(hookId)}/secret`,
+      send(session, "PUT", { secret }),
+    ),
+  /** DELETE …/card-hooks/:hookId: the program's questions stop being answered. */
+  deleteCardHook: (session: string, id: string, hookId: string) =>
+    request<{ deleted: boolean }>(
+      `${account(id)}/card-hooks/${encodeURIComponent(hookId)}`,
+      send(session, "DELETE"),
     ),
   /** GET /gate/watch-chains: the chains a wallet can be watched on. Public. */
   watchChains: () =>
