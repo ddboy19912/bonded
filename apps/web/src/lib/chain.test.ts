@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   agentRows,
+  allLogs,
+  blockRanges,
   claimPayee,
   moduleCoverNote,
   protectedAccounts,
@@ -141,5 +143,56 @@ describe("smart accounts protected by a MandateModule", () => {
       { agentId: 2n, owner, vault },
       { agentId: 1n, owner, protected: { module: module2, account: account2 } },
     ]);
+  });
+});
+
+describe("log ranges", () => {
+  it("keeps every range inside the RPC limit, with no gaps or overlaps", () => {
+    // The request the testnet RPC refused on 2026-11-07: 10,336,780 blocks in one query.
+    expect(blockRanges(139_637_933n, 149_974_712n)).toEqual([
+      { fromBlock: 139_637_933n, toBlock: 149_637_932n },
+      { fromBlock: 149_637_933n, toBlock: 149_974_712n },
+    ]);
+  });
+
+  it("uses one range when the span fits exactly, and handles a single block", () => {
+    expect(blockRanges(1n, 10n, 10n)).toEqual([{ fromBlock: 1n, toBlock: 10n }]);
+    expect(blockRanges(1n, 11n, 10n)).toEqual([
+      { fromBlock: 1n, toBlock: 10n },
+      { fromBlock: 11n, toBlock: 11n },
+    ]);
+    expect(blockRanges(5n, 5n)).toEqual([{ fromBlock: 5n, toBlock: 5n }]);
+  });
+
+  it("has nothing to search when the start is past the tip", () => {
+    expect(blockRanges(6n, 5n)).toEqual([]);
+  });
+
+  it("merges each range's logs oldest first, whichever request finishes first", async () => {
+    const client = { getBlockNumber: async () => 25_000_000n };
+    const logs = await allLogs(
+      client,
+      async ({ fromBlock, toBlock }) => {
+        // The oldest range answers last.
+        if (fromBlock === 0n) await new Promise((r) => setTimeout(r, 5));
+        return [`${fromBlock}-${toBlock}`];
+      },
+      0n,
+    );
+    expect(logs).toEqual(["0-9999999", "10000000-19999999", "20000000-25000000"]);
+  });
+
+  it("fails if any range fails, rather than showing a partial total", async () => {
+    const client = { getBlockNumber: async () => 15_000_000n };
+    await expect(
+      allLogs(
+        client,
+        async ({ fromBlock }) => {
+          if (fromBlock > 0n) throw new Error("rpc down");
+          return ["log"];
+        },
+        0n,
+      ),
+    ).rejects.toThrow("rpc down");
   });
 });

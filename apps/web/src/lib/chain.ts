@@ -48,6 +48,38 @@ export function totalPaid(claims: readonly Parameters<typeof waterfall>[0][]) {
 
 const fromBlock = BigInt(deployment.deployedAtBlock);
 
+/** The most blocks the Robinhood Chain testnet RPC searches in one eth_getLogs request. */
+export const MAX_LOG_RANGE = 10_000_000n;
+
+export interface BlockRange {
+  fromBlock: bigint;
+  toBlock: bigint;
+}
+
+/** Split from..to (both included) into ranges of at most `size` blocks, oldest first. */
+export function blockRanges(from: bigint, to: bigint, size = MAX_LOG_RANGE): BlockRange[] {
+  const ranges: BlockRange[] = [];
+  for (let start = from; start <= to; start += size) {
+    const end = start + size - 1n;
+    ranges.push({ fromBlock: start, toBlock: end < to ? end : to });
+  }
+  return ranges;
+}
+
+/**
+ * Logs from the deployment to the chain tip, oldest first. The RPC refuses a request over
+ * MAX_LOG_RANGE blocks, and the chain has outgrown that, so `fetchRange` runs once per range.
+ */
+export async function allLogs<T>(
+  client: { getBlockNumber(): Promise<bigint> },
+  fetchRange: (range: BlockRange) => Promise<readonly T[]>,
+  from = fromBlock,
+): Promise<T[]> {
+  const tip = await client.getBlockNumber();
+  const pages = await Promise.all(blockRanges(from, tip).map(fetchRange));
+  return pages.flat();
+}
+
 /**
  * A smart account (a Safe, or another ERC-7579 account) protected by a MandateModule. The module
  * holds the breach log and the policy; the account holds the funds and receives the payouts.
@@ -100,13 +132,14 @@ export function useModules() {
     enabled: Boolean(client),
     queryFn: async (): Promise<ProtectedAccount[]> => {
       if (!deployment.moduleFactory) return [];
-      const logs = await client!.getLogs({
-        address: deployment.moduleFactory,
-        event: getAbiItem({ abi: mandateModuleFactoryAbi, name: "ModuleCreated" }),
-        fromBlock,
-        toBlock: "latest",
-        strict: true,
-      });
+      const logs = await allLogs(client!, (range) =>
+        client!.getLogs({
+          address: deployment.moduleFactory,
+          event: getAbiItem({ abi: mandateModuleFactoryAbi, name: "ModuleCreated" }),
+          ...range,
+          strict: true,
+        }),
+      );
       return protectedAccounts(logs.map((l) => l.args));
     },
   });
@@ -120,13 +153,14 @@ export function useClaims() {
     enabled: Boolean(client),
     refetchInterval: 15_000,
     queryFn: async (): Promise<PaidClaim[]> => {
-      const logs = await client!.getLogs({
-        address: deployment.claimsEngine,
-        event: getAbiItem({ abi: claimsEngineAbi, name: "ClaimPaid" }),
-        fromBlock,
-        toBlock: "latest",
-        strict: true,
-      });
+      const logs = await allLogs(client!, (range) =>
+        client!.getLogs({
+          address: deployment.claimsEngine,
+          event: getAbiItem({ abi: claimsEngineAbi, name: "ClaimPaid" }),
+          ...range,
+          strict: true,
+        }),
+      );
       return logs
         .map((l) => ({ ...l.args, txHash: l.transactionHash, blockNumber: l.blockNumber }))
         .reverse();
@@ -141,13 +175,14 @@ export function useVaults() {
     queryKey: ["vaults"],
     enabled: Boolean(client),
     queryFn: async () => {
-      const logs = await client!.getLogs({
-        address: deployment.factory,
-        event: getAbiItem({ abi: mandateVaultFactoryAbi, name: "VaultCreated" }),
-        fromBlock,
-        toBlock: "latest",
-        strict: true,
-      });
+      const logs = await allLogs(client!, (range) =>
+        client!.getLogs({
+          address: deployment.factory,
+          event: getAbiItem({ abi: mandateVaultFactoryAbi, name: "VaultCreated" }),
+          ...range,
+          strict: true,
+        }),
+      );
       return logs.map((l) => ({ ...l.args, txHash: l.transactionHash })).reverse();
     },
   });
@@ -160,14 +195,15 @@ export function usePolicies(vault: Address) {
     queryKey: ["policies", vault],
     enabled: Boolean(client),
     queryFn: async () => {
-      const logs = await client!.getLogs({
-        address: deployment.coverManager,
-        event: getAbiItem({ abi: coverManagerAbi, name: "CoverBound" }),
-        args: { vault },
-        fromBlock,
-        toBlock: "latest",
-        strict: true,
-      });
+      const logs = await allLogs(client!, (range) =>
+        client!.getLogs({
+          address: deployment.coverManager,
+          event: getAbiItem({ abi: coverManagerAbi, name: "CoverBound" }),
+          args: { vault },
+          ...range,
+          strict: true,
+        }),
+      );
       return logs.map((l) => l.args.policyId).reverse();
     },
   });
@@ -244,28 +280,31 @@ export function useAgents() {
     refetchInterval: 30_000,
     queryFn: async (): Promise<AgentRow[]> => {
       const [registered, vaults, modules] = await Promise.all([
-        client!.getLogs({
-          address: deployment.registry,
-          event: getAbiItem({ abi: bondedRegistryAbi, name: "Registered" }),
-          fromBlock,
-          toBlock: "latest",
-          strict: true,
-        }),
-        client!.getLogs({
-          address: deployment.factory,
-          event: getAbiItem({ abi: mandateVaultFactoryAbi, name: "VaultCreated" }),
-          fromBlock,
-          toBlock: "latest",
-          strict: true,
-        }),
+        allLogs(client!, (range) =>
+          client!.getLogs({
+            address: deployment.registry,
+            event: getAbiItem({ abi: bondedRegistryAbi, name: "Registered" }),
+            ...range,
+            strict: true,
+          }),
+        ),
+        allLogs(client!, (range) =>
+          client!.getLogs({
+            address: deployment.factory,
+            event: getAbiItem({ abi: mandateVaultFactoryAbi, name: "VaultCreated" }),
+            ...range,
+            strict: true,
+          }),
+        ),
         deployment.moduleFactory
-          ? client!.getLogs({
-              address: deployment.moduleFactory,
-              event: getAbiItem({ abi: mandateModuleFactoryAbi, name: "ModuleCreated" }),
-              fromBlock,
-              toBlock: "latest",
-              strict: true,
-            })
+          ? allLogs(client!, (range) =>
+              client!.getLogs({
+                address: deployment.moduleFactory,
+                event: getAbiItem({ abi: mandateModuleFactoryAbi, name: "ModuleCreated" }),
+                ...range,
+                strict: true,
+              }),
+            )
           : Promise.resolve([]),
       ]);
       // One read per agent; the local demo chain has no multicall contract to batch them.
