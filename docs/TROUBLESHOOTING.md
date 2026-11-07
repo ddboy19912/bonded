@@ -692,6 +692,24 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 **What to do:** Your agent paid without asking the gate. Find out why, and keep the pay function out of the agent's reach. If this wallet isn't meant to check first, turn off "Expect a check first" on the Watch tab.
 
+### gate-watched-future
+
+**Message:** A payment in the log is dated in the future.
+
+**What to do:** Send `paidAt` as the time the payment was made, with its time zone, and check the clock of whatever sends the log.
+
+### gate-watch-chain-unavailable
+
+**Message:** Bonded can't read that chain on this service.
+
+**What to do:** Pick a chain listed on the Watch tab. The service reads only the chains it has an RPC URL for (GATE_WATCH_RPC_URLS).
+
+### gate-watch-wallet-limit
+
+**Message:** This gate account has as many wallets as it may, or already has this one.
+
+**What to do:** Stop watching a wallet you no longer need, or check the wallet isn't already on the list.
+
 ### gate-stripe-not-linked
 
 **Message:** This gate account isn't linked to Stripe.
