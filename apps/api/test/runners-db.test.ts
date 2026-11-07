@@ -144,7 +144,7 @@ describe("migration 0029 on gate rows stored before it", () => {
       for (const [vendor, account] of [
         ["sol", solana],
         ["bank", iban],
-      ])
+      ] as const)
         await q(
           "INSERT INTO gate_vendors(account_id,id,name,account,account_norm) VALUES($1,$2,$2,$3,$4)",
           [id, vendor, account, account.replace(/\s+/g, "").toUpperCase()],
