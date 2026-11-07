@@ -1078,9 +1078,10 @@ describe("the payment gate's rules page", () => {
     });
     signedIn();
     showAccount("cards");
-    // A hook without its secret says so once: the button that adds it.
+    // A hook without its secret: a note under its name, and the button that adds it.
     expect(await screen.findByRole("button", { name: "Add secret" })).toBeTruthy();
-    expect(screen.queryByText(/Needs its secret|No signing secret/)).toBeNull();
+    expect(screen.getByText("No signing secret yet")).toBeTruthy();
+    expect(screen.queryByText("Needs its secret")).toBeNull();
     expect(screen.getByRole("button", { name: "Remove" })).toBeTruthy();
     const modal = await press("Connect a provider");
     fireEvent.click(within(modal).getByRole("combobox", { name: "Card provider" }));

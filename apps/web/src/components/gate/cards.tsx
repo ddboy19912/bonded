@@ -213,6 +213,7 @@ function details(h: GateCardHook): ReactNode {
         {proof}
       </span>,
     );
+  if (!h.ready) parts.push("No signing secret yet");
   if (!parts.length) return null;
   return parts.map((p, i) => (
     <span key={i}>
@@ -285,7 +286,6 @@ function Hooks({ account, session }: { account: GateAccount; session: string }) 
               </div>
               <div className="ml-auto flex items-center gap-1">
                 <Status hook={h} />
-                <CopyButton text={hookUrl(h)} variant="icon" label="Copy address" />
                 {!h.ready && (
                   <ModalButton
                     label="Add secret"
@@ -303,6 +303,7 @@ function Hooks({ account, session }: { account: GateAccount; session: string }) 
                     )}
                   </ModalButton>
                 )}
+                <CopyButton text={hookUrl(h)} variant="icon" label="Copy address" />
                 <ConfirmButton
                   label={<XIcon aria-hidden />}
                   ariaLabel="Remove"
