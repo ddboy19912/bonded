@@ -12,12 +12,12 @@ import {
   gateInputHash,
   normalAccount,
   normalReference,
-  PAYMENT_RULE_WORDS,
+  GATE_RULE_WORDS,
   signGateReceipt,
   utcDay,
   type GateInput,
   type GateReceipt,
-  type PaymentRule,
+  type GateRule,
 } from "@bondedhq/shared";
 import type { Hex } from "viem";
 import { Refused } from "./refused.js";
@@ -62,7 +62,18 @@ export interface GateCheckOutcome {
 const sha256 = (value: string) => `0x${createHash("sha256").update(value).digest("hex")}`;
 
 export async function runGateCheck(
-  deps: { db: Database; store: GateStore; receiptKey: Hex; now: () => number },
+  deps: {
+    db: Database;
+    store: GateStore;
+    receiptKey: Hex;
+    now: () => number;
+    /**
+     * With the account's invoice matching off, an invoice check runs as kind "payment". Only
+     * `POST /payments/check` sets this, and it is never read from a request: an agent's key can't
+     * choose the weaker check, and the payout route stays on invoices.
+     */
+    followInvoiceSetting?: boolean;
+  },
   auth: { accountId: string; keyId: string },
   request: GateCheckRequest,
   /**
@@ -91,6 +102,11 @@ export async function runGateCheck(
     await store.keyUsed(c, auth.keyId);
 
     const accountNorm = normalAccount(request.account);
+    const general =
+      request.kind === "invoice" &&
+      deps.followInvoiceSetting === true &&
+      account.invoiceMatching === false;
+    const kind = general ? "payment" : request.kind;
     let input: GateInput;
     let reference = "";
     let amountCents = 0;
@@ -112,7 +128,7 @@ export async function runGateCheck(
       reference = request.reference.trim();
       amountCents = request.amountCents;
       const state = await store.checkState(c, account.id, {
-        kind: request.kind,
+        kind: general ? "payment" : request.kind,
         accountNorm,
         referenceNorm: normalReference(reference),
         day,
@@ -124,8 +140,18 @@ export async function runGateCheck(
         payees: state.payees,
         payments: state.payments,
       };
-      input =
-        request.kind === "invoice"
+      input = general
+        ? {
+            kind: "payment",
+            ...common,
+            limits: { ...common.limits, maxPaymentsPerHour: account.maxPaymentsPerHour },
+            paymentsLastHour: await store.paymentsSince(
+              c,
+              account.id,
+              new Date(at.getTime() - 3_600_000),
+            ),
+          }
+        : request.kind === "invoice"
           ? { kind: "invoice", ...common, invoices: state.invoices }
           : { kind: "refund", ...common, refunds: state.refunds };
     }
@@ -147,7 +173,7 @@ export async function runGateCheck(
     const receipt: GateReceipt = {
       decisionId: id,
       gateAccountId: account.id,
-      kind: request.kind,
+      kind,
       decision,
       result,
       mode: account.mode,
@@ -169,7 +195,7 @@ export async function runGateCheck(
       keyId: auth.keyId,
       requestId: requestId ?? null,
       requestHash: requestId ? requestHash : null,
-      kind: request.kind,
+      kind,
       decision,
       result,
       mode: account.mode,
@@ -241,7 +267,7 @@ const dollars = (cents: number) =>
 
 /** Each broken rule in plain words. */
 export const ruleWords = (rules: readonly string[]) =>
-  rules.map((rule) => ({ rule, words: PAYMENT_RULE_WORDS[rule as PaymentRule] ?? rule }));
+  rules.map((rule) => ({ rule, words: GATE_RULE_WORDS[rule as GateRule] ?? rule }));
 
 /** The decision in one sentence, for the agent and the log. */
 export function decisionMessage(d: GateDecisionRecord): string {

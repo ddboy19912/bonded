@@ -10,11 +10,13 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { canonicalJson } from "./canonical.js";
 import {
+  checkGeneralPayment,
   checkInvoicePayment,
   checkRefundPayment,
   isVerifiedChange,
   normalAccount,
   PAYMENT_RULES,
+  type GateRule,
   type KnownPayee,
   type PaymentRule,
 } from "./payment-mandate.js";
@@ -30,11 +32,11 @@ export const GATE_MODES = ["monitor", "enforce"] as const;
 export type GateMode = (typeof GATE_MODES)[number];
 
 /**
- * What a check is about: a supplier invoice, a customer refund, a vendor's bank change, or a
+ * What a check is about: a supplier invoice, a customer refund, a vendor's bank change, a
  * supplier invoice paid with a gate card (Stripe Issuing asking before a charge, or a card
- * transaction that settled).
+ * transaction that settled), or a payment on an account with invoice matching off.
  */
-export const GATE_CHECK_KINDS = ["invoice", "refund", "bank_change", "card"] as const;
+export const GATE_CHECK_KINDS = ["invoice", "refund", "bank_change", "card", "payment"] as const;
 export type GateCheckKind = (typeof GATE_CHECK_KINDS)[number];
 
 /** The rule verdict: no rule broken, a rule broken, or not checked (the account is frozen). */
@@ -52,6 +54,10 @@ export interface GateMandate {
   maxPaymentCents: number;
   maxDailyCents: number;
   freezeOnBreach: boolean;
+  /** False when payments have no invoices to match. Left out when on. */
+  invoiceMatching?: false;
+  /** Payments allowed in any hour, with invoice matching off. Left out when there's no limit. */
+  maxPaymentsPerHour?: number;
   vendors: {
     id: string;
     name: string;
@@ -63,7 +69,8 @@ export interface GateMandate {
 
 /**
  * The mandate's hash: SHA-256 of its canonical JSON, vendors in id order, accounts normalised. A
- * vendor without a card merchant hashes as it did before card merchants existed.
+ * vendor without a card merchant hashes as it did before card merchants existed, and a mandate
+ * with invoice matching on and no hourly limit as it did before those settings existed.
  */
 export function gateMandateHash(mandate: GateMandate): Hex {
   const vendors = mandate.vendors
@@ -130,7 +137,21 @@ export type GateInput =
       account: string;
       tickets: { vendorId: string; account: string }[];
     }
-  | GateCardInput;
+  | GateCardInput
+  | GatePaymentInput;
+
+/** A payment on an account with invoice matching off (`checkGeneralPayment`). */
+export interface GatePaymentInput {
+  kind: "payment";
+  day: string;
+  limits: Limits & { maxPaymentsPerHour: number | null };
+  /** `reference` is empty when the payment has none. */
+  attempt: Attempt;
+  payees: KnownPayee[];
+  payments: GatePaidPayment[];
+  /** Payments made in the hour before this check. */
+  paymentsLastHour: number;
+}
 
 /**
  * A charge on a gate card, checked as an invoice payment whose payee is the card merchant
@@ -207,7 +228,7 @@ export type GateVerdict =
   | {
       ok: true;
       /** Every rule broken, most serious first; empty when the check passes. */
-      rules: PaymentRule[];
+      rules: GateRule[];
       /** The vendor whose verified account is paid, or null. */
       vendorId: string | null;
       /** If it went out: paid to an account outside the vendor master (`paymentLoss`). */
@@ -246,6 +267,7 @@ export function evaluateGateInput(input: GateInput): GateVerdict {
     };
   }
   if (input.kind === "card") return evaluateCardInput(input);
+  if (input.kind === "payment") return evaluatePaymentInput(input);
   const limits = {
     maxPaymentUsd: usd(input.limits.maxPaymentCents),
     maxDailyUsd: usd(input.limits.maxDailyCents),
@@ -339,6 +361,35 @@ function evaluateCardInput(input: GateCardInput): GateVerdict {
   };
 }
 
+function evaluatePaymentInput(input: GatePaymentInput): GateVerdict {
+  const check = checkGeneralPayment(
+    {
+      limits: {
+        maxPaymentUsd: usd(input.limits.maxPaymentCents),
+        maxDailyUsd: usd(input.limits.maxDailyCents),
+        maxPaymentsPerHour: input.limits.maxPaymentsPerHour,
+      },
+      payees: input.payees,
+      payments: paid(input.payments),
+      paymentsLastHour: input.paymentsLastHour,
+      day: input.day,
+    },
+    {
+      account: input.attempt.account,
+      amountUsd: usd(input.attempt.amountCents),
+      invoiceReference: input.attempt.reference,
+    },
+  );
+  if (!check.ok) return check;
+  return {
+    ok: true,
+    rules: check.rules,
+    vendorId: check.vendorId,
+    lossCents: cents(check.lossUsd),
+    overpaidCents: cents(check.overpaidUsd),
+  };
+}
+
 /** A decision as Bonded signs it. */
 export interface GateReceipt {
   decisionId: string;
@@ -348,12 +399,12 @@ export interface GateReceipt {
   result: GateResult;
   mode: GateMode;
   /** The rules broken, most serious first. */
-  rules: PaymentRule[];
+  rules: GateRule[];
   /** Zero for a bank change. */
   amountCents: number;
-  /** The account paid (or, for a bank change, the new account), without spaces, upper case. */
+  /** The account paid (or, for a bank change, the new account), as `normalAccount` gives it. */
   payee: string;
-  /** The invoice or refund reference as given, trimmed; empty for a bank change. */
+  /** The reference as given, trimmed; empty for a bank change or a payment without one. */
   reference: string;
   /** `gateInputHash` of the check's input. */
   inputHash: Hex;

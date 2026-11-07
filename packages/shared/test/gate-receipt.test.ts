@@ -200,6 +200,21 @@ describe("gate mandates", () => {
       }),
     ).not.toBe(hash);
   });
+  it("hash a mandate with default settings as before the settings existed", () => {
+    const before = {
+      mode: "enforce" as const,
+      maxPaymentCents: 500_000,
+      maxDailyCents: 800_000,
+      freezeOnBreach: false,
+      vendors: [],
+    };
+    expect(gateMandateHash(before)).toBe(sha256(stringToBytes(canonicalJson(before))));
+    expect(gateMandateHash({ ...before, invoiceMatching: false })).not.toBe(
+      gateMandateHash(before),
+    );
+    expect(gateMandateHash({ ...before, maxPaymentsPerHour: 5 })).not.toBe(gateMandateHash(before));
+  });
+
   it("hash a vendor without a card merchant as before card merchants, and with one differently", () => {
     // The hash as it was first defined: vendors without a cardMerchant field at all.
     const before = sha256(
@@ -231,6 +246,42 @@ describe("gate mandates", () => {
         ],
       }),
     ).not.toBe(gateMandateHash(withMerchant));
+  });
+});
+
+describe("payment inputs (invoice matching off)", () => {
+  const paymentInput: GateInput = {
+    kind: "payment",
+    day: "2026-11-02",
+    limits: { maxPaymentCents: 500_000, maxDailyCents: 800_000, maxPaymentsPerHour: 2 },
+    attempt: { account: "GB29NWBK60161331926819", amountCents: 1_999, reference: "" },
+    payees: [{ vendorId: "nimbus", account: "GB29NWBK60161331926819" }],
+    payments: [],
+    paymentsLastHour: 0,
+  };
+
+  it("run the same rules for anyone holding the input", () => {
+    expect(evaluateGateInput(paymentInput)).toEqual({
+      ok: true,
+      rules: [],
+      vendorId: "nimbus",
+      lossCents: 0,
+      overpaidCents: 0,
+    });
+    expect(evaluateGateInput({ ...paymentInput, paymentsLastHour: 2 })).toMatchObject({
+      rules: ["over_hourly_limit"],
+    });
+    expect(evaluateGateInput({ ...paymentInput, payees: [] })).toMatchObject({
+      rules: ["unknown_payee"],
+      vendorId: null,
+      lossCents: 1_999,
+    });
+  });
+
+  it("commit to the hour's count in the hash", () => {
+    expect(gateInputHash(paymentInput)).not.toBe(
+      gateInputHash({ ...paymentInput, paymentsLastHour: 1 }),
+    );
   });
 });
 

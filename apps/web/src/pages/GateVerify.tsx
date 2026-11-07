@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PAYMENT_RULE_WORDS, type PaymentRule } from "@bondedhq/shared";
+import { GATE_RULE_WORDS, type GateRule } from "@bondedhq/shared";
 import {
   dollars,
   decisionFromReceipt,
@@ -127,7 +127,7 @@ function Checked({ shared, result }: { shared: SharedReceipt; result: Verificati
         {r.rules.length > 0 && (
           <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-soft">
             {r.rules.map((rule) => (
-              <li key={rule}>{PAYMENT_RULE_WORDS[rule as PaymentRule] ?? rule}</li>
+              <li key={rule}>{GATE_RULE_WORDS[rule as GateRule] ?? rule}</li>
             ))}
           </ul>
         )}

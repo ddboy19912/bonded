@@ -182,6 +182,11 @@ The six rules: pay only a vendor's account on file or one a verified ticket cove
 limits (`over_payment_cap`, `over_daily_cap`; days are UTC). `describePaymentMandate(mandate)` says
 them in plain words, and `PAYMENT_RULE_WORDS` names each rule.
 
+Payments with no invoices: set `invoiceMatching: false` on the mandate, and optionally
+`maxPaymentsPerHour`. A payment then needs a listed vendor and to stay within the limits, and
+`invoiceReference` is optional. `GATE_RULE_WORDS` adds the hourly rule's words. The hosted gate
+reads the same setting from your account, so your code doesn't change.
+
 - **Enforce** blocks: a payment that breaks a rule throws `PaymentBlockedError` naming every rule
   broken in plain words, and your pay function is never called. **Monitor** calls it anyway and
   reports the breach to `onBreach`. A bank change no ticket covers that Monitor lets through is
