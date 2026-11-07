@@ -98,7 +98,7 @@ function Detail({ account, session }: { account: Account; session: string }) {
             <TabsTrigger
               key={t.id}
               value={t.id}
-              className="h-10 flex-none rounded-none border-0 px-0.5 after:bottom-0!"
+              className="h-10 flex-none rounded-md border-0 px-0.5 after:bottom-0! focus-visible:border-0 focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
             >
               {/* With no invoices to match, these are payees rather than vendors. */}
               {t.id === "vendors" && !account.invoiceMatching ? "Payees" : t.label}
