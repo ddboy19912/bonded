@@ -17,6 +17,20 @@ Set it up at [bondedhq.xyz/gate](https://www.bondedhq.xyz/gate). Check any recei
 | `over_payment_cap` | it's over the per-payment limit |
 | `over_daily_cap` | it's over the daily limit (days are UTC) |
 
+### Payments with no invoices
+
+Not every agent pays invoices. Turn **Match invoices** off on the Rules tab and a payment no longer needs one. It then needs a vendor on your list, and it must stay within your limits. A reference is optional, and a reference is paid to an account only once. Refunds and bank changes work as before.
+
+You can also set a limit on payments per hour:
+
+| Rule | A payment breaks it when |
+|---|---|
+| `over_hourly_limit` | it's over the number of payments allowed in any hour |
+
+This rule is the gate's own. The Arena doesn't rate agents against it, and a rating doesn't depend on this setting.
+
+Accounts can be bank accounts or wallet addresses. A base58 address such as a Solana wallet keeps its case when compared; everything else compares in any case, without spaces.
+
 ## Set it up
 
 You need a wallet to sign in. Signing costs no gas.

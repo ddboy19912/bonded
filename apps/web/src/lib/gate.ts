@@ -5,7 +5,7 @@ import {
   gateInputHash,
   gateReceiptDay,
   gateReceiptHash,
-  PAYMENT_RULE_WORDS,
+  GATE_RULE_WORDS,
   verifyGateLogProof,
   verifyGateReceipt,
   type GateInput,
@@ -37,6 +37,10 @@ export interface GateAccount {
   maxPaymentUsd: number;
   maxDailyUsd: number;
   freezeOnBreach: boolean;
+  /** Off when payments have no invoices to match. */
+  invoiceMatching: boolean;
+  /** Payments allowed in any hour, with invoice matching off; null for no limit. */
+  maxPaymentsPerHour: number | null;
   frozen: boolean;
   frozenAt: string | null;
   mandate: { version: number; hash: string };
@@ -63,7 +67,7 @@ export interface GateMandateVersion {
 
 export interface GateDecision {
   id: string;
-  kind: "invoice" | "refund" | "bank_change";
+  kind: "invoice" | "refund" | "bank_change" | "payment";
   decision: "pass" | "breach" | "frozen";
   result: "allowed" | "blocked" | "refused";
   message: string;
@@ -157,6 +161,9 @@ export interface NewGateAccount {
   freezeOnBreach: boolean;
 }
 
+export type GateAccountPatch = Partial<NewGateAccount> &
+  Partial<Pick<GateAccount, "invoiceMatching" | "maxPaymentsPerHour">>;
+
 const bearer = (session: string) => ({ headers: { Authorization: `Bearer ${session}` } });
 /** A write as the signed-in owner, with a JSON body. */
 const send = (session: string, method: "POST" | "PUT" | "DELETE", body?: unknown) => ({
@@ -201,7 +208,7 @@ export const gateApi = {
       send(session, "POST", input),
     ),
   /** PUT /gate/accounts/:id: change the mode, limits or freeze setting. */
-  updateAccount: (session: string, id: string, patch: Partial<NewGateAccount>) =>
+  updateAccount: (session: string, id: string, patch: GateAccountPatch) =>
     request<GateAccount>(account(id), send(session, "PUT", patch)),
   /** POST …/unfreeze: lift a freeze, so checks run again. */
   unfreeze: (session: string, id: string) =>
@@ -545,7 +552,7 @@ export function decisionFromReceipt(shared: SharedReceipt): GateDecision {
     result: r.result,
     message: "",
     rules,
-    reasons: r.rules.map((rule) => ({ rule, words: PAYMENT_RULE_WORDS[rule] ?? rule })),
+    reasons: r.rules.map((rule) => ({ rule, words: GATE_RULE_WORDS[rule] ?? rule })),
     amountUsd: r.amountCents / 100,
     payee: r.payee,
     vendorId: null,

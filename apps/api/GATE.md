@@ -77,7 +77,14 @@ day had.
 { "kind": "bank_change", "vendorId": "nimbus", "account": "...", "ticket": "FIN-1" }
 ```
 
-`kind` defaults to `invoice`. `requestId` is optional: the same id again returns the first decision
+`kind` defaults to `invoice`. With `invoiceMatching` off on the account (`PUT /gate/accounts/:id`),
+an invoice check runs as kind `payment`: no invoice is needed, `invoiceReference` is optional, and
+the rules are the payee list, the limits, `maxPaymentsPerHour` (`over_hourly_limit`) and a
+reference paid to an account only once. The answer and the receipt say `payment`, and the input
+carries `paymentsLastHour`. Only the owner can change the setting; an agent's key can't ask for
+`payment`. Refunds, bank changes, the card route and the payout route ignore the setting.
+
+`requestId` is optional: the same id again returns the first decision
 unchanged (`replayed: true`), so a retry after a timeout can't trip the duplicate rule; the same id
 with a different check is refused (409).
 

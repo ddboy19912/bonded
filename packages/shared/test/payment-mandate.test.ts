@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  checkGeneralPayment,
   checkInvoicePayment,
   checkRefundPayment,
   describePaymentMandate,
+  GATE_RULE_WORDS,
+  GATE_RULES,
   isVerifiedChange,
+  normalAccount,
   PAYMENT_RULE_WORDS,
   PAYMENT_RULES,
   type PaidPayment,
@@ -158,6 +162,148 @@ describe("payment mandate: refunds and bank changes", () => {
     expect(
       isVerifiedChange(tickets, { vendorId: "other", account: "GB11NWBK00000000000001" }),
     ).toBe(false);
+  });
+});
+
+describe("payment mandate: payments with no invoice", () => {
+  const general = (
+    attempt: { account: string; amountUsd: number; invoiceReference?: string },
+    options: { payments?: PaidPayment[]; paymentsLastHour?: number; perHour?: number | null } = {},
+  ) =>
+    checkGeneralPayment(
+      {
+        limits: { ...limits, maxPaymentsPerHour: options.perHour ?? null },
+        payees,
+        payments: options.payments ?? [],
+        paymentsLastHour: options.paymentsLastHour ?? 0,
+        day: DAY,
+      },
+      attempt,
+    );
+  const paid = (invoiceReference: string, amountUsd = 100): PaidPayment => ({
+    account: REAL,
+    vendorId: "nimbus",
+    amountUsd,
+    invoiceReference,
+    day: DAY,
+  });
+
+  it("allows a listed payee with no invoice and no reference", () => {
+    expect(general({ account: REAL, amountUsd: 612.4 })).toMatchObject({
+      ok: true,
+      rules: [],
+      reference: "",
+      vendorId: "nimbus",
+      lossUsd: 0,
+      overpaidUsd: 0,
+    });
+  });
+
+  it("calls an account off the list an unknown payee, and all of it lost", () => {
+    expect(general({ account: FRAUD, amountUsd: 80 })).toMatchObject({
+      rules: ["unknown_payee"],
+      vendorId: null,
+      lossUsd: 80,
+      overpaidUsd: 0,
+    });
+  });
+
+  it("holds the per-payment and daily limits, at a cost of nothing to a listed payee", () => {
+    expect(general({ account: REAL, amountUsd: 5_000.01 })).toMatchObject({
+      rules: ["over_payment_cap"],
+      lossUsd: 0,
+      overpaidUsd: 0,
+    });
+    expect(
+      general({ account: REAL, amountUsd: 100 }, { payments: [paid("A", 7_950)] }),
+    ).toMatchObject({ rules: ["over_daily_cap"] });
+  });
+
+  it("pays a reference to an account once, and never treats no reference as a duplicate", () => {
+    const payments = [paid("NIM-1")];
+    expect(
+      general({ account: REAL, amountUsd: 100, invoiceReference: " nim-1 " }, { payments }),
+    ).toMatchObject({ rules: ["duplicate_payment"], overpaidUsd: 100 });
+    expect(general({ account: REAL, amountUsd: 100 }, { payments: [paid("")] })).toMatchObject({
+      rules: [],
+    });
+    const refunded: PaidPayment = { ...paid("NIM-1"), kind: "refund" };
+    expect(
+      general(
+        { account: REAL, amountUsd: 100, invoiceReference: "NIM-1" },
+        { payments: [refunded] },
+      ),
+    ).toMatchObject({ rules: [] });
+  });
+
+  it("allows the hourly limit's last payment and breaks the one after it", () => {
+    const attempt = { account: REAL, amountUsd: 10 };
+    expect(general(attempt, { perHour: 3, paymentsLastHour: 2 })).toMatchObject({ rules: [] });
+    expect(general(attempt, { perHour: 3, paymentsLastHour: 3 })).toMatchObject({
+      rules: ["over_hourly_limit"],
+      lossUsd: 0,
+    });
+    expect(general(attempt, { perHour: null, paymentsLastHour: 9_999 })).toMatchObject({
+      rules: [],
+    });
+  });
+
+  it("refuses a bad amount as the invoice check does", () => {
+    expect(general({ account: REAL, amountUsd: 0 })).toEqual({
+      ok: false,
+      error: "amountUsd must be a positive number",
+    });
+  });
+
+  it("keeps the gate's own rules out of the list the Arena and the Index read", () => {
+    expect(PAYMENT_RULES).not.toContain("over_hourly_limit");
+    expect(GATE_RULES).toEqual([...PAYMENT_RULES, "over_hourly_limit"]);
+    for (const rule of GATE_RULES) expect(GATE_RULE_WORDS[rule]).toBeTruthy();
+  });
+
+  it("still needs a reference on the invoice check", () => {
+    expect(
+      checkInvoicePayment(
+        { limits, payees, invoices, payments: [], day: DAY },
+        {
+          account: REAL,
+          amountUsd: 612.4,
+        },
+      ),
+    ).toEqual({ ok: false, error: "invoiceReference is required" });
+  });
+});
+
+describe("payment mandate: account matching", () => {
+  const WALLET = "7EcDhSYGxXyscszYEp35KHN8vvw3svAuLKTzXwCFLtV";
+
+  it("compares bank accounts and 0x addresses in any case, without spaces", () => {
+    expect(normalAccount("gb29 nwbk 6016 1331 9268 19")).toBe("GB29NWBK60161331926819");
+    expect(normalAccount("0xAbC0000000000000000000000000000000000dEf")).toBe(
+      normalAccount("0xabc0000000000000000000000000000000000DEF"),
+    );
+  });
+
+  it("keeps the case of a mixed-case base58 address, so a case variant is another account", () => {
+    expect(normalAccount(WALLET)).toBe(WALLET);
+    expect(normalAccount(WALLET.toLowerCase())).not.toBe(normalAccount(WALLET));
+    expect(normalAccount(`${WALLET.slice(0, 8)} ${WALLET.slice(8)}`)).toBe(WALLET);
+  });
+
+  it("matches a wallet payee exactly", () => {
+    const context = {
+      limits: { ...limits, maxPaymentsPerHour: null },
+      payees: [{ vendorId: "shop", account: WALLET }],
+      payments: [],
+      paymentsLastHour: 0,
+      day: DAY,
+    };
+    expect(checkGeneralPayment(context, { account: WALLET, amountUsd: 5 })).toMatchObject({
+      rules: [],
+    });
+    expect(
+      checkGeneralPayment(context, { account: WALLET.toUpperCase(), amountUsd: 5 }),
+    ).toMatchObject({ rules: ["unknown_payee"] });
   });
 });
 

@@ -124,7 +124,7 @@ export function TextField({
   type?: "text" | "password";
   /** Monospace for addresses, amounts and keys; off for prose. */
   mono?: boolean;
-  inputMode?: "text" | "decimal";
+  inputMode?: "text" | "decimal" | "numeric";
   suffix?: ReactNode;
 }) {
   const id = useId();

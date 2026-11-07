@@ -308,6 +308,70 @@ describe("PaymentGuard in Monitor mode", () => {
   });
 });
 
+describe("PaymentGuard with invoice matching off", () => {
+  const general = (overrides: Partial<PaymentMandate> = {}) =>
+    mandate({ invoiceMatching: false, ...overrides });
+
+  it("pays a listed vendor with no invoice and no reference", async () => {
+    const { guard, breaches } = setup({ mandate: general(), invoices: [] });
+    const pay = vi.fn(async () => "paid");
+    await expect(guard.pay({ account: ACME, amountUsd: 42 }, pay)).resolves.toBe("paid");
+    expect(pay).toHaveBeenCalledOnce();
+    expect(breaches).toEqual([]);
+  });
+
+  it("takes a payment with no reference through guardPayments", async () => {
+    const { guard } = setup({ mandate: general(), invoices: [] });
+    const bank = vi.fn(async (p: { account: string; amountUsd: number }) => p.amountUsd);
+    await expect(guardPayments(bank, { guard })({ account: ACME, amountUsd: 42 })).resolves.toBe(
+      42,
+    );
+  });
+
+  it("blocks an account off the list", async () => {
+    const { guard } = setup({ mandate: general() });
+    const pay = vi.fn();
+    await expect(guard.pay({ account: FRAUD, amountUsd: 42 }, pay)).rejects.toBeInstanceOf(
+      PaymentBlockedError,
+    );
+    expect(pay).not.toHaveBeenCalled();
+  });
+
+  it("holds the hourly limit, and an hour later allows more", async () => {
+    let now = new Date("2026-11-02T10:00:00Z");
+    const { guard, breaches } = setup({
+      mandate: general({ maxPaymentsPerHour: 2 }),
+      now: () => now,
+    });
+    const pay = async () => "paid";
+    await guard.pay({ account: ACME, amountUsd: 1 }, pay);
+    await guard.pay({ account: ACME, amountUsd: 1 }, pay);
+    await expect(guard.pay({ account: ACME, amountUsd: 1 }, pay)).rejects.toBeInstanceOf(
+      PaymentBlockedError,
+    );
+    expect(breaches[0]).toMatchObject({
+      rules: ["over_hourly_limit"],
+      reasons: ["too many payments in the last hour"],
+    });
+    now = new Date("2026-11-02T11:00:01Z");
+    await expect(guard.pay({ account: ACME, amountUsd: 1 }, pay)).resolves.toBe("paid");
+  });
+
+  it("still needs an approved refund for a refund", async () => {
+    const { guard } = setup({ mandate: general() });
+    await expect(
+      guard.pay({ account: CUSTOMER, amountUsd: 1, invoiceReference: "RF-404" }, vi.fn(), "refund"),
+    ).rejects.toBeInstanceOf(PaymentBlockedError);
+  });
+
+  it("keeps matching invoices unless the mandate says otherwise", async () => {
+    const { guard } = setup();
+    await expect(guard.pay({ account: ACME, amountUsd: 42 }, vi.fn())).rejects.toMatchObject({
+      code: "INVALID_PAYMENT",
+    });
+  });
+});
+
 describe("freeze on breach", () => {
   it("Enforce: a blocked breach freezes the guard; every later payment is refused until unfrozen", async () => {
     const { guard, pay, bank } = setup({ mandate: mandate({ freezeOnBreach: true }) });
