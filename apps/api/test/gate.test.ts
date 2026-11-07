@@ -1,6 +1,7 @@
+import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { ANVIL_KEYS } from "@bonded/arena";
+import { ANVIL_KEYS, type safeRequest } from "@bonded/arena";
 import { connectChain } from "@bonded/keeper";
 import { GateStore } from "@bonded/db";
 import {
@@ -16,6 +17,8 @@ import {
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { createApi } from "../src/index.js";
 import type { GateOptions } from "../src/gate.js";
+import { Notifier } from "../src/notifications.js";
+import { SecretBox, webhookContext } from "../src/secrets.js";
 import { postgres } from "./postgres.js";
 
 const TOKEN = "gate-test-token-at-least-24-characters";
@@ -590,6 +593,110 @@ describe("the payment gate: checks", () => {
     expect(limited.status).toBe(429);
     expect(limited.body.code).toBe("gate-check-limit");
     await tight.close();
+  });
+});
+
+describe("the payment gate: alerts", () => {
+  /** An API whose alerts go to a fake webhook and email, for the owner's real settings. */
+  const alertsApi = async () => {
+    const who = owner.address.toLowerCase();
+    const secrets = new SecretBox(randomBytes(32));
+    await pg.db.saveNotificationSettings(who, {
+      webhookUrl: "https://alerts.example.com/hook",
+      webhookSecretCiphertext: secrets.encrypt("bonded_wh_secret", webhookContext(who)),
+      email: "owner@example.com",
+    });
+    const hooks: Body[] = [];
+    const emails: { to: string; subject: string }[] = [];
+    const notifier = new Notifier(pg.db, {
+      secrets,
+      email: { send: async (m) => void emails.push(m) },
+      post: (async (_url: URL, request: { body: string }) => {
+        hooks.push(JSON.parse(request.body));
+        return { status: 200 };
+      }) as unknown as typeof safeRequest,
+    });
+    const a = makeApi({ receiptKey: RECEIPT_KEY, maxAccountsPerOwner: 100, notifier });
+    /** The types the inbox, the webhook and the email each got, for one gate account. */
+    const reached = async (id: string) => {
+      await notifier.idle();
+      const inbox = await pg.db.pool.query(
+        "SELECT type FROM owner_notifications WHERE payload->>'gateAccountId'=$1 ORDER BY type",
+        [id],
+      );
+      const mine = hooks.filter((h) => h.gateAccountId === id);
+      return {
+        inbox: inbox.rows.map((r) => r.type as string),
+        webhook: mine.map((h) => h.type as string).sort(),
+        emails: emails.filter((e) => e.to === "owner@example.com").length,
+      };
+    };
+    return { a, reached, emails };
+  };
+  afterAll(async () => {
+    await pg.db.saveNotificationSettings(owner.address.toLowerCase(), {
+      webhookUrl: null,
+      webhookSecretCiphertext: null,
+      email: null,
+    });
+  });
+
+  it("sends a blocked payment to the inbox, the webhook and the email", async () => {
+    const { a, reached, emails } = await alertsApi();
+    const { id, key } = await gateAccount();
+    await check(key, { account: FRAUD, amountUsd: 612.4, invoiceReference: "NIM-1" }, a);
+    expect(await reached(id)).toEqual({
+      inbox: ["payment_blocked"],
+      webhook: ["payment_blocked"],
+      emails: 1,
+    });
+    expect(emails[0]?.subject).toMatch(/^Bonded: The payment gate blocked a payment/);
+  });
+
+  it("sends a breach Monitor mode let through to all three", async () => {
+    const { a, reached } = await alertsApi();
+    const { id, key } = await gateAccount({ mode: "monitor" });
+    await check(key, { account: FRAUD, amountUsd: 612.4, invoiceReference: "NIM-1" }, a);
+    expect(await reached(id)).toEqual({
+      inbox: ["payment_breach"],
+      webhook: ["payment_breach"],
+      emails: 1,
+    });
+  });
+
+  it("sends a refund breach and an unverified bank change to all three", async () => {
+    const { a, reached } = await alertsApi();
+    const { id, key } = await gateAccount();
+    await check(
+      key,
+      { kind: "refund", account: FRAUD, amountUsd: 5, invoiceReference: "R-404" },
+      a,
+    );
+    await check(key, { kind: "bank_change", vendorId: "nimbus", account: FRAUD }, a);
+    expect(await reached(id)).toEqual({
+      inbox: ["payment_blocked", "payment_blocked"],
+      webhook: ["payment_blocked", "payment_blocked"],
+      emails: 2,
+    });
+  });
+
+  it("sends a freeze to all three, and nothing for checks refused while frozen", async () => {
+    const { a, reached } = await alertsApi();
+    const { id, key } = await gateAccount({ freezeOnBreach: true });
+    await check(key, { account: FRAUD, amountUsd: 612.4, invoiceReference: "NIM-1" }, a);
+    await check(key, { account: NIMBUS, amountUsd: 612.4, invoiceReference: "NIM-1" }, a);
+    expect(await reached(id)).toEqual({
+      inbox: ["gate_frozen", "payment_blocked"],
+      webhook: ["gate_frozen", "payment_blocked"],
+      emails: 2,
+    });
+  });
+
+  it("sends nothing for a payment that broke no rule", async () => {
+    const { a, reached } = await alertsApi();
+    const { id, key } = await gateAccount();
+    await check(key, { account: NIMBUS, amountUsd: 612.4, invoiceReference: "NIM-1" }, a);
+    expect(await reached(id)).toEqual({ inbox: [], webhook: [], emails: 0 });
   });
 });
 

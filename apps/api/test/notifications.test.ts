@@ -6,12 +6,19 @@ import { connectChain, type ServiceChain } from "@bonded/keeper";
 import { selfServeMessage } from "@bondedhq/shared";
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { createApi } from "../src/index.js";
-import { SecretBox, agentUrlContext, secretBoxFromEnv, verifySignature } from "../src/secrets.js";
+import {
+  SecretBox,
+  agentUrlContext,
+  secretBoxFromEnv,
+  verifySignature,
+  webhookContext,
+} from "../src/secrets.js";
 import {
   Notifier,
   ResendEmail,
   emailFromEnv,
   emailText,
+  gateNotification,
   type EmailSender,
   type RatingNotification,
 } from "../src/notifications.js";
@@ -359,6 +366,41 @@ describe("notifications", () => {
     quiet.notify(privateKeyToAccount(generatePrivateKey()).address, note(await ratingRow()));
     quiet.notify(null, note(await ratingRow()));
     await quiet.idle();
+  });
+
+  it("reach a Slack webhook as a message, with nothing from the agent read as a link", async () => {
+    const who = privateKeyToAccount(generatePrivateKey()).address.toLowerCase();
+    const secrets = new SecretBox(randomBytes(32));
+    await pg.db.saveNotificationSettings(who, {
+      webhookUrl: "https://hooks.slack.com/services/T000/B000/token",
+      webhookSecretCiphertext: secrets.encrypt("bonded_wh_secret", webhookContext(who)),
+    });
+    const sent: { url: string; body: string }[] = [];
+    const notifier = new Notifier(pg.db, {
+      secrets,
+      post: (async (url: URL, request: { body: string }) => {
+        sent.push({ url: url.href, body: request.body });
+        return { status: 200 };
+      }) as unknown as typeof safeRequest,
+    });
+    notifier.notify(
+      who,
+      gateNotification({
+        type: "payment_blocked",
+        dedupeKey: "gate:slack-test:payment_blocked",
+        gateAccountId: "acct-1",
+        message: "The payment gate blocked a payment to <!channel> & <https://evil.test|Approve>.",
+        at: "2026-11-07T10:00:00Z",
+      }),
+    );
+    await notifier.idle();
+    expect(sent).toHaveLength(1);
+    const message = JSON.parse(sent[0]!.body);
+    expect(Object.keys(message).sort()).toEqual(["text", "unfurl_links", "unfurl_media"]);
+    expect(message.text).toContain("Bonded: The payment gate blocked a payment");
+    expect(message.text).toContain("&lt;!channel&gt; &amp; &lt;https://evil.test|Approve&gt;");
+    expect(message.text).not.toMatch(/[<>]/);
+    expect(message).toMatchObject({ unfurl_links: false, unfurl_media: false });
   });
 
   it("come from the rating worker when an owner's rating ends, without blocking it", async () => {
