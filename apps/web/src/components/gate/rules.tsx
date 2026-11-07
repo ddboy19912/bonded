@@ -140,14 +140,18 @@ function RulesForm({
   const maxDailyUsd = parseUsd(perDay);
   const noHourLimit = perHour.trim() === "";
   const maxPaymentsPerHour = noHourLimit ? null : parseCount(perHour);
-  const hourOk = noHourLimit || maxPaymentsPerHour !== null;
+  // The hourly field shows only with invoice matching off: while it's hidden, what's typed in it
+  // neither blocks saving nor gets saved.
+  const hourOk = matching || noHourLimit || maxPaymentsPerHour !== null;
   const patch = {
     ...(mode !== account.mode ? { mode } : {}),
     ...(maxPaymentUsd !== null && maxPaymentUsd !== account.maxPaymentUsd ? { maxPaymentUsd } : {}),
     ...(maxDailyUsd !== null && maxDailyUsd !== account.maxDailyUsd ? { maxDailyUsd } : {}),
     ...(freeze !== account.freezeOnBreach ? { freezeOnBreach: freeze } : {}),
     ...(matching !== account.invoiceMatching ? { invoiceMatching: matching } : {}),
-    ...(hourOk && maxPaymentsPerHour !== account.maxPaymentsPerHour ? { maxPaymentsPerHour } : {}),
+    ...(!matching && hourOk && maxPaymentsPerHour !== account.maxPaymentsPerHour
+      ? { maxPaymentsPerHour }
+      : {}),
   };
   const ready =
     maxPaymentUsd !== null && maxDailyUsd !== null && hourOk && Object.keys(patch).length > 0;
