@@ -11,6 +11,7 @@ import {
 } from "@bondedhq/shared";
 import { deployment, faucets, isLocal, networkName } from "../config";
 import { api, type BountiesQuery, type BountyRecord } from "../lib/api";
+import { allLogs } from "../lib/chain";
 import { checkSpec, commitmentIfReady, isSalt, newSalt, specUriOf } from "../lib/bounty";
 import { short, usd } from "../lib/format";
 import { useSend } from "../components/wallet";
@@ -52,14 +53,15 @@ function useCommitId(commitment: Hex | undefined) {
     queryKey: ["bounty-commit", commitment, address],
     enabled: Boolean(client && commitment && address),
     queryFn: async () => {
-      const logs = await client!.getLogs({
-        address: deployment.bountyBoard,
-        event: getAbiItem({ abi: bountyBoardAbi, name: "Committed" }),
-        args: { hunter: address },
-        fromBlock: BigInt(deployment.deployedAtBlock),
-        toBlock: "latest",
-        strict: true,
-      });
+      const logs = await allLogs(client!, (range) =>
+        client!.getLogs({
+          address: deployment.bountyBoard,
+          event: getAbiItem({ abi: bountyBoardAbi, name: "Committed" }),
+          args: { hunter: address },
+          ...range,
+          strict: true,
+        }),
+      );
       const mine = logs.filter((l) => l.args.commitment === commitment);
       return mine.at(-1)?.args.id;
     },
