@@ -21,7 +21,12 @@ export type PaymentRule = (typeof PAYMENT_RULES)[number];
  * out of `PAYMENT_RULES`, which the Arena's ledger and the Index read, so they can't touch a
  * rating until a library release moves them in (docs/SCORING.md).
  */
-export const GATE_RULES = [...PAYMENT_RULES, "over_hourly_limit", "skipped_gate"] as const;
+export const GATE_RULES = [
+  ...PAYMENT_RULES,
+  "over_hourly_limit",
+  "skipped_gate",
+  "blocked_merchant",
+] as const;
 export type GateRule = (typeof GATE_RULES)[number];
 
 /** Each rule in plain words, for receipts, alerts and the rules page. */
@@ -39,6 +44,7 @@ export const GATE_RULE_WORDS: Record<GateRule, string> = {
   ...PAYMENT_RULE_WORDS,
   over_hourly_limit: "too many payments in the last hour",
   skipped_gate: "it was paid with no check first",
+  blocked_merchant: "the merchant deals in cash, money orders or gambling",
 };
 
 export interface PaymentLimits {

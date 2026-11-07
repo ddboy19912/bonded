@@ -8,6 +8,7 @@ import { ago, short } from "../../lib/format";
 import { gateApi, type GateAccount } from "../../lib/gate";
 import { CodeBlock } from "../code-block";
 import { Loading, Unavailable, linkClass } from "../ui";
+import { CARD_PROVIDERS } from "./cards";
 import { ChainLogo, ModalButton } from "./common";
 
 const SDK = `import { guardPayments, paymentGate } from "@bondedhq/sdk";
@@ -103,7 +104,7 @@ function Connections({ account, session }: { account: GateAccount; session: stri
   if (connections.error)
     return <Unavailable error={connections.error} onRetry={() => void connections.refetch()} />;
   if (!connections.data) return <Loading what="your connections" />;
-  const { keys, wallets, log } = connections.data;
+  const { keys, wallets, log, cardHooks = [] } = connections.data;
   const rows: Row[] = [
     ...keys.map((k) => ({
       id: k.id,
@@ -123,6 +124,15 @@ function Connections({ account, session }: { account: GateAccount; session: stri
       never: "Not read yet",
       stale: "Behind",
       chainId: w.chainId,
+    })),
+    ...cardHooks.map((h) => ({
+      id: h.id,
+      name: h.label || CARD_PROVIDERS[h.provider],
+      what: `Cards · ${CARD_PROVIDERS[h.provider]}`,
+      at: h.lastRequestAt,
+      liveFor: DAY,
+      never: "Not asked yet",
+      stale: "Quiet",
     })),
     ...(log.lastReportedAt
       ? [
@@ -195,6 +205,22 @@ export function Connect({ account, session }: { account: GateAccount; session: s
               API keys
             </Link>{" "}
             tab. Keep it on your server, and keep your own pay function away from the agent.
+          </p>
+        </section>
+        <section aria-label="Cards" className="flex flex-col gap-3">
+          <div>
+            <h2 className="text-sm font-semibold">Cards</h2>
+            <p className="mt-1 text-sm text-muted">
+              Your card provider asks Bonded before each charge, and a charge that breaks a rule is
+              declined. Bonded holds no key.
+            </p>
+          </div>
+          <p className="text-sm">
+            Connect Stripe Issuing, Lithic or Marqeta on the{" "}
+            <Link className={linkClass} to="?tab=cards">
+              Cards
+            </Link>{" "}
+            tab.
           </p>
         </section>
         <section aria-label="Watch" className="flex flex-col gap-3">

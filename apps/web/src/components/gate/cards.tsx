@@ -1,14 +1,9 @@
 import { useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { CreditCardIcon, PlusIcon } from "lucide-react";
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "@/components/shadcn/empty";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/shadcn/empty";
 import {
   Table,
   TableBody,
@@ -19,69 +14,128 @@ import {
 } from "@/components/shadcn/table";
 import { apiUrl } from "../../config";
 import { ago } from "../../lib/format";
-import { dollars, gateApi, type GateAccount } from "../../lib/gate";
+import {
+  dollars,
+  gateApi,
+  type GateAccount,
+  type GateCardHook,
+  type GateCardProvider,
+} from "../../lib/gate";
 import { CopyButton } from "../copy";
 import { ModalActions } from "../responsive-modal";
-import { ErrorText, Loading, Unavailable, linkClass } from "../ui";
-import { ConfirmButton, ModalButton, Submit, TabBar, TextField, useAction } from "./common";
+import { ErrorText, Loading, Unavailable } from "../ui";
+import {
+  ConfirmButton,
+  Facts,
+  ModalButton,
+  SelectField,
+  Submit,
+  TextField,
+  useAction,
+} from "./common";
 
-const STRIPE_KEY = /^(rk|sk)_test_[A-Za-z0-9]{10,247}$/;
-const CARDHOLDER = /^ich_[A-Za-z0-9]{1,64}$/;
 const WEBHOOK_SECRET = /^whsec_[A-Za-z0-9+/=_-]{10,200}$/;
 
-/** Where each step happens in the Stripe dashboard. */
-const STRIPE = {
-  cardholders: "https://dashboard.stripe.com/issuing/cardholders",
-  settings: "https://dashboard.stripe.com/account/issuing",
-  webhooks: "https://dashboard.stripe.com/webhooks",
-  keys: "https://dashboard.stripe.com/apikeys",
+export const CARD_PROVIDERS: Record<GateCardProvider, string> = {
+  stripe: "Stripe Issuing",
+  lithic: "Lithic",
+  marqeta: "Marqeta",
 };
 
-/** What's wrong with a value typed so far, or null while it's empty or right. */
-const wrong = (value: string, shape: RegExp, message: string) =>
-  value.trim() && !shape.test(value.trim()) ? message : null;
+/** Where each program's setting lives, in plain words. */
+const WHERE: Record<GateCardProvider, ReactNode> = {
+  stripe: (
+    <>
+      In Stripe, add a webhook endpoint at this address for the{" "}
+      <span className="font-mono text-xs">issuing_authorization.request</span> event, then pick it
+      for real-time authorizations in your Issuing settings. If Stripe asks what to do when there's
+      no answer, choose <b>decline</b>.
+    </>
+  ),
+  lithic: (
+    <>
+      Enroll this address for Auth Stream Access in Lithic. Your ASA signing secret is on your
+      Lithic account page.
+    </>
+  ),
+  marqeta: (
+    <>
+      Set this address as your program's Gateway JIT Funding address in Marqeta, with the username
+      and password below.
+    </>
+  ),
+};
 
-/** One numbered step of the setup, with a link to where it happens. */
-function Step({
-  n,
-  title,
-  link,
-  linkText,
-  children,
+const hookUrl = (hook: GateCardHook) => `${apiUrl}${hook.path}`;
+const hooksKey = (session: string, id: string) => ["gate-card-hooks", session, id];
+
+/** Something to paste into the card program, with a button to copy it. */
+function Copyable({ label, text, secret }: { label: string; text: string; secret?: boolean }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-xs text-muted">{label}</span>
+      <span className="flex items-center gap-2 rounded-xl border border-line bg-white/[0.03] px-3 py-2">
+        <span className="min-w-0 flex-1 font-mono text-xs break-all text-ink">{text}</span>
+        <CopyButton text={text} variant="icon" label={`Copy ${label.toLowerCase()}`} />
+      </span>
+      {secret && <span className="text-xs text-warn">Shown once. Save it in Marqeta now.</span>}
+    </div>
+  );
+}
+
+/** Paste the signing secret Stripe or Lithic shows. */
+function SecretForm({
+  account,
+  session,
+  hook,
+  close,
 }: {
-  n: number;
-  title: string;
-  link: string;
-  linkText: string;
-  children: ReactNode;
+  account: GateAccount;
+  session: string;
+  hook: GateCardHook;
+  close: () => void;
 }) {
+  const queryClient = useQueryClient();
+  const action = useAction();
+  const [secret, setSecret] = useState("");
+  const valid = WEBHOOK_SECRET.test(secret.trim());
   return (
-    <section className="flex flex-col gap-3 border-t border-line pt-4 text-sm text-soft first:border-t-0 first:pt-0">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h3 className="font-semibold text-ink">
-          {n}. {title}
-        </h3>
-        <a className={linkClass} href={link} target="_blank" rel="noreferrer">
-          Open {linkText} in Stripe <span aria-hidden>↗</span>
-        </a>
-      </div>
-      {children}
-    </section>
+    <form
+      className="flex flex-col gap-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!valid) return;
+        void action.run(async () => {
+          await gateApi.setCardHookSecret(session, account.id, hook.id, secret.trim());
+          await queryClient.invalidateQueries({ queryKey: hooksKey(session, account.id) });
+          close();
+        });
+      }}
+    >
+      <TextField
+        label="Signing secret"
+        type="password"
+        value={secret}
+        onChange={setSecret}
+        placeholder="whsec_..."
+        hint="Stored encrypted. It can only check requests: it can't make or fund a card."
+        error={secret.trim() && !valid ? "A signing secret starts with whsec_." : null}
+      />
+      <ErrorText error={action.error} />
+      <ModalActions>
+        <Button variant="ghost" type="button" onClick={close}>
+          Later
+        </Button>
+        <Submit busy={action.busy} disabled={!valid}>
+          Save secret
+        </Submit>
+      </ModalActions>
+    </form>
   );
 }
 
-/** An address to paste into Stripe, with a button to copy it. */
-function Address({ url }: { url: string }) {
-  return (
-    <span className="flex items-center gap-2 rounded-xl border border-line bg-white/[0.03] px-3 py-2">
-      <span className="min-w-0 flex-1 font-mono text-xs break-all text-ink">{url}</span>
-      <CopyButton text={url} variant="icon" />
-    </span>
-  );
-}
-
-/** The key goes straight to the API, which stores it encrypted; only a hint of it ever comes back. */
-function StripeForm({
+/** Pick the program, get the address, then finish in the program. */
+function HookForm({
   account,
   session,
   close,
@@ -92,127 +146,187 @@ function StripeForm({
 }) {
   const queryClient = useQueryClient();
   const action = useAction();
-  const [key, setKey] = useState("");
-  const [cardholder, setCardholder] = useState("");
-  const [authorization, setAuthorization] = useState("");
-  const [events, setEvents] = useState("");
-  const ready =
-    STRIPE_KEY.test(key.trim()) &&
-    CARDHOLDER.test(cardholder.trim()) &&
-    WEBHOOK_SECRET.test(authorization.trim()) &&
-    WEBHOOK_SECRET.test(events.trim());
+  const [provider, setProvider] = useState<GateCardProvider>("stripe");
+  const [label, setLabel] = useState("");
+  const [made, setMade] = useState<(GateCardHook & { password?: string }) | null>(null);
+  if (made)
+    return (
+      <div className="flex flex-col gap-4 text-sm text-soft">
+        <p>{WHERE[made.provider]}</p>
+        <Copyable label="Address" text={hookUrl(made)} />
+        {made.provider === "marqeta" ? (
+          <>
+            <Copyable label="Username" text={made.username ?? ""} />
+            {made.password && <Copyable label="Password" text={made.password} secret />}
+            <ModalActions>
+              <Button type="button" onClick={close}>
+                Done
+              </Button>
+            </ModalActions>
+          </>
+        ) : (
+          <SecretForm account={account} session={session} hook={made} close={close} />
+        )}
+      </div>
+    );
   return (
     <form
       className="flex flex-col gap-4"
       onSubmit={(e) => {
         e.preventDefault();
-        if (!ready) return;
         void action.run(async () => {
-          await gateApi.linkStripe(session, account.id, {
-            secretKey: key.trim(),
-            cardholderId: cardholder.trim(),
-            authorizationWebhookSecret: authorization.trim(),
-            eventsWebhookSecret: events.trim(),
+          const hook = await gateApi.addCardHook(session, account.id, {
+            provider,
+            ...(label.trim() ? { label: label.trim() } : {}),
           });
-          // Closed first: the refresh swaps this form's branch of the tab for the linked view.
-          close();
-          await queryClient.invalidateQueries({
-            queryKey: ["gate-stripe", session, account.id],
-          });
+          await queryClient.invalidateQueries({ queryKey: hooksKey(session, account.id) });
+          setMade(hook);
         });
       }}
     >
-      <Step n={1} title="Make a cardholder" link={STRIPE.cardholders} linkText="Cardholders">
-        <p>
-          Create a cardholder: it's who your agent's cards are issued to. Add some test funds to
-          your Issuing balance too, or Stripe declines every charge.
-        </p>
-        <TextField
-          label="Cardholder ID"
-          value={cardholder}
-          onChange={setCardholder}
-          placeholder="ich_..."
-          error={wrong(cardholder, CARDHOLDER, "A cardholder ID starts with ich_.")}
-          hint="Shown on the cardholder's page."
-        />
-      </Step>
-      <Step
-        n={2}
-        title="Let Stripe ask the gate before each charge"
-        link={STRIPE.settings}
-        linkText="Issuing settings"
-      >
-        <p>
-          Under real-time authorizations, paste this address. If it asks what to do on a timeout,
-          choose <b>decline</b>.
-        </p>
-        <Address url={`${apiUrl}/stripe/issuing/authorization`} />
-        <TextField
-          label="Signing secret for this address"
-          type="password"
-          value={authorization}
-          onChange={setAuthorization}
-          placeholder="whsec_..."
-          error={wrong(authorization, WEBHOOK_SECRET, "A signing secret starts with whsec_.")}
-          hint="Stripe shows it once the address is saved."
-        />
-      </Step>
-      <Step
-        n={3}
-        title="Tell the gate how each charge ended"
-        link={STRIPE.webhooks}
-        linkText="Webhooks"
-      >
-        <p>Add a destination with this address, and tick these three events:</p>
-        <Address url={`${apiUrl}/stripe/issuing/events`} />
-        <ul className="list-disc pl-5 font-mono text-xs">
-          <li>issuing_authorization.created</li>
-          <li>issuing_authorization.updated</li>
-          <li>issuing_transaction.created</li>
-        </ul>
-        <TextField
-          label="Signing secret for this destination"
-          type="password"
-          value={events}
-          onChange={setEvents}
-          placeholder="whsec_..."
-          error={wrong(events, WEBHOOK_SECRET, "A signing secret starts with whsec_.")}
-          hint="On the destination's page, after you save it."
-        />
-      </Step>
-      <Step n={4} title="Give the gate a key" link={STRIPE.keys} linkText="API keys">
-        <p>
-          Create a restricted key. Set Issuing Cards to <b>Write</b>, and Issuing Authorizations and
-          Issuing Transactions to <b>Read</b>. Leave the rest as None.
-        </p>
-        <TextField
-          label="Restricted key"
-          type="password"
-          value={key}
-          onChange={setKey}
-          placeholder="rk_test_..."
-          error={wrong(key, STRIPE_KEY, "Use a test key: it starts with rk_test_.")}
-          hint="Stored encrypted and never shown again."
-        />
-      </Step>
+      <SelectField
+        label="Card provider"
+        value={provider}
+        onChange={(v) => setProvider(v as GateCardProvider)}
+        options={(Object.keys(CARD_PROVIDERS) as GateCardProvider[]).map((p) => ({
+          value: p,
+          label: CARD_PROVIDERS[p],
+        }))}
+      />
+      <TextField label="Label" value={label} onChange={setLabel} mono={false} />
       <ErrorText error={action.error} />
       <ModalActions>
-        <Button variant="ghost" type="button" onClick={close}>
-          Cancel
-        </Button>
-        <Submit busy={action.busy} disabled={!ready}>
-          Link Stripe
-        </Submit>
+        <Submit busy={action.busy}>Get the address</Submit>
       </ModalActions>
     </form>
   );
 }
 
+/** The line under a provider's name: the provider when it has a label, and how it signs. */
+function details(h: GateCardHook): ReactNode {
+  const parts: ReactNode[] = [];
+  if (h.label) parts.push(CARD_PROVIDERS[h.provider]);
+  const proof = h.secretHint ?? h.username;
+  if (proof)
+    parts.push(
+      <span key="proof" className="font-mono">
+        {proof}
+      </span>,
+    );
+  if (!parts.length) return "No signing secret yet";
+  return parts.map((p, i) => (
+    <span key={i}>
+      {i > 0 && " · "}
+      {p}
+    </span>
+  ));
+}
+
+function Status({ hook }: { hook: GateCardHook }) {
+  if (!hook.ready) return <Badge variant="warn">Needs its secret</Badge>;
+  return (
+    <span className="text-xs text-muted">
+      {hook.lastRequestAt ? `Asked ${ago(hook.lastRequestAt)}` : "Not asked yet"}
+    </span>
+  );
+}
+
+function Hooks({ account, session }: { account: GateAccount; session: string }) {
+  const queryClient = useQueryClient();
+  const hooks = useQuery({
+    queryKey: hooksKey(session, account.id),
+    queryFn: () => gateApi.cardHooks(session, account.id),
+    retry: false,
+    refetchInterval: 30_000,
+  });
+  if (hooks.error) return <Unavailable error={hooks.error} onRetry={() => void hooks.refetch()} />;
+  if (!hooks.data) return <Loading what="your card providers" />;
+  return (
+    <section aria-label="Card providers" className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold">Card providers</h2>
+        <ModalButton
+          label={
+            <>
+              <PlusIcon aria-hidden />
+              Connect a provider
+            </>
+          }
+          size="sm"
+          title="Connect a card provider"
+          description="Your provider asks Bonded before each charge. Bonded holds no key: it can't make, fund or charge a card."
+        >
+          {(close) => <HookForm account={account} session={session} close={close} />}
+        </ModalButton>
+      </div>
+      {hooks.data.items.length === 0 ? (
+        <Empty className="border border-dashed border-line">
+          <EmptyHeader>
+            <EmptyTitle>No card provider yet</EmptyTitle>
+            <EmptyDescription>
+              Connect Stripe Issuing, Lithic or Marqeta, and each charge on your agent's cards is
+              checked against your rules.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      ) : (
+        <ul className="divide-y divide-line rounded-xl border border-line">
+          {hooks.data.items.map((h) => (
+            <li key={h.id} className="flex flex-wrap items-center gap-3 p-3">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.05] text-muted">
+                <CreditCardIcon className="size-4" aria-hidden />
+              </span>
+              <div className="min-w-[10rem] flex-1">
+                <p className="truncate text-sm font-medium">
+                  {h.label || CARD_PROVIDERS[h.provider]}
+                </p>
+                <p className="truncate text-xs text-muted">{details(h)}</p>
+              </div>
+              <div className="ml-auto flex items-center gap-1">
+                <span className="mr-2">
+                  <Status hook={h} />
+                </span>
+                <CopyButton text={hookUrl(h)} variant="icon" label="Copy address" />
+                {!h.ready && (
+                  <ModalButton
+                    label="Add secret"
+                    size="sm"
+                    variant="outline"
+                    title={`Add ${CARD_PROVIDERS[h.provider]}'s signing secret`}
+                    description={WHERE[h.provider]}
+                  >
+                    {(close) => (
+                      <div className="flex flex-col gap-4">
+                        <Copyable label="Address" text={hookUrl(h)} />
+                        <SecretForm account={account} session={session} hook={h} close={close} />
+                      </div>
+                    )}
+                  </ModalButton>
+                )}
+                <ConfirmButton
+                  label="Remove"
+                  title="Remove this card provider?"
+                  description="Bonded stops answering it. Set your provider to decline when there's no answer, or remove the address there too."
+                  confirm="Remove"
+                  act={() => gateApi.deleteCardHook(session, account.id, h.id)}
+                  then={() =>
+                    queryClient.invalidateQueries({ queryKey: hooksKey(session, account.id) })
+                  }
+                />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 /**
- * The card route: link a Stripe test account and the gate decides every charge on the single-use
- * cards it issues (apps/api/GATE.md, "The card route").
+ * The older card route, where Bonded held a Stripe key and issued the cards. It's no longer set
+ * up from here; an account already linked still sees its cards.
  */
-export function Cards({ account, session }: { account: GateAccount; session: string }) {
+function OlderStripeCards({ account, session }: { account: GateAccount; session: string }) {
   const queryClient = useQueryClient();
   const link = useQuery({
     queryKey: ["gate-stripe", session, account.id],
@@ -224,69 +338,31 @@ export function Cards({ account, session }: { account: GateAccount; session: str
     queryFn: () => gateApi.cardIntents(session, account.id),
     enabled: Boolean(link.data),
     retry: false,
-    refetchInterval: 10_000,
   });
-  if (link.error) return <Unavailable error={link.error} onRetry={() => void link.refetch()} />;
-  if (link.data === undefined) return <Loading what="the Stripe link" />;
-  if (!link.data)
-    return (
-      <Empty>
-        <EmptyHeader>
-          <EmptyTitle>Pay approved invoices by card</EmptyTitle>
-          <EmptyDescription>
-            Stripe asks the gate before every charge, so a charge that breaks a rule is declined.
-            Test mode only.
-          </EmptyDescription>
-        </EmptyHeader>
-        <EmptyContent>
-          <ModalButton
-            label="Link Stripe"
-            title="Link Stripe"
-            description="About ten minutes in your Stripe dashboard. Turn on Test mode there first: no real money moves."
-            wide
-          >
-            {(close) => <StripeForm account={account} session={session} close={close} />}
-          </ModalButton>
-        </EmptyContent>
-      </Empty>
-    );
+  if (!link.data) return null;
   return (
-    <div className="flex flex-col gap-5">
-      <TabBar
-        action={
-          <ConfirmButton
-            label="Unlink"
-            variant="outline"
-            title="Unlink Stripe?"
-            description="No new cards. Cards already issued are still checked on every charge."
-            confirm="Unlink Stripe"
-            act={() => gateApi.unlinkStripe(session, account.id)}
-            then={() =>
-              queryClient.invalidateQueries({ queryKey: ["gate-stripe", session, account.id] })
-            }
-          />
-        }
-      >
-        <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
-          <Badge variant="safe">Linked</Badge>
-          <span className="font-mono text-[0.92em] text-ink">{link.data.keyHint}</span>
-          <span className="font-mono text-[0.92em]">{link.data.cardholderId}</span>
-        </span>
-      </TabBar>
-      {cards.error ? (
-        <Unavailable error={cards.error} onRetry={() => void cards.refetch()} />
-      ) : !cards.data ? (
-        <Loading what="cards" />
-      ) : !cards.data.items.length ? (
-        <Empty>
-          <EmptyHeader>
-            <EmptyTitle>No cards yet</EmptyTitle>
-            <EmptyDescription>
-              Your agent asks for one with POST /payments/intents.
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      ) : (
+    <section aria-label="Cards Bonded issued" className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold">Cards Bonded issued</h2>
+          <p className="text-xs text-muted">
+            The older Stripe route, with your Stripe key ({link.data.keyHint}). Unlink it to stop
+            Bonded holding the key.
+          </p>
+        </div>
+        <ConfirmButton
+          label="Unlink"
+          variant="outline"
+          title="Unlink Stripe?"
+          description="Bonded drops the key. Cards already issued are still checked on every charge."
+          confirm="Unlink Stripe"
+          act={() => gateApi.unlinkStripe(session, account.id)}
+          then={() =>
+            queryClient.invalidateQueries({ queryKey: ["gate-stripe", session, account.id] })
+          }
+        />
+      </div>
+      {cards.data && cards.data.items.length > 0 && (
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
@@ -294,7 +370,6 @@ export function Cards({ account, session }: { account: GateAccount; session: str
               <TableHead className="text-right">Amount</TableHead>
               <TableHead className="hidden sm:table-cell">Card</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="hidden sm:table-cell">Issued</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -308,14 +383,40 @@ export function Cards({ account, session }: { account: GateAccount; session: str
                 <TableCell>
                   <Badge variant="secondary">{c.status}</Badge>
                 </TableCell>
-                <TableCell className="hidden text-muted sm:table-cell">
-                  {ago(c.createdAt)}
-                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       )}
+    </section>
+  );
+}
+
+/**
+ * Cards your agent pays with, in your own card program. The program asks Bonded before each
+ * charge and Bonded answers approve or decline (apps/api/GATE.md, "Card hooks").
+ */
+export function Cards({ account, session }: { account: GateAccount; session: string }) {
+  return (
+    <div className="grid gap-x-16 gap-y-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="flex min-w-0 flex-col gap-8">
+        <Hooks account={account} session={session} />
+        <OlderStripeCards account={account} session={session} />
+      </div>
+      <aside aria-label="About cards" className="flex flex-col gap-4">
+        <Facts
+          items={[
+            ["Can stop a charge", "Yes, it declines it"],
+            ["Needs a key", "No"],
+            ["Works with", "Stripe, Lithic, Marqeta"],
+            ["Merchants allowed", "Vendors on file"],
+          ]}
+        />
+        <p className="text-xs text-muted">
+          Give a vendor its card merchant ID on the Vendors tab. Cash, money orders and gambling are
+          always declined.
+        </p>
+      </aside>
     </div>
   );
 }

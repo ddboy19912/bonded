@@ -79,8 +79,8 @@ Payments read after they were made (`gate-watch.ts`). Nothing here can stop a pa
 | `GET /gate/watch-chains` | Public. The chains a wallet can be watched on |
 | `GET /gate/accounts/:id/wallets`, `POST`, `DELETE .../:walletId` | Owner. Public addresses to read |
 | `GET /gate/accounts/:id/watched` | Owner. The payments seen, newest first |
-| `GET /gate/accounts/:id/activity` | Owner. Checks and watched payments in one list, newest first by when each happened. `?source=check,card,log,wallet`, `?result=allowed,blocked,refused,seen`, `?rule=`, `?limit=`, `?before=<next>`. Each item has `entry`, `source`, `rail`, and `decision` or `watched` |
-| `GET /gate/accounts/:id/connections` | Owner. Live API keys, wallets and the payment log, with when each last reported |
+| `GET /gate/accounts/:id/activity` | Owner. Checks and watched payments in one list, newest first by when each happened. `?source=check,card,log,wallet` (`card` covers card hooks too; their `rail` names the provider, as "Lithic card"), `?result=allowed,blocked,refused,seen`, `?rule=`, `?limit=`, `?before=<next>`. Each item has `entry`, `source`, `rail`, and `decision` or `watched` |
+| `GET /gate/accounts/:id/connections` | Owner. Live API keys, wallets, the payment log and card hooks, with when each last reported |
 
 A payment that matches an allowed check (same payee and amount, up to 24 hours before it) is recorded with `checkedFirst: true`, and its rules aren't run: the check judged it. Each check matches one payment. Any other runs through `checkWatchedPayment`, is added to `gate_payments` with source `watch`, and alerts the owner (`payment_seen_breach`, or `gate_skipped` with `expectChecks` on and no other rule broken). `freezeOnBreach` applies. Watched payments get no receipt and aren't in the decision log or its log roots.
 
@@ -189,7 +189,59 @@ verifyGateLogProof(gateReceiptHash(receipt.receipt), p.proof, p.root); // true
 anchor.verifyReceipt(p.accountKey, p.dayNumber, p.receiptHash, p.proof.index, p.proof.count, p.proof.siblings);
 ```
 
+## Card hooks
+
+The business issues its agent's cards in its own card program, and the program asks the gate
+before each charge. The gate answers approve or decline in the program's own format. Bonded holds
+no key for the program: it can't make, fund or charge a card. Code: `src/gate-card-hook.ts`,
+`packages/db/src/gate-card-hook.ts` (migration `0031_gate_card_hooks.sql`), and
+`GateCardChargeInput` in `packages/shared/src/gate-receipt.ts`. Tests: `test/gate-card-hook.test.ts`.
+
+| Route | What it does |
+|---|---|
+| `GET`, `POST /gate/accounts/:id/card-hooks`, `DELETE .../:hookId` | Owner. Card hooks (5 at most): `{ provider: "stripe" \| "lithic" \| "marqeta", label?, secret? }`. Each has a `path` to give the program. Marqeta: Bonded makes a username and password, and returns the password once |
+| `PUT /gate/accounts/:id/card-hooks/:hookId/secret` | Owner. A Stripe or Lithic hook's signing secret (`whsec_...`). Stripe shows it only after the address is set, so it can come after the hook. A hook without one refuses every request (`ready: false`) |
+| `POST /payments/card-hook/:hookId` | The card program. Stripe Issuing's `issuing_authorization.request` webhook, Lithic's Auth Stream Access request, or Marqeta's Gateway JIT Funding request |
+
+Each program proves the request: Stripe signs it (`Stripe-Signature`), Lithic signs it
+(`webhook-id`, `webhook-timestamp`, `webhook-signature`: HMAC-SHA256 of
+"id.timestamp.body" with the base64 secret after `whsec_`), and Marqeta signs in with Basic auth.
+A request that doesn't check gets 401. The signing secret is stored encrypted
+(`AGENT_URL_SECRET_KEY`); the Marqeta password only as its SHA-256.
+
+A charge runs the general rules (`checkGeneralPayment`) with the merchant as the payee
+(`cardMerchantKey` of its network id: Stripe's `network_id`, Lithic's `acceptor_id`, Marqeta's
+`mid`). A merchant no vendor has as its card merchant breaks `unknown_payee`. The per-payment,
+daily and hourly limits apply. Invoice matching doesn't: a charge has no invoice. Merchant
+category codes 4829, 6010, 6011, 6012, 6051, 6540 and 7995 (cash, money orders, stored-value
+loads, gambling) break `blocked_merchant`, which is declined in either mode. Otherwise Monitor
+lets a breaking charge through and Enforce declines it, and a frozen account declines every
+charge. Each answer is a decision of kind `card` with a signed receipt, its input of kind
+`card_charge`, and an approved charge is added to `gate_payments` with source `hook`. The
+program's id for the charge is the decision's request id, so a request sent twice gets the same
+answer and one decision. Breaches alert the owner as a check's do.
+
+Answers: Stripe `{ approved }` with `Stripe-Version`. Lithic `{ token, result }`: `APPROVED`, or
+`UNAUTHORIZED_MERCHANT` (a merchant rule), `VELOCITY_EXCEEDED` (a limit) or `CARD_PAUSED` (frozen,
+or anything the gate couldn't decide). Marqeta echoes the funding request with the amount to two
+decimals: 200 approves, 402 declines with `decline_reason` `INVALID_MERCHANT` or
+`TRANSACTION_NOT_PERMITTED`. A request that spends nothing (Lithic credits and balance inquiries,
+Marqeta methods other than an authorization, its increment, or auth plus capture) is approved
+without a decision.
+
+Anything the gate can't decide declines: a request it can't read, a non-USD charge, an error, or
+an answer not ready inside 1.5 seconds (Stripe waits 2, Marqeta 3, Lithic 6). Past the budget the
+transaction rolls back, so no "allowed" receipt is kept. Stripe live-mode charges are declined
+unless `GATE_ALLOW_LIVE_CREDENTIALS=true`; Lithic and Marqeta requests don't say whether they're
+live.
+
+Not yet: refunds, reversals and expiries aren't read, so an approved charge counts toward the
+daily limit even if it never settles.
+
 ## The card route (Stripe Issuing)
+
+The older card route: Bonded holds a Stripe key and issues the cards. The dashboard no longer sets
+it up; card hooks replace it. The routes stay for accounts already linked.
 
 The agent pays an approved invoice with a single-use Stripe Issuing virtual card, and Stripe asks
 the gate before every charge on it. Bonded holds no money; it only says yes or no. Code:

@@ -18,6 +18,7 @@ import type {
   GateWatchedPaymentRecord,
   GateWatchStore,
 } from "@bonded/db";
+import { GateCardHookStore } from "@bonded/db";
 import {
   checkWatchedPayment,
   GATE_RULE_WORDS,
@@ -490,6 +491,18 @@ const activityQuery = listQuery.omit({ before: true }).extend({
 });
 
 /** Where a watched payment came from, in words: "Base USDC", or the payment log. */
+const CARD_PROGRAMS: Record<string, string> = {
+  stripe: "Stripe card",
+  lithic: "Lithic card",
+  marqeta: "Marqeta card",
+};
+
+/** A card decision's rail: the card program that asked (a card hook), or the Stripe card route. */
+function cardRail(input: unknown): string {
+  const i = (input ?? {}) as { kind?: unknown; provider?: unknown };
+  return i.kind === "card_charge" ? (CARD_PROGRAMS[String(i.provider)] ?? "Card") : "Card";
+}
+
 function railOf(p: GateWatchedPaymentRecord): string {
   if (p.source === "log") return "Payment log";
   const chain = WATCH_CHAINS[Number(p.details.chainId)]?.name ?? "Wallet";
@@ -605,7 +618,7 @@ export function gateWatchRoutes(
         const d = byDecision.get(i.id);
         const p = byWatched.get(i.id);
         if (i.entry === "decision" && d) {
-          const rail = i.source === "card" ? "Card" : "API";
+          const rail = i.source === "card" ? cardRail(d.input) : "API";
           items.push({ entry: i.entry, source: i.source, rail, decision: decisionView(d) });
         } else if (i.entry === "watched" && p) {
           items.push({
@@ -624,10 +637,11 @@ export function gateWatchRoutes(
     "/gate/accounts/:id/connections",
     handle(async (c) => {
       const { account } = await deps.owned(c, false);
-      const [keys, wallets, lastReported] = await Promise.all([
+      const [keys, wallets, lastReported, cardHooks] = await Promise.all([
         deps.store.keys(account.id),
         watch.wallets(account.id),
         watch.lastReported(account.id),
+        new GateCardHookStore(deps.db).hooks(account.id),
       ]);
       return c.json({
         keys: keys
@@ -639,6 +653,12 @@ export function gateWatchRoutes(
           })),
         wallets: wallets.map(walletView),
         log: { lastReportedAt: lastReported?.toISOString() ?? null },
+        cardHooks: cardHooks.map((h) => ({
+          id: h.id,
+          provider: h.provider,
+          label: h.label,
+          lastRequestAt: h.lastRequestAt?.toISOString() ?? null,
+        })),
       });
     }),
   );

@@ -102,24 +102,16 @@ The SDK also has a local guard that runs the same rules inside your own process,
 
 ## Pay by card
 
-On the check route your code decides whether to obey the answer. On the card route it doesn't: the agent pays with a single-use Stripe Issuing card, Stripe asks the gate before every charge, and a charge that breaks a rule is declined. If the gate doesn't answer in time, the charge is declined. This route runs in Stripe test mode only for now.
+Your agent pays with cards from your own card program: Stripe Issuing, Lithic or Marqeta. Before each charge, the program asks Bonded, and a charge that breaks a rule is declined. Bonded holds no key for your program. It can't make, fund or charge a card. If Bonded doesn't answer in time, the charge is declined.
 
-1. In Stripe, in test mode, make a cardholder, top up the Issuing balance, and make a restricted key with write access to Issuing cards and read access to Issuing authorizations and transactions.
-2. Set Stripe's real-time authorizations endpoint to `https://api-production-ba50.up.railway.app/stripe/issuing/authorization`, with the timeout set to decline and Autopilot off.
-3. Add a webhook endpoint at `https://api-production-ba50.up.railway.app/stripe/issuing/events` for `issuing_authorization.created`, `issuing_authorization.updated` and `issuing_transaction.created`.
-4. On the account's **Cards** tab, press **Link Stripe** and fill in the key, the cardholder and both signing secrets.
-5. Add the vendor with its card merchant name and network id, and approve its invoice.
+1. On the account's **Cards** tab, press **Connect a provider** and pick yours.
+2. Copy the address Bonded gives you into your provider:
+   - **Stripe Issuing:** add a webhook endpoint at the address for `issuing_authorization.request`, pick it for real-time authorizations in your Issuing settings, and set the timeout to decline. Paste the endpoint's signing secret back into Bonded.
+   - **Lithic:** enroll the address for Auth Stream Access, and paste your ASA signing secret into Bonded.
+   - **Marqeta:** set the address as your Gateway JIT Funding address, with the username and password Bonded shows. The password is shown once.
+3. On the **Vendors** tab, give each vendor your agent may pay its card merchant name and ID.
 
-Your agent then asks for a card for that invoice:
-
-```bash
-curl https://api-production-ba50.up.railway.app/payments/intents \
-  -H "Authorization: Bearer $BONDED_GATE_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"invoiceReference":"NIM-88412"}'
-```
-
-The card works once, for the exact invoice amount, at that vendor's merchant. Its number is in this answer only. Bonded keeps the card's id and last four digits, and never holds money. Each charge gets a decision and a receipt, like a check.
+Each charge is checked like a payment with no invoice: the merchant must be a vendor's card merchant, and the per-payment, daily and hourly limits apply. Cash, money orders and gambling are always declined. Each charge gets a decision and a receipt, like a check, and shows on the activity tab.
 
 ## Check a receipt
 
@@ -176,7 +168,7 @@ Watched payments have no receipt and stay out of the decision log, because Bonde
 
 ## What it doesn't do
 
-- **It only sees what your code sends it.** On the check route the check is voluntary: code that pays without asking skips it, so keep the raw pay function out of the agent's reach. The card route closes that gap, in Stripe test mode for now. The bank payout route is built, but not live yet.
+- **It only sees what your code sends it.** On the check route the check is voluntary: code that pays without asking skips it, so keep the raw pay function out of the agent's reach. Card hooks close that gap for cards: your card provider asks before every charge. The bank payout route is built, but not live yet.
 - **It doesn't move money.** Your own bank or payment API makes the payment.
 - **It doesn't pay back losses yet.** Cover is on chain today. Off-chain cover is planned.
 - **Rules can be followed and fraud can still happen.** If a real vendor's own systems are hacked and a correct invoice is paid to its correct account, no rule breaks.
