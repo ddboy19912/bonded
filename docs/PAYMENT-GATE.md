@@ -138,6 +138,15 @@ The last check needs a proof, which exists once the day has ended (UTC). Press V
 
 Each finished day's log root, and the hash of each version of your rules, is posted to GateAnchor on Robinhood Chain testnet at [`0x4434F0D9fEF49EE2E017fb1082C1F3EefABcf5a4`](https://explorer.testnet.chain.robinhood.com/address/0x4434F0D9fEF49EE2E017fb1082C1F3EefABcf5a4). A posted hash can't be changed, so an old decision can't quietly be rewritten. Only hashes go on chain: no payment details.
 
+## The dashboard
+
+Each gate account shows one log and what's connected to it:
+
+- **Activity** lists every check and every payment seen after it was made, newest first. Each line says "Checked first" or "Seen after", and where it came from: the API, a card, a wallet such as Base USDC, or your payment log. Filter by source, result or rule.
+- **Connect** has the SDK, MCP and API snippets for asking first, and how to set up Watch. It also lists your API keys, wallets and payment log, with when each last reported.
+
+The gate can't tell which bank or payment service a check is for, because your code makes that payment, so every check shows as API.
+
 ## Watch
 
 Watch is the other way to connect. Bonded reads payments after they were made, so it holds no key and can't stop anything: it can only record and alert. Use it alone, or next to the check so you know when an agent skipped it.

@@ -255,6 +255,19 @@ beforeEach(() => {
   });
   vi.spyOn(gateApi, "decisions").mockResolvedValue({ items: [blocked, paid], next: null });
   vi.spyOn(gateApi, "lastDecision").mockResolvedValue({ items: [], next: null });
+  // The activity list is the decisions, unless a test gives it something else.
+  vi.spyOn(gateApi, "activity").mockImplementation(async (session, id, _filters, cursor) => {
+    const page = await gateApi.decisions(session, id, cursor);
+    return {
+      items: page.items.map((decision) => ({
+        entry: "decision" as const,
+        source: "check" as const,
+        rail: "API",
+        decision,
+      })),
+      next: page.next,
+    };
+  });
   vi.spyOn(gateApi, "receiptKey").mockResolvedValue({ address: SIGNER });
   vi.spyOn(gateApi, "proof").mockImplementation(async (_s, _a, id) => proofs[id]!);
   vi.spyOn(gateApi, "invoices").mockResolvedValue({
@@ -652,6 +665,102 @@ describe("the payment gate's rules page", () => {
     await vi.waitFor(() =>
       expect(update).toHaveBeenCalledWith("sess", ACCOUNT_ID, { expectChecks: true }),
     );
+  });
+
+  it("shows checks and watched payments in one log, saying which is which", async () => {
+    vi.mocked(gateApi.activity).mockResolvedValue({
+      items: [
+        { entry: "decision", source: "check", rail: "API", decision: paid },
+        {
+          entry: "watched",
+          source: "wallet",
+          rail: "Base USDC",
+          watched: {
+            id: "9",
+            source: "wallet",
+            payee: "0XC1",
+            amountUsd: 80,
+            reference: "",
+            reasons: [{ rule: "skipped_gate", words: "it was paid with no check first" }],
+            checkedFirst: false,
+            paidAt: `${DAY}T09:00:00Z`,
+            details: { txHash: `0x${"11".repeat(32)}` },
+          },
+        },
+      ],
+      next: null,
+    });
+    signedIn();
+    showAccount();
+    expect(await screen.findByText("Checked first · API")).toBeTruthy();
+    expect(screen.getByText("Seen after · Base USDC")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Payment of \$80/ }));
+    const modal = await screen.findByRole("dialog");
+    expect(within(modal).getByText(/so it has no receipt/)).toBeTruthy();
+    expect(within(modal).queryByText("Allowed")).toBeNull();
+  });
+
+  it("asks the API for a filter, and says when nothing matches", async () => {
+    vi.mocked(gateApi.activity).mockImplementation(async (_s, _id, filters = {}) =>
+      filters.result
+        ? { items: [], next: null }
+        : {
+            items: [{ entry: "decision", source: "check", rail: "API", decision: paid }],
+            next: null,
+          },
+    );
+    signedIn();
+    showAccount();
+    await screen.findByText("Checked first · API");
+    // jsdom has no scrolling, and the select scrolls its list to the chosen option.
+    Element.prototype.scrollIntoView = vi.fn();
+    fireEvent.click(screen.getByRole("combobox", { name: "Result" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Blocked" }));
+    expect(await screen.findByText("Nothing matches these filters.")).toBeTruthy();
+    expect(gateApi.activity).toHaveBeenLastCalledWith("sess", ACCOUNT_ID, { result: "blocked" });
+  });
+
+  it("offers both ways to connect, and says what's live", async () => {
+    const recent = new Date(Date.now() - 60_000).toISOString();
+    vi.spyOn(gateApi, "connections").mockResolvedValue({
+      keys: [
+        { id: "k1", label: "Payables agent", lastUsedAt: recent },
+        { id: "k2", label: "Old agent", lastUsedAt: "2026-01-01T00:00:00Z" },
+        { id: "k3", label: "New agent", lastUsedAt: null },
+      ],
+      wallets: [
+        {
+          id: "w1",
+          chainId: 8453,
+          chain: "Base",
+          address: `0x${"ab".repeat(20)}`,
+          label: "Ops",
+          lastReadAt: "2026-01-01T00:00:00Z",
+        },
+      ],
+      log: { lastReportedAt: null },
+    });
+    signedIn();
+    showAccount("connect");
+    expect(await screen.findByText("Payables agent")).toBeTruthy();
+    expect(screen.getByText("Live")).toBeTruthy();
+    expect(screen.getByText("Quiet")).toBeTruthy();
+    expect(screen.getByText("Not used yet")).toBeTruthy();
+    expect(screen.getByText("Behind")).toBeTruthy();
+    const listed = screen.getByRole("region", { name: "Connections" });
+    expect(within(listed).queryByText("Payment log")).toBeNull();
+    expect(screen.getByRole("tab", { name: "MCP" })).toBeTruthy();
+    expect(screen.getByText(/can't stop them/)).toBeTruthy();
+  });
+
+  it("calls vendors payees with invoice matching off", async () => {
+    vi.mocked(gateApi.accounts).mockResolvedValue({
+      items: [{ ...account, invoiceMatching: false }],
+    });
+    signedIn();
+    showAccount();
+    expect(await screen.findByRole("tab", { name: "Payees" })).toBeTruthy();
+    expect(screen.queryByRole("tab", { name: "Vendors" })).toBeNull();
   });
 
   it("ties a field's error to the field", async () => {

@@ -138,6 +138,7 @@ function Wallets({ account, session }: { account: GateAccount; session: string }
   const available = chains.data.items;
   return (
     <section aria-label="Wallets" className="flex flex-col gap-3">
+      <h2 className="text-sm font-semibold">Wallets</h2>
       <TabBar
         action={
           available.length > 0 && (
@@ -158,7 +159,7 @@ function Wallets({ account, session }: { account: GateAccount; session: string }
           )
         }
       >
-        <h2 className="text-sm font-semibold">Wallets</h2>
+        Bonded only sees USDC and USDT. Payments in ETH or other coins won't show here.
       </TabBar>
       {available.length === 0 && (
         <p className="text-xs text-muted">Wallet watching isn't on yet.</p>

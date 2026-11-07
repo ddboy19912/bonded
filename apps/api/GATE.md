@@ -79,6 +79,8 @@ Payments read after they were made (`gate-watch.ts`). Nothing here can stop a pa
 | `GET /gate/watch-chains` | Public. The chains a wallet can be watched on |
 | `GET /gate/accounts/:id/wallets`, `POST`, `DELETE .../:walletId` | Owner. Public addresses to read |
 | `GET /gate/accounts/:id/watched` | Owner. The payments seen, newest first |
+| `GET /gate/accounts/:id/activity` | Owner. Checks and watched payments in one list, newest first by when each happened. `?source=check,card,log,wallet`, `?result=allowed,blocked,refused,seen`, `?rule=`, `?limit=`, `?before=<next>`. Each item has `entry`, `source`, `rail`, and `decision` or `watched` |
+| `GET /gate/accounts/:id/connections` | Owner. Live API keys, wallets and the payment log, with when each last reported |
 
 A payment that matches an allowed check (same payee and amount, up to 24 hours before it) is recorded with `checkedFirst: true`, and its rules aren't run: the check judged it. Each check matches one payment. Any other runs through `checkWatchedPayment`, is added to `gate_payments` with source `watch`, and alerts the owner (`payment_seen_breach`, or `gate_skipped` with `expectChecks` on and no other rule broken). `freezeOnBreach` applies. Watched payments get no receipt and aren't in the decision log or its log roots.
 

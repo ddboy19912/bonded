@@ -1118,6 +1118,16 @@ export class GateStore {
     return page(r.rows.map(decision), limit, (d) => d.seq);
   }
 
+  /** These decisions, in no order. */
+  async decisionsByIds(accountId: string, ids: readonly string[]): Promise<GateDecisionRecord[]> {
+    if (ids.length === 0) return [];
+    const r = await this.pool.query(
+      "SELECT * FROM gate_decisions WHERE account_id=$1 AND id = ANY($2::uuid[])",
+      [accountId, [...ids]],
+    );
+    return r.rows.map(decision);
+  }
+
   async decision(accountId: string, id: string): Promise<GateDecisionRecord | undefined> {
     const r = await this.pool.query("SELECT * FROM gate_decisions WHERE account_id=$1 AND id=$2", [
       accountId,

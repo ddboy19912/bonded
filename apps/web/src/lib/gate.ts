@@ -72,6 +72,28 @@ export interface GateWatchedPayment {
   /** It matches an allowed check made before it. */
   checkedFirst: boolean;
   paidAt: string;
+  /** Where it came from in words: "Base USDC", or "Payment log". */
+  rail?: string;
+  /** For a wallet payment: its chain, token and transaction. */
+  details?: Record<string, string | number>;
+}
+
+/** One line of the account's activity. */
+export type GateActivityEntry =
+  | { entry: "decision"; source: "check" | "card"; rail: string; decision: GateDecision }
+  | { entry: "watched"; source: "log" | "wallet"; rail: string; watched: GateWatchedPayment };
+
+export interface GateActivityFilters {
+  source?: string;
+  result?: string;
+  rule?: string;
+}
+
+/** What's connected to the account, and when each last reported. */
+export interface GateConnections {
+  keys: { id: string; label: string; lastUsedAt: string | null }[];
+  wallets: GateWatchWallet[];
+  log: { lastReportedAt: string | null };
 }
 
 export interface GateVendor {
@@ -212,6 +234,20 @@ export const gateApi = {
   /** GET …/decisions: the decision log, newest first. */
   decisions: (session: string, id: string, cursor?: string) =>
     request<Page<GateDecision>>(`${account(id)}/decisions${before(cursor)}`, bearer(session)),
+  /** GET …/activity: checks and payments seen after they were made, newest first. */
+  activity: (session: string, id: string, filters: GateActivityFilters = {}, cursor?: string) => {
+    const query = new URLSearchParams({
+      ...filters,
+      ...(cursor ? { before: cursor } : {}),
+    }).toString();
+    return request<Page<GateActivityEntry>>(
+      `${account(id)}/activity${query ? `?${query}` : ""}`,
+      bearer(session),
+    );
+  },
+  /** GET …/connections: API keys, wallets and the payment log, with when each last reported. */
+  connections: (session: string, id: string) =>
+    request<GateConnections>(`${account(id)}/connections`, bearer(session)),
   /** GET …/decisions?limit=1: the latest decision, for when only its time is wanted. */
   lastDecision: (session: string, id: string) =>
     request<Page<GateDecision>>(`${account(id)}/decisions?limit=1`, bearer(session)),
