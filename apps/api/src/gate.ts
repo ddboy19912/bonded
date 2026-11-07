@@ -72,7 +72,7 @@ export interface GateOptions {
   cardHook?: GateCardHookOptions;
   /** The payout route through the payout proxy in a TEE (gate-payout.ts). */
   payout?: GatePayoutOptions;
-  /** Chains wallets can be watched on (GATE_WATCH_RPC_URLS, gate-watch.ts). */
+  /** Chains wallets can be watched on (`WATCH_CHAINS` in gate-watch.ts). */
   watchChains?: readonly number[];
   /** Watched wallets per gate account (default 20). */
   maxWalletsPerAccount?: number;

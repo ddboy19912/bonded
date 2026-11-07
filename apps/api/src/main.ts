@@ -100,7 +100,8 @@ const remotePolicy = remotePolicyFromEnv();
 const secrets = secretBoxFromEnv();
 // Notification email, only when RESEND_API_KEY and EMAIL_FROM are both set.
 const email = emailFromEnv();
-// The chains Watch mode reads wallets on (GATE_WATCH_RPC_URLS); none by default.
+// The chains Watch mode reads wallets on: each on its public node, unless GATE_WATCH_RPC_URLS
+// names another.
 const watchReaders = watchReadersFromEnv();
 /**
  * Hosts an Agent URL or webhook may never be (beyond BONDED_OWN_HOSTS in @bonded/arena): any in
@@ -295,7 +296,7 @@ if (role === "migrate") {
       .parse(process.env.GATE_DECISION_RETENTION_DAYS ?? 365);
     const gateStore = new GateStore(db, gateMandateHash);
     const gateWatchStore = new GateWatchStore(db);
-    // Watch mode's wallets (gate-watch.ts), only on the chains GATE_WATCH_RPC_URLS names.
+    // Watch mode's wallets (gate-watch.ts), on every chain it can read.
     if (watchReaders.size > 0) {
       const watcher = new GateWatcher({
         db,

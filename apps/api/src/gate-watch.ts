@@ -228,18 +228,24 @@ export function alertWatched(notifier: Notifier, outcome: WatchedOutcome): void 
     );
 }
 
-/** The stablecoins Bonded can read and value, one dollar each. */
+/**
+ * The chains Bonded reads wallets on, and the stablecoins it values at one dollar each. `rpc` is a
+ * free public node, checked to answer a 2,000-block log query: Ethereum's reaches about 10,000
+ * blocks back (a day and a half), the others further. GATE_WATCH_RPC_URLS can replace any of them.
+ */
 export const WATCH_CHAINS: Record<
   number,
   {
     name: string;
     confirmations: number;
+    rpc: string;
     tokens: { symbol: string; address: Address; decimals: number }[];
   }
 > = {
   1: {
     name: "Ethereum",
     confirmations: 12,
+    rpc: "https://ethereum-rpc.publicnode.com",
     tokens: [
       { symbol: "USDC", address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", decimals: 6 },
       { symbol: "USDT", address: "0xdAC17F958D2ee523a2206206994597C13D831ec7", decimals: 6 },
@@ -248,6 +254,7 @@ export const WATCH_CHAINS: Record<
   8453: {
     name: "Base",
     confirmations: 30,
+    rpc: "https://base-rpc.publicnode.com",
     tokens: [
       { symbol: "USDC", address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6 },
     ],
@@ -255,6 +262,8 @@ export const WATCH_CHAINS: Record<
   42161: {
     name: "Arbitrum",
     confirmations: 30,
+    // Arbitrum's own: publicnode's refuses a log query even a few minutes back.
+    rpc: "https://arb1.arbitrum.io/rpc",
     tokens: [
       { symbol: "USDC", address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", decimals: 6 },
       { symbol: "USDT", address: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9", decimals: 6 },
@@ -263,6 +272,7 @@ export const WATCH_CHAINS: Record<
   84532: {
     name: "Base Sepolia",
     confirmations: 5,
+    rpc: "https://base-sepolia-rpc.publicnode.com",
     tokens: [
       { symbol: "USDC", address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", decimals: 6 },
     ],
@@ -345,21 +355,31 @@ export function viemWalletReader(
   };
 }
 
-/** The chains to read: GATE_WATCH_RPC_URLS, a JSON object of chain id to RPC URL. */
+/**
+ * A reader for every chain in `WATCH_CHAINS`, each on its public node. GATE_WATCH_RPC_URLS, a JSON
+ * object of chain id to RPC URL, is optional: it replaces a chain's node, for one with more
+ * history or a higher rate limit.
+ */
 export function watchReadersFromEnv(
   env: Record<string, string | undefined> = process.env,
 ): Map<number, WalletReader> {
+  const urls = new Map(Object.entries(WATCH_CHAINS).map(([id, c]) => [Number(id), c.rpc]));
   const raw = env.GATE_WATCH_RPC_URLS?.trim();
+  if (raw)
+    for (const [id, url] of Object.entries(z.record(z.string(), z.url()).parse(JSON.parse(raw)))) {
+      if (!WATCH_CHAINS[Number(id)])
+        throw new Error(`GATE_WATCH_RPC_URLS names chain ${id}, which Bonded can't read`);
+      urls.set(Number(id), url);
+    }
   const readers = new Map<number, WalletReader>();
-  if (!raw) return readers;
-  for (const [id, url] of Object.entries(z.record(z.string(), z.url()).parse(JSON.parse(raw)))) {
-    const chain = WATCH_CHAINS[Number(id)];
-    if (!chain) throw new Error(`GATE_WATCH_RPC_URLS names chain ${id}, which Bonded can't read`);
+  for (const [id, url] of urls)
     readers.set(
-      Number(id),
-      viemWalletReader(createPublicClient({ transport: http(url) }) as PublicClient, chain),
+      id,
+      viemWalletReader(
+        createPublicClient({ transport: http(url) }) as PublicClient,
+        WATCH_CHAINS[id]!,
+      ),
     );
-  }
   return readers;
 }
 
