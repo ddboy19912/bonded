@@ -810,6 +810,41 @@ export const PROBLEMS: readonly ProblemEntry[] = [
     "Every check is refused until you lift the freeze. Read the breach in the decision log first, then unfreeze the account.",
     /payment gate froze/i,
   ),
+  entry(
+    "gate-payment-seen-breach",
+    "gate",
+    "A payment already made broke the rules.",
+    "The money has left, so Bonded can't stop it. Check the payment on the Watch tab, and recover it if it was wrong.",
+    /already made broke the rules/i,
+  ),
+  entry(
+    "gate-skipped",
+    "gate",
+    "A payment was made with no check first.",
+    "Your agent paid without asking the gate. Find out why, and keep the pay function out of the agent's reach. If this wallet isn't meant to check first, turn off \"Expect a check first\" on the Watch tab.",
+    /made with no check first/i,
+  ),
+  entry(
+    "gate-watched-future",
+    "gate",
+    "A payment in the log is dated in the future.",
+    "Send `paidAt` as the time the payment was made, with its time zone, and check the clock of whatever sends the log.",
+    /is dated in the future/i,
+  ),
+  entry(
+    "gate-watch-chain-unavailable",
+    "gate",
+    "Bonded can't read that chain on this service.",
+    "Pick a chain listed on the Watch tab. The service reads only the chains it has an RPC URL for (GATE_WATCH_RPC_URLS).",
+    /can't read that chain/i,
+  ),
+  entry(
+    "gate-watch-wallet-limit",
+    "gate",
+    "This gate account has as many wallets as it may, or already has this one.",
+    "Stop watching a wallet you no longer need, or check the wallet isn't already on the list.",
+    /as many wallets as it may|wallet is already on this gate account/i,
+  ),
   // The card route (Stripe Issuing).
   entry(
     "gate-stripe-not-linked",

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   checkGeneralPayment,
   checkInvoicePayment,
+  checkWatchedPayment,
   checkRefundPayment,
   describePaymentMandate,
   GATE_RULE_WORDS,
@@ -257,7 +258,8 @@ describe("payment mandate: payments with no invoice", () => {
 
   it("keeps the gate's own rules out of the list the Arena and the Index read", () => {
     expect(PAYMENT_RULES).not.toContain("over_hourly_limit");
-    expect(GATE_RULES).toEqual([...PAYMENT_RULES, "over_hourly_limit"]);
+    expect(GATE_RULES).toEqual([...PAYMENT_RULES, "over_hourly_limit", "skipped_gate"]);
+    expect(PAYMENT_RULES).not.toContain("skipped_gate");
     for (const rule of GATE_RULES) expect(GATE_RULE_WORDS[rule]).toBeTruthy();
   });
 
@@ -271,6 +273,51 @@ describe("payment mandate: payments with no invoice", () => {
         },
       ),
     ).toEqual({ ok: false, error: "invoiceReference is required" });
+  });
+});
+
+describe("payment mandate: payments seen after they were made", () => {
+  const seen = (
+    attempt: { account: string; amountUsd: number; invoiceReference?: string },
+    invoiceMatching: boolean,
+  ) =>
+    checkWatchedPayment(
+      {
+        limits: { ...limits, maxPaymentsPerHour: null },
+        invoiceMatching,
+        payees,
+        invoices,
+        payments: [],
+        paymentsLastHour: 0,
+        day: DAY,
+      },
+      attempt,
+    );
+
+  it("passes an approved invoice, matched by vendor, reference and amount", () => {
+    expect(
+      seen({ account: REAL, amountUsd: 612.4, invoiceReference: " nim-88412 " }, true),
+    ).toMatchObject({ rules: [], overpaidUsd: 0 });
+  });
+
+  it("breaks unmatched_invoice with no reference when invoice matching is on", () => {
+    expect(seen({ account: REAL, amountUsd: 612.4 }, true)).toMatchObject({
+      rules: ["unmatched_invoice"],
+      lossUsd: 0,
+      overpaidUsd: 612.4,
+    });
+  });
+
+  it("calls a stranger an unknown payee, all of it lost, not overpaid", () => {
+    expect(seen({ account: FRAUD, amountUsd: 80 }, true)).toMatchObject({
+      rules: ["unknown_payee", "unmatched_invoice"],
+      lossUsd: 80,
+      overpaidUsd: 0,
+    });
+  });
+
+  it("needs no invoice with invoice matching off", () => {
+    expect(seen({ account: REAL, amountUsd: 80 }, false)).toMatchObject({ rules: [] });
   });
 });
 

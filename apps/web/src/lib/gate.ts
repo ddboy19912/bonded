@@ -41,12 +41,37 @@ export interface GateAccount {
   invoiceMatching: boolean;
   /** Payments allowed in any hour, with invoice matching off; null for no limit. */
   maxPaymentsPerHour: number | null;
+  /** A watched payment with no check before it raises an alert. */
+  expectChecks: boolean;
   frozen: boolean;
   frozenAt: string | null;
   mandate: { version: number; hash: string };
   /** The mandate in plain words (`describePaymentMandate`). */
   rules: string[];
   createdAt: string;
+}
+
+/** A public wallet Bonded reads. It holds no key for it. */
+export interface GateWatchWallet {
+  id: string;
+  chainId: number;
+  chain: string;
+  address: string;
+  label: string;
+  lastReadAt: string | null;
+}
+
+/** A payment seen after it was made. It has no receipt: nothing was decided before it left. */
+export interface GateWatchedPayment {
+  id: string;
+  source: "log" | "wallet";
+  payee: string;
+  amountUsd: number;
+  reference: string;
+  reasons: { rule: string; words: string }[];
+  /** It matches an allowed check made before it. */
+  checkedFirst: boolean;
+  paidAt: string;
 }
 
 export interface GateVendor {
@@ -162,7 +187,7 @@ export interface NewGateAccount {
 }
 
 export type GateAccountPatch = Partial<NewGateAccount> &
-  Partial<Pick<GateAccount, "invoiceMatching" | "maxPaymentsPerHour">>;
+  Partial<Pick<GateAccount, "invoiceMatching" | "maxPaymentsPerHour" | "expectChecks">>;
 
 const bearer = (session: string) => ({ headers: { Authorization: `Bearer ${session}` } });
 /** A write as the signed-in owner, with a JSON body. */
@@ -196,6 +221,27 @@ export const gateApi = {
       `${account(id)}/decisions/${encodeURIComponent(decisionId)}/proof`,
       bearer(session),
     ),
+  /** GET /gate/watch-chains: the chains a wallet can be watched on. Public. */
+  watchChains: () =>
+    request<{ items: { chainId: number; name: string; tokens: string[] }[] }>("/gate/watch-chains"),
+  /** GET …/wallets: the wallets this account reads. */
+  wallets: (session: string, id: string) =>
+    request<{ items: GateWatchWallet[] }>(`${account(id)}/wallets`, bearer(session)),
+  /** POST …/wallets: read a public address. */
+  addWallet: (
+    session: string,
+    id: string,
+    input: { chainId: number; address: string; label?: string },
+  ) => request<GateWatchWallet>(`${account(id)}/wallets`, send(session, "POST", input)),
+  /** DELETE …/wallets/:walletId: stop reading it. */
+  deleteWallet: (session: string, id: string, walletId: string) =>
+    request<{ deleted: boolean }>(
+      `${account(id)}/wallets/${encodeURIComponent(walletId)}`,
+      send(session, "DELETE"),
+    ),
+  /** GET …/watched: the payments seen after they were made, newest first. */
+  watched: (session: string, id: string, cursor?: string) =>
+    request<Page<GateWatchedPayment>>(`${account(id)}/watched${before(cursor)}`, bearer(session)),
   /** GET /gate/receipt-key: the address every receipt is signed with. Public. */
   receiptKey: () => request<{ address: Address }>("/gate/receipt-key"),
 

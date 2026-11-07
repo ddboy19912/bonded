@@ -69,6 +69,21 @@ Public (no sign-in):
 The public routes give hashes only, the same ones that go on chain, and not how many decisions a
 day had.
 
+## Watch mode
+
+Payments read after they were made (`gate-watch.ts`). Nothing here can stop a payment.
+
+| Route | What it does |
+|---|---|
+| `POST /payments/watched` | API key. Up to 100 payments already made: `{ id, account, amountUsd, reference?, paidAt }`. The same `id` records nothing |
+| `GET /gate/watch-chains` | Public. The chains a wallet can be watched on |
+| `GET /gate/accounts/:id/wallets`, `POST`, `DELETE .../:walletId` | Owner. Public addresses to read |
+| `GET /gate/accounts/:id/watched` | Owner. The payments seen, newest first |
+
+A payment that matches an allowed check (same payee and amount, up to 24 hours before it) is recorded with `checkedFirst: true`, and its rules aren't run: the check judged it. Each check matches one payment. Any other runs through `checkWatchedPayment`, is added to `gate_payments` with source `watch`, and alerts the owner (`payment_seen_breach`, or `gate_skipped` with `expectChecks` on and no other rule broken). `freezeOnBreach` applies. Watched payments get no receipt and aren't in the decision log or its log roots.
+
+The keeper reads wallets every 30 seconds on the chains in `GATE_WATCH_RPC_URLS`, a JSON object of chain id to RPC URL, set on both the API and the keeper. With it unset nothing is read and `GET /gate/watch-chains` is empty. It reads the stablecoins in `WATCH_CHAINS`, valued at one dollar, after each chain's confirmations. A new wallet starts at the current block. Transfers between an account's own wallets, and zero-value transfers, are skipped. `pruneWatched` follows `GATE_DECISION_RETENTION_DAYS`; what a watched payment added to `gate_payments` stays.
+
 ## The check
 
 ```json
