@@ -60,6 +60,8 @@ const account: GateAccount = {
   maxPaymentUsd: 5000,
   maxDailyUsd: 8000,
   freezeOnBreach: false,
+  invoiceMatching: true,
+  maxPaymentsPerHour: null,
   frozen: false,
   frozenAt: null,
   mandate: { version: 2, hash: `0x${"22".repeat(32)}` },
@@ -612,6 +614,55 @@ describe("the payment gate's rules page", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
     expect(await screen.findByText("Nimbus Cloud")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Add a vendor" })).toBeTruthy();
+  });
+
+  it("turns invoice matching off and sets an hourly limit", async () => {
+    const update = vi.spyOn(gateApi, "updateAccount").mockResolvedValue(account);
+    signedIn();
+    showAccount();
+    const modal = await press("Edit rules");
+    expect(within(modal).queryByLabelText("Most payments in one hour")).toBeNull();
+    fireEvent.click(within(modal).getByRole("switch", { name: "Match invoices" }));
+    fill(modal, "Most payments in one hour", "ten");
+    const save = within(modal).getByRole("button", { name: "Save changes" }) as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    fill(modal, "Most payments in one hour", "10");
+    fireEvent.click(save);
+    await vi.waitFor(() =>
+      expect(update).toHaveBeenCalledWith("sess", ACCOUNT_ID, {
+        invoiceMatching: false,
+        maxPaymentsPerHour: 10,
+      }),
+    );
+  });
+
+  it("ignores a bad hourly value once its field is hidden again", async () => {
+    const update = vi.spyOn(gateApi, "updateAccount").mockResolvedValue(account);
+    signedIn();
+    showAccount();
+    const modal = await press("Edit rules");
+    const matching = within(modal).getByRole("switch", { name: "Match invoices" });
+    fireEvent.click(matching);
+    fill(modal, "Most payments in one hour", "ten");
+    // Matching back on hides the field: what's in it neither blocks saving nor is saved.
+    fireEvent.click(matching);
+    fill(modal, "Most for one payment", "2500.50");
+    const save = within(modal).getByRole("button", { name: "Save changes" }) as HTMLButtonElement;
+    expect(save.disabled).toBe(false);
+    fireEvent.click(save);
+    await vi.waitFor(() =>
+      expect(update).toHaveBeenCalledWith("sess", ACCOUNT_ID, { maxPaymentUsd: 2500.5 }),
+    );
+  });
+
+  it("shows the hourly limit only with invoice matching off", async () => {
+    vi.mocked(gateApi.accounts).mockResolvedValue({
+      items: [{ ...account, invoiceMatching: false, maxPaymentsPerHour: null }],
+    });
+    signedIn();
+    showAccount("rules");
+    expect(await screen.findByText("Most payments in one hour")).toBeTruthy();
+    expect(screen.getByText("No limit")).toBeTruthy();
   });
 
   it("saves the mode and limits as one change", async () => {

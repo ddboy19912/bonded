@@ -128,6 +128,10 @@ const accountPatch = z
     maxPaymentUsd: cents.optional(),
     maxDailyUsd: cents.optional(),
     freezeOnBreach: z.boolean().optional(),
+    /** Off for payments with no invoices: the check reads the payee list and the limits. */
+    invoiceMatching: z.boolean().optional(),
+    /** Payments allowed in any hour, with invoice matching off. null removes the limit. */
+    maxPaymentsPerHour: z.number().int().positive().max(1_000_000).nullable().optional(),
   })
   .refine((p) => Object.keys(p).length > 0);
 /** A vendor's card merchant: its name and Stripe network id (`merchant_data.network_id`). */
@@ -178,7 +182,8 @@ const checkInput = z.preprocess(
       kind: z.literal("invoice"),
       account: payee,
       amountUsd: cents,
-      invoiceReference: reference,
+      /** Required unless the account has invoice matching off (the rules say so). */
+      invoiceReference: reference.optional(),
       requestId: requestId.optional(),
     }),
     z.strictObject({
@@ -210,6 +215,8 @@ const accountView = (a: GateAccountRecord) => ({
   maxPaymentUsd: a.maxPaymentCents / 100,
   maxDailyUsd: a.maxDailyCents / 100,
   freezeOnBreach: a.freezeOnBreach,
+  invoiceMatching: a.invoiceMatching,
+  maxPaymentsPerHour: a.maxPaymentsPerHour,
   frozen: a.frozenAt !== null,
   frozenAt: a.frozenAt?.toISOString() ?? null,
   frozenBy: a.frozenBy,
@@ -219,6 +226,8 @@ const accountView = (a: GateAccountRecord) => ({
     maxPaymentUsd: a.maxPaymentCents / 100,
     maxDailyUsd: a.maxDailyCents / 100,
     freezeOnBreach: a.freezeOnBreach,
+    invoiceMatching: a.invoiceMatching,
+    maxPaymentsPerHour: a.maxPaymentsPerHour,
   }),
   createdAt: a.createdAt.toISOString(),
   updatedAt: a.updatedAt.toISOString(),
@@ -393,6 +402,10 @@ export function gateRoutes(
           ...(p.maxPaymentUsd !== undefined ? { maxPaymentCents: p.maxPaymentUsd } : {}),
           ...(p.maxDailyUsd !== undefined ? { maxDailyCents: p.maxDailyUsd } : {}),
           ...(p.freezeOnBreach !== undefined ? { freezeOnBreach: p.freezeOnBreach } : {}),
+          ...(p.invoiceMatching !== undefined ? { invoiceMatching: p.invoiceMatching } : {}),
+          ...(p.maxPaymentsPerHour !== undefined
+            ? { maxPaymentsPerHour: p.maxPaymentsPerHour }
+            : {}),
         },
         owner,
       );
@@ -427,6 +440,8 @@ export function gateRoutes(
             maxPaymentUsd: v.mandate.maxPaymentCents / 100,
             maxDailyUsd: v.mandate.maxDailyCents / 100,
             freezeOnBreach: v.mandate.freezeOnBreach,
+            invoiceMatching: v.mandate.invoiceMatching ?? true,
+            maxPaymentsPerHour: v.mandate.maxPaymentsPerHour ?? null,
           }),
         })),
         next: versions.next,
@@ -685,11 +700,11 @@ export function gateRoutes(
               kind: input.kind,
               account: input.account,
               amountCents: input.amountUsd,
-              reference: input.invoiceReference,
+              reference: input.invoiceReference ?? "",
               requestId: input.requestId,
             };
       const outcome = await runGateCheck(
-        { db, store, receiptKey: options.receiptKey, now },
+        { db, store, receiptKey: options.receiptKey, now, followInvoiceSetting: true },
         auth,
         request,
       );

@@ -1,6 +1,9 @@
 import {
+  checkGeneralPayment,
   checkInvoicePayment,
   checkRefundPayment,
+  GATE_RULE_WORDS,
+  type GateRule,
   isVerifiedChange,
   type KnownPayee,
   normalAccount,
@@ -9,8 +12,6 @@ import {
   type PayableRefund,
   type PaymentAttempt,
   type PaymentLimits,
-  type PaymentRule,
-  PAYMENT_RULE_WORDS,
   type SignedGateReceipt,
   utcDay,
   type VerifiedChange,
@@ -28,6 +29,13 @@ export interface PaymentMandate extends PaymentLimits {
   mode: "monitor" | "enforce";
   /** After the first breach, refuse every payment until a person unfreezes the guard. */
   freezeOnBreach: boolean;
+  /**
+   * False when your payments have no invoices: a payment needs a vendor on the list and to stay
+   * within the limits, and its reference is optional. Refunds still need an approved refund.
+   */
+  invoiceMatching?: boolean;
+  /** Payments allowed in any hour, with invoice matching off. No limit unless set. */
+  maxPaymentsPerHour?: number;
 }
 
 /** A supplier as your vendor master holds it. Its account is one the agent may pay. */
@@ -59,8 +67,8 @@ export interface PaymentGuardState {
 export interface PaymentBreach {
   kind: "invoice" | "refund" | "vendor_change";
   /** Every rule broken, most serious first. */
-  rules: PaymentRule[];
-  /** Each rule in plain words (`PAYMENT_RULE_WORDS`), in the same order. */
+  rules: GateRule[];
+  /** Each rule in plain words (`GATE_RULE_WORDS`), in the same order. */
   reasons: string[];
   /** Enforce mode stopped it: the pay function was not called. */
   blocked: boolean;
@@ -85,7 +93,7 @@ export interface PaymentBreach {
 /** The rule verdict for a payment, without making it. */
 export interface PaymentVerdict {
   /** Every rule the payment breaks, most serious first. Empty when it is allowed. */
-  rules: PaymentRule[];
+  rules: GateRule[];
   reasons: string[];
   amountUsd: number;
   reference: string;
@@ -208,7 +216,8 @@ export class PaymentGuard {
   ): Promise<R> {
     return this.#exclusive(async () => {
       if (this.#state.frozen) throw new PaymentFrozenError();
-      const day = utcDay(this.#now());
+      const now = this.#now();
+      const day = utcDay(now);
       const check = await this.#check(attempt, kind, day);
       if (check.rules.length > 0) {
         await this.#breach({
@@ -233,6 +242,7 @@ export class PaymentGuard {
         amountUsd: check.amountUsd,
         invoiceReference: check.reference,
         day,
+        ...(this.mandate.invoiceMatching === false ? { at: now.toISOString() } : {}),
         ...(kind === "refund" ? { kind } : {}),
       });
       await this.#save();
@@ -257,7 +267,7 @@ export class PaymentGuard {
       // Already a known payee for this vendor (its account on file, or a ticket's): no change to
       // verify. Marking it unverified would make the vendor's own account unpayable.
       if (!isVerifiedChange(await this.#payees(), request)) {
-        const rules: PaymentRule[] = ["unverified_vendor_change"];
+        const rules: GateRule[] = ["unverified_vendor_change"];
         await this.#breach({
           kind: "vendor_change",
           rules,
@@ -292,12 +302,30 @@ export class PaymentGuard {
             { limits, payees, refunds: await read(this.#options.refunds), payments, day },
             attempt,
           )
-        : checkInvoicePayment(
-            { limits, payees, invoices: await read(this.#options.invoices), payments, day },
-            attempt,
-          );
+        : this.mandate.invoiceMatching === false
+          ? checkGeneralPayment(
+              {
+                limits: { ...limits, maxPaymentsPerHour: limits.maxPaymentsPerHour ?? null },
+                payees,
+                payments,
+                paymentsLastHour: this.#paymentsLastHour(),
+                day,
+              },
+              attempt,
+            )
+          : checkInvoicePayment(
+              { limits, payees, invoices: await read(this.#options.invoices), payments, day },
+              attempt,
+            );
     if (!check.ok) throw new BondedError("INVALID_PAYMENT", check.error);
     return check;
+  }
+
+  /** Payments in the last hour. One restored from before the guard kept times doesn't count. */
+  #paymentsLastHour(): number {
+    const since = this.#now().getTime() - 3_600_000;
+    return this.#state.payments.filter((p) => p.at !== undefined && Date.parse(p.at) >= since)
+      .length;
   }
 
   /**
@@ -348,7 +376,7 @@ export class PaymentGuard {
   }
 }
 
-const words = (rules: readonly PaymentRule[]) => rules.map((r) => PAYMENT_RULE_WORDS[r]);
+const words = (rules: readonly GateRule[]) => rules.map((r) => GATE_RULE_WORDS[r]);
 
 /** A payment guard: see `PaymentGuard`. */
 export function paymentGuard(options: PaymentGuardOptions): PaymentGuard {
@@ -460,7 +488,15 @@ function defaultPayment(input: unknown): PaymentAttempt & { requestId?: string }
   return {
     account: field(args, "account"),
     amountUsd,
-    invoiceReference: field(args, "invoiceReference" in args ? "invoiceReference" : "reference"),
+    // Left out, it reaches the rules as empty: only invoice matching needs one.
+    ...("invoiceReference" in args || "reference" in args
+      ? {
+          invoiceReference: field(
+            args,
+            "invoiceReference" in args ? "invoiceReference" : "reference",
+          ),
+        }
+      : {}),
     ...(typeof args.requestId === "string" ? { requestId: args.requestId } : {}),
   };
 }

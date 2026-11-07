@@ -603,6 +603,7 @@ export class Database {
       "0026_gate_transparency.sql",
       "0027_data_apis.sql",
       "0028_gate_payout_proxy.sql",
+      "0029_gate_general_rules.sql",
     ];
     await this.transaction(async (c) => {
       await c.query("SELECT pg_advisory_xact_lock(7001)");
