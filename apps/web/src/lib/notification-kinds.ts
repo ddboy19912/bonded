@@ -46,6 +46,18 @@ export const NOTICE_KINDS: Record<NotificationType, NoticeKind> = {
   },
   payment_breach: { title: "Payment breach", group: "Payment gate", tone: "breach", icon: "stop" },
   gate_frozen: { title: "Gate frozen", group: "Payment gate", tone: "breach", icon: "stop" },
+  payment_seen_breach: {
+    title: "Paid against the rules",
+    group: "Payment gate",
+    tone: "breach",
+    icon: "stop",
+  },
+  gate_skipped: {
+    title: "Paid with no check",
+    group: "Payment gate",
+    tone: "breach",
+    icon: "stop",
+  },
   stripe_webhook_failed: {
     title: "Card check missed",
     group: "Payment gate",

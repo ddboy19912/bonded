@@ -25,6 +25,7 @@ import {
   type GateAccount,
   type GateDecision,
   type GateProof,
+  type GateWatchedPayment,
 } from "../lib/gate";
 import { Gate } from "./Gate";
 import { GateAccount as AccountPage } from "./GateAccount";
@@ -62,6 +63,7 @@ const account: GateAccount = {
   freezeOnBreach: false,
   invoiceMatching: true,
   maxPaymentsPerHour: null,
+  expectChecks: false,
   frozen: false,
   frozenAt: null,
   mandate: { version: 2, hash: `0x${"22".repeat(32)}` },
@@ -595,6 +597,61 @@ describe("the payment gate's rules page", () => {
     await vi.waitFor(() => expect(cancel.disabled).toBe(true));
     fireEvent.keyDown(modal, { key: "Escape" });
     expect(screen.getByRole("dialog")).toBeTruthy();
+  });
+
+  it("says a watched payment was seen after it was paid, and never that it was allowed", async () => {
+    vi.spyOn(gateApi, "watchChains").mockResolvedValue({
+      items: [{ chainId: 8453, name: "Base", tokens: ["USDC"] }],
+    });
+    vi.spyOn(gateApi, "wallets").mockResolvedValue({
+      items: [
+        {
+          id: "w1",
+          chainId: 8453,
+          chain: "Base",
+          address: `0x${"ab".repeat(20)}`,
+          label: "Ops",
+          lastReadAt: null,
+        },
+      ],
+    });
+    const paid = { source: "wallet", amountUsd: 80, reference: "", paidAt: `${DAY}T09:00:00Z` };
+    vi.spyOn(gateApi, "watched").mockResolvedValue({
+      items: [
+        { ...paid, id: "1", payee: "0XAB", reasons: [], checkedFirst: true },
+        {
+          ...paid,
+          id: "2",
+          payee: "0XCD",
+          checkedFirst: false,
+          reasons: [{ rule: "skipped_gate", words: "it was paid with no check first" }],
+        },
+        { ...paid, id: "3", payee: "0XEF", reasons: [], checkedFirst: false },
+      ] as GateWatchedPayment[],
+      next: null,
+    });
+    signedIn();
+    showAccount("watch");
+    expect(await screen.findByText("Checked first")).toBeTruthy();
+    expect(screen.getByText("Broke a rule")).toBeTruthy();
+    expect(screen.getByText("it was paid with no check first")).toBeTruthy();
+    expect(screen.getByText("No rule broken")).toBeTruthy();
+    expect(screen.getByText("Ops")).toBeTruthy();
+    expect(screen.queryByText("Allowed")).toBeNull();
+  });
+
+  it("turns on expecting a check first", async () => {
+    const update = vi.spyOn(gateApi, "updateAccount").mockResolvedValue(account);
+    vi.spyOn(gateApi, "watchChains").mockResolvedValue({ items: [] });
+    vi.spyOn(gateApi, "wallets").mockResolvedValue({ items: [] });
+    vi.spyOn(gateApi, "watched").mockResolvedValue({ items: [], next: null });
+    signedIn();
+    showAccount("watch");
+    expect(await screen.findByText("Wallet watching isn't on yet.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("switch", { name: "Expect a check first" }));
+    await vi.waitFor(() =>
+      expect(update).toHaveBeenCalledWith("sess", ACCOUNT_ID, { expectChecks: true }),
+    );
   });
 
   it("ties a field's error to the field", async () => {

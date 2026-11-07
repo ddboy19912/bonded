@@ -23,6 +23,8 @@ export interface GateAccountRecord {
   /** Off when payments have no invoices to match (migration 0029). */
   invoiceMatching: boolean;
   maxPaymentsPerHour: number | null;
+  /** A watched payment with no check before it raises an alert (migration 0030). */
+  expectChecks: boolean;
   frozenAt: Date | null;
   /** The decision whose breach froze the account, while it is still in the log. */
   frozenBy: string | null;
@@ -143,7 +145,7 @@ export interface GateTicketRecord {
 export interface GatePaymentRecord {
   id: string;
   decisionId: string | null;
-  source: "check" | "import" | "card" | "payout";
+  source: "check" | "import" | "card" | "payout" | "watch";
   kind: "invoice" | "refund";
   payee: string;
   vendorId: string | null;
@@ -212,6 +214,7 @@ const account = (r: Record<string, unknown>): GateAccountRecord => ({
   freezeOnBreach: r.freeze_on_breach as boolean,
   invoiceMatching: r.invoice_matching as boolean,
   maxPaymentsPerHour: (r.max_payments_per_hour as number | null) ?? null,
+  expectChecks: r.expect_checks as boolean,
   frozenAt: (r.frozen_at as Date | null) ?? null,
   frozenBy: (r.frozen_by as string | null) ?? null,
   mandateVersion: r.mandate_version as number,
@@ -416,6 +419,7 @@ export class GateStore {
       invoiceMatching?: boolean;
       /** null removes the limit. */
       maxPaymentsPerHour?: number | null;
+      expectChecks?: boolean;
     },
     by: string,
   ): Promise<GateAccountRecord | undefined> {
@@ -424,8 +428,8 @@ export class GateStore {
       if (!current) return undefined;
       await c.query(
         `UPDATE gate_accounts SET name=$2, mode=$3, max_payment_cents=$4, max_daily_cents=$5,
-           freeze_on_breach=$6, invoice_matching=$7, max_payments_per_hour=$8, updated_at=now()
-         WHERE id=$1`,
+           freeze_on_breach=$6, invoice_matching=$7, max_payments_per_hour=$8, expect_checks=$9,
+           updated_at=now() WHERE id=$1`,
         [
           id,
           patch.name ?? current.name,
@@ -437,6 +441,7 @@ export class GateStore {
           patch.maxPaymentsPerHour === undefined
             ? current.maxPaymentsPerHour
             : patch.maxPaymentsPerHour,
+          patch.expectChecks ?? current.expectChecks,
         ],
       );
       await this.newVersion(c, id, by);
@@ -454,7 +459,7 @@ export class GateStore {
   }
 
   /** Freeze an account after a breach, inside the check's transaction. */
-  async freeze(c: Connection, id: string, decisionId: string): Promise<void> {
+  async freeze(c: Connection, id: string, decisionId: string | null): Promise<void> {
     await c.query(
       "UPDATE gate_accounts SET frozen_at=now(), frozen_by=$2, updated_at=now() WHERE id=$1",
       [id, decisionId],
@@ -895,7 +900,7 @@ export class GateStore {
     accountId: string,
     p: {
       decisionId?: string | null;
-      source: "check" | "import" | "card" | "payout";
+      source: "check" | "import" | "card" | "payout" | "watch";
       kind: "invoice" | "refund";
       payee: string;
       payeeNorm: string;
@@ -1017,11 +1022,11 @@ export class GateStore {
     return state;
   }
 
-  /** Payments that went out through a check since this moment, for the hourly limit. */
+  /** Payments that went out through a check or were watched since then, for the hourly limit. */
   async paymentsSince(c: Connection, accountId: string, since: Date): Promise<number> {
     const r = await c.query(
       `SELECT count(*)::int AS n FROM gate_payments
-       WHERE account_id=$1 AND source='check' AND created_at>=$2`,
+       WHERE account_id=$1 AND source<>'import' AND created_at>=$2`,
       [accountId, since],
     );
     return r.rows[0].n as number;

@@ -680,6 +680,18 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 **What to do:** Every check is refused until you lift the freeze. Read the breach in the decision log first, then unfreeze the account.
 
+### gate-payment-seen-breach
+
+**Message:** A payment already made broke the rules.
+
+**What to do:** The money has left, so Bonded can't stop it. Check the payment on the Watch tab, and recover it if it was wrong.
+
+### gate-skipped
+
+**Message:** A payment was made with no check first.
+
+**What to do:** Your agent paid without asking the gate. Find out why, and keep the pay function out of the agent's reach. If this wallet isn't meant to check first, turn off "Expect a check first" on the Watch tab.
+
 ### gate-stripe-not-linked
 
 **Message:** This gate account isn't linked to Stripe.

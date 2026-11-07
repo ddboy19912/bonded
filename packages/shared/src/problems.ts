@@ -810,6 +810,20 @@ export const PROBLEMS: readonly ProblemEntry[] = [
     "Every check is refused until you lift the freeze. Read the breach in the decision log first, then unfreeze the account.",
     /payment gate froze/i,
   ),
+  entry(
+    "gate-payment-seen-breach",
+    "gate",
+    "A payment already made broke the rules.",
+    "The money has left, so Bonded can't stop it. Check the payment on the Watch tab, and recover it if it was wrong.",
+    /already made broke the rules/i,
+  ),
+  entry(
+    "gate-skipped",
+    "gate",
+    "A payment was made with no check first.",
+    "Your agent paid without asking the gate. Find out why, and keep the pay function out of the agent's reach. If this wallet isn't meant to check first, turn off \"Expect a check first\" on the Watch tab.",
+    /made with no check first/i,
+  ),
   // The card route (Stripe Issuing).
   entry(
     "gate-stripe-not-linked",

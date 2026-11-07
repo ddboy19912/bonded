@@ -21,7 +21,7 @@ export type PaymentRule = (typeof PAYMENT_RULES)[number];
  * out of `PAYMENT_RULES`, which the Arena's ledger and the Index read, so they can't touch a
  * rating until a library release moves them in (docs/SCORING.md).
  */
-export const GATE_RULES = [...PAYMENT_RULES, "over_hourly_limit"] as const;
+export const GATE_RULES = [...PAYMENT_RULES, "over_hourly_limit", "skipped_gate"] as const;
 export type GateRule = (typeof GATE_RULES)[number];
 
 /** Each rule in plain words, for receipts, alerts and the rules page. */
@@ -38,6 +38,7 @@ export const PAYMENT_RULE_WORDS: Record<PaymentRule, string> = {
 export const GATE_RULE_WORDS: Record<GateRule, string> = {
   ...PAYMENT_RULE_WORDS,
   over_hourly_limit: "too many payments in the last hour",
+  skipped_gate: "it was paid with no check first",
 };
 
 export interface PaymentLimits {
@@ -290,6 +291,41 @@ export function checkGeneralPayment(
     rules: GATE_RULES.filter((r) => broken.has(r)),
     lossUsd: vendorId === null ? fromCents(amount) : 0,
     overpaidUsd: vendorId !== null && duplicate ? fromCents(amount) : 0,
+  };
+}
+
+/**
+ * Check a payment seen after it was made (Watch mode), with no check before it. The same rules as
+ * a check: with invoice matching on, it needs an approved invoice, and without a reference there
+ * is nothing to match one to. The money has already left, so this can only report.
+ */
+export function checkWatchedPayment(
+  context: {
+    limits: GeneralPaymentLimits;
+    invoiceMatching: boolean;
+    payees: readonly KnownPayee[];
+    invoices: readonly PayableInvoice[];
+    payments: readonly PaidPayment[];
+    paymentsLastHour: number;
+    day: string;
+  },
+  attempt: PaymentAttempt,
+): PaymentCheck<GateRule> {
+  const check = checkGeneralPayment(context, attempt);
+  if (!check.ok || !context.invoiceMatching) return check;
+  const ref = normalReference(check.reference);
+  const matched = context.invoices.some(
+    (i) =>
+      i.vendorId === check.vendorId &&
+      normalReference(i.reference) === ref &&
+      toCents(i.amountUsd) === toCents(check.amountUsd),
+  );
+  if (matched) return check;
+  const rules = new Set<GateRule>([...check.rules, "unmatched_invoice"]);
+  return {
+    ...check,
+    rules: GATE_RULES.filter((r) => rules.has(r)),
+    overpaidUsd: check.vendorId === null ? 0 : check.amountUsd,
   };
 }
 

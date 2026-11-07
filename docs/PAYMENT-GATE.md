@@ -138,6 +138,33 @@ The last check needs a proof, which exists once the day has ended (UTC). Press V
 
 Each finished day's log root, and the hash of each version of your rules, is posted to GateAnchor on Robinhood Chain testnet at [`0x4434F0D9fEF49EE2E017fb1082C1F3EefABcf5a4`](https://explorer.testnet.chain.robinhood.com/address/0x4434F0D9fEF49EE2E017fb1082C1F3EefABcf5a4). A posted hash can't be changed, so an old decision can't quietly be rewritten. Only hashes go on chain: no payment details.
 
+## Watch
+
+Watch is the other way to connect. Bonded reads payments after they were made, so it holds no key and can't stop anything: it can only record and alert. Use it alone, or next to the check so you know when an agent skipped it.
+
+Two sources feed it, on the account's Watch tab:
+
+- **A wallet.** Give a public address. Bonded reads its USDC and USDT payments on the chains the service has set up, starting from when you added it. It doesn't see native coins such as ETH or any other token yet.
+- **Your payment log.** Send what happened, with a gate API key:
+
+```bash
+curl https://api-production-ba50.up.railway.app/payments/watched \
+  -H "Authorization: Bearer $BONDED_GATE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"payments":[{"id":"pay-001","account":"LT12 1000 0111 0100 1000","amountUsd":612.40,"reference":"NIM-88412","paidAt":"2026-11-07T10:00:00Z"}]}'
+```
+
+A log is what you tell Bonded. Bonded can't prove it, and a payment left out of it is never seen. Sending the same `id` again records nothing.
+
+Each payment goes one of two ways:
+
+- **It matches an earlier check** with the same payee and amount, allowed in the 24 hours before: it's marked "Checked first". The check already judged it.
+- **It doesn't:** it runs through your rules, counts toward your limits, and you get an alert if it broke one. Turn on **Expect a check first** and a payment with no check before it also breaks `skipped_gate`. A wallet that never uses the check should leave this off.
+
+A freeze set on the account applies here too, but it only refuses later checks. It can't stop a payment on your wallet or bank.
+
+Watched payments have no receipt and stay out of the decision log, because Bonded decided nothing before the money left.
+
 ## What it doesn't do
 
 - **It only sees what your code sends it.** On the check route the check is voluntary: code that pays without asking skips it, so keep the raw pay function out of the agent's reach. The card route closes that gap, in Stripe test mode for now. The bank payout route is built, but not live yet.

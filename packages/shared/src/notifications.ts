@@ -18,6 +18,8 @@ export const NOTIFICATION_TYPES = {
   payment_blocked: "The payment gate blocked a payment (Enforce mode).",
   payment_breach: "A payment broke a rule and went through (Monitor mode).",
   gate_frozen: "The payment gate froze an account after a breach.",
+  payment_seen_breach: "A payment seen after it was made broke a rule (Watch mode).",
+  gate_skipped: "A payment was made with no check first (Watch mode).",
   stripe_webhook_failed:
     "Stripe couldn't get the payment gate's answer on a card charge (webhook timeout or error).",
 } as const;

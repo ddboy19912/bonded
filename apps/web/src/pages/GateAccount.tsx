@@ -13,6 +13,7 @@ import { SignedIn } from "../components/gate/owner";
 import { EditRules, Rules } from "../components/gate/rules";
 import { useChainRoot } from "../components/gate/verification";
 import { Vendors } from "../components/gate/vendors";
+import { Watch } from "../components/gate/watch";
 import { Loading, Page, Unavailable } from "../components/ui";
 import { short } from "../lib/format";
 import { gateApi, type GateAccount as Account } from "../lib/gate";
@@ -22,6 +23,7 @@ const TABS = [
   { id: "rules", label: "Rules" },
   { id: "vendors", label: "Vendors" },
   { id: "invoices", label: "Invoices" },
+  { id: "watch", label: "Watch" },
   { id: "cards", label: "Cards" },
   { id: "keys", label: "API keys" },
 ] as const;
@@ -111,6 +113,9 @@ function Detail({ account, session }: { account: Account; session: string }) {
         </TabsContent>
         <TabsContent value="invoices">
           <Invoices account={account} session={session} />
+        </TabsContent>
+        <TabsContent value="watch">
+          <Watch account={account} session={session} />
         </TabsContent>
         <TabsContent value="cards">
           <Cards account={account} session={session} />

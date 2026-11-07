@@ -1,7 +1,13 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { Context, Hono } from "hono";
 import { z } from "zod";
-import { GateStore, type Database, type GateAccountRecord, type GateAnchorPost } from "@bonded/db";
+import {
+  GateStore,
+  GateWatchStore,
+  type Database,
+  type GateAccountRecord,
+  type GateAnchorPost,
+} from "@bonded/db";
 import {
   cardMerchantKey,
   describePaymentMandate,
@@ -29,6 +35,7 @@ import type { SecretBox } from "./secrets.js";
 import { alertOwner, decisionView, runGateCheck, type GateCheckRequest } from "./gate-check.js";
 import { gateCardRoutes, type GateCardOptions } from "./gate-card.js";
 import { gatePayoutRoutes, type GatePayoutOptions } from "./gate-payout.js";
+import { gateWatchRoutes } from "./gate-watch.js";
 
 /**
  * The payment gate's hosted check (apps/api/GATE.md). A business makes a gate account with its
@@ -62,6 +69,10 @@ export interface GateOptions {
   card?: GateCardOptions;
   /** The payout route through the payout proxy in a TEE (gate-payout.ts). */
   payout?: GatePayoutOptions;
+  /** Chains wallets can be watched on (GATE_WATCH_RPC_URLS, gate-watch.ts). */
+  watchChains?: readonly number[];
+  /** Watched wallets per gate account (default 20). */
+  maxWalletsPerAccount?: number;
 }
 
 /**
@@ -130,6 +141,8 @@ const accountPatch = z
     freezeOnBreach: z.boolean().optional(),
     /** Off for payments with no invoices: the check reads the payee list and the limits. */
     invoiceMatching: z.boolean().optional(),
+    /** A watched payment with no check before it raises an alert. */
+    expectChecks: z.boolean().optional(),
     /** Payments allowed in any hour, with invoice matching off. null removes the limit. */
     maxPaymentsPerHour: z.number().int().positive().max(1_000_000).nullable().optional(),
   })
@@ -217,6 +230,7 @@ const accountView = (a: GateAccountRecord) => ({
   freezeOnBreach: a.freezeOnBreach,
   invoiceMatching: a.invoiceMatching,
   maxPaymentsPerHour: a.maxPaymentsPerHour,
+  expectChecks: a.expectChecks,
   frozen: a.frozenAt !== null,
   frozenAt: a.frozenAt?.toISOString() ?? null,
   frozenBy: a.frozenBy,
@@ -403,6 +417,7 @@ export function gateRoutes(
           ...(p.maxDailyUsd !== undefined ? { maxDailyCents: p.maxDailyUsd } : {}),
           ...(p.freezeOnBreach !== undefined ? { freezeOnBreach: p.freezeOnBreach } : {}),
           ...(p.invoiceMatching !== undefined ? { invoiceMatching: p.invoiceMatching } : {}),
+          ...(p.expectChecks !== undefined ? { expectChecks: p.expectChecks } : {}),
           ...(p.maxPaymentsPerHour !== undefined
             ? { maxPaymentsPerHour: p.maxPaymentsPerHour }
             : {}),
@@ -852,6 +867,18 @@ export function gateRoutes(
     }),
   );
 
+  gateWatchRoutes(app, {
+    db,
+    store,
+    watch: new GateWatchStore(db),
+    notifier,
+    now,
+    chains: options.watchChains ?? [],
+    maxWallets: options.maxWalletsPerAccount ?? 20,
+    owned: (c, write) => owned(c, write ? options.writes : options.reads),
+    keyed,
+    allowCheck: (accountId) => checks.allow(accountId),
+  });
   gateCardRoutes(
     app,
     {
