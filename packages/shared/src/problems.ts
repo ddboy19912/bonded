@@ -835,7 +835,7 @@ export const PROBLEMS: readonly ProblemEntry[] = [
     "gate-watch-chain-unavailable",
     "gate",
     "Bonded can't read that chain on this service.",
-    "Pick a chain listed on the Watch tab. The service reads only the chains it has an RPC URL for (GATE_WATCH_RPC_URLS).",
+    "Pick a chain listed on the Watch tab: Ethereum, Base, Arbitrum or Base Sepolia.",
     /can't read that chain/i,
   ),
   entry(

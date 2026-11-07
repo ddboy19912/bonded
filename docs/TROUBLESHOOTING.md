@@ -702,7 +702,7 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 **Message:** Bonded can't read that chain on this service.
 
-**What to do:** Pick a chain listed on the Watch tab. The service reads only the chains it has an RPC URL for (GATE_WATCH_RPC_URLS).
+**What to do:** Pick a chain listed on the Watch tab: Ethereum, Base, Arbitrum or Base Sepolia.
 
 ### gate-watch-wallet-limit
 

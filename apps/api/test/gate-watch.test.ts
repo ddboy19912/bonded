@@ -553,11 +553,15 @@ describe("Watch mode: reading a chain", () => {
     ]);
   });
 
-  it("reads nothing with no setting, and refuses a chain it can't read", () => {
-    expect(watchReadersFromEnv({}).size).toBe(0);
+  it("reads every chain on its public node with no setting, and refuses a chain it can't read", () => {
+    expect([...watchReadersFromEnv({}).keys()].sort((a, b) => a - b)).toEqual([
+      1, 8453, 42161, 84532,
+    ]);
+    for (const chain of Object.values(WATCH_CHAINS)) expect(chain.rpc).toMatch(/^https:\/\//);
+    // The setting replaces a chain's node, and keeps the others.
     expect(
-      watchReadersFromEnv({ GATE_WATCH_RPC_URLS: '{"8453":"https://rpc.example"}' }).has(8453),
-    ).toBe(true);
+      watchReadersFromEnv({ GATE_WATCH_RPC_URLS: '{"8453":"https://rpc.example"}' }).size,
+    ).toBe(4);
     expect(() =>
       watchReadersFromEnv({ GATE_WATCH_RPC_URLS: '{"999":"https://rpc.example"}' }),
     ).toThrow(/chain 999/);
