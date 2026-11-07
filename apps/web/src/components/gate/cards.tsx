@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CreditCardIcon, PlusIcon } from "lucide-react";
+import { CreditCardIcon, PlusIcon, XIcon } from "lucide-react";
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/shadcn/empty";
@@ -213,7 +213,7 @@ function details(h: GateCardHook): ReactNode {
         {proof}
       </span>,
     );
-  if (!parts.length) return "No signing secret yet";
+  if (!parts.length) return null;
   return parts.map((p, i) => (
     <span key={i}>
       {i > 0 && " · "}
@@ -223,9 +223,10 @@ function details(h: GateCardHook): ReactNode {
 }
 
 function Status({ hook }: { hook: GateCardHook }) {
-  if (!hook.ready) return <Badge variant="warn">Needs its secret</Badge>;
+  // A hook without its secret shows only the button that adds it.
+  if (!hook.ready) return null;
   return (
-    <span className="text-xs text-muted">
+    <span className="mr-2 text-xs text-muted">
       {hook.lastRequestAt ? `Asked ${ago(hook.lastRequestAt)}` : "Not asked yet"}
     </span>
   );
@@ -280,18 +281,17 @@ function Hooks({ account, session }: { account: GateAccount; session: string }) 
                 <p className="truncate text-sm font-medium">
                   {h.label || CARD_PROVIDERS[h.provider]}
                 </p>
-                <p className="truncate text-xs text-muted">{details(h)}</p>
+                {details(h) && <p className="truncate text-xs text-muted">{details(h)}</p>}
               </div>
               <div className="ml-auto flex items-center gap-1">
-                <span className="mr-2">
-                  <Status hook={h} />
-                </span>
+                <Status hook={h} />
                 <CopyButton text={hookUrl(h)} variant="icon" label="Copy address" />
                 {!h.ready && (
                   <ModalButton
                     label="Add secret"
                     size="sm"
                     variant="outline"
+                    className="border-warn/40 text-warn hover:bg-warn-soft hover:text-warn"
                     title={`Add ${CARD_PROVIDERS[h.provider]}'s signing secret`}
                     description={WHERE[h.provider]}
                   >
@@ -304,7 +304,11 @@ function Hooks({ account, session }: { account: GateAccount; session: string }) 
                   </ModalButton>
                 )}
                 <ConfirmButton
-                  label="Remove"
+                  label={<XIcon aria-hidden />}
+                  ariaLabel="Remove"
+                  variant="destructive"
+                  size="icon-sm"
+                  className="rounded-md"
                   title="Remove this card provider?"
                   description="Bonded stops answering it. Set your provider to decline when there's no answer, or remove the address there too."
                   confirm="Remove"
