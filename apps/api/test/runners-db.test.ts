@@ -120,6 +120,56 @@ describe("migrations 0014 to 0031", () => {
   });
 });
 
+describe("migration 0029 on gate rows stored before it", () => {
+  it("sets a mixed-case base58 account's key back to its case, and leaves the rest", async () => {
+    const old = await postgres({ migrate: false });
+    try {
+      const dir = fileURLToPath(new URL("../../../packages/db/migrations/", import.meta.url));
+      const files = (await readdir(dir)).filter((f) => /^\d{4}_.*\.sql$/.test(f)).sort();
+      await old.db.pool.query("CREATE TABLE schema_migrations (version integer PRIMARY KEY)");
+      for (const file of files.filter((f) => Number(f.slice(0, 4)) < 29)) {
+        await old.db.pool.query(await readFile(join(dir, file), "utf8"));
+        await old.db.pool.query("INSERT INTO schema_migrations VALUES ($1)", [
+          Number(file.slice(0, 4)),
+        ]);
+      }
+      // As the gate stored them before 0029: every account key in upper case.
+      const solana = "7EcDhSYGxXyscszYEp35KHN8vvw3svAuLKTzXwCFLtV";
+      const iban = "GB29 NWBK 6016 1331 9268 19";
+      const id = "00000000-0000-4000-8000-000000000029";
+      const q = (sql: string, args: unknown[]) => old.db.pool.query(sql, args);
+      await q(
+        "INSERT INTO gate_accounts(id,owner,mode,max_payment_cents,max_daily_cents,mandate_hash) VALUES($1,'0xowner','monitor',100,100,'0x')",
+        [id],
+      );
+      for (const [vendor, account] of [
+        ["sol", solana],
+        ["bank", iban],
+      ])
+        await q(
+          "INSERT INTO gate_vendors(account_id,id,name,account,account_norm) VALUES($1,$2,$2,$3,$4)",
+          [id, vendor, account, account.replace(/\s+/g, "").toUpperCase()],
+        );
+      await q(
+        "INSERT INTO gate_payments(account_id,source,kind,payee,payee_norm,amount_cents,reference,reference_norm,day) VALUES($1,'check','invoice',$2,$3,100,'A','A','2026-11-01')",
+        [id, solana, solana.toUpperCase()],
+      );
+      await old.db.migrate();
+      const vendors = (
+        await q("SELECT id, account_norm FROM gate_vendors WHERE account_id=$1 ORDER BY id", [id])
+      ).rows;
+      expect(vendors).toEqual([
+        { id: "bank", account_norm: "GB29NWBK60161331926819" },
+        { id: "sol", account_norm: solana },
+      ]);
+      const paid = (await q("SELECT payee_norm FROM gate_payments WHERE account_id=$1", [id])).rows;
+      expect(paid).toEqual([{ payee_norm: solana }]);
+    } finally {
+      await old.stop();
+    }
+  }, 120_000);
+});
+
 describe("migrations on a database that main already migrated", () => {
   it("applies only 0020 and later after 0001 to 0019, then nothing", async () => {
     // Before migrations took their version from the file name, the version was the place in the
