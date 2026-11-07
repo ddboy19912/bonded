@@ -133,7 +133,9 @@ function DecisionRow({
           </div>
         </ResponsiveModal>
       </TableCell>
-      <TableCell className="hidden text-muted lg:table-cell">Checked first · {rail}</TableCell>
+      <TableCell className="hidden lg:table-cell">
+        <SourceCell how="Checked first" rail={rail} />
+      </TableCell>
       <TableCell className="hidden font-mono text-[0.92em] text-muted xl:table-cell">
         {short(decision.payee, 6)}
       </TableCell>
@@ -144,6 +146,19 @@ function DecisionRow({
         <ChevronRightIcon className="size-4" aria-hidden />
       </TableCell>
     </TableRow>
+  );
+}
+
+/** The Source column: how Bonded saw the payment, then where it came from. */
+function SourceCell({ how, rail, chainId }: { how: string; rail: string; chainId?: unknown }) {
+  return (
+    <span className="flex min-w-0 flex-col">
+      <span className="truncate">{how}</span>
+      <span className="flex min-w-0 items-center gap-1.5 text-muted">
+        <ChainLogo chainId={chainId} className="size-3.5" />
+        <span className="truncate">{rail}</span>
+      </span>
+    </span>
   );
 }
 
@@ -212,11 +227,8 @@ function WatchedRow({ payment, rail }: { payment: GateWatchedPayment; rail: stri
           />
         </ResponsiveModal>
       </TableCell>
-      <TableCell className="hidden text-muted lg:table-cell">
-        <span className="flex items-center gap-1.5">
-          <ChainLogo chainId={payment.details?.chainId} className="size-4" />
-          Seen after · {rail}
-        </span>
+      <TableCell className="hidden lg:table-cell">
+        <SourceCell how="Seen after" rail={rail} chainId={payment.details?.chainId} />
       </TableCell>
       <TableCell className="hidden font-mono text-[0.92em] text-muted xl:table-cell">
         {short(payment.payee, 6)}
@@ -366,8 +378,8 @@ export function Activity({
           <TableRow className="hover:bg-transparent">
             <TableHead className="hidden w-24 md:table-cell">Result</TableHead>
             <TableHead className="pl-0 md:pl-3">Check</TableHead>
-            <TableHead className="hidden w-44 lg:table-cell">Source</TableHead>
-            <TableHead className="hidden w-48 xl:table-cell">Payee</TableHead>
+            <TableHead className="hidden w-48 lg:table-cell">Source</TableHead>
+            <TableHead className="hidden w-52 xl:table-cell">Payee</TableHead>
             <TableHead className="hidden w-20 text-right md:table-cell">When</TableHead>
             <TableHead className="w-8">
               <span className="sr-only">Open</span>

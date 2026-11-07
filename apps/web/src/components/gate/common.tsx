@@ -199,8 +199,8 @@ export function SelectField({
 
 const CHAIN_LOGOS: Record<number, string> = {
   1: "/brand/chains/ethereum.svg",
-  8453: "/brand/chains/base.svg",
-  84532: "/brand/chains/base.svg",
+  8453: "/brand/chains/base-chain.svg",
+  84532: "/brand/chains/base-chain.svg",
   42161: "/brand/chains/arbitrum.svg",
 };
 

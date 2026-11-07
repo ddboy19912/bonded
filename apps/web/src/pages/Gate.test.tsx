@@ -693,8 +693,10 @@ describe("the payment gate's rules page", () => {
     });
     signedIn();
     showAccount();
-    expect(await screen.findByText("Checked first · API")).toBeTruthy();
-    expect(screen.getByText("Seen after · Base USDC")).toBeTruthy();
+    // The Source column: how Bonded saw it, over where it came from.
+    expect(await screen.findByText("Base USDC")).toBeTruthy();
+    expect(screen.getByText("Seen after")).toBeTruthy();
+    expect(screen.getByText("API")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Payment of \$80/ }));
     const modal = await screen.findByRole("dialog");
     expect(within(modal).getByText(/so it has no receipt/)).toBeTruthy();
@@ -712,7 +714,7 @@ describe("the payment gate's rules page", () => {
     );
     signedIn();
     showAccount();
-    await screen.findByText("Checked first · API");
+    await screen.findByText("Checked first");
     // jsdom has no scrolling, and the select scrolls its list to the chosen option.
     Element.prototype.scrollIntoView = vi.fn();
     fireEvent.click(screen.getByRole("button", { name: "Filters" }));
