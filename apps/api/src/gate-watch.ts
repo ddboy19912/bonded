@@ -21,12 +21,14 @@ import type {
 import {
   checkWatchedPayment,
   GATE_RULE_WORDS,
+  GATE_RULES,
   normalAccount,
   normalReference,
   utcDay,
   type GateRule,
 } from "@bondedhq/shared";
 import { Refused, handle } from "./refused.js";
+import { decisionView } from "./gate-check.js";
 import { gateNotification, type Notifier } from "./notifications.js";
 
 /**
@@ -475,9 +477,29 @@ const listQuery = z.strictObject({
     .optional(),
 });
 
+const activityQuery = listQuery.omit({ before: true }).extend({
+  before: z
+    .string()
+    .regex(
+      /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d(\.\d+)?[+-]\d\d(:\d\d)?\|(decision|watched)\|[0-9a-f-]{1,36}$/,
+    )
+    .optional(),
+  source: z.enum(["check", "card", "log", "wallet"]).optional(),
+  result: z.enum(["allowed", "blocked", "refused", "seen"]).optional(),
+  rule: z.enum(GATE_RULES).optional(),
+});
+
+/** Where a watched payment came from, in words: "Base USDC", or the payment log. */
+function railOf(p: GateWatchedPaymentRecord): string {
+  if (p.source === "log") return "Payment log";
+  const chain = WATCH_CHAINS[Number(p.details.chainId)]?.name ?? "Wallet";
+  return `${chain} ${p.details.token ?? ""}`.trim();
+}
+
 const watchedView = (p: GateWatchedPaymentRecord) => ({
   id: p.id,
   source: p.source,
+  rail: railOf(p),
   payee: p.payeeNorm,
   vendorId: p.vendorId,
   amountUsd: p.amountCents / 100,
@@ -511,6 +533,15 @@ export function gateWatchRoutes(
   },
 ) {
   const { watch, now } = deps;
+  const walletView = (w: Awaited<ReturnType<GateWatchStore["wallets"]>>[number]) => ({
+    id: w.id,
+    chainId: w.chainId,
+    chain: WATCH_CHAINS[w.chainId]?.name ?? String(w.chainId),
+    address: w.address,
+    label: w.label,
+    lastReadAt: w.lastReadAt?.toISOString() ?? null,
+    createdAt: w.createdAt.toISOString(),
+  });
   /** The chains a wallet can be added on. Public: it says nothing about any account. */
   app.get(
     "/gate/watch-chains",
@@ -552,6 +583,65 @@ export function gateWatchRoutes(
       return c.json({ items });
     }),
   );
+  /**
+   * Everything that happened on the account, newest first: checks and payments seen after they
+   * were made, each saying which it is. `?source=`, `?result=` and `?rule=` narrow it.
+   */
+  app.get(
+    "/gate/accounts/:id/activity",
+    handle(async (c) => {
+      const { account } = await deps.owned(c, false);
+      const q = activityQuery.parse(c.req.query());
+      const page = await watch.activity(account.id, q);
+      const ids = (entry: string) => page.items.filter((i) => i.entry === entry).map((i) => i.id);
+      const [decisions, payments] = await Promise.all([
+        deps.store.decisionsByIds(account.id, ids("decision")),
+        watch.watchedByIds(account.id, ids("watched")),
+      ]);
+      const byDecision = new Map(decisions.map((d) => [d.id, d]));
+      const byWatched = new Map(payments.map((p) => [p.id, p]));
+      const items: Record<string, unknown>[] = [];
+      for (const i of page.items) {
+        const d = byDecision.get(i.id);
+        const p = byWatched.get(i.id);
+        if (i.entry === "decision" && d) {
+          const rail = i.source === "card" ? "Card" : "API";
+          items.push({ entry: i.entry, source: i.source, rail, decision: decisionView(d) });
+        } else if (i.entry === "watched" && p) {
+          items.push({
+            entry: i.entry,
+            source: i.source,
+            rail: railOf(p),
+            watched: watchedView(p),
+          });
+        }
+      }
+      return c.json({ items, next: page.next });
+    }),
+  );
+  /** What's connected to the account, and when each last reported. */
+  app.get(
+    "/gate/accounts/:id/connections",
+    handle(async (c) => {
+      const { account } = await deps.owned(c, false);
+      const [keys, wallets, lastReported] = await Promise.all([
+        deps.store.keys(account.id),
+        watch.wallets(account.id),
+        watch.lastReported(account.id),
+      ]);
+      return c.json({
+        keys: keys
+          .filter((k) => !k.revokedAt)
+          .map((k) => ({
+            id: k.id,
+            label: k.label,
+            lastUsedAt: k.lastUsedAt?.toISOString() ?? null,
+          })),
+        wallets: wallets.map(walletView),
+        log: { lastReportedAt: lastReported?.toISOString() ?? null },
+      });
+    }),
+  );
   /** The payments seen, newest first. */
   app.get(
     "/gate/accounts/:id/watched",
@@ -565,15 +655,6 @@ export function gateWatchRoutes(
       return c.json({ items: r.items.map(watchedView), next: r.next });
     }),
   );
-  const walletView = (w: Awaited<ReturnType<GateWatchStore["wallets"]>>[number]) => ({
-    id: w.id,
-    chainId: w.chainId,
-    chain: WATCH_CHAINS[w.chainId]?.name ?? String(w.chainId),
-    address: w.address,
-    label: w.label,
-    lastReadAt: w.lastReadAt?.toISOString() ?? null,
-    createdAt: w.createdAt.toISOString(),
-  });
   app.get(
     "/gate/accounts/:id/wallets",
     handle(async (c) => {

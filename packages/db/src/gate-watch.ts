@@ -70,6 +70,13 @@ const watched = (r: Record<string, unknown>): GateWatchedPaymentRecord => ({
   seenAt: r.seen_at as Date,
 });
 
+/** One line of an account's activity: a check, or a payment seen after it was made. */
+export interface GateActivityEntry {
+  entry: "decision" | "watched";
+  id: string;
+  source: "check" | "card" | "log" | "wallet";
+}
+
 export class GateWatchStore {
   constructor(private readonly db: Database) {}
 
@@ -203,6 +210,69 @@ export class GateWatchStore {
     );
     const items = r.rows.map(watched);
     return { items, next: items.length === limit ? (items.at(-1)?.id ?? null) : null };
+  }
+
+  /**
+   * The account's checks and watched payments in one list, newest first by when each happened.
+   * `before` is the `next` of the page before; `result` "seen" means a watched payment.
+   */
+  async activity(
+    accountId: string,
+    options: { limit?: number; before?: string; source?: string; result?: string; rule?: string },
+  ): Promise<{ items: GateActivityEntry[]; next: string | null }> {
+    const limit = Math.min(Math.max(Math.trunc(options.limit ?? 50), 1), 100);
+    const [at = null, entry = null, id = null] = options.before?.split("|") ?? [];
+    const r = await this.pool.query(
+      `SELECT entry, id, source, at::text AS at_text FROM (
+         SELECT 'decision' AS entry, id::text AS id, created_at AS at, result, rules,
+           CASE WHEN kind='card' THEN 'card' ELSE 'check' END AS source
+         FROM gate_decisions WHERE account_id=$1
+         UNION ALL
+         SELECT 'watched', id::text, paid_at, 'seen', rules, source
+         FROM gate_watched_payments WHERE account_id=$1
+       ) a
+       WHERE ($2::text IS NULL OR source=$2) AND ($3::text IS NULL OR result=$3)
+         AND ($4::text IS NULL OR $4=ANY(rules))
+         AND ($5::timestamptz IS NULL OR (at, entry, id) < ($5::timestamptz, $6::text, $7::text))
+       ORDER BY at DESC, entry DESC, id DESC LIMIT $8`,
+      [
+        accountId,
+        options.source ?? null,
+        options.result ?? null,
+        options.rule ?? null,
+        at,
+        entry,
+        id,
+        limit,
+      ],
+    );
+    const last = r.rows.at(-1);
+    return {
+      items: r.rows.map((row) => ({ entry: row.entry, id: row.id, source: row.source })),
+      next: r.rows.length === limit && last ? `${last.at_text}|${last.entry}|${last.id}` : null,
+    };
+  }
+
+  /** These watched payments, in no order. */
+  async watchedByIds(
+    accountId: string,
+    ids: readonly string[],
+  ): Promise<GateWatchedPaymentRecord[]> {
+    if (ids.length === 0) return [];
+    const r = await this.pool.query(
+      "SELECT * FROM gate_watched_payments WHERE account_id=$1 AND id = ANY($2::bigint[])",
+      [accountId, [...ids]],
+    );
+    return r.rows.map(watched);
+  }
+
+  /** When a payment log last reported a payment to this account. */
+  async lastReported(accountId: string): Promise<Date | null> {
+    const r = await this.pool.query(
+      "SELECT max(seen_at) AS at FROM gate_watched_payments WHERE account_id=$1 AND source='log'",
+      [accountId],
+    );
+    return (r.rows[0].at as Date | null) ?? null;
   }
 
   /** Delete what was seen before this time. The payments it added stay in `gate_payments`. */

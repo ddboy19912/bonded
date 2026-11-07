@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlusIcon } from "lucide-react";
 import { Badge } from "@/components/shadcn/badge";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/shadcn/empty";
 import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/shadcn/field";
 import { Switch } from "@/components/shadcn/switch";
 import {
@@ -17,11 +18,12 @@ import { gateApi, type GateAccount, type GateWatchedPayment } from "../../lib/ga
 import { ModalActions } from "../responsive-modal";
 import { ErrorText, Loading, Unavailable } from "../ui";
 import {
+  ChainLogo,
   ConfirmButton,
+  Facts,
   ModalButton,
   SelectField,
   Submit,
-  TabBar,
   TextField,
   useAction,
 } from "./common";
@@ -35,7 +37,7 @@ function ExpectChecks({ account, session }: { account: GateAccount; session: str
   const queryClient = useQueryClient();
   const action = useAction();
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2 rounded-xl border border-line p-4">
       <Field orientation="horizontal">
         <FieldContent>
           <FieldLabel htmlFor={id}>Expect a check first</FieldLabel>
@@ -99,7 +101,11 @@ function WalletForm({
         label="Chain"
         value={chainId}
         onChange={setChainId}
-        options={chains.map((c) => ({ value: String(c.chainId), label: c.name }))}
+        options={chains.map((c) => ({
+          value: String(c.chainId),
+          label: c.name,
+          icon: <ChainLogo chainId={c.chainId} />,
+        }))}
       />
       <TextField
         label="Wallet address"
@@ -138,64 +144,72 @@ function Wallets({ account, session }: { account: GateAccount; session: string }
   const available = chains.data.items;
   return (
     <section aria-label="Wallets" className="flex flex-col gap-3">
-      <TabBar
-        action={
-          available.length > 0 && (
-            <ModalButton
-              label={
-                <>
-                  <PlusIcon aria-hidden />
-                  Watch a wallet
-                </>
-              }
-              title="Watch a wallet"
-              description="Bonded needs no key. It reads what's public on chain."
-            >
-              {(close) => (
-                <WalletForm account={account} session={session} chains={available} close={close} />
-              )}
-            </ModalButton>
-          )
-        }
-      >
+      <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold">Wallets</h2>
-      </TabBar>
-      {available.length === 0 && (
-        <p className="text-xs text-muted">Wallet watching isn't on yet.</p>
-      )}
+        {available.length > 0 && (
+          <ModalButton
+            label={
+              <>
+                <PlusIcon aria-hidden />
+                Watch a wallet
+              </>
+            }
+            size="sm"
+            title="Watch a wallet"
+            description="Bonded needs no key. It reads what's public on chain."
+          >
+            {(close) => (
+              <WalletForm account={account} session={session} chains={available} close={close} />
+            )}
+          </ModalButton>
+        )}
+      </div>
       {wallets.data.items.length === 0 ? (
-        <p className="text-sm text-muted">No wallets yet.</p>
+        <Empty className="border border-dashed border-line">
+          <EmptyHeader>
+            <EmptyTitle>No wallets yet</EmptyTitle>
+            <EmptyDescription>
+              {available.length > 0
+                ? "Add a public address to see what leaves it."
+                : "Wallet watching isn't on yet."}
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : (
-        <Table>
-          <TableBody>
-            {wallets.data.items.map((w) => (
-              <TableRow key={w.id}>
-                <TableCell>
-                  <span className="font-mono text-xs">{short(w.address, 6)}</span>
-                  {w.label && <span className="ml-2 text-muted">{w.label}</span>}
-                </TableCell>
-                <TableCell className="text-muted">{w.chain}</TableCell>
-                <TableCell className="hidden text-muted sm:table-cell">
-                  {w.lastReadAt ? `Read ${ago(w.lastReadAt)}` : "Not read yet"}
-                </TableCell>
-                <TableCell className="text-right">
-                  <ConfirmButton
-                    label="Stop"
-                    title="Stop watching this wallet?"
-                    description="What Bonded already saw stays in the list."
-                    confirm="Stop watching"
-                    act={() => gateApi.deleteWallet(session, account.id, w.id)}
-                    then={() =>
-                      queryClient.invalidateQueries({
-                        queryKey: ["gate-wallets", session, account.id],
-                      })
-                    }
-                  />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <ul className="divide-y divide-line rounded-xl border border-line">
+          {wallets.data.items.map((w) => (
+            <li key={w.id} className="flex items-center gap-3 p-3">
+              <ChainLogo chainId={w.chainId} className="size-8" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{w.label || short(w.address, 6)}</p>
+                <p className="truncate text-xs text-muted">
+                  {w.chain}
+                  {w.label && (
+                    <>
+                      {" · "}
+                      <span className="font-mono">{short(w.address, 6)}</span>
+                    </>
+                  )}
+                </p>
+              </div>
+              <span className="hidden text-xs text-muted sm:block">
+                {w.lastReadAt ? `Read ${ago(w.lastReadAt)}` : "Not read yet"}
+              </span>
+              <ConfirmButton
+                label="Stop"
+                title="Stop watching this wallet?"
+                description="What Bonded already saw stays in the list."
+                confirm="Stop watching"
+                act={() => gateApi.deleteWallet(session, account.id, w.id)}
+                then={() =>
+                  queryClient.invalidateQueries({
+                    queryKey: ["gate-wallets", session, account.id],
+                  })
+                }
+              />
+            </li>
+          ))}
+        </ul>
       )}
     </section>
   );
@@ -232,7 +246,7 @@ function Seen({ account, session }: { account: GateAccount; session: string }) {
             <TableRow className="hover:bg-transparent">
               <TableHead>Paid</TableHead>
               <TableHead>Amount</TableHead>
-              <TableHead className="hidden sm:table-cell">To</TableHead>
+              <TableHead className="hidden xl:table-cell">To</TableHead>
               <TableHead>Result</TableHead>
             </TableRow>
           </TableHeader>
@@ -241,7 +255,7 @@ function Seen({ account, session }: { account: GateAccount; session: string }) {
               <TableRow key={p.id}>
                 <TableCell className="text-muted">{ago(p.paidAt)}</TableCell>
                 <TableCell>{usd(p.amountUsd)}</TableCell>
-                <TableCell className="hidden font-mono text-xs sm:table-cell">
+                <TableCell className="hidden font-mono text-xs xl:table-cell">
                   {short(p.payee, 6)}
                 </TableCell>
                 <TableCell>
@@ -259,13 +273,21 @@ function Seen({ account, session }: { account: GateAccount; session: string }) {
 /** Payments Bonded reads after they're made. It can alert here, but it can't stop them. */
 export function Watch({ account, session }: { account: GateAccount; session: string }) {
   return (
-    <div className="flex flex-col gap-8">
-      <p className="text-sm text-muted">
-        Bonded sees these after they're paid. It can alert you, but it can't stop them.
-      </p>
-      <ExpectChecks account={account} session={session} />
-      <Wallets account={account} session={session} />
-      <Seen account={account} session={session} />
+    <div className="grid gap-x-16 gap-y-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="flex min-w-0 flex-col gap-8">
+        <Wallets account={account} session={session} />
+        <Seen account={account} session={session} />
+      </div>
+      <aside aria-label="About Watch" className="flex flex-col gap-4">
+        <ExpectChecks account={account} session={session} />
+        <Facts
+          items={[
+            ["Can stop a payment", "No, it alerts you"],
+            ["Needs a key", "No"],
+            ["Sees", "USDC and USDT only"],
+          ]}
+        />
+      </aside>
     </div>
   );
 }

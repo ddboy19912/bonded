@@ -400,6 +400,111 @@ describe("Watch mode: wallets", () => {
   });
 });
 
+describe("Activity and connections", () => {
+  const activity = (base: string, session: string, query = "") =>
+    call("GET", `${base}/activity${query}`, undefined, session);
+
+  it("puts checks and watched payments in one list, newest first, saying which is which", async () => {
+    const { key, base, session } = await gateAccount();
+    await call("POST", "/payments/check", { account: FRAUD, amountUsd: 5 }, key);
+    await report(
+      key,
+      paid("late", NIMBUS, 7, { paidAt: new Date(clock + 60_000).toISOString() }),
+      paid("early", NIMBUS, 8, { paidAt: new Date(clock - 60_000).toISOString() }),
+    );
+    const { items } = (await activity(base, session)).body;
+    expect(items.map((i: Body) => [i.entry, i.source, i.rail])).toEqual([
+      ["watched", "log", "Payment log"],
+      ["decision", "check", "API"],
+      ["watched", "log", "Payment log"],
+    ]);
+    expect(items[0].watched.amountUsd).toBe(7);
+    expect(items[1].decision.result).toBe("blocked");
+    expect(items[0]).not.toHaveProperty("decision");
+    expect(items[0].watched).not.toHaveProperty("receipt");
+  });
+
+  it("filters by source, result and rule", async () => {
+    const { key, base, session } = await gateAccount();
+    await call("POST", "/payments/check", { account: FRAUD, amountUsd: 5 }, key);
+    await call("POST", "/payments/check", { account: NIMBUS, amountUsd: 5 }, key);
+    await report(key, paid("p-1", FRAUD, 9));
+    const count = async (query: string) => (await activity(base, session, query)).body.items.length;
+    expect(await count("")).toBe(3);
+    expect(await count("?source=log")).toBe(1);
+    expect(await count("?source=check")).toBe(2);
+    expect(await count("?result=blocked")).toBe(1);
+    expect(await count("?result=seen")).toBe(1);
+    expect(await count("?rule=unknown_payee")).toBe(2);
+    expect(await count("?rule=unknown_payee&source=check")).toBe(1);
+    expect(await count("?source=wallet")).toBe(0);
+    expect((await activity(base, session, "?rule=nonsense")).status).toBe(400);
+  });
+
+  it("pages through the list with nothing missed or repeated", async () => {
+    const { key, base, session } = await gateAccount();
+    for (let i = 0; i < 3; i++)
+      await call("POST", "/payments/check", { account: NIMBUS, amountUsd: 1 + i }, key);
+    await report(key, paid("a", NIMBUS, 10), paid("b", NIMBUS, 11));
+    const seen: string[] = [];
+    let before: string | null = null;
+    do {
+      const query: string = `?limit=2${before ? `&before=${encodeURIComponent(before)}` : ""}`;
+      const r = await activity(base, session, query);
+      expect(r.status).toBe(200);
+      seen.push(...r.body.items.map((i: Body) => i.decision?.id ?? i.watched.id));
+      before = r.body.next;
+    } while (before);
+    expect(seen).toHaveLength(5);
+    expect(new Set(seen).size).toBe(5);
+  });
+
+  it("refuses a made-up cursor and another owner", async () => {
+    const { base, session } = await gateAccount();
+    expect((await activity(base, session, "?before=';drop")).status).toBe(400);
+    const other = await sessionFor(stranger);
+    expect((await activity(base, other)).status).toBe(404);
+    expect((await call("GET", `${base}/connections`, undefined, other)).status).toBe(404);
+  });
+
+  it("names a wallet payment's chain and token", async () => {
+    const { id, base, session } = await gateAccount();
+    await pg.db.transaction((c) =>
+      new GateWatchStore(pg.db).addWatched(c, {
+        accountId: id,
+        source: "wallet",
+        externalId: "wallet:8453:0x1:0",
+        payee: THIEF,
+        payeeNorm: THIEF.toUpperCase(),
+        vendorId: null,
+        amountCents: 100,
+        reference: "",
+        rules: [],
+        lossCents: 0,
+        overpaidCents: 0,
+        matchedDecision: null,
+        details: { chainId: BASE, token: "USDC", txHash: "0x1" },
+        paidAt: new Date(clock),
+      }),
+    );
+    const { items } = (await activity(base, session)).body;
+    expect(items[0]).toMatchObject({ source: "wallet", rail: "Base USDC" });
+  });
+
+  it("says what's connected and when each last reported", async () => {
+    const { key, base, session } = await gateAccount();
+    const before = (await call("GET", `${base}/connections`, undefined, session)).body;
+    expect(before.keys).toHaveLength(1);
+    expect(before.keys[0].lastUsedAt).toBeNull();
+    expect(before.log.lastReportedAt).toBeNull();
+    await call("POST", "/payments/check", { account: NIMBUS, amountUsd: 5 }, key);
+    await report(key, paid("p-1", NIMBUS, 7));
+    const after = (await call("GET", `${base}/connections`, undefined, session)).body;
+    expect(after.keys[0].lastUsedAt).not.toBeNull();
+    expect(after.log.lastReportedAt).not.toBeNull();
+  });
+});
+
 describe("Watch mode: reading a chain", () => {
   it("lists real checksummed token addresses", () => {
     for (const chain of Object.values(WATCH_CHAINS))
