@@ -130,6 +130,16 @@ The last check needs a proof, which exists once the day has ended (UTC). Press V
 
 Each finished day's log root, and the hash of each version of your rules, is posted to GateAnchor on Robinhood Chain testnet at [`0x4434F0D9fEF49EE2E017fb1082C1F3EefABcf5a4`](https://explorer.testnet.chain.robinhood.com/address/0x4434F0D9fEF49EE2E017fb1082C1F3EefABcf5a4). A posted hash can't be changed, so an old decision can't quietly be rewritten. Only hashes go on chain: no payment details.
 
+## Alerts
+
+A blocked payment, a breach Monitor mode let through and a freeze each send an alert. They always go to your [inbox](https://www.bondedhq.xyz/inbox). On the account's Alerts tab you can also send them to:
+
+- **Slack:** paste an [incoming webhook](https://api.slack.com/messaging/webhooks) URL. Bonded sends a plain message.
+- **Any webhook:** paste an HTTPS address. Bonded POSTs the alert as JSON, signed with a secret shown once.
+- **Email:** when it's on for the service.
+
+These settings cover all your gate accounts and agents. A check refused while the account is frozen sends no alert, because the freeze already did; it's still in the log. Sending is tried once, so if your webhook is down an alert won't reach it, but it stays in the inbox.
+
 ## The dashboard
 
 Each gate account shows one log and what's connected to it:

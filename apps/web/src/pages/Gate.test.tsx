@@ -613,6 +613,41 @@ describe("the payment gate's rules page", () => {
     expect(screen.getByRole("dialog")).toBeTruthy();
   });
 
+  it("adds Slack from the Alerts tab, and shows no secret for it", async () => {
+    const off = { webhook: null, email: null, emailAvailable: false, webhookAvailable: true };
+    const on = { ...off, webhook: { url: "https://hooks.slack.com/…" } };
+    vi.spyOn(gateApi, "alertSettings").mockResolvedValueOnce(off).mockResolvedValue(on);
+    const save = vi
+      .spyOn(gateApi, "saveAlertSettings")
+      .mockResolvedValue({ ...on, webhookSecret: "bonded_wh_secret" });
+    signedIn();
+    showAccount("alerts");
+    expect(await screen.findByText("Email alerts aren't on yet.")).toBeTruthy();
+    expect(screen.queryByLabelText("Email")).toBeNull();
+    const url = "https://hooks.slack.com/services/T0/B0/token";
+    fireEvent.change(screen.getByLabelText("Slack or webhook URL"), { target: { value: url } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await vi.waitFor(() => expect(save).toHaveBeenCalledWith("sess", { webhookUrl: url }));
+    expect(await screen.findByText("Slack")).toBeTruthy();
+    expect(screen.queryByText("bonded_wh_secret")).toBeNull();
+  });
+
+  it("shows a plain webhook's secret once", async () => {
+    const off = { webhook: null, email: null, emailAvailable: true, webhookAvailable: true };
+    vi.spyOn(gateApi, "alertSettings").mockResolvedValue(off);
+    vi.spyOn(gateApi, "saveAlertSettings").mockResolvedValue({
+      ...off,
+      webhookSecret: "bonded_wh_secret",
+    });
+    signedIn();
+    showAccount("alerts");
+    fireEvent.change(await screen.findByLabelText("Slack or webhook URL"), {
+      target: { value: "https://alerts.example.com/hook" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText("bonded_wh_secret")).toBeTruthy();
+  });
+
   it("says a watched payment was seen after it was paid, and never that it was allowed", async () => {
     vi.spyOn(gateApi, "watchChains").mockResolvedValue({
       items: [{ chainId: 8453, name: "Base", tokens: ["USDC"] }],

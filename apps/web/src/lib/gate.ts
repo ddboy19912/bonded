@@ -51,6 +51,16 @@ export interface GateAccount {
   createdAt: string;
 }
 
+/** Where the owner's alerts go, besides the inbox. Shown masked; never the webhook's secret. */
+export interface GateAlertSettings {
+  webhook: { url: string } | null;
+  email: string | null;
+  /** This deployment can send email. */
+  emailAvailable: boolean;
+  /** This deployment can sign webhooks. */
+  webhookAvailable: boolean;
+}
+
 /** A public wallet Bonded reads. It holds no key for it. */
 export interface GateWatchWallet {
   id: string;
@@ -282,6 +292,18 @@ export const gateApi = {
     request<GateProof>(
       `${account(id)}/decisions/${encodeURIComponent(decisionId)}/proof`,
       bearer(session),
+    ),
+  /** GET /self/notifications: where the owner's alerts go. */
+  alertSettings: (session: string) =>
+    request<GateAlertSettings>("/self/notifications", bearer(session)),
+  /** PUT /self/notifications: leave a field out to keep it, null to clear it. */
+  saveAlertSettings: (
+    session: string,
+    input: { webhookUrl?: string | null; email?: string | null },
+  ) =>
+    request<GateAlertSettings & { webhookSecret?: string }>(
+      "/self/notifications",
+      send(session, "PUT", input),
     ),
   /** GET …/card-hooks: the card programs that ask before each charge. */
   cardHooks: (session: string, id: string) =>

@@ -152,6 +152,21 @@ export function emailFromEnv(
   return key && from ? new ResendEmail(key, from) : undefined;
 }
 
+/** Slack's incoming webhooks take a message, not Bonded's payload. */
+const isSlackWebhook = (url: URL) => url.hostname === "hooks.slack.com";
+
+/**
+ * A notification as a Slack message. Slack reads `<...>` as links and mentions, and a payee or
+ * reference comes from the agent, so it is escaped: neither can become a link or an `@channel`.
+ */
+export function slackMessage(n: OwnerNotification): string {
+  const text = `Bonded: ${emailText(n).text}`
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+  return JSON.stringify({ text, unfurl_links: false, unfurl_media: false });
+}
+
 const email = z
   .string()
   .max(254)
@@ -451,10 +466,11 @@ export class Notifier {
         settings.webhookSecretCiphertext,
         webhookContext(owner),
       );
-      const body = JSON.stringify(n);
+      const url = new URL(settings.webhookUrl);
+      const body = isSlackWebhook(url) ? slackMessage(n) : JSON.stringify(n);
       const post = this.options.post ?? safeRequest;
       jobs.push(
-        post(new URL(settings.webhookUrl), {
+        post(url, {
           method: "POST",
           headers: {
             "content-type": "application/json",

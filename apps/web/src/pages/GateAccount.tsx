@@ -5,6 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/shadcn/alert";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/shadcn/empty";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
 import { Activity } from "../components/gate/activity";
+import { Alerts } from "../components/gate/alerts";
 import { Cards } from "../components/gate/cards";
 import { AccountStatus, ConfirmButton, limit } from "../components/gate/common";
 import { Connect } from "../components/gate/connect";
@@ -27,6 +28,7 @@ const TABS = [
   { id: "invoices", label: "Invoices" },
   { id: "watch", label: "Watch" },
   { id: "cards", label: "Cards" },
+  { id: "alerts", label: "Alerts" },
   { id: "keys", label: "API keys" },
 ] as const;
 
@@ -125,6 +127,9 @@ function Detail({ account, session }: { account: Account; session: string }) {
         </TabsContent>
         <TabsContent value="cards">
           <Cards account={account} session={session} />
+        </TabsContent>
+        <TabsContent value="alerts">
+          <Alerts session={session} />
         </TabsContent>
         <TabsContent value="keys">
           <Keys account={account} session={session} />
