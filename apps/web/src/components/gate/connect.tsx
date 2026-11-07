@@ -8,6 +8,7 @@ import { ago, short } from "../../lib/format";
 import { gateApi, type GateAccount } from "../../lib/gate";
 import { CodeBlock } from "../code-block";
 import { Loading, Unavailable, linkClass } from "../ui";
+import { ChainLogo, ModalButton } from "./common";
 
 const SDK = `import { guardPayments, paymentGate } from "@bondedhq/sdk";
 
@@ -37,36 +38,57 @@ const DAY = 86_400_000;
 /** The keeper reads wallets every 30 seconds: ten minutes means it has fallen behind. */
 const WALLET_BEHIND = 10 * 60_000;
 
-/** One thing that reports to the account: its name, whether it's live, and when it last did. */
-function Connection({
-  name,
-  what,
-  at,
-  liveFor,
-  never,
-  stale,
-}: {
+/** How many show before "Show all". */
+const SHOWN = 5;
+
+interface Row {
+  id: string;
   name: string;
   what: string;
   at: string | null;
   liveFor: number;
   never: string;
   stale: string;
-}) {
-  const live = at !== null && Date.now() - Date.parse(at) < liveFor;
+  chainId?: number;
+}
+
+const isLive = (r: Row) => r.at !== null && Date.now() - Date.parse(r.at) < r.liveFor;
+/** What needs a look goes first: stale, then never used, then live. */
+const rank = (r: Row) => (isLive(r) ? 2 : r.at ? 0 : 1);
+
+/** One thing that reports to the account: its name, whether it's live, and when it last did. */
+function Connection({ row }: { row: Row }) {
+  const live = isLive(row);
   return (
     <TableRow>
-      <TableCell className="whitespace-normal">
-        <span className="block font-medium">{name}</span>
-        <span className="text-xs text-muted">{what}</span>
+      <TableCell className="max-w-0 whitespace-normal">
+        <span className="flex items-center gap-2">
+          <ChainLogo chainId={row.chainId} />
+          <span className="min-w-0">
+            <span className="block truncate font-medium">{row.name}</span>
+            <span className="block truncate text-xs text-muted">{row.what}</span>
+          </span>
+        </span>
       </TableCell>
-      <TableCell>
-        <Badge variant={live ? "safe" : at ? "warn" : "outline"}>
-          {live ? "Live" : at ? stale : never}
+      <TableCell className="w-24">
+        <Badge variant={live ? "safe" : row.at ? "warn" : "outline"}>
+          {live ? "Live" : row.at ? row.stale : row.never}
         </Badge>
       </TableCell>
-      <TableCell className="text-right text-muted">{at ? ago(at) : "Never"}</TableCell>
+      <TableCell className="w-20 text-right text-muted">{row.at ? ago(row.at) : "Never"}</TableCell>
     </TableRow>
+  );
+}
+
+function ConnectionList({ rows }: { rows: Row[] }) {
+  return (
+    <Table className="table-fixed">
+      <TableBody>
+        {rows.map((r) => (
+          <Connection key={r.id} row={r} />
+        ))}
+      </TableBody>
+    </Table>
   );
 }
 
@@ -82,45 +104,59 @@ function Connections({ account, session }: { account: GateAccount; session: stri
     return <Unavailable error={connections.error} onRetry={() => void connections.refetch()} />;
   if (!connections.data) return <Loading what="your connections" />;
   const { keys, wallets, log } = connections.data;
+  const rows: Row[] = [
+    ...keys.map((k) => ({
+      id: k.id,
+      name: k.label || "API key",
+      what: "Asks first",
+      at: k.lastUsedAt,
+      liveFor: DAY,
+      never: "Not used yet",
+      stale: "Quiet",
+    })),
+    ...wallets.map((w) => ({
+      id: w.id,
+      name: w.label || short(w.address, 6),
+      what: `Watch · ${w.chain} wallet`,
+      at: w.lastReadAt,
+      liveFor: WALLET_BEHIND,
+      never: "Not read yet",
+      stale: "Behind",
+      chainId: w.chainId,
+    })),
+    ...(log.lastReportedAt
+      ? [
+          {
+            id: "log",
+            name: "Payment log",
+            what: "Watch",
+            at: log.lastReportedAt,
+            liveFor: DAY,
+            never: "Not used yet",
+            stale: "Quiet",
+          },
+        ]
+      : []),
+  ].sort((a, b) => rank(a) - rank(b));
   return (
     <section aria-label="Connections" className="flex flex-col gap-3">
       <h2 className="text-sm font-semibold">Connections</h2>
-      <Table>
-        <TableBody>
-          {keys.map((k) => (
-            <Connection
-              key={k.id}
-              name={k.label || "API key"}
-              what="Asks first"
-              at={k.lastUsedAt}
-              liveFor={DAY}
-              never="Not used yet"
-              stale="Quiet"
-            />
-          ))}
-          {wallets.map((w) => (
-            <Connection
-              key={w.id}
-              name={w.label || short(w.address, 6)}
-              what={`Watch · ${w.chain} wallet`}
-              at={w.lastReadAt}
-              liveFor={WALLET_BEHIND}
-              never="Not read yet"
-              stale="Behind"
-            />
-          ))}
-          {log.lastReportedAt && (
-            <Connection
-              name="Payment log"
-              what="Watch"
-              at={log.lastReportedAt}
-              liveFor={DAY}
-              never="Not used yet"
-              stale="Quiet"
-            />
-          )}
-        </TableBody>
-      </Table>
+      <ConnectionList rows={rows.slice(0, SHOWN)} />
+      {rows.length > SHOWN && (
+        <div>
+          <ModalButton
+            label={`Show all ${rows.length}`}
+            variant="link"
+            size="sm"
+            className="px-0"
+            title="Connections"
+            description="What needs a look comes first."
+            wide
+          >
+            {() => <ConnectionList rows={rows} />}
+          </ModalButton>
+        </div>
+      )}
     </section>
   );
 }

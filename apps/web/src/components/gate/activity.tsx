@@ -1,11 +1,12 @@
 import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
-import { ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon, ListFilterIcon } from "lucide-react";
 import { GATE_RULES, GATE_RULE_WORDS } from "@bondedhq/shared";
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/shadcn/empty";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import {
   Table,
   TableBody,
@@ -27,7 +28,7 @@ import {
 } from "../../lib/gate";
 import { ResponsiveModal } from "../responsive-modal";
 import { ErrorText, Loading, Unavailable, linkClass } from "../ui";
-import { Facts, HashText, SelectField } from "./common";
+import { ChainLogo, Facts, HashText, SelectField } from "./common";
 import { VerifyPanel, type ChainRoot } from "./verification";
 
 export const RESULT: Record<
@@ -211,7 +212,12 @@ function WatchedRow({ payment, rail }: { payment: GateWatchedPayment; rail: stri
           />
         </ResponsiveModal>
       </TableCell>
-      <TableCell className="hidden text-muted lg:table-cell">Seen after · {rail}</TableCell>
+      <TableCell className="hidden text-muted lg:table-cell">
+        <span className="flex items-center gap-1.5">
+          <ChainLogo chainId={payment.details?.chainId} className="size-4" />
+          Seen after · {rail}
+        </span>
+      </TableCell>
       <TableCell className="hidden font-mono text-[0.92em] text-muted xl:table-cell">
         {short(payment.payee, 6)}
       </TableCell>
@@ -268,11 +274,17 @@ export function Activity({
     ...chosen("result", result),
     ...chosen("rule", rule),
   };
-  const filtered = Object.keys(filters).length > 0;
+  const filtered = Object.keys(filters).length;
   /** A change of filter starts the list again. */
   const filter = (set: (value: string) => void) => (value: string) => {
     setOlder(undefined);
     set(value);
+  };
+  const clear = () => {
+    setOlder(undefined);
+    setSource(ALL);
+    setResult(ALL);
+    setRule(ALL);
   };
   const first = useQuery({
     queryKey: ["gate-activity", session, account.id, filters],
@@ -317,10 +329,36 @@ export function Activity({
     );
   return (
     <div className="flex flex-col items-start gap-4">
-      <div className="grid w-full gap-3 sm:grid-cols-3">
-        <SelectField label="Source" value={source} onChange={filter(setSource)} options={SOURCES} />
-        <SelectField label="Result" value={result} onChange={filter(setResult)} options={RESULTS} />
-        <SelectField label="Rule" value={rule} onChange={filter(setRule)} options={RULES} />
+      <div className="flex w-full justify-end">
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm">
+              <ListFilterIcon aria-hidden />
+              Filters
+              {filtered > 0 && <Badge variant="brand">{filtered}</Badge>}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="flex flex-col gap-4">
+            <SelectField
+              label="Source"
+              value={source}
+              onChange={filter(setSource)}
+              options={SOURCES}
+            />
+            <SelectField
+              label="Result"
+              value={result}
+              onChange={filter(setResult)}
+              options={RESULTS}
+            />
+            <SelectField label="Rule" value={rule} onChange={filter(setRule)} options={RULES} />
+            {filtered > 0 && (
+              <Button variant="ghost" size="sm" onClick={clear}>
+                Clear filters
+              </Button>
+            )}
+          </PopoverContent>
+        </Popover>
       </div>
       {!items.length && <p className="text-sm text-muted">Nothing matches these filters.</p>}
       <Table aria-label="Decisions" className={items.length ? "table-fixed" : "hidden"}>

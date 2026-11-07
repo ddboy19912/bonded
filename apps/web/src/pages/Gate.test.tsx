@@ -661,6 +661,7 @@ describe("the payment gate's rules page", () => {
     signedIn();
     showAccount("watch");
     expect(await screen.findByText("Wallet watching isn't on yet.")).toBeTruthy();
+    expect(screen.getByText("USDC and USDT only")).toBeTruthy();
     fireEvent.click(screen.getByRole("switch", { name: "Expect a check first" }));
     await vi.waitFor(() =>
       expect(update).toHaveBeenCalledWith("sess", ACCOUNT_ID, { expectChecks: true }),
@@ -714,7 +715,8 @@ describe("the payment gate's rules page", () => {
     await screen.findByText("Checked first · API");
     // jsdom has no scrolling, and the select scrolls its list to the chosen option.
     Element.prototype.scrollIntoView = vi.fn();
-    fireEvent.click(screen.getByRole("combobox", { name: "Result" }));
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+    fireEvent.click(await screen.findByRole("combobox", { name: "Result" }));
     fireEvent.click(await screen.findByRole("option", { name: "Blocked" }));
     expect(await screen.findByText("Nothing matches these filters.")).toBeTruthy();
     expect(gateApi.activity).toHaveBeenLastCalledWith("sess", ACCOUNT_ID, { result: "blocked" });
@@ -751,6 +753,28 @@ describe("the payment gate's rules page", () => {
     expect(within(listed).queryByText("Payment log")).toBeNull();
     expect(screen.getByRole("tab", { name: "MCP" })).toBeTruthy();
     expect(screen.getByText(/can't stop them/)).toBeTruthy();
+  });
+
+  it("lists what needs a look first, and keeps a long list short", async () => {
+    const recent = new Date(Date.now() - 60_000).toISOString();
+    vi.spyOn(gateApi, "connections").mockResolvedValue({
+      keys: [
+        ...Array.from({ length: 30 }, (_, i) => ({
+          id: `k${i}`,
+          label: `Agent ${i}`,
+          lastUsedAt: recent,
+        })),
+        { id: "old", label: "Stale agent", lastUsedAt: "2026-01-01T00:00:00Z" },
+      ],
+      wallets: [],
+      log: { lastReportedAt: null },
+    });
+    signedIn();
+    showAccount("connect");
+    expect(await screen.findByText("Stale agent")).toBeTruthy();
+    expect(screen.queryByText("Agent 29")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show all 31" }));
+    expect(await screen.findByText("Agent 29")).toBeTruthy();
   });
 
   it("calls vendors payees with invoice matching off", async () => {

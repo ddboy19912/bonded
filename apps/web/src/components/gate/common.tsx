@@ -174,7 +174,7 @@ export function SelectField({
   label: ReactNode;
   value: string;
   onChange: (value: string) => void;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; icon?: ReactNode }[];
 }) {
   const id = useId();
   return (
@@ -187,6 +187,7 @@ export function SelectField({
         <SelectContent>
           {options.map((o) => (
             <SelectItem key={o.value} value={o.value}>
+              {o.icon}
               {o.label}
             </SelectItem>
           ))}
@@ -194,6 +195,20 @@ export function SelectField({
       </Select>
     </Field>
   );
+}
+
+const CHAIN_LOGOS: Record<number, string> = {
+  1: "/brand/chains/ethereum.svg",
+  8453: "/brand/chains/base.svg",
+  84532: "/brand/chains/base.svg",
+  42161: "/brand/chains/arbitrum.svg",
+};
+
+/** A chain's logo. Decorative: the chain's name is always written next to it. */
+export function ChainLogo({ chainId, className }: { chainId: unknown; className?: string }) {
+  const src = CHAIN_LOGOS[Number(chainId)];
+  if (!src) return null;
+  return <img src={src} alt="" className={cn("size-5 shrink-0 rounded-full", className)} />;
 }
 
 /** A form's submit button, with a spinner while it runs. */
