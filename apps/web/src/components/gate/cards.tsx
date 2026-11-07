@@ -1,21 +1,11 @@
 import { useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CreditCardIcon, PlusIcon, XIcon } from "lucide-react";
-import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/shadcn/empty";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/shadcn/table";
 import { apiUrl } from "../../config";
 import { ago } from "../../lib/format";
 import {
-  dollars,
   gateApi,
   type GateAccount,
   type GateCardHook,
@@ -328,76 +318,6 @@ function Hooks({ account, session }: { account: GateAccount; session: string }) 
 }
 
 /**
- * The older card route, where Bonded held a Stripe key and issued the cards. It's no longer set
- * up from here; an account already linked still sees its cards.
- */
-function OlderStripeCards({ account, session }: { account: GateAccount; session: string }) {
-  const queryClient = useQueryClient();
-  const link = useQuery({
-    queryKey: ["gate-stripe", session, account.id],
-    queryFn: () => gateApi.stripeLink(session, account.id),
-    retry: false,
-  });
-  const cards = useQuery({
-    queryKey: ["gate-cards", session, account.id],
-    queryFn: () => gateApi.cardIntents(session, account.id),
-    enabled: Boolean(link.data),
-    retry: false,
-  });
-  if (!link.data) return null;
-  return (
-    <section aria-label="Cards Bonded issued" className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold">Cards Bonded issued</h2>
-          <p className="text-xs text-muted">
-            The older Stripe route, with your Stripe key ({link.data.keyHint}). Unlink it to stop
-            Bonded holding the key.
-          </p>
-        </div>
-        <ConfirmButton
-          label="Unlink"
-          variant="outline"
-          title="Unlink Stripe?"
-          description="Bonded drops the key. Cards already issued are still checked on every charge."
-          confirm="Unlink Stripe"
-          act={() => gateApi.unlinkStripe(session, account.id)}
-          then={() =>
-            queryClient.invalidateQueries({ queryKey: ["gate-stripe", session, account.id] })
-          }
-        />
-      </div>
-      {cards.data && cards.data.items.length > 0 && (
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <TableHead>Invoice</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-              <TableHead className="hidden sm:table-cell">Card</TableHead>
-              <TableHead>Status</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {cards.data.items.map((c) => (
-              <TableRow key={c.id}>
-                <TableCell className="font-mono text-[0.92em]">{c.invoiceReference}</TableCell>
-                <TableCell className="text-right tabular-nums">{dollars(c.amountUsd)}</TableCell>
-                <TableCell className="hidden font-mono text-[0.92em] sm:table-cell">
-                  {c.card ? `•••• ${c.card.last4}` : "—"}
-                </TableCell>
-                <TableCell>
-                  <Badge variant="secondary">{c.status}</Badge>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
-    </section>
-  );
-}
-
-/**
  * Cards your agent pays with, in your own card program. The program asks Bonded before each
  * charge and Bonded answers approve or decline (apps/api/GATE.md, "Card hooks").
  */
@@ -406,7 +326,6 @@ export function Cards({ account, session }: { account: GateAccount; session: str
     <div className="grid gap-x-16 gap-y-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="flex min-w-0 flex-col gap-8">
         <Hooks account={account} session={session} />
-        <OlderStripeCards account={account} session={session} />
       </div>
       <aside aria-label="About cards" className="flex flex-col gap-4">
         <Facts

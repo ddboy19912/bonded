@@ -33,8 +33,6 @@ import type { SessionWallet } from "./sessions.js";
 import { Notifier, type EmailSender } from "./notifications.js";
 import type { SecretBox } from "./secrets.js";
 import { alertOwner, decisionView, runGateCheck, type GateCheckRequest } from "./gate-check.js";
-import { gateCardRoutes, type GateCardOptions } from "./gate-card.js";
-import { gatePayoutRoutes, type GatePayoutOptions } from "./gate-payout.js";
 import { gateWatchRoutes } from "./gate-watch.js";
 import { gateCardHookRoutes, type GateCardHookOptions } from "./gate-card-hook.js";
 
@@ -66,12 +64,8 @@ export interface GateOptions {
   maxVendorsPerAccount?: number;
   /** Sends the owner's alerts (default: one made from the API's secrets and email sender). */
   notifier?: Notifier;
-  /** The card route with Stripe Issuing (gate-card.ts). */
-  card?: GateCardOptions;
   /** Card hooks: the business's own card program asks before each charge (gate-card-hook.ts). */
   cardHook?: GateCardHookOptions;
-  /** The payout route through the payout proxy in a TEE (gate-payout.ts). */
-  payout?: GatePayoutOptions;
   /** Chains wallets can be watched on (`WATCH_CHAINS` in gate-watch.ts). */
   watchChains?: readonly number[];
   /** Watched wallets per gate account (default 20). */
@@ -79,14 +73,13 @@ export interface GateOptions {
 }
 
 /**
- * Routes under /gate and /payments do their own authentication (see the module comment), and
- * Stripe's webhooks under /stripe/issuing and /stripe/payouts are checked by their signature.
+ * Routes under /gate and /payments do their own authentication (see the module comment); card
+ * hooks under /payments/card-hook are checked by the card program's signature.
  */
-export const gateOpen = (path: string) =>
-  /^\/(gate|payments|stripe\/issuing|stripe\/payouts)(\/|$)/.test(path);
+export const gateOpen = (path: string) => /^\/(gate|payments)(\/|$)/.test(path);
 
-/** Stripe's webhooks, whose events can be larger than the API's usual 16 KB body cap. */
-export const stripeWebhookPath = (path: string) => /^\/stripe\/issuing\//.test(path);
+/** Card programs' requests, which can be larger than the API's usual 16 KB body cap. */
+export const cardHookPath = (path: string) => path.startsWith("/payments/card-hook/");
 
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 
@@ -894,49 +887,7 @@ export function gateRoutes(
       checks,
       owned: (c, write) => owned(c, write ? options.writes : options.reads),
     },
-    {
-      allowLiveCharges: options.card?.allowLiveCredentials === true,
-      ...(options.card?.apiVersion ? { stripeApiVersion: options.card.apiVersion } : {}),
-      ...(options.card?.log ? { log: options.card.log } : {}),
-      ...options.cardHook,
-    },
-  );
-  gateCardRoutes(
-    app,
-    {
-      db,
-      store,
-      notifier,
-      receiptKey: options.receiptKey,
-      now,
-      secrets: options.secrets,
-      checks,
-      owned,
-      keyed,
-      writes: options.writes,
-      reads: options.reads,
-      log: options.card?.log ?? ((line) => console.error(line)),
-    },
-    options.card,
-  );
-  gatePayoutRoutes(
-    app,
-    {
-      db,
-      store,
-      notifier,
-      receiptKey: options.receiptKey,
-      now,
-      secrets: options.secrets,
-      checks,
-      owned,
-      keyed,
-      limited,
-      writes: options.writes,
-      reads: options.reads,
-      log: options.payout?.log ?? ((line) => console.error(line)),
-    },
-    options.payout,
+    options.cardHook,
   );
 
   return { store, notifier };

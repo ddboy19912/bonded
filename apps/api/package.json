@@ -29,7 +29,6 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@bonded/payout-proxy": "workspace:*",
     "@bondedhq/runner": "workspace:*",
     "@bonded/sandbox": "workspace:*",
     "@bondedhq/sdk": "workspace:*",

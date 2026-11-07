@@ -93,17 +93,8 @@ export function secretBoxFromEnv(
 export const agentUrlContext = (id: string) => `agent-url:${id}`;
 /** Where an owner's webhook secret is bound. */
 export const webhookContext = (owner: string) => `webhook:${owner.toLowerCase()}`;
-/**
- * Where a gate account's Stripe secrets are bound (gate-card.ts): its restricted key, and the
- * signing secrets of its real-time authorization and events endpoints.
- */
-export const gateStripeContext = (accountId: string, what: "key" | "authorization" | "events") =>
-  `gate-stripe:${accountId}:${what}`;
-/**
- * Where a gate account's payout events endpoint secret is bound (gate-payout.ts). The payout
- * credential itself is never in the secret box: it is sealed to the payout proxy in the TEE.
- */
-export const gatePayoutContext = (accountId: string) => `gate-payout:${accountId}:events`;
+/** Where a card hook's signing secret (Stripe, Lithic) is bound (gate-card-hook.ts): its row. */
+export const cardHookContext = (hookId: string) => `gate-card-hook:${hookId}`;
 
 /**
  * Checks a signed webhook call's headers: `bonded-timestamp` and `bonded-signature:

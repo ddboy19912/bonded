@@ -19,8 +19,8 @@ async function agent(id: number, config: unknown = remote, enabled = true) {
   return `${CHAIN}:${id}`;
 }
 const hello = { runnerVersion: "0.1.0", mode: "tools" };
-/** The migrations' numbers: 0001 to 0031 (0031 is the gate's card hooks). */
-const MIGRATIONS = [...Array.from({ length: 31 }, (_, i) => i + 1)];
+/** The migrations' numbers: 0001 to 0032 (0032 removes the gate's key-holding routes). */
+const MIGRATIONS = [...Array.from({ length: 32 }, (_, i) => i + 1)];
 
 beforeAll(async () => {
   pg = await postgres();
@@ -28,7 +28,7 @@ beforeAll(async () => {
 }, 120_000);
 afterAll(() => pg?.stop());
 
-describe("migrations 0014 to 0031", () => {
+describe("migrations 0014 to 0032", () => {
   it("apply once, in order, and again is a no-op", async () => {
     const versions = (
       await db.pool.query("SELECT version FROM schema_migrations ORDER BY version")
@@ -60,7 +60,8 @@ describe("migrations 0014 to 0031", () => {
       )
     ).rows.map((r) => r.column_name);
     expect(rated).toEqual(["charged_owner", "config", "kind"]);
-    // 0024: the payment gate; 0025: its card route (Stripe Issuing); 0028: its payout route.
+    // 0024: the payment gate; 0031: its card hooks. 0032 dropped the tables of its card route
+    // (0025) and payout route (0028), which held customers' Stripe keys.
     const gate = (
       await db.pool.query(
         "SELECT table_name FROM information_schema.tables WHERE table_name LIKE 'gate\\_%' ORDER BY 1",
@@ -69,20 +70,13 @@ describe("migrations 0014 to 0031", () => {
     expect(gate).toEqual([
       "gate_accounts",
       "gate_api_keys",
-      "gate_card_authorizations",
       "gate_card_hooks",
-      "gate_card_intents",
-      "gate_card_transactions",
       "gate_decisions",
       "gate_invoices",
       "gate_log_roots",
       "gate_mandates",
       "gate_payments",
-      "gate_payout_links",
-      "gate_payouts",
       "gate_refunds",
-      "gate_stripe_events",
-      "gate_stripe_links",
       "gate_tickets",
       "gate_usage_daily",
       "gate_vendors",

@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import { serve } from "@hono/node-server";
 import { ArenaGateway, assertHeldOutOffMetaApi, loadDotEnv } from "@bonded/arena";
-import { Database, GateCardStore, GateStore, GateWatchStore } from "@bonded/db";
+import { Database, GateStore, GateWatchStore } from "@bonded/db";
 import {
   GateAnchorJob,
   Keeper,
@@ -34,7 +34,6 @@ import {
 import { REMOTE_EPISODE_TIMEOUT_MS, gatewayAgents } from "./remote-agent.js";
 import { DbRunnerAuth, RunnerPresenceWriter } from "./runners.js";
 import { secretBoxFromEnv } from "./secrets.js";
-import { payoutTeeFromEnv } from "./payout-tee.js";
 import { GateWatcher, watchReadersFromEnv } from "./gate-watch.js";
 import { Notifier, emailFromEnv } from "./notifications.js";
 import { workPreviewOne } from "./preview-worker.js";
@@ -177,7 +176,6 @@ if (role === "migrate") {
   let gateway: ArenaGateway | undefined;
   let api: ReturnType<typeof createApi> | undefined;
   if (role === "api" || role === "all") {
-    const payoutTee = payoutTeeFromEnv();
     api = createApi({
       db,
       chain,
@@ -205,32 +203,19 @@ if (role === "migrate") {
       ownDomains: ownHosts,
       ...(allowLoopback ? { allowLoopbackUrls: true } : {}),
       // The payment gate signs every receipt with GATE_RECEIPT_PRIVATE_KEY; without it, checks
-      // are refused and card charges declined (apps/api/GATE.md). The card route's Stripe
-      // webhooks are verified with STRIPE_WEBHOOK_SECRET (real-time authorizations) and
-      // STRIPE_EVENTS_WEBHOOK_SECRET (other Issuing events), or a linked account's own secrets.
+      // are refused and card charges declined (apps/api/GATE.md).
       gate: {
         watchChains: [...watchReaders.keys()],
         ...(process.env.GATE_RECEIPT_PRIVATE_KEY
           ? { receiptKey: key("GATE_RECEIPT_PRIVATE_KEY") }
           : {}),
-        card: {
-          ...(process.env.STRIPE_WEBHOOK_SECRET?.trim()
-            ? { authorizationSecret: process.env.STRIPE_WEBHOOK_SECRET.trim() }
-            : {}),
-          ...(process.env.STRIPE_EVENTS_WEBHOOK_SECRET?.trim()
-            ? { eventsSecret: process.env.STRIPE_EVENTS_WEBHOOK_SECRET.trim() }
-            : {}),
+        // Card hooks answer Stripe live-mode charges only with GATE_ALLOW_LIVE_CHARGES=true
+        // (Lithic and Marqeta requests don't say whether they're live).
+        cardHook: {
+          allowLiveCharges: process.env.GATE_ALLOW_LIVE_CHARGES === "true",
           ...(process.env.STRIPE_API_VERSION?.trim()
-            ? { apiVersion: process.env.STRIPE_API_VERSION.trim() }
+            ? { stripeApiVersion: process.env.STRIPE_API_VERSION.trim() }
             : {}),
-          // Off until the founder has legal advice: live keys and live charges are refused.
-          allowLiveCredentials: process.env.GATE_ALLOW_LIVE_CREDENTIALS === "true",
-        },
-        // The payout route forwards allowed payouts to the payout proxy in a TEE
-        // (GATE_PAYOUT_TEE_*, payout-tee.ts); without GATE_PAYOUT_TEE_URL it answers 503.
-        payout: {
-          ...(payoutTee ? { tee: payoutTee } : {}),
-          allowLiveCredentials: process.env.GATE_ALLOW_LIVE_CREDENTIALS === "true",
         },
       },
       // Shown by GET /status: BONDED_VERSION, else the deploy's commit.
@@ -326,8 +311,6 @@ if (role === "migrate") {
           // The payment gate's decision log (payments made are kept: the duplicate rule reads them).
           await gateStore.pruneDecisions(new Date(Date.now() - gateRetentionDays * 86_400_000));
           await gateWatchStore.pruneWatched(new Date(Date.now() - gateRetentionDays * 86_400_000));
-          // Stripe event ids seen (Stripe retries an event for up to three days; kept 30 days).
-          await new GateCardStore(db).pruneEvents(new Date(Date.now() - 30 * 86_400_000));
         },
         3_600_000,
       ),

@@ -1,11 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import type {
-  Connection,
-  Database,
-  GateAccountRecord,
-  GateDecisionRecord,
-  GateStore,
-} from "@bonded/db";
+import type { Database, GateAccountRecord, GateDecisionRecord, GateStore } from "@bonded/db";
 import {
   canonicalJson,
   evaluateGateInput,
@@ -70,17 +64,12 @@ export async function runGateCheck(
     /**
      * With the account's invoice matching off, an invoice check runs as kind "payment". Only
      * `POST /payments/check` sets this, and it is never read from a request: an agent's key can't
-     * choose the weaker check, and the payout route stays on invoices.
+     * choose the weaker check.
      */
     followInvoiceSetting?: boolean;
   },
   auth: { accountId: string; keyId: string },
   request: GateCheckRequest,
-  /**
-   * Runs at the end of a new check, inside its transaction with the account still locked (the
-   * payout route records its payout there, gate-payout.ts). Not run for a replayed request id.
-   */
-  inside?: (c: Connection, outcome: GateCheckOutcome) => Promise<void>,
 ): Promise<GateCheckOutcome> {
   const { db, store } = deps;
   const { requestId, ...asked } = request;
@@ -257,7 +246,6 @@ export async function runGateCheck(
       froze,
       account: (await store.account(account.id, c))!,
     };
-    if (inside) await inside(c, outcome);
     return outcome;
   });
 }
