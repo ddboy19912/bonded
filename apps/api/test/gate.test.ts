@@ -700,6 +700,127 @@ describe("the payment gate: alerts", () => {
   });
 });
 
+describe("the payment gate: invoice matching off", () => {
+  const general = async (settings: Record<string, unknown> = {}) => {
+    const made = await gateAccount();
+    const r = await call("PUT", made.base, { invoiceMatching: false, ...settings }, made.session);
+    expect(r.status).toBe(200);
+    return { ...made, account: r.body };
+  };
+
+  it("starts on, and a new account's hash is the one it always had", async () => {
+    const { base, session } = await gateAccount();
+    const account = (await call("GET", base, undefined, session)).body;
+    expect(account).toMatchObject({ invoiceMatching: true, maxPaymentsPerHour: null });
+    const [version] = (await call("GET", `${base}/mandates`, undefined, session)).body.items;
+    expect(version.mandate).not.toHaveProperty("invoiceMatching");
+    expect(version.mandate).not.toHaveProperty("maxPaymentsPerHour");
+  });
+
+  it("makes a new mandate version with the rules in words", async () => {
+    const { account, base, session } = await general({ maxPaymentsPerHour: 3 });
+    expect(account).toMatchObject({ invoiceMatching: false, maxPaymentsPerHour: 3 });
+    expect(account.rules).toContain("Pay a reference to the same account only once.");
+    expect(account.rules).toContain("No more than 3 payments in any hour.");
+    const [version] = (await call("GET", `${base}/mandates`, undefined, session)).body.items;
+    expect(version.mandate).toMatchObject({ invoiceMatching: false, maxPaymentsPerHour: 3 });
+    expect(gateMandateHash(version.mandate)).toBe(account.mandate.hash);
+    const cleared = await call("PUT", base, { maxPaymentsPerHour: null }, session);
+    expect(cleared.body.maxPaymentsPerHour).toBeNull();
+  });
+
+  it("passes a listed payee with no invoice, with a receipt anyone can recheck", async () => {
+    const { key, base, session } = await general();
+    const r = await check(key, { account: NIMBUS, amountUsd: 42.5 });
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({
+      kind: "payment",
+      decision: "pass",
+      result: "allowed",
+      reference: "",
+      vendorId: "nimbus",
+    });
+    const signed = r.body.receipt as SignedGateReceipt;
+    expect(signed.receipt.kind).toBe("payment");
+    expect(await verifyGateReceipt(signed, RECEIPT_SIGNER)).toBe(true);
+    const input = r.body.input as GateInput;
+    expect(gateInputHash(input)).toBe(signed.receipt.inputHash);
+    expect(evaluateGateInput(input)).toMatchObject({ ok: true, rules: [] });
+    const payments = (await call("GET", `${base}/payments`, undefined, session)).body.items;
+    expect(payments).toMatchObject([{ source: "check", vendorId: "nimbus", amountCents: 4250 }]);
+  });
+
+  it("blocks an account off the list, a repeated reference and the limits", async () => {
+    const { key } = await general({ maxPaymentUsd: 100, maxDailyUsd: 150 });
+    expect((await check(key, { account: FRAUD, amountUsd: 5 })).body).toMatchObject({
+      result: "blocked",
+      rules: ["unknown_payee"],
+    });
+    expect((await pay(key, NIMBUS, 10, "ORDER-1")).body.result).toBe("allowed");
+    expect((await pay(key, NIMBUS, 10, "order-1")).body.rules).toEqual(["duplicate_payment"]);
+    expect((await check(key, { account: NIMBUS, amountUsd: 120 })).body.rules).toEqual([
+      "over_payment_cap",
+    ]);
+    expect((await check(key, { account: NIMBUS, amountUsd: 95 })).body.result).toBe("allowed");
+    expect((await check(key, { account: NIMBUS, amountUsd: 50 })).body.rules).toEqual([
+      "over_daily_cap",
+    ]);
+  });
+
+  it("holds the hourly limit, and says so in words", async () => {
+    const { key } = await general({ maxPaymentsPerHour: 2 });
+    for (let i = 0; i < 2; i++)
+      expect((await check(key, { account: NIMBUS, amountUsd: 1 })).body.result).toBe("allowed");
+    const r = await check(key, { account: NIMBUS, amountUsd: 1 });
+    expect(r.body).toMatchObject({ result: "blocked", rules: ["over_hourly_limit"] });
+    expect(r.body.reasons[0].words).toBe("too many payments in the last hour");
+    expect(r.body.message).toContain("too many payments in the last hour");
+  });
+
+  it("can't be chosen by an agent's key on an account that matches invoices", async () => {
+    const { key } = await gateAccount();
+    expect((await check(key, { kind: "payment", account: NIMBUS, amountUsd: 5 })).status).toBe(400);
+    expect((await check(key, { account: NIMBUS, amountUsd: 5, followSetting: true })).status).toBe(
+      400,
+    );
+    // Matching invoices, a payment with no reference is refused as it always was.
+    expect((await check(key, { account: NIMBUS, amountUsd: 5 })).status).toBe(400);
+  });
+
+  it("leaves refunds and bank changes as they were", async () => {
+    const { key } = await general();
+    const refund = await check(key, {
+      kind: "refund",
+      account: NIMBUS,
+      amountUsd: 5,
+      invoiceReference: "R-404",
+    });
+    expect(refund.body).toMatchObject({ kind: "refund", rules: ["unmatched_invoice"] });
+    const change = await check(key, { kind: "bank_change", vendorId: "nimbus", account: FRAUD });
+    expect(change.body).toMatchObject({ rules: ["unverified_vendor_change"] });
+  });
+
+  it("gives a replayed request its first decision after the setting changes", async () => {
+    const { key, base, session } = await gateAccount();
+    const body = { account: NIMBUS, amountUsd: 612.4, invoiceReference: "NIM-1", requestId: "r-1" };
+    const first = await check(key, body);
+    expect(first.body.kind).toBe("invoice");
+    await call("PUT", base, { invoiceMatching: false }, session);
+    const again = await check(key, body);
+    expect(again.body).toMatchObject({ id: first.body.id, kind: "invoice", replayed: true });
+  });
+
+  it("freezes after a breach like any other check", async () => {
+    const { key } = await general({ freezeOnBreach: true });
+    await check(key, { account: FRAUD, amountUsd: 5 });
+    expect((await check(key, { account: NIMBUS, amountUsd: 5 })).body).toMatchObject({
+      kind: "payment",
+      decision: "frozen",
+      result: "refused",
+    });
+  });
+});
+
 describe("the payment gate: the decision log", () => {
   it("lists an account's decisions newest first, in pages, and only to that account", async () => {
     const { key, base, session } = await gateAccount();

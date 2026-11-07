@@ -97,8 +97,11 @@ export {
 } from "./payments.js";
 export {
   describePaymentMandate,
+  GATE_RULE_WORDS,
+  GATE_RULES,
   PAYMENT_RULE_WORDS,
   PAYMENT_RULES,
+  type GateRule,
   type PaidPayment,
   type PayableInvoice,
   type PayableRefund,

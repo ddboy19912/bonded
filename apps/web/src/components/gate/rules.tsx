@@ -93,6 +93,31 @@ export function FreezeSwitch({
   );
 }
 
+/** Whether every payment needs an approved invoice, on or off. */
+function InvoiceSwitch({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (on: boolean) => void;
+}) {
+  const id = useId();
+  return (
+    <Field orientation="horizontal">
+      <FieldContent>
+        <FieldLabel htmlFor={id}>Match invoices</FieldLabel>
+        <FieldDescription className="text-xs">
+          Every payment needs an approved invoice. Turn off if yours have none.
+        </FieldDescription>
+      </FieldContent>
+      <Switch id={id} checked={checked} onCheckedChange={onChange} />
+    </Field>
+  );
+}
+
+/** A whole number above zero, or null; empty is "no limit". */
+const parseCount = (value: string) => (/^[1-9]\d{0,6}$/.test(value.trim()) ? Number(value) : null);
+
 /** Change the mode, limits and freeze together: one save is one new version of the rules. */
 function RulesForm({
   account,
@@ -109,15 +134,27 @@ function RulesForm({
   const [perPayment, setPerPayment] = useState(String(account.maxPaymentUsd));
   const [perDay, setPerDay] = useState(String(account.maxDailyUsd));
   const [freeze, setFreeze] = useState(account.freezeOnBreach);
+  const [matching, setMatching] = useState(account.invoiceMatching);
+  const [perHour, setPerHour] = useState(account.maxPaymentsPerHour?.toString() ?? "");
   const maxPaymentUsd = parseUsd(perPayment);
   const maxDailyUsd = parseUsd(perDay);
+  const noHourLimit = perHour.trim() === "";
+  const maxPaymentsPerHour = noHourLimit ? null : parseCount(perHour);
+  // The hourly field shows only with invoice matching off: while it's hidden, what's typed in it
+  // neither blocks saving nor gets saved.
+  const hourOk = matching || noHourLimit || maxPaymentsPerHour !== null;
   const patch = {
     ...(mode !== account.mode ? { mode } : {}),
     ...(maxPaymentUsd !== null && maxPaymentUsd !== account.maxPaymentUsd ? { maxPaymentUsd } : {}),
     ...(maxDailyUsd !== null && maxDailyUsd !== account.maxDailyUsd ? { maxDailyUsd } : {}),
     ...(freeze !== account.freezeOnBreach ? { freezeOnBreach: freeze } : {}),
+    ...(matching !== account.invoiceMatching ? { invoiceMatching: matching } : {}),
+    ...(!matching && hourOk && maxPaymentsPerHour !== account.maxPaymentsPerHour
+      ? { maxPaymentsPerHour }
+      : {}),
   };
-  const ready = maxPaymentUsd !== null && maxDailyUsd !== null && Object.keys(patch).length > 0;
+  const ready =
+    maxPaymentUsd !== null && maxDailyUsd !== null && hourOk && Object.keys(patch).length > 0;
   return (
     <form
       className="flex flex-col gap-5"
@@ -150,6 +187,17 @@ function RulesForm({
           error={maxDailyUsd === null ? "Enter an amount in dollars." : null}
         />
       </div>
+      <InvoiceSwitch checked={matching} onChange={setMatching} />
+      {!matching && (
+        <TextField
+          label="Most payments in one hour"
+          value={perHour}
+          onChange={setPerHour}
+          inputMode="numeric"
+          hint="Leave empty for no limit."
+          error={hourOk ? null : "Enter a whole number."}
+        />
+      )}
       <FreezeSwitch checked={freeze} onChange={setFreeze} />
       <ErrorText error={action.error} />
       <ModalActions>
@@ -230,6 +278,9 @@ function Versions({ account, session }: { account: GateAccount; session: string 
 
 /** The rules in plain words, then the setup they come from. */
 export function Rules({ account, session }: { account: GateAccount; session: string }) {
+  const hourly: [string, number | string][] = account.invoiceMatching
+    ? []
+    : [["Most payments in one hour", account.maxPaymentsPerHour ?? "No limit"]];
   return (
     <div className="grid gap-x-16 gap-y-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <section aria-label="Rules">
@@ -249,6 +300,8 @@ export function Rules({ account, session }: { account: GateAccount; session: str
             ["Mode", account.mode === "enforce" ? "Enforce" : "Monitor"],
             ["Most for one payment", limit(account.maxPaymentUsd)],
             ["Most in one day", limit(account.maxDailyUsd)],
+            ["Match invoices", account.invoiceMatching ? "On" : "Off"],
+            ...hourly,
             ["Freeze after a breach", account.freezeOnBreach ? "On" : "Off"],
             ["Version", account.mandate.version],
             ["Hash", <HashText hash={account.mandate.hash} />],

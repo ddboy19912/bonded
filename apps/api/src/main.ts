@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import { serve } from "@hono/node-server";
 import { ArenaGateway, assertHeldOutOffMetaApi, loadDotEnv } from "@bonded/arena";
-import { Database, GateCardStore, GateStore } from "@bonded/db";
+import { Database, GateCardStore, GateStore, GateWatchStore } from "@bonded/db";
 import {
   GateAnchorJob,
   Keeper,
@@ -35,6 +35,7 @@ import { REMOTE_EPISODE_TIMEOUT_MS, gatewayAgents } from "./remote-agent.js";
 import { DbRunnerAuth, RunnerPresenceWriter } from "./runners.js";
 import { secretBoxFromEnv } from "./secrets.js";
 import { payoutTeeFromEnv } from "./payout-tee.js";
+import { GateWatcher, watchReadersFromEnv } from "./gate-watch.js";
 import { Notifier, emailFromEnv } from "./notifications.js";
 import { workPreviewOne } from "./preview-worker.js";
 import { workCheckOne } from "./check-worker.js";
@@ -99,6 +100,8 @@ const remotePolicy = remotePolicyFromEnv();
 const secrets = secretBoxFromEnv();
 // Notification email, only when RESEND_API_KEY and EMAIL_FROM are both set.
 const email = emailFromEnv();
+// The chains Watch mode reads wallets on (GATE_WATCH_RPC_URLS); none by default.
+const watchReaders = watchReadersFromEnv();
 /**
  * Hosts an Agent URL or webhook may never be (beyond BONDED_OWN_HOSTS in @bonded/arena): any in
  * BONDED_OWN_HOSTS (comma-separated), this service's own Railway domain, and the web origins.
@@ -205,6 +208,7 @@ if (role === "migrate") {
       // webhooks are verified with STRIPE_WEBHOOK_SECRET (real-time authorizations) and
       // STRIPE_EVENTS_WEBHOOK_SECRET (other Issuing events), or a linked account's own secrets.
       gate: {
+        watchChains: [...watchReaders.keys()],
         ...(process.env.GATE_RECEIPT_PRIVATE_KEY
           ? { receiptKey: key("GATE_RECEIPT_PRIVATE_KEY") }
           : {}),
@@ -290,6 +294,23 @@ if (role === "migrate") {
       .min(1)
       .parse(process.env.GATE_DECISION_RETENTION_DAYS ?? 365);
     const gateStore = new GateStore(db, gateMandateHash);
+    const gateWatchStore = new GateWatchStore(db);
+    // Watch mode's wallets (gate-watch.ts), only on the chains GATE_WATCH_RPC_URLS names.
+    if (watchReaders.size > 0) {
+      const watcher = new GateWatcher({
+        db,
+        store: gateStore,
+        watch: gateWatchStore,
+        readers: watchReaders,
+        notifier: new Notifier(db, {
+          ...(secrets ? { secrets } : {}),
+          ...(allowLoopback ? { allowLoopback: true } : {}),
+          ...(email ? { email } : {}),
+          log: (line) => console.error(line),
+        }),
+      });
+      tasks.push(loop("Gate wallet watch", () => watcher.tick(), 30_000));
+    }
     tasks.push(
       loop(
         "Event retention",
@@ -303,6 +324,7 @@ if (role === "migrate") {
           await db.pruneNotifications(new Date(Date.now() - 90 * 86_400_000));
           // The payment gate's decision log (payments made are kept: the duplicate rule reads them).
           await gateStore.pruneDecisions(new Date(Date.now() - gateRetentionDays * 86_400_000));
+          await gateWatchStore.pruneWatched(new Date(Date.now() - gateRetentionDays * 86_400_000));
           // Stripe event ids seen (Stripe retries an event for up to three days; kept 30 days).
           await new GateCardStore(db).pruneEvents(new Date(Date.now() - 30 * 86_400_000));
         },

@@ -8,21 +8,25 @@ import { Activity } from "../components/gate/activity";
 import { Alerts } from "../components/gate/alerts";
 import { Cards } from "../components/gate/cards";
 import { AccountStatus, ConfirmButton, limit } from "../components/gate/common";
+import { Connect } from "../components/gate/connect";
 import { Invoices } from "../components/gate/invoices";
 import { Keys } from "../components/gate/keys";
 import { SignedIn } from "../components/gate/owner";
 import { EditRules, Rules } from "../components/gate/rules";
 import { useChainRoot } from "../components/gate/verification";
 import { Vendors } from "../components/gate/vendors";
+import { Watch } from "../components/gate/watch";
 import { Loading, Page, Unavailable } from "../components/ui";
 import { short } from "../lib/format";
 import { gateApi, type GateAccount as Account } from "../lib/gate";
 
 const TABS = [
   { id: "activity", label: "Activity" },
+  { id: "connect", label: "Connect" },
   { id: "rules", label: "Rules" },
   { id: "vendors", label: "Vendors" },
   { id: "invoices", label: "Invoices" },
+  { id: "watch", label: "Watch" },
   { id: "cards", label: "Cards" },
   { id: "alerts", label: "Alerts" },
   { id: "keys", label: "API keys" },
@@ -96,14 +100,18 @@ function Detail({ account, session }: { account: Account; session: string }) {
             <TabsTrigger
               key={t.id}
               value={t.id}
-              className="h-10 flex-none rounded-none border-0 px-0.5 after:bottom-0!"
+              className="h-10 flex-none rounded-md border-0 px-0.5 after:bottom-0! focus-visible:border-0 focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
             >
-              {t.label}
+              {/* With no invoices to match, these are payees rather than vendors. */}
+              {t.id === "vendors" && !account.invoiceMatching ? "Payees" : t.label}
             </TabsTrigger>
           ))}
         </TabsList>
         <TabsContent value="activity">
           <Activity account={account} session={session} chainRoot={chainRoot} />
+        </TabsContent>
+        <TabsContent value="connect">
+          <Connect account={account} session={session} />
         </TabsContent>
         <TabsContent value="rules">
           <Rules account={account} session={session} />
@@ -113,6 +121,9 @@ function Detail({ account, session }: { account: Account; session: string }) {
         </TabsContent>
         <TabsContent value="invoices">
           <Invoices account={account} session={session} />
+        </TabsContent>
+        <TabsContent value="watch">
+          <Watch account={account} session={session} />
         </TabsContent>
         <TabsContent value="cards">
           <Cards account={account} session={session} />

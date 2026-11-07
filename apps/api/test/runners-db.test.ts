@@ -19,8 +19,8 @@ async function agent(id: number, config: unknown = remote, enabled = true) {
   return `${CHAIN}:${id}`;
 }
 const hello = { runnerVersion: "0.1.0", mode: "tools" };
-/** The migrations' numbers: 0001 to 0028 (0028 is the gate's payout route). */
-const MIGRATIONS = [...Array.from({ length: 28 }, (_, i) => i + 1)];
+/** The migrations' numbers: 0001 to 0031 (0031 is the gate's card hooks). */
+const MIGRATIONS = [...Array.from({ length: 31 }, (_, i) => i + 1)];
 
 beforeAll(async () => {
   pg = await postgres();
@@ -28,7 +28,7 @@ beforeAll(async () => {
 }, 120_000);
 afterAll(() => pg?.stop());
 
-describe("migrations 0014 to 0028", () => {
+describe("migrations 0014 to 0031", () => {
   it("apply once, in order, and again is a no-op", async () => {
     const versions = (
       await db.pool.query("SELECT version FROM schema_migrations ORDER BY version")
@@ -70,6 +70,7 @@ describe("migrations 0014 to 0028", () => {
       "gate_accounts",
       "gate_api_keys",
       "gate_card_authorizations",
+      "gate_card_hooks",
       "gate_card_intents",
       "gate_card_transactions",
       "gate_decisions",
@@ -85,6 +86,8 @@ describe("migrations 0014 to 0028", () => {
       "gate_tickets",
       "gate_usage_daily",
       "gate_vendors",
+      "gate_watch_wallets",
+      "gate_watched_payments",
     ]);
     const merchant = (
       await db.pool.query(
@@ -115,6 +118,56 @@ describe("migrations 0014 to 0028", () => {
       "index_webhooks",
     ]);
   });
+});
+
+describe("migration 0029 on gate rows stored before it", () => {
+  it("sets a mixed-case base58 account's key back to its case, and leaves the rest", async () => {
+    const old = await postgres({ migrate: false });
+    try {
+      const dir = fileURLToPath(new URL("../../../packages/db/migrations/", import.meta.url));
+      const files = (await readdir(dir)).filter((f) => /^\d{4}_.*\.sql$/.test(f)).sort();
+      await old.db.pool.query("CREATE TABLE schema_migrations (version integer PRIMARY KEY)");
+      for (const file of files.filter((f) => Number(f.slice(0, 4)) < 29)) {
+        await old.db.pool.query(await readFile(join(dir, file), "utf8"));
+        await old.db.pool.query("INSERT INTO schema_migrations VALUES ($1)", [
+          Number(file.slice(0, 4)),
+        ]);
+      }
+      // As the gate stored them before 0029: every account key in upper case.
+      const solana = "7EcDhSYGxXyscszYEp35KHN8vvw3svAuLKTzXwCFLtV";
+      const iban = "GB29 NWBK 6016 1331 9268 19";
+      const id = "00000000-0000-4000-8000-000000000029";
+      const q = (sql: string, args: unknown[]) => old.db.pool.query(sql, args);
+      await q(
+        "INSERT INTO gate_accounts(id,owner,mode,max_payment_cents,max_daily_cents,mandate_hash) VALUES($1,'0xowner','monitor',100,100,'0x')",
+        [id],
+      );
+      for (const [vendor, account] of [
+        ["sol", solana],
+        ["bank", iban],
+      ] as const)
+        await q(
+          "INSERT INTO gate_vendors(account_id,id,name,account,account_norm) VALUES($1,$2,$2,$3,$4)",
+          [id, vendor, account, account.replace(/\s+/g, "").toUpperCase()],
+        );
+      await q(
+        "INSERT INTO gate_payments(account_id,source,kind,payee,payee_norm,amount_cents,reference,reference_norm,day) VALUES($1,'check','invoice',$2,$3,100,'A','A','2026-11-01')",
+        [id, solana, solana.toUpperCase()],
+      );
+      await old.db.migrate();
+      const vendors = (
+        await q("SELECT id, account_norm FROM gate_vendors WHERE account_id=$1 ORDER BY id", [id])
+      ).rows;
+      expect(vendors).toEqual([
+        { id: "bank", account_norm: "GB29NWBK60161331926819" },
+        { id: "sol", account_norm: solana },
+      ]);
+      const paid = (await q("SELECT payee_norm FROM gate_payments WHERE account_id=$1", [id])).rows;
+      expect(paid).toEqual([{ payee_norm: solana }]);
+    } finally {
+      await old.stop();
+    }
+  }, 120_000);
 });
 
 describe("migrations on a database that main already migrated", () => {

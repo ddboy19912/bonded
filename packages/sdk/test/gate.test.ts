@@ -109,6 +109,42 @@ const gateOn = (server: ReturnType<typeof api>, onBreach?: (b: PaymentBreach) =>
   });
 
 describe("the hosted payment gate", () => {
+  it("accepts a payment receipt for an invoice check, and sends no reference when there is none", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const gate = paymentGate({
+      apiKey: "bonded_gk_test",
+      apiUrl: API,
+      receiptKey: SIGNER,
+      fetch: (async (_url: string, init: RequestInit) => {
+        const asked = JSON.parse(init.body as string) as Record<string, unknown>;
+        bodies.push(asked);
+        const signed = await answer({ ...asked, kind: "payment", invoiceReference: "" });
+        return new Response(JSON.stringify(signed), { status: 200 });
+      }) as typeof fetch,
+    });
+    await expect(gate.pay({ account: NIMBUS, amountUsd: 12 }, async () => "paid")).resolves.toBe(
+      "paid",
+    );
+    expect(bodies[0]).not.toHaveProperty("invoiceReference");
+    expect(bodies[0]).toMatchObject({ kind: "invoice", amountUsd: 12 });
+  });
+
+  it("refuses a payment receipt for a refund check", async () => {
+    const gate = paymentGate({
+      apiKey: "bonded_gk_test",
+      apiUrl: API,
+      receiptKey: SIGNER,
+      fetch: (async (_url: string, init: RequestInit) => {
+        const asked = JSON.parse(init.body as string) as Record<string, unknown>;
+        const signed = await answer({ ...asked, kind: "payment" });
+        return new Response(JSON.stringify(signed), { status: 200 });
+      }) as typeof fetch,
+    });
+    await expect(gate.check({ ...PAYMENT, kind: "refund" })).rejects.toBeInstanceOf(
+      PaymentGateError,
+    );
+  });
+
   it("pays what the gate allows, sending the key and a request id", async () => {
     const server = api((asked) => answer(asked).then(json));
     const pay = vi.fn(() => "paid");

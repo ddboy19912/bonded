@@ -5,7 +5,7 @@ import {
   gateInputHash,
   gateReceiptDay,
   gateReceiptHash,
-  PAYMENT_RULE_WORDS,
+  GATE_RULE_WORDS,
   verifyGateLogProof,
   verifyGateReceipt,
   type GateInput,
@@ -37,6 +37,12 @@ export interface GateAccount {
   maxPaymentUsd: number;
   maxDailyUsd: number;
   freezeOnBreach: boolean;
+  /** Off when payments have no invoices to match. */
+  invoiceMatching: boolean;
+  /** Payments allowed in any hour, with invoice matching off; null for no limit. */
+  maxPaymentsPerHour: number | null;
+  /** A watched payment with no check before it raises an alert. */
+  expectChecks: boolean;
   frozen: boolean;
   frozenAt: string | null;
   mandate: { version: number; hash: string };
@@ -53,6 +59,77 @@ export interface GateAlertSettings {
   emailAvailable: boolean;
   /** This deployment can sign webhooks. */
   webhookAvailable: boolean;
+}
+
+/** A public wallet Bonded reads. It holds no key for it. */
+export interface GateWatchWallet {
+  id: string;
+  chainId: number;
+  chain: string;
+  address: string;
+  label: string;
+  lastReadAt: string | null;
+}
+
+/** A payment seen after it was made. It has no receipt: nothing was decided before it left. */
+export interface GateWatchedPayment {
+  id: string;
+  source: "log" | "wallet";
+  payee: string;
+  amountUsd: number;
+  reference: string;
+  reasons: { rule: string; words: string }[];
+  /** It matches an allowed check made before it. */
+  checkedFirst: boolean;
+  paidAt: string;
+  /** Where it came from in words: "Base USDC", or "Payment log". */
+  rail?: string;
+  /** For a wallet payment: its chain, token and transaction. */
+  details?: Record<string, string | number>;
+}
+
+/** One line of the account's activity. */
+export type GateActivityEntry =
+  | { entry: "decision"; source: "check" | "card"; rail: string; decision: GateDecision }
+  | { entry: "watched"; source: "log" | "wallet"; rail: string; watched: GateWatchedPayment };
+
+export interface GateActivityFilters {
+  source?: string;
+  result?: string;
+  rule?: string;
+}
+
+/** What's connected to the account, and when each last reported. */
+export interface GateConnections {
+  keys: { id: string; label: string; lastUsedAt: string | null }[];
+  wallets: GateWatchWallet[];
+  log: { lastReportedAt: string | null };
+  /** Card programs that ask before each charge. Missing from an API older than card hooks. */
+  cardHooks?: {
+    id: string;
+    provider: GateCardProvider;
+    label: string;
+    lastRequestAt: string | null;
+  }[];
+}
+
+export type GateCardProvider = "stripe" | "lithic" | "marqeta";
+
+/** A card program that asks the gate before each charge. Bonded holds no key for it. */
+export interface GateCardHook {
+  id: string;
+  provider: GateCardProvider;
+  label: string;
+  /** Where the program sends its question, after the API's address. */
+  path: string;
+  /** The start and end of the signing secret (Stripe, Lithic), or null until it's set. */
+  secretHint: string | null;
+  /** Whether it can answer: Marqeta always, Stripe and Lithic once their secret is set. */
+  ready: boolean;
+  /** Marqeta: the username it signs in with. */
+  username: string | null;
+  createdAt: string;
+  lastRequestAt: string | null;
 }
 
 export interface GateVendor {
@@ -73,7 +150,7 @@ export interface GateMandateVersion {
 
 export interface GateDecision {
   id: string;
-  kind: "invoice" | "refund" | "bank_change";
+  kind: "invoice" | "refund" | "bank_change" | "payment";
   decision: "pass" | "breach" | "frozen";
   result: "allowed" | "blocked" | "refused";
   message: string;
@@ -167,6 +244,9 @@ export interface NewGateAccount {
   freezeOnBreach: boolean;
 }
 
+export type GateAccountPatch = Partial<NewGateAccount> &
+  Partial<Pick<GateAccount, "invoiceMatching" | "maxPaymentsPerHour" | "expectChecks">>;
+
 const bearer = (session: string) => ({ headers: { Authorization: `Bearer ${session}` } });
 /** A write as the signed-in owner, with a JSON body. */
 const send = (session: string, method: "POST" | "PUT" | "DELETE", body?: unknown) => ({
@@ -190,6 +270,20 @@ export const gateApi = {
   /** GET …/decisions: the decision log, newest first. */
   decisions: (session: string, id: string, cursor?: string) =>
     request<Page<GateDecision>>(`${account(id)}/decisions${before(cursor)}`, bearer(session)),
+  /** GET …/activity: checks and payments seen after they were made, newest first. */
+  activity: (session: string, id: string, filters: GateActivityFilters = {}, cursor?: string) => {
+    const query = new URLSearchParams({
+      ...filters,
+      ...(cursor ? { before: cursor } : {}),
+    }).toString();
+    return request<Page<GateActivityEntry>>(
+      `${account(id)}/activity${query ? `?${query}` : ""}`,
+      bearer(session),
+    );
+  },
+  /** GET …/connections: API keys, wallets and the payment log, with when each last reported. */
+  connections: (session: string, id: string) =>
+    request<GateConnections>(`${account(id)}/connections`, bearer(session)),
   /** GET …/decisions?limit=1: the latest decision, for when only its time is wanted. */
   lastDecision: (session: string, id: string) =>
     request<Page<GateDecision>>(`${account(id)}/decisions?limit=1`, bearer(session)),
@@ -211,6 +305,52 @@ export const gateApi = {
       "/self/notifications",
       send(session, "PUT", input),
     ),
+  /** GET …/card-hooks: the card programs that ask before each charge. */
+  cardHooks: (session: string, id: string) =>
+    request<{ items: GateCardHook[] }>(`${account(id)}/card-hooks`, bearer(session)),
+  /** POST …/card-hooks: a new hook. Marqeta's password comes back this once. */
+  addCardHook: (
+    session: string,
+    id: string,
+    input: { provider: GateCardProvider; label?: string; secret?: string },
+  ) =>
+    request<GateCardHook & { password?: string }>(
+      `${account(id)}/card-hooks`,
+      send(session, "POST", input),
+    ),
+  /** PUT …/card-hooks/:hookId/secret: the signing secret Stripe or Lithic shows. */
+  setCardHookSecret: (session: string, id: string, hookId: string, secret: string) =>
+    request<GateCardHook>(
+      `${account(id)}/card-hooks/${encodeURIComponent(hookId)}/secret`,
+      send(session, "PUT", { secret }),
+    ),
+  /** DELETE …/card-hooks/:hookId: the program's questions stop being answered. */
+  deleteCardHook: (session: string, id: string, hookId: string) =>
+    request<{ deleted: boolean }>(
+      `${account(id)}/card-hooks/${encodeURIComponent(hookId)}`,
+      send(session, "DELETE"),
+    ),
+  /** GET /gate/watch-chains: the chains a wallet can be watched on. Public. */
+  watchChains: () =>
+    request<{ items: { chainId: number; name: string; tokens: string[] }[] }>("/gate/watch-chains"),
+  /** GET …/wallets: the wallets this account reads. */
+  wallets: (session: string, id: string) =>
+    request<{ items: GateWatchWallet[] }>(`${account(id)}/wallets`, bearer(session)),
+  /** POST …/wallets: read a public address. */
+  addWallet: (
+    session: string,
+    id: string,
+    input: { chainId: number; address: string; label?: string },
+  ) => request<GateWatchWallet>(`${account(id)}/wallets`, send(session, "POST", input)),
+  /** DELETE …/wallets/:walletId: stop reading it. */
+  deleteWallet: (session: string, id: string, walletId: string) =>
+    request<{ deleted: boolean }>(
+      `${account(id)}/wallets/${encodeURIComponent(walletId)}`,
+      send(session, "DELETE"),
+    ),
+  /** GET …/watched: the payments seen after they were made, newest first. */
+  watched: (session: string, id: string, cursor?: string) =>
+    request<Page<GateWatchedPayment>>(`${account(id)}/watched${before(cursor)}`, bearer(session)),
   /** GET /gate/receipt-key: the address every receipt is signed with. Public. */
   receiptKey: () => request<{ address: Address }>("/gate/receipt-key"),
 
@@ -223,7 +363,7 @@ export const gateApi = {
       send(session, "POST", input),
     ),
   /** PUT /gate/accounts/:id: change the mode, limits or freeze setting. */
-  updateAccount: (session: string, id: string, patch: Partial<NewGateAccount>) =>
+  updateAccount: (session: string, id: string, patch: GateAccountPatch) =>
     request<GateAccount>(account(id), send(session, "PUT", patch)),
   /** POST …/unfreeze: lift a freeze, so checks run again. */
   unfreeze: (session: string, id: string) =>
@@ -567,7 +707,7 @@ export function decisionFromReceipt(shared: SharedReceipt): GateDecision {
     result: r.result,
     message: "",
     rules,
-    reasons: r.rules.map((rule) => ({ rule, words: PAYMENT_RULE_WORDS[rule] ?? rule })),
+    reasons: r.rules.map((rule) => ({ rule, words: GATE_RULE_WORDS[rule] ?? rule })),
     amountUsd: r.amountCents / 100,
     payee: r.payee,
     vendorId: null,

@@ -6,6 +6,8 @@ export * from "./schema.js";
 export * from "./gate.js";
 export * from "./gate-card.js";
 export * from "./gate-payout.js";
+export * from "./gate-watch.js";
+export * from "./gate-card-hook.js";
 export * from "./data-api.js";
 export type Connection = pg.PoolClient;
 /** Serialize public payloads without losing integer precision. */
@@ -603,6 +605,9 @@ export class Database {
       "0026_gate_transparency.sql",
       "0027_data_apis.sql",
       "0028_gate_payout_proxy.sql",
+      "0029_gate_general_rules.sql",
+      "0030_gate_watch.sql",
+      "0031_gate_card_hooks.sql",
     ];
     await this.transaction(async (c) => {
       await c.query("SELECT pg_advisory_xact_lock(7001)");

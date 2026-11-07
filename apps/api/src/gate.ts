@@ -1,7 +1,13 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { Context, Hono } from "hono";
 import { z } from "zod";
-import { GateStore, type Database, type GateAccountRecord, type GateAnchorPost } from "@bonded/db";
+import {
+  GateStore,
+  GateWatchStore,
+  type Database,
+  type GateAccountRecord,
+  type GateAnchorPost,
+} from "@bonded/db";
 import {
   cardMerchantKey,
   describePaymentMandate,
@@ -29,6 +35,8 @@ import type { SecretBox } from "./secrets.js";
 import { alertOwner, decisionView, runGateCheck, type GateCheckRequest } from "./gate-check.js";
 import { gateCardRoutes, type GateCardOptions } from "./gate-card.js";
 import { gatePayoutRoutes, type GatePayoutOptions } from "./gate-payout.js";
+import { gateWatchRoutes } from "./gate-watch.js";
+import { gateCardHookRoutes, type GateCardHookOptions } from "./gate-card-hook.js";
 
 /**
  * The payment gate's hosted check (apps/api/GATE.md). A business makes a gate account with its
@@ -60,8 +68,14 @@ export interface GateOptions {
   notifier?: Notifier;
   /** The card route with Stripe Issuing (gate-card.ts). */
   card?: GateCardOptions;
+  /** Card hooks: the business's own card program asks before each charge (gate-card-hook.ts). */
+  cardHook?: GateCardHookOptions;
   /** The payout route through the payout proxy in a TEE (gate-payout.ts). */
   payout?: GatePayoutOptions;
+  /** Chains wallets can be watched on (GATE_WATCH_RPC_URLS, gate-watch.ts). */
+  watchChains?: readonly number[];
+  /** Watched wallets per gate account (default 20). */
+  maxWalletsPerAccount?: number;
 }
 
 /**
@@ -128,6 +142,12 @@ const accountPatch = z
     maxPaymentUsd: cents.optional(),
     maxDailyUsd: cents.optional(),
     freezeOnBreach: z.boolean().optional(),
+    /** Off for payments with no invoices: the check reads the payee list and the limits. */
+    invoiceMatching: z.boolean().optional(),
+    /** A watched payment with no check before it raises an alert. */
+    expectChecks: z.boolean().optional(),
+    /** Payments allowed in any hour, with invoice matching off. null removes the limit. */
+    maxPaymentsPerHour: z.number().int().positive().max(1_000_000).nullable().optional(),
   })
   .refine((p) => Object.keys(p).length > 0);
 /** A vendor's card merchant: its name and Stripe network id (`merchant_data.network_id`). */
@@ -178,7 +198,8 @@ const checkInput = z.preprocess(
       kind: z.literal("invoice"),
       account: payee,
       amountUsd: cents,
-      invoiceReference: reference,
+      /** Required unless the account has invoice matching off (the rules say so). */
+      invoiceReference: reference.optional(),
       requestId: requestId.optional(),
     }),
     z.strictObject({
@@ -210,6 +231,9 @@ const accountView = (a: GateAccountRecord) => ({
   maxPaymentUsd: a.maxPaymentCents / 100,
   maxDailyUsd: a.maxDailyCents / 100,
   freezeOnBreach: a.freezeOnBreach,
+  invoiceMatching: a.invoiceMatching,
+  maxPaymentsPerHour: a.maxPaymentsPerHour,
+  expectChecks: a.expectChecks,
   frozen: a.frozenAt !== null,
   frozenAt: a.frozenAt?.toISOString() ?? null,
   frozenBy: a.frozenBy,
@@ -219,6 +243,8 @@ const accountView = (a: GateAccountRecord) => ({
     maxPaymentUsd: a.maxPaymentCents / 100,
     maxDailyUsd: a.maxDailyCents / 100,
     freezeOnBreach: a.freezeOnBreach,
+    invoiceMatching: a.invoiceMatching,
+    maxPaymentsPerHour: a.maxPaymentsPerHour,
   }),
   createdAt: a.createdAt.toISOString(),
   updatedAt: a.updatedAt.toISOString(),
@@ -393,6 +419,11 @@ export function gateRoutes(
           ...(p.maxPaymentUsd !== undefined ? { maxPaymentCents: p.maxPaymentUsd } : {}),
           ...(p.maxDailyUsd !== undefined ? { maxDailyCents: p.maxDailyUsd } : {}),
           ...(p.freezeOnBreach !== undefined ? { freezeOnBreach: p.freezeOnBreach } : {}),
+          ...(p.invoiceMatching !== undefined ? { invoiceMatching: p.invoiceMatching } : {}),
+          ...(p.expectChecks !== undefined ? { expectChecks: p.expectChecks } : {}),
+          ...(p.maxPaymentsPerHour !== undefined
+            ? { maxPaymentsPerHour: p.maxPaymentsPerHour }
+            : {}),
         },
         owner,
       );
@@ -427,6 +458,8 @@ export function gateRoutes(
             maxPaymentUsd: v.mandate.maxPaymentCents / 100,
             maxDailyUsd: v.mandate.maxDailyCents / 100,
             freezeOnBreach: v.mandate.freezeOnBreach,
+            invoiceMatching: v.mandate.invoiceMatching ?? true,
+            maxPaymentsPerHour: v.mandate.maxPaymentsPerHour ?? null,
           }),
         })),
         next: versions.next,
@@ -685,11 +718,11 @@ export function gateRoutes(
               kind: input.kind,
               account: input.account,
               amountCents: input.amountUsd,
-              reference: input.invoiceReference,
+              reference: input.invoiceReference ?? "",
               requestId: input.requestId,
             };
       const outcome = await runGateCheck(
-        { db, store, receiptKey: options.receiptKey, now },
+        { db, store, receiptKey: options.receiptKey, now, followInvoiceSetting: true },
         auth,
         request,
       );
@@ -837,6 +870,37 @@ export function gateRoutes(
     }),
   );
 
+  gateWatchRoutes(app, {
+    db,
+    store,
+    watch: new GateWatchStore(db),
+    notifier,
+    now,
+    chains: options.watchChains ?? [],
+    maxWallets: options.maxWalletsPerAccount ?? 20,
+    owned: (c, write) => owned(c, write ? options.writes : options.reads),
+    keyed,
+    allowCheck: (accountId) => checks.allow(accountId),
+  });
+  gateCardHookRoutes(
+    app,
+    {
+      db,
+      store,
+      notifier,
+      receiptKey: options.receiptKey,
+      now,
+      secrets: options.secrets,
+      checks,
+      owned: (c, write) => owned(c, write ? options.writes : options.reads),
+    },
+    {
+      allowLiveCharges: options.card?.allowLiveCredentials === true,
+      ...(options.card?.apiVersion ? { stripeApiVersion: options.card.apiVersion } : {}),
+      ...(options.card?.log ? { log: options.card.log } : {}),
+      ...options.cardHook,
+    },
+  );
   gateCardRoutes(
     app,
     {

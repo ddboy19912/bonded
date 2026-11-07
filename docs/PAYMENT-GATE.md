@@ -17,6 +17,20 @@ Set it up at [bondedhq.xyz/gate](https://www.bondedhq.xyz/gate). Check any recei
 | `over_payment_cap` | it's over the per-payment limit |
 | `over_daily_cap` | it's over the daily limit (days are UTC) |
 
+### Payments with no invoices
+
+Not every agent pays invoices. Turn **Match invoices** off on the Rules tab and a payment no longer needs one. It then needs a vendor on your list, and it must stay within your limits. A reference is optional, and a reference is paid to an account only once. Refunds and bank changes work as before.
+
+You can also set a limit on payments per hour:
+
+| Rule | A payment breaks it when |
+|---|---|
+| `over_hourly_limit` | it's over the number of payments allowed in any hour |
+
+This rule is the gate's own. The Arena doesn't rate agents against it, and a rating doesn't depend on this setting.
+
+Accounts can be bank accounts or wallet addresses. A base58 address such as a Solana wallet keeps its case when compared; everything else compares in any case, without spaces.
+
 ## Set it up
 
 You need a wallet to sign in. Signing costs no gas.
@@ -88,24 +102,16 @@ The SDK also has a local guard that runs the same rules inside your own process,
 
 ## Pay by card
 
-On the check route your code decides whether to obey the answer. On the card route it doesn't: the agent pays with a single-use Stripe Issuing card, Stripe asks the gate before every charge, and a charge that breaks a rule is declined. If the gate doesn't answer in time, the charge is declined. This route runs in Stripe test mode only for now.
+Your agent pays with cards from your own card program: Stripe Issuing, Lithic or Marqeta. Before each charge, the program asks Bonded, and a charge that breaks a rule is declined. Bonded holds no key for your program. It can't make, fund or charge a card. If Bonded doesn't answer in time, the charge is declined.
 
-1. In Stripe, in test mode, make a cardholder, top up the Issuing balance, and make a restricted key with write access to Issuing cards and read access to Issuing authorizations and transactions.
-2. Set Stripe's real-time authorizations endpoint to `https://api-production-ba50.up.railway.app/stripe/issuing/authorization`, with the timeout set to decline and Autopilot off.
-3. Add a webhook endpoint at `https://api-production-ba50.up.railway.app/stripe/issuing/events` for `issuing_authorization.created`, `issuing_authorization.updated` and `issuing_transaction.created`.
-4. On the account's **Cards** tab, press **Link Stripe** and fill in the key, the cardholder and both signing secrets.
-5. Add the vendor with its card merchant name and network id, and approve its invoice.
+1. On the account's **Cards** tab, press **Connect a provider** and pick yours.
+2. Copy the address Bonded gives you into your provider:
+   - **Stripe Issuing:** add a webhook endpoint at the address for `issuing_authorization.request`, pick it for real-time authorizations in your Issuing settings, and set the timeout to decline. Paste the endpoint's signing secret back into Bonded.
+   - **Lithic:** enroll the address for Auth Stream Access, and paste your ASA signing secret into Bonded.
+   - **Marqeta:** set the address as your Gateway JIT Funding address, with the username and password Bonded shows. The password is shown once.
+3. On the **Vendors** tab, give each vendor your agent may pay its card merchant name and ID.
 
-Your agent then asks for a card for that invoice:
-
-```bash
-curl https://api-production-ba50.up.railway.app/payments/intents \
-  -H "Authorization: Bearer $BONDED_GATE_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"invoiceReference":"NIM-88412"}'
-```
-
-The card works once, for the exact invoice amount, at that vendor's merchant. Its number is in this answer only. Bonded keeps the card's id and last four digits, and never holds money. Each charge gets a decision and a receipt, like a check.
+Each charge is checked like a payment with no invoice: the merchant must be a vendor's card merchant, and the per-payment, daily and hourly limits apply. Cash, money orders and gambling are always declined. Each charge gets a decision and a receipt, like a check, and shows on the activity tab.
 
 ## Check a receipt
 
@@ -134,9 +140,45 @@ A blocked payment, a breach Monitor mode let through and a freeze each send an a
 
 These settings cover all your gate accounts and agents. A check refused while the account is frozen sends no alert, because the freeze already did; it's still in the log. Sending is tried once, so if your webhook is down an alert won't reach it, but it stays in the inbox.
 
+## The dashboard
+
+Each gate account shows one log and what's connected to it:
+
+- **Activity** lists every check and every payment seen after it was made, newest first. Each line says "Checked first" or "Seen after", and where it came from: the API, a card, a wallet such as Base USDC, or your payment log. Filter by source, result or rule.
+- **Connect** has the SDK, MCP and API snippets for asking first, and how to set up Watch. It also lists your API keys, wallets and payment log, with when each last reported.
+
+The gate can't tell which bank or payment service a check is for, because your code makes that payment, so every check shows as API.
+
+## Watch
+
+Watch is the other way to connect. Bonded reads payments after they were made, so it holds no key and can't stop anything: it can only record and alert. Use it alone, or next to the check so you know when an agent skipped it.
+
+Two sources feed it, on the account's Watch tab:
+
+- **A wallet.** Give a public address. Bonded reads its USDC and USDT payments on the chains the service has set up, starting from when you added it. It doesn't see native coins such as ETH or any other token yet.
+- **Your payment log.** Send what happened, with a gate API key:
+
+```bash
+curl https://api-production-ba50.up.railway.app/payments/watched \
+  -H "Authorization: Bearer $BONDED_GATE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"payments":[{"id":"pay-001","account":"LT12 1000 0111 0100 1000","amountUsd":612.40,"reference":"NIM-88412","paidAt":"2026-11-07T10:00:00Z"}]}'
+```
+
+A log is what you tell Bonded. Bonded can't prove it, and a payment left out of it is never seen. Sending the same `id` again records nothing.
+
+Each payment goes one of two ways:
+
+- **It matches an earlier check** with the same payee and amount, allowed in the 24 hours before: it's marked "Checked first". The check already judged it.
+- **It doesn't:** it runs through your rules, counts toward your limits, and you get an alert if it broke one. Turn on **Expect a check first** and a payment with no check before it also breaks `skipped_gate`. A wallet that never uses the check should leave this off.
+
+A freeze set on the account applies here too, but it only refuses later checks. It can't stop a payment on your wallet or bank.
+
+Watched payments have no receipt and stay out of the decision log, because Bonded decided nothing before the money left.
+
 ## What it doesn't do
 
-- **It only sees what your code sends it.** On the check route the check is voluntary: code that pays without asking skips it, so keep the raw pay function out of the agent's reach. The card route closes that gap, in Stripe test mode for now. The bank payout route is built, but not live yet.
+- **It only sees what your code sends it.** On the check route the check is voluntary: code that pays without asking skips it, so keep the raw pay function out of the agent's reach. Card hooks close that gap for cards: your card provider asks before every charge. The bank payout route is built, but not live yet.
 - **It doesn't move money.** Your own bank or payment API makes the payment.
 - **It doesn't pay back losses yet.** Cover is on chain today. Off-chain cover is planned.
 - **Rules can be followed and fraud can still happen.** If a real vendor's own systems are hacked and a correct invoice is paid to its correct account, no rule breaks.

@@ -1,9 +1,9 @@
 import {
   type GateInput,
   type GateLogProof,
+  type GateRule,
   normalAccount,
   type PaymentAttempt,
-  type PaymentRule,
   type SignedGateReceipt,
   verifyGateReceipt,
 } from "@bondedhq/shared";
@@ -37,14 +37,14 @@ export type GateCheck =
 /** A decision, as the gate's log keeps it. */
 export interface GateDecision {
   id: string;
-  kind: "invoice" | "refund" | "bank_change" | "card";
+  kind: "invoice" | "refund" | "bank_change" | "card" | "payment";
   decision: "pass" | "breach" | "frozen";
   result: "allowed" | "blocked" | "refused";
   allowed: boolean;
   message: string;
   mode: "monitor" | "enforce";
   /** Every rule broken, most serious first. */
-  rules: PaymentRule[];
+  rules: GateRule[];
   /** Each rule in plain words, in the same order. */
   reasons: string[];
   amountUsd: number;
@@ -146,7 +146,7 @@ export class PaymentGate {
             kind: check.kind ?? "invoice",
             account: check.account,
             amountUsd: check.amountUsd,
-            invoiceReference: check.invoiceReference,
+            ...(check.invoiceReference?.trim() ? { invoiceReference: check.invoiceReference } : {}),
             requestId,
           };
     let last: unknown;
@@ -242,9 +242,11 @@ export class PaymentGate {
       r.payee === normalAccount(asked.account) &&
       (asked.kind === "bank_change"
         ? r.kind === "bank_change"
-        : r.kind === (asked.kind ?? "invoice") &&
+        : // An account with invoice matching off answers an invoice check as kind "payment".
+          (r.kind === (asked.kind ?? "invoice") ||
+            (r.kind === "payment" && (asked.kind ?? "invoice") === "invoice")) &&
           r.amountCents === Math.round(asked.amountUsd * 100) &&
-          r.reference === asked.invoiceReference.trim());
+          r.reference === (asked.invoiceReference ?? "").trim());
     if (!matches) throw wrong("its receipt is for a different decision or payment");
   }
 

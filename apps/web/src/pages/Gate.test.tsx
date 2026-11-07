@@ -25,6 +25,7 @@ import {
   type GateAccount,
   type GateDecision,
   type GateProof,
+  type GateWatchedPayment,
 } from "../lib/gate";
 import { Gate } from "./Gate";
 import { GateAccount as AccountPage } from "./GateAccount";
@@ -60,6 +61,9 @@ const account: GateAccount = {
   maxPaymentUsd: 5000,
   maxDailyUsd: 8000,
   freezeOnBreach: false,
+  invoiceMatching: true,
+  maxPaymentsPerHour: null,
+  expectChecks: false,
   frozen: false,
   frozenAt: null,
   mandate: { version: 2, hash: `0x${"22".repeat(32)}` },
@@ -251,6 +255,19 @@ beforeEach(() => {
   });
   vi.spyOn(gateApi, "decisions").mockResolvedValue({ items: [blocked, paid], next: null });
   vi.spyOn(gateApi, "lastDecision").mockResolvedValue({ items: [], next: null });
+  // The activity list is the decisions, unless a test gives it something else.
+  vi.spyOn(gateApi, "activity").mockImplementation(async (session, id, _filters, cursor) => {
+    const page = await gateApi.decisions(session, id, cursor);
+    return {
+      items: page.items.map((decision) => ({
+        entry: "decision" as const,
+        source: "check" as const,
+        rail: "API",
+        decision,
+      })),
+      next: page.next,
+    };
+  });
   vi.spyOn(gateApi, "receiptKey").mockResolvedValue({ address: SIGNER });
   vi.spyOn(gateApi, "proof").mockImplementation(async (_s, _a, id) => proofs[id]!);
   vi.spyOn(gateApi, "invoices").mockResolvedValue({
@@ -261,6 +278,7 @@ beforeEach(() => {
   });
   vi.spyOn(gateApi, "tickets").mockResolvedValue({ items: [] });
   vi.spyOn(gateApi, "stripeLink").mockResolvedValue(null);
+  vi.spyOn(gateApi, "cardHooks").mockResolvedValue({ items: [] });
   vi.spyOn(gateApi, "keys").mockResolvedValue({
     items: [
       {
@@ -630,6 +648,183 @@ describe("the payment gate's rules page", () => {
     expect(await screen.findByText("bonded_wh_secret")).toBeTruthy();
   });
 
+  it("says a watched payment was seen after it was paid, and never that it was allowed", async () => {
+    vi.spyOn(gateApi, "watchChains").mockResolvedValue({
+      items: [{ chainId: 8453, name: "Base", tokens: ["USDC"] }],
+    });
+    vi.spyOn(gateApi, "wallets").mockResolvedValue({
+      items: [
+        {
+          id: "w1",
+          chainId: 8453,
+          chain: "Base",
+          address: `0x${"ab".repeat(20)}`,
+          label: "Ops",
+          lastReadAt: null,
+        },
+      ],
+    });
+    const paid = { source: "wallet", amountUsd: 80, reference: "", paidAt: `${DAY}T09:00:00Z` };
+    vi.spyOn(gateApi, "watched").mockResolvedValue({
+      items: [
+        { ...paid, id: "1", payee: "0XAB", reasons: [], checkedFirst: true },
+        {
+          ...paid,
+          id: "2",
+          payee: "0XCD",
+          checkedFirst: false,
+          reasons: [{ rule: "skipped_gate", words: "it was paid with no check first" }],
+        },
+        { ...paid, id: "3", payee: "0XEF", reasons: [], checkedFirst: false },
+      ] as GateWatchedPayment[],
+      next: null,
+    });
+    signedIn();
+    showAccount("watch");
+    expect(await screen.findByText("Checked first")).toBeTruthy();
+    expect(screen.getByText("Broke a rule")).toBeTruthy();
+    expect(screen.getByText("it was paid with no check first")).toBeTruthy();
+    expect(screen.getByText("No rule broken")).toBeTruthy();
+    expect(screen.getByText("Ops")).toBeTruthy();
+    expect(screen.queryByText("Allowed")).toBeNull();
+  });
+
+  it("turns on expecting a check first", async () => {
+    const update = vi.spyOn(gateApi, "updateAccount").mockResolvedValue(account);
+    vi.spyOn(gateApi, "watchChains").mockResolvedValue({ items: [] });
+    vi.spyOn(gateApi, "wallets").mockResolvedValue({ items: [] });
+    vi.spyOn(gateApi, "watched").mockResolvedValue({ items: [], next: null });
+    signedIn();
+    showAccount("watch");
+    expect(await screen.findByText("Wallet watching isn't on yet.")).toBeTruthy();
+    expect(screen.getByText("USDC and USDT only")).toBeTruthy();
+    fireEvent.click(screen.getByRole("switch", { name: "Expect a check first" }));
+    await vi.waitFor(() =>
+      expect(update).toHaveBeenCalledWith("sess", ACCOUNT_ID, { expectChecks: true }),
+    );
+  });
+
+  it("shows checks and watched payments in one log, saying which is which", async () => {
+    vi.mocked(gateApi.activity).mockResolvedValue({
+      items: [
+        { entry: "decision", source: "check", rail: "API", decision: paid },
+        {
+          entry: "watched",
+          source: "wallet",
+          rail: "Base USDC",
+          watched: {
+            id: "9",
+            source: "wallet",
+            payee: "0XC1",
+            amountUsd: 80,
+            reference: "",
+            reasons: [{ rule: "skipped_gate", words: "it was paid with no check first" }],
+            checkedFirst: false,
+            paidAt: `${DAY}T09:00:00Z`,
+            details: { txHash: `0x${"11".repeat(32)}` },
+          },
+        },
+      ],
+      next: null,
+    });
+    signedIn();
+    showAccount();
+    // The Source column: how Bonded saw it, over where it came from.
+    expect(await screen.findByText("Base USDC")).toBeTruthy();
+    expect(screen.getByText("Seen after")).toBeTruthy();
+    expect(screen.getByText("API")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Payment of \$80/ }));
+    const modal = await screen.findByRole("dialog");
+    expect(within(modal).getByText(/so it has no receipt/)).toBeTruthy();
+    expect(within(modal).queryByText("Allowed")).toBeNull();
+  });
+
+  it("asks the API for a filter, and says when nothing matches", async () => {
+    vi.mocked(gateApi.activity).mockImplementation(async (_s, _id, filters = {}) =>
+      filters.result
+        ? { items: [], next: null }
+        : {
+            items: [{ entry: "decision", source: "check", rail: "API", decision: paid }],
+            next: null,
+          },
+    );
+    signedIn();
+    showAccount();
+    await screen.findByText("Checked first");
+    // jsdom has no scrolling, and the select scrolls its list to the chosen option.
+    Element.prototype.scrollIntoView = vi.fn();
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+    fireEvent.click(await screen.findByRole("combobox", { name: "Result" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Blocked" }));
+    expect(await screen.findByText("Nothing matches these filters.")).toBeTruthy();
+    expect(gateApi.activity).toHaveBeenLastCalledWith("sess", ACCOUNT_ID, { result: "blocked" });
+  });
+
+  it("offers both ways to connect, and says what's live", async () => {
+    const recent = new Date(Date.now() - 60_000).toISOString();
+    vi.spyOn(gateApi, "connections").mockResolvedValue({
+      keys: [
+        { id: "k1", label: "Payables agent", lastUsedAt: recent },
+        { id: "k2", label: "Old agent", lastUsedAt: "2026-01-01T00:00:00Z" },
+        { id: "k3", label: "New agent", lastUsedAt: null },
+      ],
+      wallets: [
+        {
+          id: "w1",
+          chainId: 8453,
+          chain: "Base",
+          address: `0x${"ab".repeat(20)}`,
+          label: "Ops",
+          lastReadAt: "2026-01-01T00:00:00Z",
+        },
+      ],
+      log: { lastReportedAt: null },
+    });
+    signedIn();
+    showAccount("connect");
+    expect(await screen.findByText("Payables agent")).toBeTruthy();
+    expect(screen.getByText("Live")).toBeTruthy();
+    expect(screen.getByText("Quiet")).toBeTruthy();
+    expect(screen.getByText("Not used yet")).toBeTruthy();
+    expect(screen.getByText("Behind")).toBeTruthy();
+    const listed = screen.getByRole("region", { name: "Connections" });
+    expect(within(listed).queryByText("Payment log")).toBeNull();
+    expect(screen.getByRole("tab", { name: "MCP" })).toBeTruthy();
+    expect(screen.getByText(/can't stop them/)).toBeTruthy();
+  });
+
+  it("lists what needs a look first, and keeps a long list short", async () => {
+    const recent = new Date(Date.now() - 60_000).toISOString();
+    vi.spyOn(gateApi, "connections").mockResolvedValue({
+      keys: [
+        ...Array.from({ length: 30 }, (_, i) => ({
+          id: `k${i}`,
+          label: `Agent ${i}`,
+          lastUsedAt: recent,
+        })),
+        { id: "old", label: "Stale agent", lastUsedAt: "2026-01-01T00:00:00Z" },
+      ],
+      wallets: [],
+      log: { lastReportedAt: null },
+    });
+    signedIn();
+    showAccount("connect");
+    expect(await screen.findByText("Stale agent")).toBeTruthy();
+    expect(screen.queryByText("Agent 29")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show all 31" }));
+    expect(await screen.findByText("Agent 29")).toBeTruthy();
+  });
+
+  it("calls vendors payees with invoice matching off", async () => {
+    vi.mocked(gateApi.accounts).mockResolvedValue({
+      items: [{ ...account, invoiceMatching: false }],
+    });
+    signedIn();
+    showAccount();
+    expect(await screen.findByRole("tab", { name: "Payees" })).toBeTruthy();
+    expect(screen.queryByRole("tab", { name: "Vendors" })).toBeNull();
+  });
+
   it("ties a field's error to the field", async () => {
     signedIn();
     showAccount();
@@ -647,6 +842,55 @@ describe("the payment gate's rules page", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
     expect(await screen.findByText("Nimbus Cloud")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Add a vendor" })).toBeTruthy();
+  });
+
+  it("turns invoice matching off and sets an hourly limit", async () => {
+    const update = vi.spyOn(gateApi, "updateAccount").mockResolvedValue(account);
+    signedIn();
+    showAccount();
+    const modal = await press("Edit rules");
+    expect(within(modal).queryByLabelText("Most payments in one hour")).toBeNull();
+    fireEvent.click(within(modal).getByRole("switch", { name: "Match invoices" }));
+    fill(modal, "Most payments in one hour", "ten");
+    const save = within(modal).getByRole("button", { name: "Save changes" }) as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    fill(modal, "Most payments in one hour", "10");
+    fireEvent.click(save);
+    await vi.waitFor(() =>
+      expect(update).toHaveBeenCalledWith("sess", ACCOUNT_ID, {
+        invoiceMatching: false,
+        maxPaymentsPerHour: 10,
+      }),
+    );
+  });
+
+  it("ignores a bad hourly value once its field is hidden again", async () => {
+    const update = vi.spyOn(gateApi, "updateAccount").mockResolvedValue(account);
+    signedIn();
+    showAccount();
+    const modal = await press("Edit rules");
+    const matching = within(modal).getByRole("switch", { name: "Match invoices" });
+    fireEvent.click(matching);
+    fill(modal, "Most payments in one hour", "ten");
+    // Matching back on hides the field: what's in it neither blocks saving nor is saved.
+    fireEvent.click(matching);
+    fill(modal, "Most for one payment", "2500.50");
+    const save = within(modal).getByRole("button", { name: "Save changes" }) as HTMLButtonElement;
+    expect(save.disabled).toBe(false);
+    fireEvent.click(save);
+    await vi.waitFor(() =>
+      expect(update).toHaveBeenCalledWith("sess", ACCOUNT_ID, { maxPaymentUsd: 2500.5 }),
+    );
+  });
+
+  it("shows the hourly limit only with invoice matching off", async () => {
+    vi.mocked(gateApi.accounts).mockResolvedValue({
+      items: [{ ...account, invoiceMatching: false, maxPaymentsPerHour: null }],
+    });
+    signedIn();
+    showAccount("rules");
+    expect(await screen.findByText("Most payments in one hour")).toBeTruthy();
+    expect(screen.getByText("No limit")).toBeTruthy();
   });
 
   it("saves the mode and limits as one change", async () => {
@@ -812,17 +1056,106 @@ describe("the payment gate's rules page", () => {
     expect(screen.queryByRole("button", { name: "Approve an invoice" })).toBeNull();
   });
 
-  it("links Stripe for card payments, shows only a hint, and lists the cards", async () => {
-    const linked = {
-      linked: true as const,
+  it("connects a card provider: the address first, then the signing secret", async () => {
+    const hook = {
+      id: "h1",
+      provider: "lithic" as const,
+      label: "Agent cards",
+      path: "/payments/card-hook/h1",
+      secretHint: null,
+      ready: false,
+      username: null,
+      createdAt: `${DAY}T09:00:00Z`,
+      lastRequestAt: null,
+    };
+    const add = vi.spyOn(gateApi, "addCardHook").mockResolvedValue(hook);
+    const setSecret = vi
+      .spyOn(gateApi, "setCardHookSecret")
+      .mockResolvedValue({ ...hook, ready: true, secretHint: "whsec_abc…wxyz" });
+    signedIn();
+    showAccount("cards");
+    expect(await screen.findByText("No card provider yet")).toBeTruthy();
+    // No Stripe key is asked for anywhere.
+    expect(screen.queryByText(/Restricted key/)).toBeNull();
+    const modal = await press("Connect a provider");
+    fireEvent.click(within(modal).getByRole("combobox", { name: "Card provider" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Lithic" }));
+    fill(modal, "Label", "Agent cards");
+    fireEvent.click(within(modal).getByRole("button", { name: "Get the address" }));
+    expect(await within(modal).findByText(/\/payments\/card-hook\/h1$/)).toBeTruthy();
+    expect(add).toHaveBeenCalledWith("sess", ACCOUNT_ID, {
+      provider: "lithic",
+      label: "Agent cards",
+    });
+    const save = within(modal).getByRole("button", { name: "Save secret" }) as HTMLButtonElement;
+    fill(modal, "Signing secret", "sk_test_nope");
+    expect(save.disabled).toBe(true);
+    fill(modal, "Signing secret", "whsec_abcdefghijklmnopwxyz");
+    fireEvent.click(save);
+    await vi.waitFor(() =>
+      expect(setSecret).toHaveBeenCalledWith(
+        "sess",
+        ACCOUNT_ID,
+        "h1",
+        "whsec_abcdefghijklmnopwxyz",
+      ),
+    );
+  });
+
+  it("shows Marqeta's password once, and lists each provider with what it needs", async () => {
+    vi.spyOn(gateApi, "addCardHook").mockResolvedValue({
+      id: "h2",
+      provider: "marqeta",
+      label: "",
+      path: "/payments/card-hook/h2",
+      secretHint: null,
+      ready: true,
+      username: "bonded_h2",
+      createdAt: `${DAY}T09:00:00Z`,
+      lastRequestAt: null,
+      password: "Abcdefghijklmnopqrstuvwxyz234567",
+    });
+    vi.mocked(gateApi.cardHooks).mockResolvedValue({
+      items: [
+        {
+          id: "h1",
+          provider: "stripe",
+          label: "",
+          path: "/payments/card-hook/h1",
+          secretHint: null,
+          ready: false,
+          username: null,
+          createdAt: `${DAY}T09:00:00Z`,
+          lastRequestAt: null,
+        },
+      ],
+    });
+    signedIn();
+    showAccount("cards");
+    // A hook without its secret: a note under its name, and the button that adds it.
+    expect(await screen.findByRole("button", { name: "Add secret" })).toBeTruthy();
+    expect(screen.getByText("No signing secret yet")).toBeTruthy();
+    expect(screen.queryByText("Needs its secret")).toBeNull();
+    expect(screen.getByRole("button", { name: "Remove" })).toBeTruthy();
+    const modal = await press("Connect a provider");
+    fireEvent.click(within(modal).getByRole("combobox", { name: "Card provider" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Marqeta" }));
+    fireEvent.click(within(modal).getByRole("button", { name: "Get the address" }));
+    expect(await within(modal).findByText("Abcdefghijklmnopqrstuvwxyz234567")).toBeTruthy();
+    expect(within(modal).getByText("bonded_h2")).toBeTruthy();
+    expect(within(modal).getByText(/Shown once/)).toBeTruthy();
+  });
+
+  it("still lists the cards Bonded issued on an account linked the old way", async () => {
+    vi.mocked(gateApi.stripeLink).mockResolvedValue({
+      linked: true,
       keyHint: "rk_test_…abcd",
       livemode: false,
       cardholderId: "ich_1234567890",
       webhookSecrets: { authorization: true, events: true },
-      createdAt: `${DAY}T09:00:00Z`,
-      updatedAt: `${DAY}T09:00:00Z`,
-    };
-    const link = vi.spyOn(gateApi, "linkStripe").mockResolvedValue(linked);
+      createdAt: DAY,
+      updatedAt: DAY,
+    });
     vi.spyOn(gateApi, "cardIntents").mockResolvedValue({
       items: [
         {
@@ -840,37 +1173,8 @@ describe("the payment gate's rules page", () => {
     });
     signedIn();
     showAccount("cards");
-    const modal = await press("Link Stripe");
-    const button = within(modal).getByRole("button", { name: "Link Stripe" }) as HTMLButtonElement;
-    expect(button.disabled).toBe(true);
-    // The steps say where each value comes from, with the addresses to paste.
-    expect(within(modal).getByText(/\/stripe\/issuing\/authorization$/)).toBeTruthy();
-    expect(within(modal).getByText(/\/stripe\/issuing\/events$/)).toBeTruthy();
-    expect(
-      within(modal)
-        .getByRole("link", { name: /Open Cardholders in Stripe/ })
-        .getAttribute("href"),
-    ).toBe("https://dashboard.stripe.com/issuing/cardholders");
-    // A live key is refused here, before it goes anywhere.
-    fill(modal, "Restricted key", "rk_live_abcdefghijklmnop");
-    fill(modal, "Cardholder ID", "ich_1234567890");
-    fill(modal, "Signing secret for this address", "whsec_abcdefghijklmnop");
-    fill(modal, "Signing secret for this destination", "whsec_qrstuvwxyzabcdef");
-    expect(button.disabled).toBe(true);
-    expect(within(modal).getByText("Use a test key: it starts with rk_test_.")).toBeTruthy();
-    fill(modal, "Restricted key", "rk_test_abcdefghijklmnop");
-    expect(button.disabled).toBe(false);
-    vi.mocked(gateApi.stripeLink).mockResolvedValue(linked);
-    fireEvent.click(button);
-    expect(await screen.findByText("rk_test_…abcd")).toBeTruthy();
-    expect(link).toHaveBeenCalledWith("sess", ACCOUNT_ID, {
-      secretKey: "rk_test_abcdefghijklmnop",
-      cardholderId: "ich_1234567890",
-      authorizationWebhookSecret: "whsec_abcdefghijklmnop",
-      eventsWebhookSecret: "whsec_qrstuvwxyzabcdef",
-    });
+    expect(await screen.findByText("Cards Bonded issued")).toBeTruthy();
     expect(await screen.findByText("•••• 4242")).toBeTruthy();
-    expect(screen.getByText("paid")).toBeTruthy();
   });
 
   it("asks before unlinking Stripe", async () => {

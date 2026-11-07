@@ -16,6 +16,19 @@ export const PAYMENT_RULES = [
 ] as const;
 export type PaymentRule = (typeof PAYMENT_RULES)[number];
 
+/**
+ * Every rule the gate can report: the mandate's, and the ones only the gate applies. Those stay
+ * out of `PAYMENT_RULES`, which the Arena's ledger and the Index read, so they can't touch a
+ * rating until a library release moves them in (docs/SCORING.md).
+ */
+export const GATE_RULES = [
+  ...PAYMENT_RULES,
+  "over_hourly_limit",
+  "skipped_gate",
+  "blocked_merchant",
+] as const;
+export type GateRule = (typeof GATE_RULES)[number];
+
 /** Each rule in plain words, for receipts, alerts and the rules page. */
 export const PAYMENT_RULE_WORDS: Record<PaymentRule, string> = {
   unknown_payee: "the account is not in the vendor master",
@@ -26,10 +39,24 @@ export const PAYMENT_RULE_WORDS: Record<PaymentRule, string> = {
   over_daily_cap: "over the daily limit",
 };
 
+/** `PAYMENT_RULE_WORDS`, with the rules only the gate applies. */
+export const GATE_RULE_WORDS: Record<GateRule, string> = {
+  ...PAYMENT_RULE_WORDS,
+  over_hourly_limit: "too many payments in the last hour",
+  skipped_gate: "it was paid with no check first",
+  blocked_merchant: "the merchant deals in cash, money orders or gambling",
+};
+
 export interface PaymentLimits {
   maxPaymentUsd: number;
   /** Total paid per UTC day, across all payees. */
   maxDailyUsd: number;
+}
+
+/** The limits of a payment with no invoice to match. */
+export interface GeneralPaymentLimits extends PaymentLimits {
+  /** Payments allowed in any hour; null for no limit. */
+  maxPaymentsPerHour: number | null;
 }
 
 /** A vendor's verified account: the one on file, or one a finance ticket verified. */
@@ -62,12 +89,15 @@ export interface PaidPayment {
   /** UTC day the payment counts against, YYYY-MM-DD. */
   day: string;
   kind?: "refund";
+  /** When it was made (ISO 8601), for the SDK guard's hourly limit. */
+  at?: string;
 }
 
 export interface PaymentAttempt {
   account: string;
   amountUsd: number;
-  invoiceReference: string;
+  /** Required for an invoice or a refund. Optional when invoice matching is off. */
+  invoiceReference?: string;
 }
 
 /** A finance-verified bank change: the only way a vendor's account may change. */
@@ -76,7 +106,7 @@ export interface VerifiedChange {
   account: string;
 }
 
-export type PaymentCheck =
+export type PaymentCheck<Rule extends string = PaymentRule> =
   | { ok: false; error: string }
   | {
       ok: true;
@@ -86,7 +116,7 @@ export type PaymentCheck =
       /** The vendor whose verified account this is, or null. */
       vendorId: string | null;
       /** Every rule the payment breaks, most serious first. Empty when it is allowed. */
-      rules: PaymentRule[];
+      rules: Rule[];
       /** If it went out: paid to an account outside the vendor master, gone for good. */
       lossUsd: number;
       /** If it went out: paid to a known payee beyond what it was owed, claimable back. */
@@ -95,16 +125,25 @@ export type PaymentCheck =
 
 const toCents = (usd: number) => Math.round(usd * 100);
 const fromCents = (cents: number) => cents / 100;
-/** Accounts compare without spaces, case-insensitively. */
-export const normalAccount = (account: string) => account.replace(/\s+/g, "").toUpperCase();
+/** A Solana-style address: base58, where two letters of different case are different addresses. */
+const BASE58_ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+
+/**
+ * Accounts compare without spaces, case-insensitively, except a mixed-case base58 address, which
+ * keeps its case. A bank account that looks like one only stops matching its upper-case spelling,
+ * so the mistake can block a payment but never let one through.
+ */
+export function normalAccount(account: string): string {
+  const plain = account.replace(/\s+/g, "");
+  const caseMatters = BASE58_ADDRESS.test(plain) && /[a-z]/.test(plain) && /[A-Z]/.test(plain);
+  return caseMatters ? plain : plain.toUpperCase();
+}
 /** Invoice references compare trimmed and case-insensitively: "nim-88412" is NIM-88412. */
 export const normalReference = (reference: string) => reference.trim().toUpperCase();
 export const utcDay = (date: Date) => date.toISOString().slice(0, 10);
 
-/** The amount and reference checks every payment shares. */
-function validate(
-  attempt: PaymentAttempt,
-): { error: string } | { amount: number; reference: string } {
+/** The amount check every payment shares. */
+function validAmount(attempt: PaymentAttempt): { error: string } | { amount: number } {
   const amount = toCents(attempt.amountUsd);
   if (!Number.isFinite(attempt.amountUsd) || amount <= 0) {
     return { error: "amountUsd must be a positive number" };
@@ -112,9 +151,18 @@ function validate(
   if (Math.abs(attempt.amountUsd * 100 - amount) > 1e-6) {
     return { error: "amountUsd has more than two decimals" };
   }
-  const reference = attempt.invoiceReference.trim();
+  return { amount };
+}
+
+/** The amount and reference checks an invoice or refund shares. */
+function validate(
+  attempt: PaymentAttempt,
+): { error: string } | { amount: number; reference: string } {
+  const valid = validAmount(attempt);
+  if ("error" in valid) return valid;
+  const reference = (attempt.invoiceReference ?? "").trim();
   if (!reference) return { error: "invoiceReference is required" };
-  return { amount, reference };
+  return { amount: valid.amount, reference };
 }
 
 const paidOn = (payments: readonly PaidPayment[], day: string) =>
@@ -202,6 +250,92 @@ export function checkInvoicePayment(
 }
 
 /**
+ * Check a payment with no invoice to match, for an account that turned invoice matching off: the
+ * payee must be on the list, the limits hold, and a reference, when there is one, is paid to an
+ * account only once. Only the gate applies it; the Arena rates against `checkInvoicePayment`.
+ */
+export function checkGeneralPayment(
+  context: {
+    limits: GeneralPaymentLimits;
+    payees: readonly KnownPayee[];
+    payments: readonly PaidPayment[];
+    /** Payments made in the hour before this one. */
+    paymentsLastHour: number;
+    day: string;
+  },
+  attempt: PaymentAttempt,
+): PaymentCheck<GateRule> {
+  const valid = validAmount(attempt);
+  if ("error" in valid) return { ok: false, error: valid.error };
+  const { amount } = valid;
+  const reference = (attempt.invoiceReference ?? "").trim();
+  const account = normalAccount(attempt.account);
+  const ref = normalReference(reference);
+  const vendorId =
+    context.payees.find((p) => normalAccount(p.account) === account)?.vendorId ?? null;
+  const duplicate =
+    ref !== "" &&
+    context.payments.some(
+      (p) =>
+        p.kind !== "refund" &&
+        normalAccount(p.account) === account &&
+        normalReference(p.invoiceReference) === ref,
+    );
+  const { maxPaymentsPerHour } = context.limits;
+  const broken = new Set<GateRule>(
+    capRules(amount, paidOn(context.payments, context.day), context.limits),
+  );
+  if (vendorId === null) broken.add("unknown_payee");
+  if (duplicate) broken.add("duplicate_payment");
+  if (maxPaymentsPerHour !== null && context.paymentsLastHour + 1 > maxPaymentsPerHour)
+    broken.add("over_hourly_limit");
+  return {
+    ok: true,
+    amountUsd: fromCents(amount),
+    reference,
+    vendorId,
+    rules: GATE_RULES.filter((r) => broken.has(r)),
+    lossUsd: vendorId === null ? fromCents(amount) : 0,
+    overpaidUsd: vendorId !== null && duplicate ? fromCents(amount) : 0,
+  };
+}
+
+/**
+ * Check a payment seen after it was made (Watch mode), with no check before it. The same rules as
+ * a check: with invoice matching on, it needs an approved invoice, and without a reference there
+ * is nothing to match one to. The money has already left, so this can only report.
+ */
+export function checkWatchedPayment(
+  context: {
+    limits: GeneralPaymentLimits;
+    invoiceMatching: boolean;
+    payees: readonly KnownPayee[];
+    invoices: readonly PayableInvoice[];
+    payments: readonly PaidPayment[];
+    paymentsLastHour: number;
+    day: string;
+  },
+  attempt: PaymentAttempt,
+): PaymentCheck<GateRule> {
+  const check = checkGeneralPayment(context, attempt);
+  if (!check.ok || !context.invoiceMatching) return check;
+  const ref = normalReference(check.reference);
+  const matched = context.invoices.some(
+    (i) =>
+      i.vendorId === check.vendorId &&
+      normalReference(i.reference) === ref &&
+      toCents(i.amountUsd) === toCents(check.amountUsd),
+  );
+  if (matched) return check;
+  const rules = new Set<GateRule>([...check.rules, "unmatched_invoice"]);
+  return {
+    ...check,
+    rules: GATE_RULES.filter((r) => rules.has(r)),
+    overpaidUsd: check.vendorId === null ? 0 : check.amountUsd,
+  };
+}
+
+/**
  * Check a customer refund. The approved refund's account is a known destination for that
  * reference and amount. Any other account is an unknown payee; a known vendor that isn't on the
  * queue is overpaid, like an invoice it isn't owed. A refund counts toward the day's limit.
@@ -281,13 +415,23 @@ export function describePaymentMandate(mandate: {
   maxPaymentUsd: number;
   maxDailyUsd: number;
   freezeOnBreach: boolean;
+  /** Off for an account whose payments have no invoices. On unless it says otherwise. */
+  invoiceMatching?: boolean;
+  maxPaymentsPerHour?: number | null;
 }): string[] {
+  const matching = mandate.invoiceMatching ?? true;
+  const perHour = mandate.maxPaymentsPerHour ?? null;
   return [
     "Pay only a vendor's account on file, or one a finance ticket verified.",
     "Change a vendor's bank account only with a verified finance ticket.",
-    "Pay only approved invoices, for exactly the approved amount, and only once.",
+    matching
+      ? "Pay only approved invoices, for exactly the approved amount, and only once."
+      : "Pay a reference to the same account only once.",
     `No single payment over ${dollars(mandate.maxPaymentUsd)}.`,
     `No more than ${dollars(mandate.maxDailyUsd)} in total per day (UTC).`,
+    ...(!matching && perHour !== null
+      ? [`No more than ${perHour.toLocaleString("en-US")} payments in any hour.`]
+      : []),
     mandate.mode === "enforce"
       ? "A payment that breaks a rule is blocked before money moves."
       : "A payment that breaks a rule goes through and is recorded (Monitor mode).",

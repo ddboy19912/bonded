@@ -200,6 +200,21 @@ describe("gate mandates", () => {
       }),
     ).not.toBe(hash);
   });
+  it("hash a mandate with default settings as before the settings existed", () => {
+    const before = {
+      mode: "enforce" as const,
+      maxPaymentCents: 500_000,
+      maxDailyCents: 800_000,
+      freezeOnBreach: false,
+      vendors: [],
+    };
+    expect(gateMandateHash(before)).toBe(sha256(stringToBytes(canonicalJson(before))));
+    expect(gateMandateHash({ ...before, invoiceMatching: false })).not.toBe(
+      gateMandateHash(before),
+    );
+    expect(gateMandateHash({ ...before, maxPaymentsPerHour: 5 })).not.toBe(gateMandateHash(before));
+  });
+
   it("hash a vendor without a card merchant as before card merchants, and with one differently", () => {
     // The hash as it was first defined: vendors without a cardMerchant field at all.
     const before = sha256(
@@ -231,6 +246,90 @@ describe("gate mandates", () => {
         ],
       }),
     ).not.toBe(gateMandateHash(withMerchant));
+  });
+});
+
+describe("payment inputs (invoice matching off)", () => {
+  const paymentInput: GateInput = {
+    kind: "payment",
+    day: "2026-11-02",
+    limits: { maxPaymentCents: 500_000, maxDailyCents: 800_000, maxPaymentsPerHour: 2 },
+    attempt: { account: "GB29NWBK60161331926819", amountCents: 1_999, reference: "" },
+    payees: [{ vendorId: "nimbus", account: "GB29NWBK60161331926819" }],
+    payments: [],
+    paymentsLastHour: 0,
+  };
+
+  it("run the same rules for anyone holding the input", () => {
+    expect(evaluateGateInput(paymentInput)).toEqual({
+      ok: true,
+      rules: [],
+      vendorId: "nimbus",
+      lossCents: 0,
+      overpaidCents: 0,
+    });
+    expect(evaluateGateInput({ ...paymentInput, paymentsLastHour: 2 })).toMatchObject({
+      rules: ["over_hourly_limit"],
+    });
+    expect(evaluateGateInput({ ...paymentInput, payees: [] })).toMatchObject({
+      rules: ["unknown_payee"],
+      vendorId: null,
+      lossCents: 1_999,
+    });
+  });
+
+  it("commit to the hour's count in the hash", () => {
+    expect(gateInputHash(paymentInput)).not.toBe(
+      gateInputHash({ ...paymentInput, paymentsLastHour: 1 }),
+    );
+  });
+});
+
+describe("card charge inputs (a card hook)", () => {
+  const charge: GateInput = {
+    kind: "card_charge",
+    provider: "lithic",
+    day: "2026-11-07",
+    limits: { maxPaymentCents: 50_000, maxDailyCents: 80_000, maxPaymentsPerHour: null },
+    attempt: { account: cardMerchantKey("445566778"), amountCents: 4_200, reference: "" },
+    merchant: { key: cardMerchantKey("445566778"), name: "Cloud Hosting Co", mcc: "7372" },
+    payees: [{ vendorId: "cloud", account: cardMerchantKey("445566778") }],
+    payments: [],
+    paymentsLastHour: 0,
+  };
+
+  it("pass a vendor's merchant within the limits, with no invoice", () => {
+    expect(evaluateGateInput(charge)).toEqual({
+      ok: true,
+      rules: [],
+      vendorId: "cloud",
+      lossCents: 0,
+      overpaidCents: 0,
+    });
+  });
+
+  it("break unknown_payee for a merchant no vendor has on file, and the caps as any payment", () => {
+    expect(evaluateGateInput({ ...charge, payees: [] })).toMatchObject({
+      rules: ["unknown_payee"],
+      lossCents: 4_200,
+    });
+    expect(
+      evaluateGateInput({ ...charge, attempt: { ...charge.attempt, amountCents: 60_000 } }),
+    ).toMatchObject({ rules: ["over_payment_cap"] });
+  });
+
+  it("break blocked_merchant for cash, money orders and gambling, even at a known merchant", () => {
+    for (const mcc of ["6011", "6051", "7995"])
+      expect(evaluateGateInput({ ...charge, merchant: { ...charge.merchant, mcc } })).toMatchObject(
+        { rules: ["blocked_merchant"] },
+      );
+  });
+
+  it("commit to the provider and the merchant's category in the hash", () => {
+    expect(gateInputHash(charge)).not.toBe(gateInputHash({ ...charge, provider: "stripe" }));
+    expect(gateInputHash(charge)).not.toBe(
+      gateInputHash({ ...charge, merchant: { ...charge.merchant, mcc: "5734" } }),
+    );
   });
 });
 

@@ -680,6 +680,66 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 **What to do:** Every check is refused until you lift the freeze. Read the breach in the decision log first, then unfreeze the account.
 
+### gate-payment-seen-breach
+
+**Message:** A payment already made broke the rules.
+
+**What to do:** The money has left, so Bonded can't stop it. Check the payment on the Watch tab, and recover it if it was wrong.
+
+### gate-skipped
+
+**Message:** A payment was made with no check first.
+
+**What to do:** Your agent paid without asking the gate. Find out why, and keep the pay function out of the agent's reach. If this wallet isn't meant to check first, turn off "Expect a check first" on the Watch tab.
+
+### gate-watched-future
+
+**Message:** A payment in the log is dated in the future.
+
+**What to do:** Send `paidAt` as the time the payment was made, with its time zone, and check the clock of whatever sends the log.
+
+### gate-watch-chain-unavailable
+
+**Message:** Bonded can't read that chain on this service.
+
+**What to do:** Pick a chain listed on the Watch tab. The service reads only the chains it has an RPC URL for (GATE_WATCH_RPC_URLS).
+
+### gate-watch-wallet-limit
+
+**Message:** This gate account has as many wallets as it may, or already has this one.
+
+**What to do:** Stop watching a wallet you no longer need, or check the wallet isn't already on the list.
+
+### gate-card-hook-missing
+
+**Message:** No such card hook.
+
+**What to do:** Check the hook address in the card program matches one on the gate account's Cards tab. A removed hook stops answering.
+
+### gate-card-hook-limit
+
+**Message:** This gate account has as many card hooks as it may.
+
+**What to do:** Remove a card hook you no longer use on the Cards tab, then add the new one.
+
+### gate-card-hook-secret
+
+**Message:** A Marqeta card hook takes no secret.
+
+**What to do:** Marqeta signs in with the username and password Bonded made for the hook. Only Stripe and Lithic hooks take a signing secret (whsec_...).
+
+### gate-card-hook-unavailable
+
+**Message:** Card hooks for Stripe and Lithic are off on this service.
+
+**What to do:** The operator sets AGENT_URL_SECRET_KEY on the API, which encrypts the signing secrets it keeps.
+
+### gate-card-hook-unsigned
+
+**Message:** The request isn't signed by the card hook's card program.
+
+**What to do:** Only the card program calls this address. Check the signing secret on the hook is the one the program shows (Stripe, Lithic), or the username and password Bonded gave (Marqeta), and that the server's clock is right.
+
 ### gate-stripe-not-linked
 
 **Message:** This gate account isn't linked to Stripe.
