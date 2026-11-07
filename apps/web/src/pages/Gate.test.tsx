@@ -828,6 +828,25 @@ describe("the payment gate's rules page", () => {
     );
   });
 
+  it("ignores a bad hourly value once its field is hidden again", async () => {
+    const update = vi.spyOn(gateApi, "updateAccount").mockResolvedValue(account);
+    signedIn();
+    showAccount();
+    const modal = await press("Edit rules");
+    const matching = within(modal).getByRole("switch", { name: "Match invoices" });
+    fireEvent.click(matching);
+    fill(modal, "Most payments in one hour", "ten");
+    // Matching back on hides the field: what's in it neither blocks saving nor is saved.
+    fireEvent.click(matching);
+    fill(modal, "Most for one payment", "2500.50");
+    const save = within(modal).getByRole("button", { name: "Save changes" }) as HTMLButtonElement;
+    expect(save.disabled).toBe(false);
+    fireEvent.click(save);
+    await vi.waitFor(() =>
+      expect(update).toHaveBeenCalledWith("sess", ACCOUNT_ID, { maxPaymentUsd: 2500.5 }),
+    );
+  });
+
   it("shows the hourly limit only with invoice matching off", async () => {
     vi.mocked(gateApi.accounts).mockResolvedValue({
       items: [{ ...account, invoiceMatching: false, maxPaymentsPerHour: null }],
