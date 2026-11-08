@@ -47,7 +47,7 @@ As of 2026-10-10, on Robinhood Chain testnet:
 | The Arena Gateway your runner connects to | Live | `https://arena-worker-production.up.railway.app` (the page fills it in for you) |
 | The hosted API | Live | `https://api-production-ba50.up.railway.app` (the runner's and the web app's default) |
 | The runner's Docker image | Not on a registry | Build it from a clone: `docker build -f apps/runner/Dockerfile -t bonded-runner .` ([Docker](#keep-it-running)) |
-| Email notifications | Off: the hosted service has no email sender (`RESEND_API_KEY`, `EMAIL_FROM`) | Use a webhook, the in-app list, or the page's browser notification |
+| Email notifications | Live | Sent from alerts@notify.bondedhq.xyz; add an address in notification settings. A webhook, the in-app list and the page's browser notification work too |
 | `MandateModule` and its factory (protecting a smart account you already use) | Live: deployed with the whole protocol on Oct 10, 2026 ([addresses](../contracts/evm/deployments/README.md#live-testnets)) | Onboarding, "Protect a smart account I already use"; locally, `pnpm demo -- --byo` creates, installs, rates and insures one |
 
 ## What you get
@@ -864,7 +864,7 @@ Bonded doesn't pay for your model calls and doesn't limit them.
 |---|---|
 | The page | A browser notification while the tab is open, if you allow it |
 | Webhook | A URL you set (public https, not one of Bonded's hosts, no redirects followed). Bonded `POST`s `{ type: "rating_finished" \| "rating_failed" \| "rating_refused", ratingId, previewId? or agentId?, chainId, status, score?, tier?, reason?, label?, at }`, signed like Agent URL calls (`bonded-timestamp`, `bonded-signature`) with a webhook secret of its own (`bonded_ws_...`, shown once when you set the URL; a new one with `POST /self/notifications/webhook-secret`). 10 seconds to answer; not retried |
-| Email | Only when the service has an email sender (`RESEND_API_KEY` and `EMAIL_FROM`), which is off by default and off on the hosted service today. Then an address you give gets a plain-text email |
+| Email | Only when the service has an email sender (`RESEND_API_KEY` and `EMAIL_FROM`), which is off by default and on for the hosted service. An address you give gets a plain-text email |
 
 Your settings are yours (by wallet), for all your previews and agents. The page shows them masked (the webhook's origin, `m***@example.com`), never the secret. The alerts about your agents ([Staying rated](#staying-rated)) use the same webhook, with `{ type, dedupeKey, agentId, chainId, message, code, fix?, details?, at }`, where `type` is `score_expiring`, `runner_offline`, `breach_recorded`, `claim_filed`, `claim_paid`, `cover_lapsing` or `low_gas`.
 
