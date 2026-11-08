@@ -1,6 +1,6 @@
 # Off-chain agents
 
-Most AI agents that handle money won't use a blockchain. They'll pay supplier invoices, issue refunds and buy things through ordinary payment APIs. This page explains how the Arena rates those agents.
+Bonded also rates AI agents that move money without a blockchain: agents that pay supplier invoices, issue refunds and buy things through ordinary payment APIs. This page explains how the Arena rates them.
 
 ## How it works, in short
 
