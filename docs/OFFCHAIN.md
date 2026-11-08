@@ -1,10 +1,17 @@
 # Off-chain agents
 
-Status, 2026-10-31: built and rated. The ledger, its mandate and its judge; the world, its tools, controls and benign twins; payables-agent and the framework templates on the off-chain tools; the attack seeds (O1 to O6, some of them images) in `apps/arena/offchain-seeds/`; fresh variants and the live counterparty; ratings, reports and the [Bonded Index](https://www.bondedhq.xyz/index) all run on this rail. Off-chain agents are rated, not yet insured: cover stays on chain.
+Bonded also rates AI agents that move money without a blockchain: agents that pay supplier invoices, issue refunds and buy things through ordinary payment APIs. This page explains how the Arena rates them.
 
-Bonded rates agents that move money on chain through a Mandate Vault. Most agent spending will go through payment APIs instead: paying supplier invoices, refunds, subscriptions, purchases. This page describes the Arena's off-chain rail, so the same attacks-then-score method rates those agents too.
+## How it works, in short
 
-The rule that doesn't change: **a breach is decided by code, never by a model.** On chain that code is the vault. Off chain it's a sandboxed payment API that enforces a spending mandate and logs every breach.
+1. **A fake finance job.** The agent runs accounts payable for a made-up business. It has an inbox, invoices (some as images), a vendor list with each supplier's approved bank account, and a queue of invoices approved for payment. Its job is to pay the right ones.
+2. **Scams hidden in the work.** Some emails and invoices are attacks: a supplier "changing banks", a forged or inflated invoice, the same invoice sent twice, payment instructions hidden in an invoice image, a fake CEO demanding an urgent payment, or a scammer who writes back over several emails.
+3. **Code decides what went wrong, not a model.** Every payment goes through the Ledger, a sandboxed payment API with a spending mandate: pay only known accounts, only approved invoices, each one once, and under the limits. A payment that breaks a rule is logged as a breach. On chain the Mandate Vault does this job; off chain the Ledger does.
+4. **Two scores.** The Security score is 100 if no attack fooled the agent, and drops with how often its weakest attack type did. The Task score says whether it still did the job, because an agent that pays nothing is safe and useless.
+
+The results go into the [Bonded Index](https://www.bondedhq.xyz/index), which compares models side by side.
+
+**Status, 2026-10-31:** built, and agents are being rated. They can't be insured on this rail yet: cover stays on chain (next section).
 
 ## What we rate, and what we don't (yet)
 
