@@ -16,7 +16,9 @@ import {
   WorksWith,
   claimSources,
 } from "./LandingSections";
-import { LandingSentinel } from "./LandingSentinel";
+import { LandingGate, LandingIndex, STOPS, corner, placeLabels } from "./LandingOffchain";
+import { loadBondedIndex } from "../lib/bonded-index";
+import type { BondedIndexEntry } from "@bondedhq/shared";
 
 afterEach(cleanup);
 const show = (ui: React.ReactElement) => render(<MemoryRouter>{ui}</MemoryRouter>);
@@ -85,19 +87,151 @@ describe("who it is for", () => {
   });
 });
 
-describe("the guard section", () => {
-  it("points readers who pay invoices to the payment gate", () => {
-    // The flow illustration asks whether motion is reduced; jsdom has no matchMedia.
-    vi.stubGlobal("matchMedia", () => ({
-      matches: true,
-      addEventListener: () => {},
-      removeEventListener: () => {},
-    }));
-    show(<LandingSentinel />);
-    expect(screen.getByText("Paying invoices, not trading?")).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Open the payment gate/ }).getAttribute("href")).toBe(
-      "/gate",
+/** The illustrations ask whether motion is reduced; jsdom has no matchMedia. Reduced shows each finished. */
+const reduceMotion = () =>
+  vi.stubGlobal("matchMedia", () => ({
+    matches: true,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+
+describe("the payment gate section", () => {
+  it("says what the gate does, the three ways in, and links to it and its guide", () => {
+    reduceMotion();
+    show(<LandingGate />);
+    const section = document.getElementById("gate")!;
+    expect(
+      within(section).getByRole("heading", { name: "Check every payment before it leaves." }),
+    ).toBeTruthy();
+    for (const way of ["Ask first", "Card hooks", "Watch"]) {
+      expect(within(section).getAllByText(way).length).toBeGreaterThan(0);
+    }
+    expect(within(section).getByText(/never holds a key that can move your money/)).toBeTruthy();
+    expect(
+      within(section).getByRole("link", { name: "Open the payment gate" }).getAttribute("href"),
+    ).toBe("/gate");
+    expect(
+      within(section)
+        .getByRole("link", { name: /Read the guide/ })
+        .getAttribute("href"),
+    ).toBe("/docs/guides/payment-gate/");
+    // The payments going through it are examples, and say so.
+    expect(within(section).getByText("Illustration")).toBeTruthy();
+  });
+
+  it("stamps each example payment with the gate's decision, and a receipt only when it decided first", () => {
+    reduceMotion();
+    show(<LandingGate />);
+    const expected: Record<string, [string, boolean]> = {
+      Invoice: ["Allowed", true],
+      "Bank change": ["Blocked", true],
+      Card: ["Declined", true],
+      Wallet: ["Breach", false],
+    };
+    for (const [tab, [verdict, receipt]] of Object.entries(expected)) {
+      fireEvent.click(screen.getByRole("button", { name: tab }));
+      expect(screen.getByText(verdict)).toBeTruthy();
+      expect(!!screen.queryByText(/Receipt signed by Bonded/)).toBe(receipt);
+    }
+    // Watch saw the wallet payment after it left: no receipt, an alert instead.
+    expect(screen.getByText("Alert sent to Slack")).toBeTruthy();
+  });
+
+  it("allows a payment only when every check passes", () => {
+    for (const stop of STOPS) {
+      const passed = stop.checks.every(([, mark]) => mark === "pass");
+      expect(stop.verdict === "Allowed", stop.id).toBe(passed);
+    }
+  });
+});
+
+describe("the Index section", () => {
+  const entry = (model: string, label: string, score: number, task: number) =>
+    ({
+      ...loadBondedIndex().entries[0]!,
+      model,
+      label,
+      score,
+      task: { ...loadBondedIndex().entries[0]!.task!, score: task },
+    }) as BondedIndexEntry;
+  const index = (entries: BondedIndexEntry[]) => ({ ...loadBondedIndex(), entries });
+
+  it("puts every model on the map, named with both scores, and lists them for screen readers", () => {
+    reduceMotion();
+    show(
+      <LandingIndex
+        index={index([entry("b", "Model B", 60, 90), entry("a", "Model A", 95, 20)])}
+      />,
     );
+    expect(screen.getByRole("button", { name: "Model A: Security 95, Task 20" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Model B: Security 60, Task 90" })).toBeTruthy();
+    const rows = screen.getAllByRole("row").slice(1);
+    expect(rows.map((r) => within(r).getByRole("rowheader").textContent)).toEqual([
+      "Model A",
+      "Model B",
+    ]);
+    expect(screen.getByRole("link", { name: /See the full Index/ }).getAttribute("href")).toBe(
+      "/index",
+    );
+  });
+
+  it("leaves a model with no measured Task score off the map, rather than plotting it at 0", () => {
+    reduceMotion();
+    const unmeasured = {
+      ...entry("u", "Model U", 80, 0),
+      task: { ...loadBondedIndex().entries[0]!.task!, score: null },
+    } as BondedIndexEntry;
+    show(<LandingIndex index={index([entry("a", "Model A", 95, 20), unmeasured])} />);
+    expect(screen.getByRole("button", { name: /Model A/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Model U/ })).toBeNull();
+    expect(screen.queryByText("Model U")).toBeNull();
+  });
+
+  it("shows both scores when a model is picked", () => {
+    reduceMotion();
+    show(<LandingIndex index={index([entry("a", "Model A", 95, 20)])} />);
+    fireEvent.click(screen.getByRole("button", { name: /Model A/ }));
+    const card = screen.getByRole("status");
+    expect(within(card).getByText("Security").nextElementSibling?.textContent).toBe("95");
+    expect(within(card).getByText("Task").nextElementSibling?.textContent).toBe("20");
+  });
+
+  it("names the corners by both scores", () => {
+    expect(corner(92, 100)).toBe("Hard to trick, and does the job");
+    expect(corner(100, 29)).toBe("Safe because it refuses");
+    expect(corner(29, 80)).toBe("Does the job, easy to trick");
+    expect(corner(29, 5)).toBe("Easy to trick, little done");
+  });
+
+  it("places names inside the plot without overlapping, or leaves one off on a phone", () => {
+    const points = loadBondedIndex().entries.map((e) => ({
+      entry: e,
+      security: e.score,
+      task: e.task?.score ?? 0,
+    }));
+    for (const [width, height] of [
+      [1000, 460],
+      [300, 400],
+    ] as const) {
+      const placed = [...placeLabels(points, width, height).values()].filter((p) => p !== null);
+      for (const p of placed) {
+        expect(p.left).toBeGreaterThanOrEqual(0);
+        expect(p.top).toBeGreaterThanOrEqual(0);
+      }
+      // No two names start at the same spot.
+      expect(new Set(placed.map((p) => `${p.left},${p.top}`)).size).toBe(placed.length);
+    }
+  });
+
+  it("shows every model in the published Index", () => {
+    reduceMotion();
+    show(<LandingIndex />);
+    expect(screen.getAllByRole("row")).toHaveLength(loadBondedIndex().entries.length + 1);
+  });
+
+  it("is left out when no model is rated", () => {
+    const { container } = show(<LandingIndex index={index([])} />);
+    expect(container.innerHTML).toBe("");
   });
 });
 
@@ -159,6 +293,7 @@ describe("the questions", () => {
       "How fast is a claim paid, and how much?",
       "Can an agent game its score?",
       "Can I test my agent without a vault or tokens?",
+      "Does Bonded hold my keys or card details?",
       "Which chains does it use?",
     ]);
     expect(questions).not.toContain("Is this real money?");
@@ -356,7 +491,7 @@ describe("the light behind the page", () => {
     const warm = "rgb(255 154 128";
     expect(wash("how")).toContain(warm);
     expect(wash("how")).toContain("rgb(60 107 255");
-    for (const id of ["who", "score", "sentinel", "bring", "faq"])
+    for (const id of ["who", "score", "index", "sentinel", "gate", "bring", "faq"])
       expect(wash(id), id).not.toContain(warm);
   });
 

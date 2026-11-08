@@ -39,7 +39,7 @@ const LAST_PHASE = 4;
 const PHASE_MS = 900;
 const HOLD_MS = 2600;
 
-function useReducedMotion() {
+export function useReducedMotion() {
   const [reduced, setReduced] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -293,17 +293,6 @@ export function LandingSentinel() {
             <p className="mt-2 text-base text-muted">{label}</p>
           </div>
         ))}
-      </div>
-
-      <div className="mt-12 flex flex-wrap items-center justify-between gap-x-8 gap-y-4 rounded-2xl border border-line bg-white/[0.02] px-6 py-5">
-        <p className="max-w-[62ch] text-lg leading-relaxed text-muted">
-          <span className="text-ink">Paying invoices, not trading?</span> The payment gate checks
-          every payment against the rules your agent was rated on, and signs a receipt anyone can
-          check.
-        </p>
-        <Link to="/gate" className="shrink-0 text-accent hover:underline">
-          Open the payment gate <span aria-hidden>→</span>
-        </Link>
       </div>
     </section>
   );

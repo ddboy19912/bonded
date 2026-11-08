@@ -12,6 +12,7 @@ import { ScoreRing, buttonClass, tierTone } from "../components/ui";
 import { Token, TokenChip, withTokens } from "../components/token";
 import { MarkField } from "../components/mark-field";
 import { LandingSentinel } from "./LandingSentinel";
+import { LandingGate, LandingIndex } from "./LandingOffchain";
 import {
   BringYourAgent,
   Faq,
@@ -45,7 +46,9 @@ export function Landing() {
       <Walkthrough />
       <Roles />
       <ScoreScale />
+      <LandingIndex />
       <LandingSentinel />
+      <LandingGate />
       <BringYourAgent />
       <LatestPosts />
       <Faq />
@@ -60,7 +63,7 @@ function Hero() {
       <div className="mx-auto grid max-w-[1180px] items-center gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,560px)]">
         <div className="pt-6 pb-4 lg:pb-12">
           <p className="text-sm text-soft">
-            Safety ratings and automatic cover for AI trading agents
+            Safety ratings and protection for AI agents that move money
           </p>
           <h1 className="mt-5 font-serif text-[56px] leading-[0.98] sm:text-[88px]">
             Don't cage your agent.

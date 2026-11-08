@@ -264,6 +264,27 @@
 .logo-marquee:focus-within .logo-track {
   animation-play-state: paused;
 }
+/* The payment gate's decision, stamped on the payment. */
+.gate-stamp {
+  transform: rotate(-9deg);
+  animation: gate-stamp 0.35s cubic-bezier(0.2, 0.8, 0.3, 1.2) both;
+}
+@keyframes gate-stamp {
+  from {
+    opacity: 0;
+    transform: rotate(-9deg) scale(1.9);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(-9deg) scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gate-stamp {
+    animation: none;
+  }
+}
+
 @keyframes logo-scroll {
   to {
     transform: translateX(-50%);
@@ -309,7 +330,9 @@ body:has(.landing) {
 #how,
 #who,
 #score,
+#index,
 #sentinel,
+#gate,
 #bring,
 #faq {
   position: relative;
@@ -318,7 +341,9 @@ body:has(.landing) {
 #how::before,
 #who::before,
 #score::before,
+#index::before,
 #sentinel::before,
+#gate::before,
 #bring::before,
 #faq::before {
   content: "";
@@ -373,6 +398,16 @@ body:has(.landing) {
   top: -200px;
   bottom: -200px;
   background: radial-gradient(ellipse at 90% 40%, rgb(60 107 255 / 0.1), transparent 55%);
+}
+#index::before {
+  top: -200px;
+  bottom: -200px;
+  background: radial-gradient(ellipse at 84% 62%, rgb(60 107 255 / 0.12), transparent 55%);
+}
+#gate::before {
+  top: -200px;
+  bottom: -200px;
+  background: radial-gradient(ellipse at 78% 50%, rgb(29 78 216 / 0.13), transparent 55%);
 }
 #bring::before {
   top: -200px;
