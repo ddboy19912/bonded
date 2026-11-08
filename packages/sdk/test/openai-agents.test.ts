@@ -157,6 +157,20 @@ describe("guardOpenAiAgentsPayTool", () => {
     expect(bank).not.toHaveBeenCalled();
   });
 
+  it("JSON that isn't an object pays nothing, even with a custom toPayment", async () => {
+    const { guard } = guardFor("enforce");
+    const { tool: t, bank } = payTool();
+    const toPayment = vi.fn((args: Record<string, unknown>) => ({
+      account: String(args.to),
+      amountUsd: Number(args.usd),
+    }));
+    const guarded = guardOpenAiAgentsPayTool(t, { guard, toPayment });
+    for (const input of ["null", "[1,2]", "42", '"pay"'])
+      expect(await guarded.invoke(run, input)).toMatch(/^Error: .*must be an object/);
+    expect(toPayment).not.toHaveBeenCalled();
+    expect(bank).not.toHaveBeenCalled();
+  });
+
   it("a tool that throws records no payment, so it can be retried", async () => {
     const { guard } = guardFor("enforce");
     const t = tool({

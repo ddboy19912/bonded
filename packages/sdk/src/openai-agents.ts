@@ -55,6 +55,9 @@ export function guardOpenAiAgentsPayTool<T extends OpenAiAgentsFunctionTool>(
       } catch {
         return "Error: the payment's arguments are not valid JSON; no payment was made";
       }
+      // A custom toPayment reads fields: null or an array would throw before the guard answers.
+      if (!args || typeof args !== "object" || Array.isArray(args))
+        return "Error: the payment's arguments must be an object; no payment was made";
       try {
         return await guarded(args, runContext, input, details);
       } catch (error) {
