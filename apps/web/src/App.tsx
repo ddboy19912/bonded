@@ -294,23 +294,17 @@ export function SiteLayout() {
             className="mx-auto hidden items-center gap-7 text-sm text-soft md:flex"
             aria-label="Site"
           >
-            <a href="#numbers" className="hover:text-ink">
-              Live numbers
-            </a>
             <a href="#how" className="hover:text-ink">
               How it works
+            </a>
+            <a href="#index" className="hover:text-ink">
+              Index
             </a>
             <a href="#sentinel" className="hover:text-ink">
               Sentinel
             </a>
             <a href="#gate" className="hover:text-ink">
               Payment gate
-            </a>
-            <Link to="/index" className="hover:text-ink">
-              Index
-            </Link>
-            <a href={BLOG_HOME} className="hover:text-ink">
-              Blog
             </a>
           </nav>
           <Link to={APP_HOME} className={`${buttonClass("light")} ml-auto md:ml-0`}>

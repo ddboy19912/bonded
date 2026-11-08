@@ -39,7 +39,7 @@ const LAST_PHASE = 4;
 const PHASE_MS = 900;
 const HOLD_MS = 2600;
 
-function useReducedMotion() {
+export function useReducedMotion() {
   const [reduced, setReduced] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
