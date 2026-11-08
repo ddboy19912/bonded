@@ -143,15 +143,35 @@ Three off-chain services share one database:
 
 | Service | Does |
 |---|---|
-| `api` | REST and server-sent events: signed quotes (capped by binding for operator-run agents), rating jobs, scores with their binding, coverage and held-out set, reports, the leaderboard, bounty reveals, self-serve registration and runner tokens, owner sessions, previews, Agent URLs, connection checks and their live events, cost estimates, rating progress (counts only), notification settings, and observed breach rates (`GET /stats/observed-rates`) |
+| `api` | REST and server-sent events: signed quotes (capped by binding for operator-run agents), rating jobs, scores with their binding, coverage and held-out set, reports, the leaderboard, bounty reveals, self-serve registration and runner tokens, owner sessions, previews, Agent URLs, connection checks and their live events, cost estimates, rating progress (counts only), notification settings, observed breach rates (`GET /stats/observed-rates`), and the payment gate (checks and receipts, card hooks, Watch's payment log; [GATE.md](../apps/api/GATE.md)) |
 | `arena-worker` | Runs rating jobs and validates bounty submissions in a sandbox forked from the live chain, then posts scores and pays bounties with the attester key. Serves the Arena Gateway (when `GATEWAY_PORT` is set), with operator-run agents' ratings in a lane of their own so Bonded's ratings never wait behind them, previews in the same lane after them (one at a time, only when no official one is waiting), and connection checks in a third lane; records runner presence, renews operator-run agents' scores while their runners are connected, and notifies owners (webhook, and email when configured) when a rating ends |
-| `keeper` | Watches vaults and modules for breaches and files claims; accrues premiums; checks TEE agents, and queues a re-rating when an operator-run agent's TEE changes |
+| `keeper` | Watches vaults and modules for breaches and files claims; accrues premiums; checks TEE agents, and queues a re-rating when an operator-run agent's TEE changes; for the payment gate, reads watched wallets and, once a day ends (UTC), posts its decision log root to `GateAnchor` |
 
 Jobs use a Postgres `FOR UPDATE SKIP LOCKED` queue; every transaction that moves money records its intent and nonce before broadcasting, so a crash can't pay twice. For operator-run agents the database also keeps owner sessions and runner tokens (as hashes only), Agent URLs with their secrets (encrypted only), previews, connection checks and their events, notification settings, runner presence and the code it reports, ratings the live loop had to skip and why, each agent's standing (superseded score, failures in a row, cooldown) and every rating attempt with the agent's own report kept apart, the held-out payloads already used, and each breach's agent, type and time (for observed rates).
 
 ## Off-chain payment agents
 
 Agents that pay through payment APIs instead of a chain are rated by the same Arena, on a rail of its own: the Ledger, a sandboxed payment API that enforces a spending mandate and records every breach by code, never by a model. A judge separates breaches an attack caused from the agent's own mistakes, and Enforce mode blocks a payment the way the vault does. Ratings feed the [Bonded Index](INDEX.md). Off-chain agents are rated, not yet insured. Details: [docs/OFFCHAIN.md](OFFCHAIN.md).
+
+## Payment gate
+
+The gate runs the Ledger's rules in front of real payments ([PAYMENT-GATE.md](PAYMENT-GATE.md)). It lives in the `api` and the `keeper`, and connects three ways:
+
+```mermaid
+flowchart LR
+  Agent["Agent's server"] -- "ask first:<br/>API, SDK or MCP" --> Gate["Gate rules<br/>(api)"]
+  Cards["Card program<br/>Stripe Issuing, Lithic, Marqeta"] -- "card hook:<br/>before each charge" --> Gate
+  Gate -- "allowed or blocked,<br/>signed receipt" --> Agent
+  Wallets["Wallets on Ethereum,<br/>Base, Arbitrum"] -. "Watch: read after<br/>(keeper)" .-> Gate
+  Log["Your payment log"] -. "Watch: sent after" .-> Gate
+  Gate --> Alerts["Inbox, Slack,<br/>webhook, email"]
+  Gate -- "daily log root,<br/>rules hash" --> Anchor["GateAnchor<br/>(Robinhood Chain)"]
+```
+
+- **Ask first** and **card hooks** decide before the money moves: Enforce blocks or declines, Monitor lets it through and logs a breach. One exception: a card hook declines cash, money orders and gambling (`blocked_merchant`) in both modes. Each decision gets a receipt signed by Bonded that anyone can check offline.
+- **Watch** decides nothing in time. It runs payments already made through the same rules and alerts on a breach. With **Expect a check first** on, a payment with no allowed check for the same payee and amount in the 24 hours before is also a breach (`skipped_gate`). Each check covers one payment, so an allowed check that was never paid can cover a later identical payment that skipped the gate.
+- **No key that moves money.** Bonded holds API key hashes, a card program's signing secret or a password hash, and public wallet addresses. It can't make, fund or charge a payment.
+- **Rules are code.** The same inputs always give the same decision, and the receipt carries the input's hash: anyone with the input (the check's answer includes it) can match the hash and run the rules again.
 
 ## Sentinel
 
@@ -163,7 +183,7 @@ An agent's key can be generated inside a Phala Cloud confidential VM (Intel TDX)
 
 ## Web app
 
-`apps/web`, Vite and React. It reads the chain directly for everything that matters (scores, vaults, policies, claims) and the API for reports, the live feed, quotes and bounties.
+`apps/web`, Vite and React. It reads the chain directly for everything that matters (scores, vaults, policies, claims) and the API for reports, the live feed, quotes, bounties, the Bonded Index and the payment gate.
 
 ## Trust model
 
@@ -176,6 +196,8 @@ An agent's key can be generated inside a Phala Cloud confidential VM (Intel TDX)
 | Guardian (operator) | Freeze, unfreeze and rotate its agent; buy and cancel cover | Change a vault's mandate after creation |
 | Attester | Sign scores and quotes; judge bounties | Pay a claim: claims follow the breach log only |
 | Owner (one key on testnets) | Set risk parameters and attesters; on testnets, set MockOracle prices, which losses are measured with | Withdraw pool or bond funds |
+| Gate (Bonded's API) | Answer allowed or blocked on a payment or card charge, sign the receipt, send alerts | Make, fund or charge a payment; change a decision from a day whose log root is on `GateAnchor` without it showing (a day's root is posted after the day ends) |
+| Gate account owner | Change the rules, vendors and invoices (each rules version is hashed and posted on chain); lift a freeze | Get a receipt for a decision the gate didn't make |
 | Anyone | File a claim for a recorded breach | Get a claim paid for a breach the vault didn't record |
 
 Known gaps and their fixes are in [AUDIT.md](AUDIT.md).

@@ -9,6 +9,7 @@ If an AI agent can move your money, Bonded is about that agent. This page explai
 - **Today there is no way to tell a hardened agent from a gullible one, and no one pays you back when one gets tricked.**
 - **Bonded fixes both.** It attacks an agent before you trust it and gives it a public score from 0 to 100. It puts the agent's money in a vault that knows the agent's rules. When the agent breaks those rules, the vault records it on chain and cover pays you automatically: the operator's bond first, then an insurance pool.
 - **No AI decides who gets paid.** The vault's record does.
+- **Not on chain?** An agent that pays invoices by bank or card can use the [payment gate](PAYMENT-GATE.md): it checks each payment against the agent's rules before it's made, or reads payments after, and alerts on any breach.
 
 ## Agents are already part of your day
 
@@ -20,7 +21,7 @@ You may not call them agents, but many of the tools people use with money now ha
 | **An AI copilot in your wallet or exchange app** | Reads your portfolio and the news, suggests or makes trades | Rules it can't break without the vault recording it; a claim that files itself |
 | **A yield or rebalancing agent** | Moves funds between protocols to chase returns | Limits on which contracts it may touch and how much per day |
 | **An agent built on a crypto toolkit** (Coinbase AgentKit, Solana Agent Kit, ElizaOS) | Whatever its builder made it do: swaps, transfers, approvals | A measured score on the same scale as every other agent |
-| **A general assistant that gets payment tools** (email, shopping, booking agents) | Pays invoices, buys things, sends money on your behalf | The same protection once it signs payments: the weakness is identical |
+| **A general assistant that gets payment tools** (email, shopping, booking agents) | Pays invoices, buys things, sends money on your behalf | The same protection once it signs payments: the weakness is identical. If it pays by bank or card, the [payment gate](PAYMENT-GATE.md) checks each payment against its rules first, when the agent asks it before paying or the card program asks before each charge. Watch only reads payments after they're made |
 | **Agents paying other agents** (agent-to-agent payments, x402) | Negotiates and settles with software on the other side | A score each side can read before trusting the other |
 
 A plain trading script that never reads outside text, such as a grid or DCA bot, is much harder to trick. The vault still helps it, though: a per-trade and daily cap catches a fat-fingered order or a runaway loop.

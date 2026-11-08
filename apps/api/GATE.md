@@ -7,7 +7,7 @@ rates agents against (`checkInvoicePayment`, `checkRefundPayment` and `isVerifie
 and freeze, and answers with the decision and a signed receipt.
 
 Code: `src/gate.ts` (routes), `src/gate-check.ts` (the check), `packages/db/src/gate.ts` (storage,
-migrations `0024_payment_gate.sql` and `0026_gate_transparency.sql`),
+migrations `0024_payment_gate.sql` to `0032_remove_key_routes.sql`),
 `packages/shared/src/gate-receipt.ts` (receipts, input and mandate hashing, offline verification),
 `packages/shared/src/gate-log.ts` (daily log roots and proofs), `apps/keeper/src/gate-anchor.ts`
 (the keeper job that makes and posts them), `contracts/evm/src/GateAnchor.sol` (where they go on

@@ -39,6 +39,7 @@ AI agents now hold and move real money, and even non-chat decision models can be
 3. **Mandate Vaults.** Agents trade from a smart account that knows their mandate. The vault either blocks breaches or records them on-chain.
 4. **Cover.** Depositors in agent-run vaults are protected. When the agent breaches its mandate, the operator's bond is slashed first, then the underwriting pool pays. The payout is automatic and takes **minutes, not months**.
 5. **Bonded Sentinel.** A real-time guard (Laya v5 in production: about 2.5 s per check on CPU and about 0.2 s on an NVIDIA T4 GPU, measured; see [docs/SENTINEL.md](SENTINEL.md)) built on **Laya**, an open-source "System One" decision model, fine-tuned on Arena data. It is advisory. Rating an agent with Sentinel in front measures what it blocks, so a lower expected loss can follow; no fixed premium discount is applied for using it yet.
+6. **The payment gate.** The same rules for agents that pay off chain, by bank or card. The agent asks the gate before each payment and gets allowed or blocked, with a receipt signed by Bonded; a card program can ask before each charge; or Bonded reads payments after they're made and alerts on any breach. Bonded never holds a key that can move the customer's money. See [docs/PAYMENT-GATE.md](PAYMENT-GATE.md).
 
 **The bar for agents.** Every agent gets the same attacks and the same 0–100 scale, so scores compare: a number that platforms, vaults and depositors can require and agent builders can aim for.
 
@@ -56,7 +57,7 @@ This is a fidelity (crime) policy for AI agents, the same established insurance 
 | **Malfunction:** invented addresses, loops, fat-fingered orders, goal drift | Losses from a compromised **owner** key (not agent behaviour) |
 | **Tool compromise:** a malicious counterparty agent or contract that the agent was tricked into using | Smart-contract bugs in third-party protocols the mandate allows (not covered) |
 
-### 3.2 The five parts
+### 3.2 The parts
 
 | Part | What it is | Where it runs |
 |---|---|---|
@@ -65,6 +66,7 @@ This is a fidelity (crime) policy for AI agents, the same established insurance 
 | **Security and Task scores** | 0–100 Security score (how easily the agent is tricked) beside a 0–100 Task score (whether it still does its job), with a separate insurance score from expected loss. The Security and insurance scores are signed by the Arena and posted on-chain (ERC-8004 compatible); the Task score is in the report | Arena (off-chain) → registries (on-chain) |
 | **Cover** | Operator bond (first loss) + underwriting pool + parametric claims + dispute module | On-chain |
 | **Bonded Sentinel** | Per-action guard (about 0.2 s on a T4 GPU, about 2.5 s on CPU) on a fine-tuned Laya model. Advisory only; no fixed premium discount yet | Off-chain service (GPU or CPU) |
+| **Payment gate** | Checks an off-chain agent's payments against its spending rules (the rules the Arena rates off-chain agents against), in **Monitor** or **Enforce**, with a signed receipt per decision. Connects by API, SDK or MCP before each payment, by a card program's authorization hook, or by **Watch**, which reads a wallet's or a payment log's payments after the fact. Not insured yet | Off-chain service (`apps/api`); daily log roots and rule hashes on chain (`GateAnchor`) |
 
 Supporting parts: TEE key custody, community attack bounties, public leaderboard, `@bondedhq/sdk`.
 
@@ -618,6 +620,7 @@ The payout lands in the (frozen) vault and restores the share price. Depositors 
 | `GET …/estimate`, `GET /ratings/:id/progress`, `GET /previews/:id/events` | Cost estimate from the passing check of the current connection; a rating's progress and a preview's status (SSE, counts only) |
 | `POST …/agent-url/secret` | A new agent secret for the same URL, shown once; the old one stops at once and the URL must be verified again |
 | `GET`/`PUT /self/notifications` (and per preview or agent) | Webhook and email settings; a new webhook gets a signing secret shown once |
+| `/gate/…`, `/payments/…` | The payment gate: accounts, rules, vendors, invoices, API keys, checks with signed receipts, card hooks, Watch, the decision log and its proofs. Every route is in [apps/api/GATE.md](../apps/api/GATE.md) |
 | `GET /stats/observed-rates` | Breaches recorded in production per agent-year of rated exposure, against what the published priors predict, with counts and exposure next to every rate |
 
 Storage is Postgres (Drizzle schema, SQL migrations that run on start); jobs run on a Postgres `FOR UPDATE SKIP LOCKED` queue.
@@ -627,6 +630,7 @@ Storage is Postgres (Drizzle schema, SQL migrations that run on start); jobs run
 - Watches `BreachRecorded` on every chain and calls `fileClaim` automatically.
 - Calls `accrue` to stream premiums, lapses unpaid policies, and posts new attestations to all registries.
 - Sends alerts to vault guardians.
+- For the payment gate: reads watched wallets' payments every 30 seconds through public nodes (USDC on Ethereum, Base, Arbitrum and Base Sepolia; USDT on Ethereum and Arbitrum), and posts each finished day's decision log root and each new rules hash to `GateAnchor`.
 - **Restart-safe:** keeps a per-chain block cursor in Postgres and resumes from it, and checks on-chain state before filing, so a restart or sleep delays a claim but never loses or duplicates one. The contracts give it slack (7-day claim window, 3-day premium grace period), and `fileClaim` is permissionless, so a guardian can file if the keeper is down.
 
 ### 14.3 SDK (`packages/sdk`, `@bondedhq/sdk`)
@@ -659,6 +663,9 @@ Tests run against anvil with the real contracts, and each plugin performs an all
 | Claims | Live claim feed with the waterfall breakdown |
 | Leaderboard | Public agent safety rankings |
 | Bounties | Commit/reveal flow, accepted attacks, payouts |
+| Bonded Index | AI models rated on the off-chain payment attacks: Security and Task side by side, with each model's page |
+| Payment gate | Gate accounts: activity, rules, vendors and invoices, Connect (API, SDK, MCP, Watch), card hooks, alerts, settings |
+| Check a receipt | Verifies a gate receipt in the browser, with no sign-in |
 
 Wallets: wagmi/viem (EVM) and Solana wallet adapter.
 

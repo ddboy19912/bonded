@@ -102,7 +102,7 @@ The SDK also has a local guard that runs the same rules inside your own process,
 
 ## Pay by card
 
-Your agent pays with cards from your own card program: Stripe Issuing, Lithic or Marqeta. Before each charge, the program asks Bonded, and a charge that breaks a rule is declined. Bonded holds no key for your program. It can't make, fund or charge a card. If Bonded doesn't answer in time, the charge is declined.
+Your agent pays with cards from your own card program: Stripe Issuing, Lithic or Marqeta. Before each charge, the program asks Bonded. In Enforce mode a charge that breaks a rule is declined; in Monitor mode it goes through and is logged as a breach. Bonded holds no key for your program. It can't make, fund or charge a card. If Bonded doesn't answer in time, the charge is declined.
 
 1. On the account's **Cards** tab, press **Connect a provider** and pick yours.
 2. Copy the address Bonded gives you into your provider:
@@ -111,7 +111,7 @@ Your agent pays with cards from your own card program: Stripe Issuing, Lithic or
    - **Marqeta:** set the address as your Gateway JIT Funding address, with the username and password Bonded shows. The password is shown once.
 3. On the **Vendors** tab, give each vendor your agent may pay its card merchant name and ID.
 
-Each charge is checked like a payment with no invoice: the merchant must be a vendor's card merchant, and the per-payment, daily and hourly limits apply. Cash, money orders and gambling are always declined. Each charge gets a decision and a receipt, like a check, and shows on the activity tab.
+Each charge is checked like a payment with no invoice: the merchant must be a vendor's card merchant, and the per-payment, daily and hourly limits apply. Cash, money orders and gambling (`blocked_merchant`) are declined in either mode. Each charge gets a decision and a receipt, like a check, and shows on the activity tab.
 
 ## Check a receipt
 
@@ -155,7 +155,7 @@ Watch is the other way to connect. Bonded reads payments after they were made, s
 
 Two sources feed it, on the account's Watch tab:
 
-- **A wallet.** Give a public address. Bonded reads its USDC and USDT payments on the chains the service has set up, starting from when you added it. It doesn't see native coins such as ETH or any other token yet.
+- **A wallet.** Give a public address. Bonded reads its USDC and USDT payments on Ethereum, Base, Arbitrum and Base Sepolia (USDT on Ethereum and Arbitrum only), starting from when you added it. It doesn't see native coins such as ETH or any other token yet.
 - **Your payment log.** Send what happened, with a gate API key:
 
 ```bash
