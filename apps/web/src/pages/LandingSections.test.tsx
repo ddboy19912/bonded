@@ -175,11 +175,13 @@ describe("the Index section", () => {
     );
   });
 
-  it("says which corner a model is in when it is picked", () => {
+  it("shows both scores when a model is picked", () => {
     reduceMotion();
     show(<LandingIndex index={index([entry("a", "Model A", 95, 20)])} />);
     fireEvent.click(screen.getByRole("button", { name: /Model A/ }));
-    expect(screen.getByRole("status").textContent).toContain("Safe because it refuses");
+    const card = screen.getByRole("status");
+    expect(within(card).getByText("Security").nextElementSibling?.textContent).toBe("95");
+    expect(within(card).getByText("Task").nextElementSibling?.textContent).toBe("20");
   });
 
   it("names the corners by both scores", () => {

@@ -165,9 +165,10 @@ function TradeoffMap({ entries }: { entries: BondedIndexEntry[] }) {
 
   return (
     <div className="panel p-5 pb-4 sm:p-8 sm:pb-6">
-      <div className="relative ml-6 sm:ml-8">
-        <p className="absolute top-1/2 -left-6 origin-center -translate-x-1/2 -translate-y-1/2 -rotate-90 text-xs whitespace-nowrap text-muted sm:-left-8">
-          Task: still pays the real bills <span aria-hidden>→</span>
+      <div className="relative ml-8 sm:ml-11">
+        <p className="absolute top-1/2 -left-8 origin-center -translate-x-1/2 -translate-y-1/2 -rotate-90 text-sm whitespace-nowrap text-soft sm:-left-11 sm:text-base">
+          <span className="font-semibold text-ink">Task</span>: still pays the real bills{" "}
+          <span aria-hidden>→</span>
         </p>
         <div
           ref={plot}
@@ -177,7 +178,7 @@ function TradeoffMap({ entries }: { entries: BondedIndexEntry[] }) {
           {/* The corner where a model is both hard to trick and still does the job. */}
           <div
             aria-hidden
-            className="absolute top-0 right-0 rounded-tr-xl bg-[radial-gradient(ellipse_at_80%_20%,rgb(60_107_255/.22),transparent_70%)]"
+            className="absolute top-0 right-0 rounded-tr-xl bg-[radial-gradient(ellipse_at_80%_20%,rgb(126_226_176/.22),transparent_70%)]"
             style={{ left: `${at(50)}%`, bottom: `${at(50)}%` }}
           />
           <span
@@ -194,7 +195,7 @@ function TradeoffMap({ entries }: { entries: BondedIndexEntry[] }) {
             <span
               key={`${q.s}-${q.t}`}
               aria-hidden
-              className={`absolute max-w-[40%] -translate-x-1/2 translate-y-1/2 text-center text-[10px] font-semibold tracking-[0.14em] uppercase sm:text-[11px] ${q.goal ? "text-held" : "text-muted/70"}`}
+              className={`absolute max-w-[40%] -translate-x-1/2 translate-y-1/2 text-center text-[10px] font-semibold tracking-[0.14em] uppercase sm:text-[11px] ${q.goal ? "text-safe" : "text-muted/70"}`}
               style={{ left: `${at(q.s)}%`, bottom: `${at(q.t)}%` }}
             >
               {size.width && size.width < 520 ? cornerShort(q.s, q.t) : corner(q.s, q.t)}
@@ -213,8 +214,8 @@ function TradeoffMap({ entries }: { entries: BondedIndexEntry[] }) {
                   onMouseEnter={() => setActive(p.entry.model)}
                   onFocus={() => setActive(p.entry.model)}
                   onBlur={() => setActive(null)}
-                  onClick={() => setActive(active === p.entry.model ? null : p.entry.model)}
-                  className={`absolute z-10 grid size-6 -translate-x-1/2 translate-y-1/2 place-items-center rounded-full bg-surface ring-2 sm:size-[30px] motion-safe:transition-[left,bottom,opacity] motion-safe:duration-[1100ms] motion-safe:ease-[cubic-bezier(.2,.75,.2,1)] ${goal ? "ring-accent" : "ring-line-strong"} ${dim ? "opacity-35" : ""}`}
+                  onClick={() => setActive(p.entry.model)}
+                  className={`absolute z-10 grid size-6 -translate-x-1/2 translate-y-1/2 place-items-center rounded-full bg-surface ring-2 sm:size-[30px] motion-safe:transition-[left,bottom,opacity] motion-safe:duration-[1100ms] motion-safe:ease-[cubic-bezier(.2,.75,.2,1)] ${goal ? "ring-safe" : "ring-line-strong"} ${dim ? "opacity-35" : ""}`}
                   style={{
                     left: `${at(shown ? p.security : 0)}%`,
                     bottom: `${at(shown ? p.task : 0)}%`,
@@ -244,27 +245,39 @@ function TradeoffMap({ entries }: { entries: BondedIndexEntry[] }) {
           {focus && (
             <div
               role="status"
-              className="pointer-events-none absolute z-20 w-[210px] -translate-x-1/2 rounded-xl border border-line-strong bg-surface/95 px-3.5 py-3 text-sm shadow-xl backdrop-blur"
+              className="pointer-events-none absolute z-20 w-[210px] -translate-x-1/2 rounded-xl border border-line-strong bg-surface/95 px-4 py-3.5 text-sm shadow-xl backdrop-blur"
               style={{
                 left: `clamp(105px, ${at(focus.security)}%, calc(100% - 105px))`,
                 bottom: `calc(${at(focus.task)}% + 26px)`,
               }}
             >
               <p className="font-semibold text-ink">{focus.entry.label}</p>
-              <p className="mt-1 font-mono text-xs text-soft">
-                Security {focus.security} · Task {focus.task}
-              </p>
-              <p className="mt-1.5 text-xs text-muted">{corner(focus.security, focus.task)}</p>
+              <dl className="mt-3 grid grid-cols-2 gap-3">
+                {(
+                  [
+                    ["Security", focus.security],
+                    ["Task", focus.task],
+                  ] as const
+                ).map(([name, value]) => (
+                  <div key={name}>
+                    <dt className="text-xs text-muted">{name}</dt>
+                    <dd className="mt-1 font-serif text-4xl leading-none text-ink tabular-nums">
+                      {value}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
             </div>
           )}
         </div>
-        <div className="mt-2 flex justify-between font-mono text-[11px] text-muted" aria-hidden>
+        <div className="mt-2 flex justify-between font-mono text-xs text-soft" aria-hidden>
           <span>0</span>
           <span>50</span>
           <span>100</span>
         </div>
-        <p className="mt-1 text-center text-xs text-muted">
-          Security: harder to trick <span aria-hidden>→</span>
+        <p className="mt-1.5 text-center text-sm text-soft sm:text-base">
+          <span className="font-semibold text-ink">Security</span>: harder to trick{" "}
+          <span aria-hidden>→</span>
         </p>
       </div>
 
