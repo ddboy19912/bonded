@@ -15,6 +15,7 @@ import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from 
 import { createApi } from "../src/index.js";
 import type { GateOptions } from "../src/gate.js";
 import { SecretBox } from "../src/secrets.js";
+import { verifyStripeSignature } from "../src/stripe-signature.js";
 import {
   lithicCharge,
   marqetaCharge,
@@ -70,8 +71,7 @@ const makeApi = (cardHook: GateOptions["cardHook"] = {}) =>
     gate: {
       receiptKey: RECEIPT_KEY,
       maxAccountsPerOwner: 100,
-      card: { log: (line) => logs.push(line) },
-      cardHook,
+      cardHook: { log: (line) => logs.push(line), ...cardHook },
     },
   });
 
@@ -278,6 +278,33 @@ afterAll(async () => {
 });
 
 describe("how each card program proves a request", () => {
+  it("checks Stripe's signature: v1 only, within 5 minutes, any of several secrets", () => {
+    const payload = JSON.stringify({ id: "evt_1" });
+    const at = 1_800_000_000;
+    const sign = (secret: string, t = at) =>
+      createHmac("sha256", secret).update(`${t}.${payload}`).digest("hex");
+    const ok = `t=${at},v1=${sign(STRIPE_SECRET)}`;
+    expect(verifyStripeSignature(payload, ok, [STRIPE_SECRET], { nowSeconds: at })).toBe(true);
+    expect(
+      verifyStripeSignature(payload, ok, ["whsec_other", STRIPE_SECRET], { nowSeconds: at }),
+    ).toBe(true);
+    expect(verifyStripeSignature(`${payload} `, ok, [STRIPE_SECRET], { nowSeconds: at })).toBe(
+      false,
+    );
+    expect(verifyStripeSignature(payload, ok, [STRIPE_SECRET], { nowSeconds: at + 301 })).toBe(
+      false,
+    );
+    expect(
+      verifyStripeSignature(payload, `t=${at},v0=${sign(STRIPE_SECRET)}`, [STRIPE_SECRET], {
+        nowSeconds: at,
+      }),
+    ).toBe(false);
+    expect(verifyStripeSignature(payload, undefined, [STRIPE_SECRET], { nowSeconds: at })).toBe(
+      false,
+    );
+    expect(verifyStripeSignature(payload, ok, [], { nowSeconds: at })).toBe(false);
+  });
+
   it("checks Lithic's signature: any v1 signature may match, within 5 minutes", () => {
     const r = lithicRequest(100);
     const h = {

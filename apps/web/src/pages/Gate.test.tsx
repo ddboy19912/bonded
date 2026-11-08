@@ -277,7 +277,6 @@ beforeEach(() => {
     next: null,
   });
   vi.spyOn(gateApi, "tickets").mockResolvedValue({ items: [] });
-  vi.spyOn(gateApi, "stripeLink").mockResolvedValue(null);
   vi.spyOn(gateApi, "cardHooks").mockResolvedValue({ items: [] });
   vi.spyOn(gateApi, "keys").mockResolvedValue({
     items: [
@@ -1144,57 +1143,6 @@ describe("the payment gate's rules page", () => {
     expect(await within(modal).findByText("Abcdefghijklmnopqrstuvwxyz234567")).toBeTruthy();
     expect(within(modal).getByText("bonded_h2")).toBeTruthy();
     expect(within(modal).getByText(/Shown once/)).toBeTruthy();
-  });
-
-  it("still lists the cards Bonded issued on an account linked the old way", async () => {
-    vi.mocked(gateApi.stripeLink).mockResolvedValue({
-      linked: true,
-      keyHint: "rk_test_…abcd",
-      livemode: false,
-      cardholderId: "ich_1234567890",
-      webhookSecrets: { authorization: true, events: true },
-      createdAt: DAY,
-      updatedAt: DAY,
-    });
-    vi.spyOn(gateApi, "cardIntents").mockResolvedValue({
-      items: [
-        {
-          id: "i1",
-          status: "paid",
-          vendorId: "nimbus",
-          invoiceReference: "NIM-1",
-          amountUsd: 612.4,
-          card: { id: "ic_1", last4: "4242" },
-          createdAt: `${DAY}T09:00:00Z`,
-          updatedAt: `${DAY}T09:00:00Z`,
-        },
-      ],
-      next: null,
-    });
-    signedIn();
-    showAccount("cards");
-    expect(await screen.findByText("Cards Bonded issued")).toBeTruthy();
-    expect(await screen.findByText("•••• 4242")).toBeTruthy();
-  });
-
-  it("asks before unlinking Stripe", async () => {
-    vi.mocked(gateApi.stripeLink).mockResolvedValue({
-      linked: true,
-      keyHint: "rk_test_…abcd",
-      livemode: false,
-      cardholderId: "ich_1234567890",
-      webhookSecrets: { authorization: true, events: true },
-      createdAt: DAY,
-      updatedAt: DAY,
-    });
-    vi.spyOn(gateApi, "cardIntents").mockResolvedValue({ items: [], next: null });
-    const unlink = vi.spyOn(gateApi, "unlinkStripe").mockResolvedValue({ unlinked: true });
-    signedIn();
-    showAccount("cards");
-    const modal = await press("Unlink");
-    expect(unlink).not.toHaveBeenCalled();
-    fireEvent.click(within(modal).getByRole("button", { name: "Unlink Stripe" }));
-    await vi.waitFor(() => expect(unlink).toHaveBeenCalledWith("sess", ACCOUNT_ID));
   });
 
   it("adds a vendor's card merchant, and needs its id with its name", async () => {

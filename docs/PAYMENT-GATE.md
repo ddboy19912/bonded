@@ -178,7 +178,7 @@ Watched payments have no receipt and stay out of the decision log, because Bonde
 
 ## What it doesn't do
 
-- **It only sees what your code sends it.** On the check route the check is voluntary: code that pays without asking skips it, so keep the raw pay function out of the agent's reach. Card hooks close that gap for cards: your card provider asks before every charge. The bank payout route is built, but not live yet.
+- **It only sees what your code sends it.** On the check route the check is voluntary: code that pays without asking skips it, so keep the raw pay function out of the agent's reach. Card hooks close that gap for cards: your card provider asks before every charge.
 - **It doesn't move money.** Your own bank or payment API makes the payment.
 - **It doesn't pay back losses yet.** Cover is on chain today. Off-chain cover is planned.
 - **Rules can be followed and fraud can still happen.** If a real vendor's own systems are hacked and a correct invoice is paid to its correct account, no rule breaks.

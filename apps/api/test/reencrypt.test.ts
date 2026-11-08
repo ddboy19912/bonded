@@ -4,8 +4,7 @@ import { reencryptSecrets } from "../src/reencrypt.js";
 import {
   SecretBox,
   agentUrlContext,
-  gatePayoutContext,
-  gateStripeContext,
+  cardHookContext,
   secretBoxFromEnv,
   webhookContext,
 } from "../src/secrets.js";
@@ -74,8 +73,7 @@ describe("re-encrypting stored secrets for a new AGENT_URL_SECRET_KEY", () => {
     expect(result).toEqual({
       agentUrls: { reencrypted: 2, already: 0 },
       webhooks: { reencrypted: 1, already: 0 },
-      gateStripe: { reencrypted: 0, already: 0 },
-      gatePayout: { reencrypted: 0, already: 0 },
+      cardHooks: { reencrypted: 0, already: 0 },
       dryRun: false,
     });
     expect(newKey.decrypt(await urlSecret(live), agentUrlContext(live))).toBe("bonded_as_live");
@@ -91,66 +89,34 @@ describe("re-encrypting stored secrets for a new AGENT_URL_SECRET_KEY", () => {
     expect(await hookSecret("0x00000000000000000000000000000000000000bb")).toBeNull();
   });
 
-  it("moves the payment gate's Stripe key and endpoint secrets, each bound to its account", async () => {
+  it("moves card hook signing secrets, each bound to its hook, and skips Marqeta's", async () => {
     const account = randomUUID();
     await pg.db.pool.query(
       `INSERT INTO gate_accounts(id,owner,mode,max_payment_cents,max_daily_cents,mandate_hash)
        VALUES($1,$2,'enforce',100,100,'0x00')`,
       [account, OWNER],
     );
-    // Throwaway values shaped like Stripe's, made for this test.
-    const key = `rk_test_${randomBytes(12).toString("hex")}`;
-    const events = `whsec_${randomBytes(12).toString("hex")}`;
+    // A throwaway value shaped like a signing secret, made for this test.
+    const secret = `whsec_${randomBytes(12).toString("hex")}`;
+    const stripe = randomUUID();
+    const marqeta = randomUUID();
     await pg.db.pool.query(
-      `INSERT INTO gate_stripe_links(account_id,key_ciphertext,key_hint,livemode,cardholder_id,
-         events_secret_ciphertext,linked_by) VALUES($1,$2,'rk_test_…',false,'ich_1',$3,$4)`,
-      [
-        account,
-        oldKey.encrypt(key, gateStripeContext(account, "key")),
-        oldKey.encrypt(events, gateStripeContext(account, "events")),
-        OWNER,
-      ],
+      `INSERT INTO gate_card_hooks(id,account_id,provider,secret_ciphertext,created_by)
+       VALUES($1,$2,'stripe',$3,$4)`,
+      [stripe, account, oldKey.encrypt(secret, cardHookContext(stripe)), OWNER],
+    );
+    await pg.db.pool.query(
+      `INSERT INTO gate_card_hooks(id,account_id,provider,basic_user,basic_password_hash,created_by)
+       VALUES($1,$2,'marqeta','bonded_1',$3,$4)`,
+      [marqeta, account, "ab".repeat(32), OWNER],
     );
     const result = await reencryptSecrets(pg.db, oldKey, newKey);
-    expect(result.gateStripe).toEqual({ reencrypted: 2, already: 0 });
+    expect(result.cardHooks).toEqual({ reencrypted: 1, already: 0 });
     const row = (
-      await pg.db.pool.query("SELECT * FROM gate_stripe_links WHERE account_id=$1", [account])
+      await pg.db.pool.query("SELECT secret_ciphertext FROM gate_card_hooks WHERE id=$1", [stripe])
     ).rows[0];
-    expect(newKey.decrypt(row.key_ciphertext, gateStripeContext(account, "key"))).toBe(key);
-    expect(newKey.decrypt(row.events_secret_ciphertext, gateStripeContext(account, "events"))).toBe(
-      events,
-    );
-    expect(row.authorization_secret_ciphertext).toBeNull();
-    await pg.db.pool.query("DELETE FROM gate_stripe_links");
-    expect((await reencryptSecrets(pg.db, newKey, box())).gateStripe).toEqual({
-      reencrypted: 0,
-      already: 0,
-    });
-  });
-
-  it("moves the payout links' events secrets, and leaves the sealed credential alone", async () => {
-    const account = randomUUID();
-    await pg.db.pool.query(
-      `INSERT INTO gate_accounts(id,owner,mode,max_payment_cents,max_daily_cents,mandate_hash)
-       VALUES($1,$2,'enforce',100,100,'0x00')`,
-      [account, OWNER],
-    );
-    const events = `whsec_${randomBytes(12).toString("hex")}`;
-    const sealed = { v: 1, to: "0x04", epk: "0x04", iv: "0x00", ct: "0x00" };
-    await pg.db.pool.query(
-      `INSERT INTO gate_payout_links(account_id,provider,sealed_credential,sealed_to,
-         tee_compose_hash,key_hint,financial_account,livemode,events_secret_ciphertext,linked_by)
-       VALUES($1,'stripe',$2,'0x04','0x00','rk_test_…','fa_test_1',false,$3,$4)`,
-      [account, JSON.stringify(sealed), oldKey.encrypt(events, gatePayoutContext(account)), OWNER],
-    );
-    const result = await reencryptSecrets(pg.db, oldKey, newKey);
-    expect(result.gatePayout).toEqual({ reencrypted: 1, already: 0 });
-    const row = (
-      await pg.db.pool.query("SELECT * FROM gate_payout_links WHERE account_id=$1", [account])
-    ).rows[0];
-    expect(newKey.decrypt(row.events_secret_ciphertext, gatePayoutContext(account))).toBe(events);
-    expect(row.sealed_credential).toEqual(sealed);
-    await pg.db.pool.query("DELETE FROM gate_payout_links");
+    expect(newKey.decrypt(row.secret_ciphertext, cardHookContext(stripe))).toBe(secret);
+    await pg.db.pool.query("DELETE FROM gate_card_hooks");
   });
 
   it("is safe to run again: values already under the new key are left as they are", async () => {

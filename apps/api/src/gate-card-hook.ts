@@ -24,8 +24,8 @@ import type { Hex } from "viem";
 import { Refused, handle } from "./refused.js";
 import type { RateLimiter } from "./rate-limit.js";
 import type { Notifier } from "./notifications.js";
-import type { SecretBox } from "./secrets.js";
-import { STRIPE_API_VERSION, verifyStripeSignature } from "./stripe-issuing.js";
+import { cardHookContext, type SecretBox } from "./secrets.js";
+import { STRIPE_API_VERSION, verifyStripeSignature } from "./stripe-signature.js";
 import { alertOwner, type GateCheckOutcome } from "./gate-check.js";
 
 /**
@@ -52,7 +52,7 @@ export interface GateCardHookOptions {
   /** Card hooks per gate account (default 5). */
   maxHooksPerAccount?: number;
   /**
-   * GATE_ALLOW_LIVE_CREDENTIALS=true: answer Stripe live-mode charges. Off: they're declined.
+   * GATE_ALLOW_LIVE_CHARGES=true: answer Stripe live-mode charges. Off: they're declined.
    * Lithic and Marqeta requests don't say whether they're live.
    */
   allowLiveCharges?: boolean;
@@ -277,7 +277,7 @@ export function gateCardHookRoutes(
   const allowLive = options.allowLiveCharges === true;
   const stripeVersion = options.stripeApiVersion ?? STRIPE_API_VERSION;
   const log = options.log ?? ((line: string) => console.error(line));
-  const context = (hookId: string) => `gate-card-hook:${hookId}`;
+  const context = cardHookContext;
 
   const marqetaSecret = () =>
     new Refused(
@@ -505,7 +505,7 @@ export function gateCardHookRoutes(
       return answer(c, hook.provider, body, false, "undecided");
     };
     if (charge.livemode && !allowLive)
-      return decline("live-mode charges are declined until live credentials are allowed");
+      return decline("live-mode charges are declined until live charges are allowed");
     if (charge.currency !== "USD") return decline("not a USD charge");
     if (charge.amountCents < 0) return decline("a negative amount");
     if (!deps.receiptKey) return decline("no receipt key");

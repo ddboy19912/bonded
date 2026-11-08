@@ -213,29 +213,6 @@ export interface GateTicket {
   createdAt: string;
 }
 
-/** A gate account's Stripe link: never the key itself, only a hint of it. */
-export interface GateStripeLink {
-  linked: true;
-  keyHint: string;
-  livemode: boolean;
-  cardholderId: string;
-  webhookSecrets: { authorization: boolean; events: boolean };
-  createdAt: string;
-  updatedAt: string;
-}
-
-/** A single-use card issued for one approved invoice. */
-export interface GateCardIntent {
-  id: string;
-  status: string;
-  vendorId: string;
-  invoiceReference: string;
-  amountUsd: number;
-  card: { id: string; last4: string } | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface NewGateAccount {
   name?: string;
   mode: GateAccount["mode"];
@@ -389,30 +366,6 @@ export const gateApi = {
       `${account(id)}/invoices/${encodeURIComponent(itemId)}`,
       send(session, "DELETE"),
     ),
-  /** GET …/stripe: the account's Stripe link, or null when it has none. */
-  stripeLink: (session: string, id: string) =>
-    request<GateStripeLink>(`${account(id)}/stripe`, bearer(session)).catch((e: unknown) => {
-      if (e instanceof ApiError && e.status === 404) return null;
-      throw e;
-    }),
-  /** PUT …/stripe: link a Stripe account for the card route. The key is stored encrypted. */
-  linkStripe: (
-    session: string,
-    id: string,
-    link: {
-      secretKey: string;
-      cardholderId: string;
-      authorizationWebhookSecret: string;
-      eventsWebhookSecret: string;
-    },
-  ) => request<GateStripeLink>(`${account(id)}/stripe`, send(session, "PUT", link)),
-  /** DELETE …/stripe: no new cards. Cards already issued are still checked on every charge. */
-  unlinkStripe: (session: string, id: string) =>
-    request<{ unlinked: true }>(`${account(id)}/stripe`, send(session, "DELETE")),
-  /** GET …/card-intents: the cards issued, newest first. */
-  cardIntents: (session: string, id: string) =>
-    request<Page<GateCardIntent>>(`${account(id)}/card-intents?limit=20`, bearer(session)),
-
   /** GET …/tickets: verified bank-change tickets. */
   tickets: (session: string, id: string) =>
     request<{ items: GateTicket[] }>(`${account(id)}/tickets`, bearer(session)),
