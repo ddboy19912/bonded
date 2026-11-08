@@ -155,11 +155,11 @@ function TradeoffMap({ entries }: { entries: BondedIndexEntry[] }) {
     return () => io.disconnect();
   }, []);
 
-  const points: Point[] = entries.map((entry) => ({
-    entry,
-    security: entry.score,
-    task: taskScore(entry) ?? 0,
-  }));
+  // A model with no measured Task score has no place on the map; the full Index still lists it.
+  const points: Point[] = entries.flatMap((entry) => {
+    const task = taskScore(entry);
+    return task === null ? [] : [{ entry, security: entry.score, task }];
+  });
   const labels = size.width ? placeLabels(points, size.width, size.height) : new Map();
   const focus = points.find((p) => p.entry.model === active);
 

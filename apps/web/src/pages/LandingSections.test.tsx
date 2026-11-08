@@ -175,6 +175,18 @@ describe("the Index section", () => {
     );
   });
 
+  it("leaves a model with no measured Task score off the map, rather than plotting it at 0", () => {
+    reduceMotion();
+    const unmeasured = {
+      ...entry("u", "Model U", 80, 0),
+      task: { ...loadBondedIndex().entries[0]!.task!, score: null },
+    } as BondedIndexEntry;
+    show(<LandingIndex index={index([entry("a", "Model A", 95, 20), unmeasured])} />);
+    expect(screen.getByRole("button", { name: /Model A/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Model U/ })).toBeNull();
+    expect(screen.queryByText("Model U")).toBeNull();
+  });
+
   it("shows both scores when a model is picked", () => {
     reduceMotion();
     show(<LandingIndex index={index([entry("a", "Model A", 95, 20)])} />);

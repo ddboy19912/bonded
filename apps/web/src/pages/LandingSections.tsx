@@ -271,7 +271,7 @@ const QUESTIONS: { id: string; q: string; a: string }[] = [
   {
     id: "chains",
     q: "Which chains does it use?",
-    a: "The contracts are deployed on Robinhood Chain testnet and Arbitrum Sepolia. A signed score can also be posted for Arbitrum, Ethereum and Solana to read. The payment gate's Watch reads USDC and USDT payments on Ethereum, Base and Arbitrum.",
+    a: "The contracts are deployed on Robinhood Chain testnet and Arbitrum Sepolia. A signed score can also be posted for Arbitrum, Ethereum and Solana to read. The payment gate's Watch reads USDC payments on Ethereum, Base and Arbitrum, and USDT on Ethereum and Arbitrum.",
   },
 ];
 
