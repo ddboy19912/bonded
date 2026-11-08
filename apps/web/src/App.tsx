@@ -303,6 +303,9 @@ export function SiteLayout() {
             <a href="#sentinel" className="hover:text-ink">
               Sentinel
             </a>
+            <a href="#gate" className="hover:text-ink">
+              Payment gate
+            </a>
             <Link to="/index" className="hover:text-ink">
               Index
             </Link>

@@ -16,7 +16,9 @@ import {
   WorksWith,
   claimSources,
 } from "./LandingSections";
-import { LandingSentinel } from "./LandingSentinel";
+import { LandingGate, LandingIndex } from "./LandingOffchain";
+import { loadBondedIndex } from "../lib/bonded-index";
+import type { BondedIndexEntry } from "@bondedhq/shared";
 
 afterEach(cleanup);
 const show = (ui: React.ReactElement) => render(<MemoryRouter>{ui}</MemoryRouter>);
@@ -85,19 +87,73 @@ describe("who it is for", () => {
   });
 });
 
-describe("the guard section", () => {
-  it("points readers who pay invoices to the payment gate", () => {
-    // The flow illustration asks whether motion is reduced; jsdom has no matchMedia.
-    vi.stubGlobal("matchMedia", () => ({
-      matches: true,
-      addEventListener: () => {},
-      removeEventListener: () => {},
-    }));
-    show(<LandingSentinel />);
-    expect(screen.getByText("Paying invoices, not trading?")).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Open the payment gate/ }).getAttribute("href")).toBe(
-      "/gate",
+describe("the payment gate section", () => {
+  it("says what the gate does, the three ways in, and links to it and its guide", () => {
+    show(<LandingGate />);
+    const section = document.getElementById("gate")!;
+    expect(
+      within(section).getByRole("heading", { name: "Check every payment before it leaves." }),
+    ).toBeTruthy();
+    for (const way of ["Ask first", "Card hooks", "Watch"]) {
+      expect(within(section).getByText(way)).toBeTruthy();
+    }
+    expect(within(section).getByText(/never holds a key that can move your money/)).toBeTruthy();
+    expect(
+      within(section).getByRole("link", { name: "Open the payment gate" }).getAttribute("href"),
+    ).toBe("/gate");
+    expect(
+      within(section)
+        .getByRole("link", { name: /Read the guide/ })
+        .getAttribute("href"),
+    ).toBe("/docs/guides/payment-gate/");
+    // The activity panel is an example, and says so.
+    expect(within(section).getByText("Illustration")).toBeTruthy();
+  });
+});
+
+describe("the Index section", () => {
+  const entry = (model: string, label: string, score: number, task: number) =>
+    ({
+      ...loadBondedIndex().entries[0]!,
+      model,
+      label,
+      score,
+      task: { ...loadBondedIndex().entries[0]!.task!, score: task },
+    }) as BondedIndexEntry;
+  const index = (entries: BondedIndexEntry[]) => ({ ...loadBondedIndex(), entries });
+
+  it("lists every model by Security, with Task beside it", () => {
+    show(
+      <LandingIndex
+        index={index([entry("b", "Model B", 60, 90), entry("a", "Model A", 95, 20)])}
+      />,
     );
+    const rows = screen.getAllByRole("row").slice(1);
+    expect(rows.map((r) => within(r).getByRole("rowheader").textContent)).toEqual([
+      "Model A",
+      "Model B",
+    ]);
+    expect(
+      within(rows[0]!)
+        .getAllByRole("cell")
+        .map((c) => c.textContent),
+    ).toEqual(["95", "20"]);
+    // A Task score under 50 is flagged.
+    expect(within(rows[0]!).getByText("20").className).toContain("text-warn");
+    expect(within(rows[1]!).getByText("90").className).not.toContain("text-warn");
+    expect(screen.getByRole("link", { name: /See the full Index/ }).getAttribute("href")).toBe(
+      "/index",
+    );
+  });
+
+  it("shows every model in the published Index", () => {
+    show(<LandingIndex />);
+    expect(screen.getAllByRole("row")).toHaveLength(loadBondedIndex().entries.length + 1);
+  });
+
+  it("is left out when no model is rated", () => {
+    const { container } = show(<LandingIndex index={index([])} />);
+    expect(container.innerHTML).toBe("");
   });
 });
 
@@ -159,6 +215,7 @@ describe("the questions", () => {
       "How fast is a claim paid, and how much?",
       "Can an agent game its score?",
       "Can I test my agent without a vault or tokens?",
+      "Does Bonded hold my keys or card details?",
       "Which chains does it use?",
     ]);
     expect(questions).not.toContain("Is this real money?");

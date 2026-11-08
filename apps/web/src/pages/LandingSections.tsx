@@ -236,7 +236,7 @@ const QUESTIONS: { id: string; q: string; a: string }[] = [
   {
     id: "scope",
     q: "Is Bonded only for trading agents?",
-    a: "No. It is for any AI agent that can move money: trading bots, wallet copilots, yield and rebalancing agents, assistants that can pay for things, and agents that pay other agents. That includes agents that pay through Visa Intelligent Commerce, Mastercard Agent Pay and x402. They share one weakness: an agent that reads outside text and can also sign transactions can be talked into sending funds where it shouldn't. Our on-chain attacks use trading tasks today, such as rebalancing a portfolio, and the Bonded Index tests agents that pay invoices. An agent that can't touch funds has nothing for a vault to guard.",
+    a: "No. It is for any AI agent that can move money: trading bots, wallet copilots, yield and rebalancing agents, assistants that can pay for things, and agents that pay other agents. That includes agents that pay through Visa Intelligent Commerce, Mastercard Agent Pay and x402. They share one weakness: an agent that reads outside text and can also sign transactions can be talked into sending funds where it shouldn't. Our on-chain attacks use trading tasks today, such as rebalancing a portfolio. The Bonded Index tests agents that pay invoices, and the payment gate checks their real payments by bank, card or wallet. An agent that can't touch funds has nothing to guard.",
   },
   {
     id: "red-team",
@@ -264,9 +264,14 @@ const QUESTIONS: { id: string; q: string; a: string }[] = [
     a: "Yes. A preview rating needs only a wallet sign-in. It is scored the same way as an official rating, but it isn't on chain and can't be insured.",
   },
   {
+    id: "keys",
+    q: "Does Bonded hold my keys or card details?",
+    a: "No. An on-chain agent signs with its own key, and its vault holds the funds. The payment gate keeps only hashes of its API keys, your card program's signing secret (encrypted) or a password hash, and public wallet addresses. It can't make, fund or charge a payment.",
+  },
+  {
     id: "chains",
     q: "Which chains does it use?",
-    a: "The contracts are deployed on Robinhood Chain testnet and Arbitrum Sepolia. A signed score can also be posted for Arbitrum, Ethereum and Solana to read.",
+    a: "The contracts are deployed on Robinhood Chain testnet and Arbitrum Sepolia. A signed score can also be posted for Arbitrum, Ethereum and Solana to read. The payment gate's Watch reads USDC and USDT payments on Ethereum, Base and Arbitrum.",
   },
 ];
 
