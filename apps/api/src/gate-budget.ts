@@ -32,6 +32,11 @@ import type { Hex } from "viem";
 import { Refused, handle } from "./refused.js";
 import { gateNotification, type Notifier } from "./notifications.js";
 import { decisionView } from "./gate-check.js";
+import { alertWatched, judgeWatched, type WatchedOutcome } from "./gate-watch.js";
+import type { GateWatchStore } from "@bonded/db";
+
+/** Clock drift allowed between a reported payment and the same payment seen in a wallet. */
+const WATCH_DRIFT_MS = 5 * 60_000;
 
 /**
  * Budgets (apps/api/GATE.md, "Budgets"): one check covers many small payments to one payee, for
@@ -62,6 +67,10 @@ export interface BudgetDeps {
   db: Database;
   store: GateStore;
   budgets: GateBudgetStore;
+  /** Watched payments under a budget that close finds unreported are judged here. */
+  watch: GateWatchStore;
+  /** Tells the owner about those payments. */
+  notifier?: Notifier | undefined;
   receiptKey: Hex;
   now: () => number;
 }
@@ -91,7 +100,8 @@ export async function openBudget(
   const { db, store, budgets } = deps;
   const { requestId, ...asked } = request;
   const requestHash = sha256(canonicalJson({ kind: "budget", ...asked }));
-  return db.transaction(async (c) => {
+  const seen: WatchedOutcome[] = [];
+  const outcome = await db.transaction(async (c): Promise<BudgetOutcome> => {
     const account = await store.lockAccount(c, auth.accountId);
     if (!account) throw new Refused(404, "No such gate account.");
     if (requestId) {
@@ -115,7 +125,7 @@ export async function openBudget(
         "Budgets are for payments with no invoices: turn invoice matching off on this gate account.",
       );
     const at = new Date(deps.now());
-    await closeExpiredIn(c, deps, account, at);
+    await closeExpiredIn(c, deps, account, at, seen);
     const day = utcDay(at);
     await store.countCheck(c, account.id, day);
     if (auth.keyId) await store.keyUsed(c, auth.keyId);
@@ -132,7 +142,7 @@ export async function openBudget(
       account.id,
       new Date(at.getTime() - 3_600_000),
     );
-    const reservedPayments = await budgets.reservedPayments(c, account.id);
+    const reservedPayments = await budgets.reservedPayments(c, account.id, at);
     const limits = {
       maxPaymentCents: account.maxPaymentCents,
       maxDailyCents: account.maxDailyCents,
@@ -251,6 +261,8 @@ export async function openBudget(
       account: (await store.account(account.id, c))!,
     };
   });
+  alertUnreported(deps, seen);
+  return outcome;
 }
 
 export interface SpendReport {
@@ -307,6 +319,14 @@ export async function reportSpends(
         problem: problem ?? null,
       });
       if (!added) continue;
+      // Watch may have seen it in the wallet first: that payment is this one.
+      await budgets.linkSpend(c, {
+        budgetId,
+        spendId: added.id,
+        amountMicros: s.amountMicros,
+        paidAt: s.at,
+        driftMs: WATCH_DRIFT_MS,
+      });
       recorded += 1;
       spentMicros += s.amountMicros;
       payments += 1;
@@ -336,7 +356,8 @@ export async function closeBudget(
   input: GateBudgetCloseInput | null;
 }> {
   const { db, store, budgets } = deps;
-  return db.transaction(async (c) => {
+  const seen: WatchedOutcome[] = [];
+  const result = await db.transaction(async (c) => {
     const account = await store.lockAccount(c, auth.accountId);
     if (!account) throw new Refused(404, "No such gate account.");
     const budget = await budgets.budget(account.id, budgetId, c);
@@ -346,18 +367,28 @@ export async function closeBudget(
       if (!earlier) throw new Refused(409, "That budget was closed and its log entry has expired.");
       return { decision: earlier, budget, input: null };
     }
-    const closed = await closeIn(c, deps, account, budget, new Date(deps.now()), auth.keyId);
+    const closed = await closeIn(c, deps, account, budget, new Date(deps.now()), auth.keyId, seen);
     return { ...closed, budget: (await budgets.budget(account.id, budgetId, c))! };
   });
+  alertUnreported(deps, seen);
+  return result;
 }
 
 /** Close the account's budgets that expired more than the grace period ago. */
 export async function closeExpired(deps: BudgetDeps, accountId: string): Promise<number> {
-  return deps.db.transaction(async (c) => {
+  const seen: WatchedOutcome[] = [];
+  const closed = await deps.db.transaction(async (c) => {
     const account = await deps.store.lockAccount(c, accountId);
     if (!account) return 0;
-    return closeExpiredIn(c, deps, account, new Date(deps.now()));
+    return closeExpiredIn(c, deps, account, new Date(deps.now()), seen);
   });
+  alertUnreported(deps, seen);
+  return closed;
+}
+
+/** Tell the owner about wallet payments a closed budget never had reported. After the commit. */
+function alertUnreported(deps: BudgetDeps, seen: readonly WatchedOutcome[]) {
+  if (deps.notifier) for (const outcome of seen) alertWatched(deps.notifier, outcome);
 }
 
 /** Close every expired budget on the service, a batch of accounts at a time. */
@@ -374,13 +405,14 @@ async function closeExpiredIn(
   deps: BudgetDeps,
   account: GateAccountRecord,
   at: Date,
+  seen: WatchedOutcome[],
 ): Promise<number> {
   const expired = await deps.budgets.expired(
     c,
     account.id,
     new Date(at.getTime() - BUDGET_REPORT_GRACE_MS),
   );
-  for (const budget of expired) await closeIn(c, deps, account, budget, at, null);
+  for (const budget of expired) await closeIn(c, deps, account, budget, at, null, seen);
   return expired.length;
 }
 
@@ -392,6 +424,7 @@ async function closeIn(
   budget: GateBudgetRecord,
   at: Date,
   keyId: string | null,
+  seen: WatchedOutcome[],
 ): Promise<{ decision: GateDecisionRecord; input: GateBudgetCloseInput }> {
   const spends = await deps.budgets.spends(c, budget.id);
   const input: GateBudgetCloseInput = {
@@ -428,6 +461,17 @@ async function closeIn(
   });
   await deps.budgets.close(c, budget.id, id, at);
   await deps.store.settleBudgetPayment(c, budget.id, cents);
+  // Wallet payments under the budget that no reported payment matched: the agent paid without its
+  // code reporting it (a skipped SDK, or a crash before it sent). Judged as payments with no check,
+  // so they count toward the limits and alert like any other.
+  for (const id of await deps.budgets.unreported(c, budget.id)) {
+    const [payment] = await deps.watch.watchedByIds(account.id, [id], c);
+    if (!payment) continue;
+    const judged = await judgeWatched(c, deps.store, account, payment);
+    const rejudged = await deps.watch.rejudge(c, id, judged.verdict);
+    seen.push({ payment: rejudged, repeated: false, froze: judged.froze, account });
+    if (judged.froze) account = { ...account, frozenAt: at };
+  }
   return { decision, input };
 }
 
@@ -664,6 +708,7 @@ export function gateBudgetRoutes(
     notifier: Notifier;
     receiptKey: Hex | undefined;
     now: () => number;
+    watch: GateWatchStore;
     owned: (c: Context) => Promise<{ account: GateAccountRecord }>;
     keyed: (c: Context) => Promise<{ accountId: string; keyId: string }>;
     allowCheck: (accountId: string) => boolean;
@@ -674,7 +719,15 @@ export function gateBudgetRoutes(
     // Fail closed: a decision without a signed receipt is never given.
     if (!deps.receiptKey)
       throw new Refused(503, "The payment gate's receipt key isn't set up on this service.");
-    return { db: deps.db, store: deps.store, budgets, receiptKey: deps.receiptKey, now };
+    return {
+      db: deps.db,
+      store: deps.store,
+      budgets,
+      watch: deps.watch,
+      notifier,
+      receiptKey: deps.receiptKey,
+      now,
+    };
   };
   const budgetId = (c: Context) => {
     const parsed = uuid.safeParse(c.req.param("budgetId"));

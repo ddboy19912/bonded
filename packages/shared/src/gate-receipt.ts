@@ -204,6 +204,11 @@ export interface GatePaymentInput {
   payments: GatePaidPayment[];
   /** Payments made in the hour before this check. */
   paymentsLastHour: number;
+  /**
+   * Payments open budgets may still make, which count toward the hourly limit too. Left out when
+   * none, so a payment input hashes as it did before budgets existed.
+   */
+  reservedPayments?: number;
 }
 
 /** The card programs whose real-time approval question the gate answers (a card hook). */
@@ -232,6 +237,8 @@ export interface GateCardChargeInput {
   payments: GatePaidPayment[];
   /** Payments made in the hour before this charge. */
   paymentsLastHour: number;
+  /** Payments open budgets may still make; left out when none. */
+  reservedPayments?: number;
 }
 
 /**
@@ -472,7 +479,7 @@ function evaluatePaymentInput(input: GatePaymentInput): GateVerdict {
       },
       payees: input.payees,
       payments: paid(input.payments),
-      paymentsLastHour: input.paymentsLastHour,
+      paymentsLastHour: input.paymentsLastHour + (input.reservedPayments ?? 0),
       day: input.day,
     },
     {
@@ -500,6 +507,7 @@ function evaluateCardChargeInput(input: GateCardChargeInput): GateVerdict {
     payees: input.payees,
     payments: input.payments,
     paymentsLastHour: input.paymentsLastHour,
+    ...(input.reservedPayments ? { reservedPayments: input.reservedPayments } : {}),
   });
   if (!verdict.ok || !CARD_HOOK_BLOCKED_MCCS.includes(input.merchant.mcc)) return verdict;
   const rules = new Set([...verdict.rules, "blocked_merchant"]);

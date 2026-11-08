@@ -214,3 +214,22 @@ describe("budget receipts", () => {
     expect(GATE_RULE_WORDS.over_budget).toBe("it spent beyond its budget");
   });
 });
+
+describe("payment checks and open budgets", () => {
+  const payment = {
+    kind: "payment" as const,
+    day: DAY,
+    limits: { maxPaymentCents: 100, maxDailyCents: 2_000, maxPaymentsPerHour: 3 },
+    attempt: { account: API.toUpperCase(), amountCents: 1, reference: "" },
+    payees: [{ vendorId: "weather", account: API.toUpperCase() }],
+    payments: [],
+    paymentsLastHour: 1,
+  };
+
+  it("counts the payments open budgets may still make toward the hourly limit", () => {
+    expect(evaluateGateInput(payment)).toMatchObject({ rules: [] });
+    expect(evaluateGateInput({ ...payment, reservedPayments: 2 })).toMatchObject({
+      rules: ["over_hourly_limit"],
+    });
+  });
+});

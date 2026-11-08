@@ -487,6 +487,7 @@ describe("Activity and connections", () => {
         overpaidCents: 0,
         matchedDecision: null,
         matchedBudget: null,
+        matchedSpend: null,
         details: { chainId: BASE, token: "USDC", txHash: "0x1" },
         paidAt: new Date(clock),
       }),

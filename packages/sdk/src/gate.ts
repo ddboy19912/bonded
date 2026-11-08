@@ -1,4 +1,5 @@
 import {
+  budgetCloseCents,
   type BudgetTerms,
   evaluateGateInput,
   type GateInput,
@@ -387,8 +388,22 @@ export class PaymentGate {
     const r = signed.receipt;
     if (r.kind !== "budget_close" || r.reference !== budgetId || r.decisionId !== answer.id)
       throw wrong("its receipt is for a different budget");
-    if (answer.input && gateInputHash(answer.input) !== r.inputHash)
+    const input = answer.input;
+    // A close given back again has no input to check beyond its signed receipt.
+    if (!input) return;
+    if (
+      input.kind !== "budget_close" ||
+      input.budgetId !== budgetId ||
+      gateInputHash(input) !== r.inputHash
+    )
       throw wrong("its input doesn't match the receipt");
+    const verdict = evaluateGateInput(input);
+    if (
+      !verdict.ok ||
+      verdict.rules.join() !== r.rules.join() ||
+      r.amountCents !== budgetCloseCents(input)
+    )
+      throw wrong("its rules or amount don't follow from its input");
   }
 
   #receiptSigner(): Promise<Address> {
@@ -444,6 +459,8 @@ export function paymentGate(options: PaymentGateOptions): PaymentGate {
  */
 class HostedBudget extends BudgetBase {
   #pending: BudgetSpend[] = [];
+  /** Spends on their way to the gate: too late to take back. */
+  #inFlight = new Set<BudgetSpend>();
   #sending: Promise<void> | undefined;
   #timer: ReturnType<typeof setInterval> | undefined;
   #closing: Promise<void> | undefined;
@@ -481,7 +498,7 @@ class HostedBudget extends BudgetBase {
     return Promise.resolve();
   }
   protected releasable(spend: BudgetSpend) {
-    return this.#pending.includes(spend);
+    return this.#pending.includes(spend) && !this.#inFlight.has(spend);
   }
   protected released(spend: BudgetSpend) {
     this.#pending = this.#pending.filter((s) => s !== spend);
@@ -511,11 +528,13 @@ class HostedBudget extends BudgetBase {
     const cutoff = this.now() - this.link.holdMs;
     const due = this.#pending.filter((s) => all || s.atMs <= cutoff).slice(0, 500);
     if (due.length === 0) return;
+    for (const s of due) this.#inFlight.add(s);
     this.#sending = (async () => {
       const answer = await this.link.send(due);
       this.#pending = this.#pending.filter((s) => !due.includes(s));
       if (answer.frozen) this.markClosed();
     })().finally(() => {
+      for (const s of due) this.#inFlight.delete(s);
       this.#sending = undefined;
     });
     await this.#sending;

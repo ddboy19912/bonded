@@ -429,11 +429,14 @@ export class PaymentGuard {
     });
   }
 
-  /** Payments open budgets may still make, for the hourly limit. */
+  /** Payments open budgets may still make, for the hourly limit. A budget past its end makes none. */
   #reservedPayments(): number {
+    const now = this.#now().getTime();
     return (this.#state.budgets ?? []).reduce(
       (sum, b) =>
-        b.terms.maxPayments === null ? sum : sum + Math.max(0, b.terms.maxPayments - b.payments),
+        b.terms.maxPayments === null || b.terms.expiresAtMs <= now
+          ? sum
+          : sum + Math.max(0, b.terms.maxPayments - b.payments),
       0,
     );
   }
@@ -477,7 +480,8 @@ export class PaymentGuard {
                 limits: { ...limits, maxPaymentsPerHour: limits.maxPaymentsPerHour ?? null },
                 payees,
                 payments,
-                paymentsLastHour: this.#paymentsLastHour(),
+                // Payments open budgets may still make count toward the hourly limit too.
+                paymentsLastHour: this.#paymentsLastHour() + this.#reservedPayments(),
                 day,
               },
               attempt,

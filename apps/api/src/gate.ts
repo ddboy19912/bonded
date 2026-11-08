@@ -873,6 +873,7 @@ export function gateRoutes(
     notifier,
     receiptKey: options.receiptKey,
     now,
+    watch: new GateWatchStore(db),
     owned: (c) => owned(c, options.reads),
     keyed,
     allowCheck: (accountId) => checks.allow(accountId),

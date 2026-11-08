@@ -109,6 +109,8 @@ const deps = () => ({
   db: pg.db,
   store: new GateStore(pg.db, gateMandateHash),
   budgets: new GateBudgetStore(pg.db),
+  watch: new GateWatchStore(pg.db),
+  notifier: new Notifier(pg.db, { log: () => {} }),
   receiptKey: RECEIPT_KEY,
   now: () => clock,
 });
@@ -378,7 +380,7 @@ describe("budgets", () => {
 });
 
 describe("Watch and budgets", () => {
-  it("a wallet's sub-cent x402 payments fall under the open budget; a payment beyond it doesn't", async () => {
+  it("a wallet's payments wait under the open budget for their report; unreported ones are judged at the close", async () => {
     clock = start;
     const { id, key, base } = await gateAccount({ expectChecks: true });
     expect(
@@ -434,6 +436,90 @@ describe("Watch and budgets", () => {
       [4_000, opened.id, []],
       [6_000, null, ["skipped_gate"]],
     ]);
+    // The agent's code reports only the first: it takes the wallet payment Watch saw.
+    await call(
+      "POST",
+      `/payments/budgets/${opened.id}/spends`,
+      { spends: [spend("s1", 1_000, clock + 1_000)] },
+      key,
+    );
+    const watchedRows = async () =>
+      (
+        await pg.db.pool.query(
+          "SELECT amount_micros, matched_spend IS NOT NULL AS reported, rules FROM gate_watched_payments WHERE account_id=$1 ORDER BY id",
+          [id],
+        )
+      ).rows.map((r) => [Number(r.amount_micros), r.reported, r.rules]);
+    expect((await watchedRows())[0]).toEqual([1_000, true, []]);
+    // Closing finds the $0.004 never reported: a payment with no check, counted and alerted.
+    await call("POST", `/payments/budgets/${opened.id}/close`, undefined, key);
+    expect(await watchedRows()).toEqual([
+      [1_000, true, []],
+      [4_000, false, ["skipped_gate"]],
+      [6_000, false, ["skipped_gate"]],
+    ]);
+    const watchedPaid = (
+      await pg.db.pool.query(
+        "SELECT amount_cents FROM gate_payments WHERE account_id=$1 AND source='watch' ORDER BY id",
+        [id],
+      )
+    ).rows.map((r) => Number(r.amount_cents));
+    expect(watchedPaid).toEqual([1, 1]);
+    await expect.poll(() => alerts(id)).toEqual(["gate_skipped", "gate_skipped"]);
+  });
+
+  it("a payment reported first is matched when Watch sees it, even after the budget closed", async () => {
+    clock = start;
+    const { id, key } = await gateAccount({ expectChecks: true });
+    const opened = (await call("POST", "/payments/budgets", { account: API, amountUsd: 0.01 }, key))
+      .body;
+    await call(
+      "POST",
+      `/payments/budgets/${opened.id}/spends`,
+      { spends: [spend("s1", 2_000)] },
+      key,
+    );
+    await call("POST", `/payments/budgets/${opened.id}/close`, undefined, key);
+    const logged = (amountUsd: number, logId: string) =>
+      call(
+        "POST",
+        "/payments/watched",
+        {
+          payments: [
+            { id: logId, account: API, amountUsd, paidAt: new Date(clock + 30_000).toISOString() },
+          ],
+        },
+        key,
+      );
+    await logged(0.002, "w1");
+    // The same amount again: the one report is taken, so this one is a payment with no check.
+    await logged(0.002, "w2");
+    const rows = (
+      await pg.db.pool.query(
+        "SELECT matched_budget, matched_spend IS NOT NULL AS reported, rules FROM gate_watched_payments WHERE account_id=$1 ORDER BY id",
+        [id],
+      )
+    ).rows.map((r) => [r.matched_budget, r.reported, r.rules]);
+    expect(rows).toEqual([
+      [opened.id, true, []],
+      [null, false, ["skipped_gate"]],
+    ]);
+  });
+
+  it("a direct check counts the payments an open budget may still make toward the hourly limit", async () => {
+    clock = start;
+    const { key } = await gateAccount({ maxPaymentsPerHour: 2 });
+    const opened = (await call("POST", "/payments/budgets", { account: API, amountUsd: 0.05 }, key))
+      .body;
+    expect(opened.budget.maxPayments).toBe(2);
+    const check = await call("POST", "/payments/check", { account: API, amountUsd: 0.01 }, key);
+    expect(check.body).toMatchObject({ result: "blocked", rules: ["over_hourly_limit"] });
+    expect(check.body.input).toMatchObject({ kind: "payment", reservedPayments: 2 });
+    expect(evaluateGateInput(check.body.input)).toMatchObject({ rules: ["over_hourly_limit"] });
+    await call("POST", `/payments/budgets/${opened.id}/close`, undefined, key);
+    const after = await call("POST", "/payments/check", { account: API, amountUsd: 0.01 }, key);
+    expect(after.body).toMatchObject({ result: "allowed" });
+    expect(after.body.input).not.toHaveProperty("reservedPayments");
   });
 
   it("a payment log can report exact amounts", async () => {

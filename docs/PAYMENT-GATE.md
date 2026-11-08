@@ -120,7 +120,8 @@ Some payments are too small and too frequent to check one at a time, like an age
 - The SDK checks each payment against the budget on the agent's side, with no call to Bonded, to the fraction of a cent. A payment that doesn't fit is blocked in Enforce mode.
 - The SDK reports the payments, and closing the budget gives a second receipt that covers every one. Until then the whole budget counts toward the day; after, only what was spent.
 - A budget lasts an hour at most, and closes on its own once it ends. With an hourly limit, it covers only the payments left in the hour.
-- Watch counts the wallet's payments to that payee as covered by the budget, so they don't raise "skipped the gate".
+- Watch matches the wallet's payments to the ones the SDK reported, by exact amount, so they don't raise "skipped the gate". A payment the SDK never reported is judged as one with no check when the budget closes, so paying around the SDK doesn't hide it.
+- Payments an open budget may still make count toward the hourly limit for every other payment too.
 
 The dashboard's Activity tab shows open budgets above the log.
 

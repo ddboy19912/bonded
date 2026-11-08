@@ -122,11 +122,18 @@ exactly that. The account needs invoice matching off.
   becomes what was spent; with nothing spent, it goes. Budgets that ended more than 10 minutes ago
   close on their own: the API checks every minute (where `GATE_RECEIPT_PRIVATE_KEY` is set), and a
   new budget closes the account's first.
-- **Watch** matches a payment to an open budget when it pays the budget's payee while the budget is
-  open, fits the per-payment limit, and leaves the payments matched to it within the budget by
-  exact amount and count. A matched payment has `matched_budget` set, breaks nothing and adds
-  nothing to `gate_payments`: the reservation already counts. Wallets read exact amounts; a
-  payment log can send `amountUsd` with up to six decimals.
+- **Watch** matches a wallet or logged payment to a budget payment the agent's code reported: same
+  payee, the exact amount, paid within 5 minutes of it, and no other watched payment took that
+  report. A matched payment breaks nothing and adds nothing to `gate_payments`: the reservation
+  already counts it. One seen before its report, under an open budget whose terms it fits, waits
+  (`matched_budget` set, `matched_spend` empty) and the report takes it when it comes. If the budget
+  closes with it still unreported, the close judges it as a payment with no check: it counts toward
+  the limits, breaks `skipped_gate` with "Expect a check first" on, and alerts. So a payment made
+  around the SDK can't hide under a budget. Wallets read exact amounts; a payment log can send
+  `amountUsd` with up to six decimals.
+- **The hourly limit** counts the payments open budgets may still make, on budgets and on checks
+  and card charges with invoice matching off: their input carries `reservedPayments` when there are
+  any.
 
 ## The check
 

@@ -159,12 +159,15 @@ export class GateBudgetStore {
     return r.rows.map((row) => row.account_id as string);
   }
 
-  /** Payments open budgets may still make (those with a payment count), for the hourly limit. */
-  async reservedPayments(c: Connection, accountId: string): Promise<number> {
+  /**
+   * Payments open budgets may still make (those with a payment count), for the hourly limit. A
+   * budget past its end makes none.
+   */
+  async reservedPayments(c: Connection, accountId: string, at: Date): Promise<number> {
     const r = await c.query(
       `SELECT coalesce(sum(greatest(max_payments - payments, 0)), 0)::int AS n FROM gate_budgets
-       WHERE account_id=$1 AND closed_at IS NULL AND max_payments IS NOT NULL`,
-      [accountId],
+       WHERE account_id=$1 AND closed_at IS NULL AND max_payments IS NOT NULL AND expires_at>$2`,
+      [accountId, at],
     );
     return r.rows[0].n as number;
   }
@@ -222,9 +225,61 @@ export class GateBudgetStore {
   }
 
   /**
-   * The budget a watched payment falls under: same payee, paid while it was open (with clock
-   * drift), and room for the payment by count and by exact amount, counting the watched payments
-   * already under it. Undefined when the amount isn't known exactly.
+   * The reported payment a watched payment is: same payee, the exact amount, paid within the drift
+   * of when it was reported as paid, and no other watched payment is it yet. Open or closed budget.
+   */
+  async matchingSpend(
+    c: Connection,
+    accountId: string,
+    q: { payeeNorm: string; amountMicros: number; paidAt: Date; driftMs: number },
+  ): Promise<{ budgetId: string; spendId: string } | undefined> {
+    const r = await c.query(
+      `SELECT s.id, s.budget_id FROM gate_budget_spends s JOIN gate_budgets b ON b.id=s.budget_id
+       WHERE s.account_id=$1 AND b.payee_norm=$2 AND s.amount_micros=$5
+         AND s.paid_at BETWEEN $3::timestamptz - make_interval(secs => $4::double precision / 1000)
+                           AND $3::timestamptz + make_interval(secs => $4::double precision / 1000)
+         AND NOT EXISTS (SELECT 1 FROM gate_watched_payments w WHERE w.matched_spend=s.id)
+       ORDER BY abs(extract(epoch FROM s.paid_at - $3::timestamptz)), s.id LIMIT 1`,
+      [accountId, q.payeeNorm, q.paidAt, q.driftMs, q.amountMicros],
+    );
+    return r.rows[0]
+      ? { budgetId: r.rows[0].budget_id as string, spendId: String(r.rows[0].id) }
+      : undefined;
+  }
+
+  /**
+   * A payment just reported takes the watched payment waiting under its budget with the same
+   * exact amount, paid within the drift, if Watch saw it first.
+   */
+  async linkSpend(
+    c: Connection,
+    q: { budgetId: string; spendId: string; amountMicros: number; paidAt: Date; driftMs: number },
+  ): Promise<void> {
+    await c.query(
+      `UPDATE gate_watched_payments SET matched_spend=$2 WHERE id=(
+         SELECT id FROM gate_watched_payments
+         WHERE matched_budget=$1 AND matched_spend IS NULL AND amount_micros=$3
+           AND paid_at BETWEEN $4::timestamptz - make_interval(secs => $5::double precision / 1000)
+                           AND $4::timestamptz + make_interval(secs => $5::double precision / 1000)
+         ORDER BY abs(extract(epoch FROM paid_at - $4::timestamptz)), id LIMIT 1)`,
+      [q.budgetId, q.spendId, q.amountMicros, q.paidAt, q.driftMs],
+    );
+  }
+
+  /** Watched payments under the budget that no reported payment is: unreported so far. */
+  async unreported(c: Connection, budgetId: string): Promise<string[]> {
+    const r = await c.query(
+      `SELECT id FROM gate_watched_payments WHERE matched_budget=$1 AND matched_spend IS NULL
+       ORDER BY id`,
+      [budgetId],
+    );
+    return r.rows.map((row) => String(row.id));
+  }
+
+  /**
+   * The open budget a watched payment may fall under while its reported payment hasn't come yet:
+   * same payee, paid while it was open (with clock drift), and room for the payment by count and
+   * by exact amount, counting the watched payments already under it.
    */
   async matching(
     c: Connection,
@@ -233,7 +288,7 @@ export class GateBudgetStore {
   ): Promise<string | undefined> {
     const r = await c.query(
       `SELECT b.id FROM gate_budgets b
-       WHERE b.account_id=$1 AND b.payee_norm=$2
+       WHERE b.account_id=$1 AND b.payee_norm=$2 AND b.closed_at IS NULL
          AND b.starts_at - make_interval(secs => $4::double precision / 1000) <= $3
          AND b.expires_at + make_interval(secs => $4::double precision / 1000) >= $3
          AND $5 <= b.max_payment_micros

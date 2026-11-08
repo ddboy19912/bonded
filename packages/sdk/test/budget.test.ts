@@ -136,3 +136,25 @@ describe("local budgets", () => {
     expect(restored.guard.state().payments.map((p) => p.amountUsd)).toEqual([0.01, 0.05]);
   });
 });
+
+describe("local budgets and direct payments", () => {
+  it("an open budget's payments count against direct payments in the hourly limit", async () => {
+    const { guard } = guardFor({ maxPaymentsPerHour: 3 });
+    const budget = await guard.budget({ account: API, amountUsd: 0.05 });
+    expect(budget.terms.maxPayments).toBe(3);
+    await expect(guard.pay({ account: API, amountUsd: 0.01 }, () => "paid")).rejects.toThrow(
+      /too many payments in the last hour/,
+    );
+    await budget.spend(1_000);
+    await budget.close();
+    // Closed after one payment: two direct payments are left in the hour.
+    await expect(guard.pay({ account: API, amountUsd: 0.01 }, () => "paid")).resolves.toBe("paid");
+  });
+
+  it("a budget past its end doesn't hold back direct payments", async () => {
+    const { guard, tick } = guardFor({ maxPaymentsPerHour: 3 });
+    await guard.budget({ account: API, amountUsd: 0.05, ttlSeconds: 60 });
+    tick(61_000);
+    await expect(guard.pay({ account: API, amountUsd: 0.01 }, () => "paid")).resolves.toBe("paid");
+  });
+});

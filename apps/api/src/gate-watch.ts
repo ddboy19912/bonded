@@ -95,6 +95,7 @@ export async function recordWatched(
       details: input.details ?? {},
       paidAt: input.paidAt,
       matchedBudget: null,
+      matchedSpend: null,
     };
     const matched = await watch.matchingCheck(c, accountId, {
       payeeNorm,
@@ -113,98 +114,127 @@ export async function recordWatched(
       });
       return { payment, repeated: false, froze: false, account };
     }
-    // A payment to a budget's payee while it was open, within its terms, falls under it: the
-    // budget's check already covered it and its reservation already counts toward the limits.
-    const budget =
-      deps.budgets && input.amountMicros !== undefined
-        ? await deps.budgets.matching(c, accountId, {
-            payeeNorm,
-            amountMicros: input.amountMicros,
-            paidAt: input.paidAt,
-            driftMs: MATCH_AFTER_MS,
-          })
-        : undefined;
-    if (budget) {
-      const payment = await watch.addWatched(c, {
-        ...record,
-        vendorId: null,
-        rules: [],
-        lossCents: 0,
-        overpaidCents: 0,
-        matchedDecision: null,
-        matchedBudget: budget,
-      });
-      return { payment, repeated: false, froze: false, account };
+    // A budget's payment: the one the agent's code reported, by payee and exact amount. Its
+    // budget's check covered it, and the budget's reservation counts it toward the limits.
+    if (deps.budgets && input.amountMicros !== undefined) {
+      const q = {
+        payeeNorm,
+        amountMicros: input.amountMicros,
+        paidAt: input.paidAt,
+        driftMs: MATCH_AFTER_MS,
+      };
+      const reported = await deps.budgets.matchingSpend(c, accountId, q);
+      // Not reported yet, under an open budget whose terms it fits: it waits for its report. If
+      // none comes by the close, the close judges it as a payment with no check.
+      const waiting = reported ? undefined : await deps.budgets.matching(c, accountId, q);
+      if (reported || waiting) {
+        const payment = await watch.addWatched(c, {
+          ...record,
+          vendorId: null,
+          rules: [],
+          lossCents: 0,
+          overpaidCents: 0,
+          matchedDecision: null,
+          matchedBudget: reported?.budgetId ?? waiting!,
+          matchedSpend: reported?.spendId ?? null,
+        });
+        return { payment, repeated: false, froze: false, account };
+      }
     }
-    const day = utcDay(input.paidAt);
-    const referenceNorm = normalReference(input.reference);
-    const state = await store.checkState(c, accountId, {
-      kind: "invoice",
-      accountNorm: payeeNorm,
-      referenceNorm,
-      day,
-    });
-    const check = checkWatchedPayment(
-      {
-        limits: {
-          maxPaymentUsd: account.maxPaymentCents / 100,
-          maxDailyUsd: account.maxDailyCents / 100,
-          // As on a check, the hourly limit only applies with invoice matching off.
-          maxPaymentsPerHour: account.invoiceMatching ? null : account.maxPaymentsPerHour,
-        },
-        invoiceMatching: account.invoiceMatching,
-        payees: state.payees,
-        invoices: state.invoices.map((i) => ({ ...i, amountUsd: i.amountCents / 100 })),
-        payments: state.payments.map((p) => ({
-          account: p.account,
-          vendorId: p.vendorId,
-          amountUsd: p.amountCents / 100,
-          invoiceReference: p.reference,
-          day: p.day,
-          ...(p.kind === "refund" ? { kind: "refund" as const } : {}),
-        })),
-        paymentsLastHour: await store.paymentsSince(
-          c,
-          accountId,
-          new Date(input.paidAt.getTime() - 3_600_000),
-        ),
-        day,
-      },
-      {
-        account: input.account,
-        amountUsd: input.amountCents / 100,
-        invoiceReference: input.reference,
-      },
-    );
-    if (!check.ok) throw new Refused(400, check.error);
-    const rules: GateRule[] = account.expectChecks ? [...check.rules, "skipped_gate"] : check.rules;
+    const judged = await judgeWatched(c, store, account, record);
     const payment = await watch.addWatched(c, {
       ...record,
+      ...judged.verdict,
+      matchedDecision: null,
+    });
+    return { payment, repeated: false, froze: judged.froze, account };
+  });
+}
+
+/**
+ * Run a payment seen after it was made through the rules, as a payment with no check before it:
+ * it counts toward the limits (a `gate_payments` row, source `watch`), breaks `skipped_gate` too
+ * when the account expects a check first, and freezes the account on a breach if it says so.
+ */
+export async function judgeWatched(
+  c: Connection,
+  store: GateStore,
+  account: GateAccountRecord,
+  w: {
+    payee: string;
+    payeeNorm: string;
+    amountCents: number;
+    reference: string;
+    paidAt: Date;
+  },
+): Promise<{
+  verdict: { vendorId: string | null; rules: GateRule[]; lossCents: number; overpaidCents: number };
+  froze: boolean;
+}> {
+  const day = utcDay(w.paidAt);
+  const referenceNorm = normalReference(w.reference);
+  const state = await store.checkState(c, account.id, {
+    kind: "invoice",
+    accountNorm: w.payeeNorm,
+    referenceNorm,
+    day,
+  });
+  const check = checkWatchedPayment(
+    {
+      limits: {
+        maxPaymentUsd: account.maxPaymentCents / 100,
+        maxDailyUsd: account.maxDailyCents / 100,
+        // As on a check, the hourly limit only applies with invoice matching off.
+        maxPaymentsPerHour: account.invoiceMatching ? null : account.maxPaymentsPerHour,
+      },
+      invoiceMatching: account.invoiceMatching,
+      payees: state.payees,
+      invoices: state.invoices.map((i) => ({ ...i, amountUsd: i.amountCents / 100 })),
+      payments: state.payments.map((p) => ({
+        account: p.account,
+        vendorId: p.vendorId,
+        amountUsd: p.amountCents / 100,
+        invoiceReference: p.reference,
+        day: p.day,
+        ...(p.kind === "refund" ? { kind: "refund" as const } : {}),
+      })),
+      paymentsLastHour: await store.paymentsSince(
+        c,
+        account.id,
+        new Date(w.paidAt.getTime() - 3_600_000),
+      ),
+      day,
+    },
+    { account: w.payee, amountUsd: w.amountCents / 100, invoiceReference: w.reference },
+  );
+  if (!check.ok) throw new Refused(400, check.error);
+  const rules: GateRule[] = account.expectChecks ? [...check.rules, "skipped_gate"] : check.rules;
+  await store.addPayment(
+    account.id,
+    {
+      source: "watch",
+      kind: "invoice",
+      payee: w.payee,
+      payeeNorm: w.payeeNorm,
+      vendorId: check.vendorId,
+      amountCents: w.amountCents,
+      reference: w.reference,
+      referenceNorm,
+      day,
+    },
+    c,
+  );
+  const froze = rules.length > 0 && account.freezeOnBreach && account.frozenAt === null;
+  if (froze) await store.freeze(c, account.id, null);
+  return {
+    verdict: {
       vendorId: check.vendorId,
       rules,
       lossCents: Math.round(check.lossUsd * 100),
       overpaidCents: Math.round(check.overpaidUsd * 100),
-      matchedDecision: null,
-    });
-    await store.addPayment(
-      accountId,
-      {
-        source: "watch",
-        kind: "invoice",
-        payee: input.account,
-        payeeNorm,
-        vendorId: check.vendorId,
-        amountCents: input.amountCents,
-        reference: input.reference,
-        referenceNorm,
-        day,
-      },
-      c,
-    );
-    const froze = rules.length > 0 && account.freezeOnBreach && account.frozenAt === null;
-    if (froze) await store.freeze(c, accountId, null);
-    return { payment, repeated: false, froze, account };
-  });
+    },
+    froze,
+  };
 }
 
 const dollars = (cents: number) =>

@@ -3,6 +3,7 @@ import { performance } from "node:perf_hooks";
 import type { Context, Hono } from "hono";
 import { z } from "zod";
 import {
+  GateBudgetStore,
   GateCardHookStore,
   type Database,
   type GateAccountRecord,
@@ -562,6 +563,11 @@ export function gateCardHookRoutes(
       await hooks.asked(hook.id, at, c);
       const merchantKey = cardMerchantKey(charge.merchant.id);
       const state = await hooks.chargeState(c, account.id, { merchantKey, day });
+      // Payments open budgets may still make count toward the hourly limit too.
+      const reserved =
+        account.maxPaymentsPerHour !== null
+          ? await new GateBudgetStore(db).reservedPayments(c, account.id, at)
+          : 0;
       const input: GateCardChargeInput = {
         kind: "card_charge",
         provider: hook.provider,
@@ -580,6 +586,7 @@ export function gateCardHookRoutes(
           account.id,
           new Date(at.getTime() - 3_600_000),
         ),
+        ...(reserved > 0 ? { reservedPayments: reserved } : {}),
       };
       const frozen = account.frozenAt !== null;
       const verdict = frozen ? undefined : evaluateGateInput(input);

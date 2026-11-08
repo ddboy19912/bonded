@@ -232,6 +232,13 @@ if (role === "migrate") {
         db,
         store: new GateStore(db, gateMandateHash),
         budgets: new GateBudgetStore(db),
+        watch: new GateWatchStore(db),
+        notifier: new Notifier(db, {
+          ...(secrets ? { secrets } : {}),
+          ...(allowLoopback ? { allowLoopback: true } : {}),
+          ...(email ? { email } : {}),
+          log: (line) => console.error(line),
+        }),
         receiptKey: key("GATE_RECEIPT_PRIVATE_KEY"),
         now: Date.now,
       };

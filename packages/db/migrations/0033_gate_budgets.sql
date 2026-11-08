@@ -58,10 +58,16 @@ CREATE TABLE gate_budget_spends (
 CREATE INDEX gate_budget_spends_paid ON gate_budget_spends(account_id, paid_at);
 
 -- A watched payment's exact amount (wallets read it from the token; older rows and logs in whole
--- cents leave it null), and the budget it falls under. Many watched payments can fall under one
--- budget, unlike a check, which matches one.
+-- cents leave it null), the budget it falls under, and the reported payment it is. Many watched
+-- payments can fall under one budget; each reported payment is one watched payment. One under an
+-- open budget with no reported payment yet waits for it: if none comes by the close, the close
+-- judges it as a payment with no check.
 ALTER TABLE gate_watched_payments ADD COLUMN amount_micros bigint;
 ALTER TABLE gate_watched_payments ADD COLUMN matched_budget uuid
   REFERENCES gate_budgets(id) ON DELETE SET NULL;
+ALTER TABLE gate_watched_payments ADD COLUMN matched_spend bigint
+  REFERENCES gate_budget_spends(id) ON DELETE SET NULL;
 CREATE INDEX gate_watched_payments_budget ON gate_watched_payments(matched_budget)
   WHERE matched_budget IS NOT NULL;
+CREATE UNIQUE INDEX gate_watched_payments_spend ON gate_watched_payments(matched_spend)
+  WHERE matched_spend IS NOT NULL;
