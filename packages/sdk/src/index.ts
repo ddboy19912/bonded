@@ -7,8 +7,10 @@
  * `@bondedhq/sdk/mcp`, and the Agent URL handler in `@bondedhq/sdk/agent-url`.
  *
  * Off chain, `paymentGuard` and `guardPayments` check an agent's payments against the payment
- * mandate inside your own process (no network, no receipts); the framework subpaths wrap a pay
- * tool with it.
+ * mandate inside your own process (no network, no receipts), and `paymentGate` asks Bonded's
+ * hosted gate instead. The framework subpaths wrap a pay tool with either, `@bondedhq/sdk/openai-agents`
+ * does the same for the OpenAI Agents SDK, and `@bondedhq/sdk/x402` checks x402 payments before
+ * the client signs them.
  */
 export {
   BondedVault,

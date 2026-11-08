@@ -125,7 +125,7 @@ Agent B's score of 97 is the same signed attestation on all four chains: agent 2
 | `apps/keeper` | The keeper's jobs (run by the API in its `keeper` role): filing claims, accruing premiums, and posting the payment gate's daily log roots to `GateAnchor` |
 | `apps/web` | The web app |
 | `packages/shared` | Schemas, scoring maths, ABIs, chain and deployment data, the runner protocol |
-| `packages/sdk` | `@bondedhq/sdk`: trade through a vault or module from any TypeScript agent, with plugins for AgentKit, Solana Agent Kit and ElizaOS; the Arena episode's tools for LangChain, the Vercel AI SDK, ElizaOS, AgentKit and MCP; and an Agent URL handler |
+| `packages/sdk` | `@bondedhq/sdk`: trade through a vault or module from any TypeScript agent, with plugins for AgentKit, Solana Agent Kit and ElizaOS; the Arena episode's tools for LangChain, the Vercel AI SDK, ElizaOS, AgentKit and MCP; payment guards for pay tools (AI SDK, LangChain, MCP, OpenAI Agents SDK) and x402 clients; and an Agent URL handler |
 | `packages/sandbox` | Local chains with the protocol deployed, for the Arena and tests |
 | `examples/byo-agent` | The template for your own agent: it trades through its vault with the SDK, reads everything it can as untrusted data, and is rated through the runner |
 | `examples/frameworks`, `examples/python-agent-url` | Agents on LangGraph, the Vercel AI SDK, ElizaOS and AgentKit rated through the SDK's helpers, and Agent URL endpoints in TypeScript and plain Python |

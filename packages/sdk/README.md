@@ -216,9 +216,58 @@ const lcTools = [...readOnlyTools, guardLangChainPayTool(payInvoiceTool, { guard
 server.registerTool("pay_invoice", config, guardMcpPayHandler(payInvoiceHandler, { guard }));
 ```
 
+The OpenAI Agents SDK works the same way, and the model gets `Error: ...` text back:
+
+```ts
+import { Agent } from "@openai/agents";
+import { guardOpenAiAgentsPayTool } from "@bondedhq/sdk/openai-agents";
+
+const agent = new Agent({
+  name: "AP clerk",
+  tools: [...readOnlyTools, guardOpenAiAgentsPayTool(payInvoiceTool, { guard })],
+});
+```
+
+If the tool needs a person's approval (`needsApproval`), the run stops for that first. The guard
+still checks the payment once it is approved.
+
 What it doesn't do: it is a local check, so code that calls your pay function directly skips it.
 Keep the unwrapped function out of the agent's reach. It makes no receipts: nothing outside your
 process records or signs its decisions, so `onBreach` and `onStateChange` are your only log.
+
+### x402
+
+For an agent that pays for APIs with [x402](https://x402.org), check each payment before the x402
+client signs it. Turn invoice matching off, and put each service's `payTo` address on the vendor
+list, so the agent pays only services you chose:
+
+```ts
+import { wrapFetchWithPayment, x402Client } from "@x402/fetch";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
+import { guardX402Client } from "@bondedhq/sdk/x402";
+
+const guard = paymentGuard({
+  mandate: { mode: "enforce", invoiceMatching: false, maxPaymentUsd: 1, maxDailyUsd: 20, maxPaymentsPerHour: 100, freezeOnBreach: false },
+  vendors: [{ id: "weather-api", account: "0x1111111111111111111111111111111111111111" }],
+  onBreach: (breach) => alert(breach),
+});
+
+const client = new x402Client().register("eip155:*", new ExactEvmScheme(signer));
+const paidFetch = wrapFetchWithPayment(fetch, guardX402Client(client, { guard }));
+```
+
+- A refused payment is never signed: the request fails with the reason. Monitor mode signs it and
+  reports the breach.
+- Prices count only in USDC on the networks x402 lists it for (Base, Ethereum, Arbitrum, Polygon,
+  Avalanche and Solana, plus Base Sepolia and Solana devnet). A price in any other token is refused; add your own
+  dollar stablecoins with `assets`.
+- The rules count whole cents, so a price under a cent counts as one cent. Limits err on the safe
+  side.
+- A payment the guard allows counts as made from then on, even if the server then turns it down.
+- Pass the hosted `gate` as `guard` for a logged decision and a signed receipt per payment. Turn
+  invoice matching off on the gate account.
+- `x402PaymentCheck({ guard })` is the hook on its own, for an `x402Client` you set up elsewhere
+  (`client.onBeforePaymentCreation(hook)`).
 
 ## Hosted payment gate (off chain)
 
