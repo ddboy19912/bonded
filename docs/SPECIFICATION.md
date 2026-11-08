@@ -630,7 +630,7 @@ Storage is Postgres (Drizzle schema, SQL migrations that run on start); jobs run
 - Watches `BreachRecorded` on every chain and calls `fileClaim` automatically.
 - Calls `accrue` to stream premiums, lapses unpaid policies, and posts new attestations to all registries.
 - Sends alerts to vault guardians.
-- For the payment gate: reads watched wallets' USDC and USDT payments every 30 seconds (Ethereum, Base, Arbitrum and Base Sepolia, through public nodes), and posts each finished day's decision log root and each new rules hash to `GateAnchor`.
+- For the payment gate: reads watched wallets' payments every 30 seconds through public nodes (USDC on Ethereum, Base, Arbitrum and Base Sepolia; USDT on Ethereum and Arbitrum), and posts each finished day's decision log root and each new rules hash to `GateAnchor`.
 - **Restart-safe:** keeps a per-chain block cursor in Postgres and resumes from it, and checks on-chain state before filing, so a restart or sleep delays a claim but never loses or duplicates one. The contracts give it slack (7-day claim window, 3-day premium grace period), and `fileClaim` is permissionless, so a guardian can file if the keeper is down.
 
 ### 14.3 SDK (`packages/sdk`, `@bondedhq/sdk`)
