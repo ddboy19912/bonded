@@ -14,6 +14,7 @@ import type {
   Connection,
   Database,
   GateAccountRecord,
+  GateBudgetStore,
   GateStore,
   GateWatchedPaymentRecord,
   GateWatchStore,
@@ -54,6 +55,8 @@ export interface WatchedInput {
   externalId: string;
   account: string;
   amountCents: number;
+  /** The exact amount in micro-dollars, when known: needed to fall under a budget. */
+  amountMicros?: number | undefined;
   reference: string;
   paidAt: Date;
   details?: Record<string, string | number>;
@@ -69,7 +72,7 @@ export interface WatchedOutcome {
 
 /** Record one payment seen after it was made, in one transaction holding the account's lock. */
 export async function recordWatched(
-  deps: { db: Database; store: GateStore; watch: GateWatchStore },
+  deps: { db: Database; store: GateStore; watch: GateWatchStore; budgets?: GateBudgetStore },
   accountId: string,
   input: WatchedInput,
 ): Promise<WatchedOutcome> {
@@ -87,9 +90,11 @@ export async function recordWatched(
       payee: input.account,
       payeeNorm,
       amountCents: input.amountCents,
+      amountMicros: input.amountMicros ?? null,
       reference: input.reference,
       details: input.details ?? {},
       paidAt: input.paidAt,
+      matchedBudget: null,
     };
     const matched = await watch.matchingCheck(c, accountId, {
       payeeNorm,
@@ -105,6 +110,29 @@ export async function recordWatched(
         lossCents: 0,
         overpaidCents: 0,
         matchedDecision: matched,
+      });
+      return { payment, repeated: false, froze: false, account };
+    }
+    // A payment to a budget's payee while it was open, within its terms, falls under it: the
+    // budget's check already covered it and its reservation already counts toward the limits.
+    const budget =
+      deps.budgets && input.amountMicros !== undefined
+        ? await deps.budgets.matching(c, accountId, {
+            payeeNorm,
+            amountMicros: input.amountMicros,
+            paidAt: input.paidAt,
+            driftMs: MATCH_AFTER_MS,
+          })
+        : undefined;
+    if (budget) {
+      const payment = await watch.addWatched(c, {
+        ...record,
+        vendorId: null,
+        rules: [],
+        lossCents: 0,
+        overpaidCents: 0,
+        matchedDecision: null,
+        matchedBudget: budget,
       });
       return { payment, repeated: false, froze: false, account };
     }
@@ -285,6 +313,8 @@ export interface WalletTransfer {
   symbol: string;
   /** Rounded to the cent, and at least one: a smaller payment is still a payment. */
   amountCents: number;
+  /** The exact amount in micro-dollars, rounded up past six decimals. */
+  amountMicros: number;
   txHash: string;
   logIndex: number;
   paidAt: Date;
@@ -300,6 +330,13 @@ export interface WalletReader {
 const TRANSFER = parseAbiItem(
   "event Transfer(address indexed from, address indexed to, uint256 value)",
 );
+
+/** Micro-dollars of a dollar token amount, rounded up past six decimals. */
+export function tokenMicros(value: bigint, decimals: number): number {
+  if (decimals <= 6) return Number(value * 10n ** BigInt(6 - decimals));
+  const scale = 10n ** BigInt(decimals - 6);
+  return Number((value + scale - 1n) / scale);
+}
 
 /** Whole cents of a token amount. Zero stays zero: a spoofed transfer of nothing is no payment. */
 export function tokenCents(value: bigint, decimals: number): number {
@@ -345,6 +382,7 @@ export function viemWalletReader(
           to,
           symbol: token.symbol,
           amountCents: tokenCents(value, token.decimals),
+          amountMicros: tokenMicros(value, token.decimals),
           txHash: log.transactionHash,
           logIndex: log.logIndex,
           paidAt,
@@ -390,6 +428,7 @@ export class GateWatcher {
       db: Database;
       store: GateStore;
       watch: GateWatchStore;
+      budgets?: GateBudgetStore;
       notifier: Notifier;
       readers: ReadonlyMap<number, WalletReader>;
       now?: () => number;
@@ -433,6 +472,7 @@ export class GateWatcher {
             externalId: `wallet:${wallet.chainId}:${t.txHash}:${t.logIndex}`,
             account: t.to,
             amountCents: t.amountCents,
+            amountMicros: t.amountMicros,
             reference: "",
             paidAt: t.paidAt,
             details: {
@@ -464,12 +504,16 @@ const text = (max: number) =>
     .min(1)
     .max(max)
     .regex(/^[^\p{Cc}]*$/u);
-const cents = z
+/** Dollars with up to six decimals: whole cents (at least one) and exact micro-dollars. */
+const exactUsd = z
   .number()
   .positive()
   .max(100_000_000_000)
-  .refine((v) => Math.abs(v * 100 - Math.round(v * 100)) < 1e-6)
-  .transform((v) => Math.round(v * 100));
+  .refine((v) => Math.abs(v * 1e6 - Math.round(v * 1e6)) < 1e-3, "at most six decimals")
+  .transform((v) => {
+    const micros = Math.round(v * 1e6);
+    return { micros, cents: Math.max(1, Math.round(micros / 10_000)) };
+  });
 const logInput = z.strictObject({
   payments: z
     .array(
@@ -477,7 +521,8 @@ const logInput = z.strictObject({
         /** Your id for the payment: sending it again records nothing. */
         id: z.string().regex(/^[A-Za-z0-9._:-]{1,128}$/),
         account: payee,
-        amountUsd: cents,
+        /** Up to six decimals: an exact amount can fall under a budget. */
+        amountUsd: exactUsd,
         reference: text(100).optional(),
         paidAt: z.iso.datetime({ offset: true }),
       }),
@@ -555,6 +600,7 @@ export function gateWatchRoutes(
     db: Database;
     store: GateStore;
     watch: GateWatchStore;
+    budgets?: GateBudgetStore;
     notifier: Notifier;
     now: () => number;
     /** Chains this service can read (GATE_WATCH_RPC_URLS). */
@@ -606,7 +652,8 @@ export function gateWatchRoutes(
           source: "log",
           externalId: `log:${p.id}`,
           account: p.account,
-          amountCents: p.amountUsd,
+          amountCents: p.amountUsd.cents,
+          amountMicros: p.amountUsd.micros,
           reference: p.reference ?? "",
           paidAt: new Date(p.paidAt),
         });

@@ -164,7 +164,7 @@ export interface GateDecisionRecord {
   keyId: string | null;
   requestId: string | null;
   requestHash: string | null;
-  kind: "invoice" | "refund" | "bank_change" | "card" | "payment";
+  kind: "invoice" | "refund" | "bank_change" | "card" | "payment" | "budget" | "budget_close";
   decision: "pass" | "breach" | "frozen";
   result: "allowed" | "blocked" | "refused";
   mode: GateModeName;
@@ -900,7 +900,7 @@ export class GateStore {
     accountId: string,
     p: {
       decisionId?: string | null;
-      source: "check" | "import" | "card" | "payout" | "watch" | "hook";
+      source: "check" | "import" | "card" | "payout" | "watch" | "hook" | "budget";
       kind: "invoice" | "refund";
       payee: string;
       payeeNorm: string;
@@ -1022,14 +1022,35 @@ export class GateStore {
     return state;
   }
 
-  /** Payments that went out through a check or were watched since then, for the hourly limit. */
+  /**
+   * Payments that went out through a check, were watched, or were reported against a budget since
+   * then, for the hourly limit. A budget's reservation isn't a payment: its spends are.
+   */
   async paymentsSince(c: Connection, accountId: string, since: Date): Promise<number> {
     const r = await c.query(
-      `SELECT count(*)::int AS n FROM gate_payments
-       WHERE account_id=$1 AND source<>'import' AND created_at>=$2`,
+      `SELECT (SELECT count(*) FROM gate_payments
+                WHERE account_id=$1 AND source NOT IN ('import','budget') AND created_at>=$2)
+            + (SELECT count(*) FROM gate_budget_spends WHERE account_id=$1 AND paid_at>=$2)
+              AS n`,
       [accountId, since],
     );
-    return r.rows[0].n as number;
+    return Number(r.rows[0].n);
+  }
+
+  /**
+   * A budget's reservation becomes what it spent, in whole cents rounded up; with nothing spent,
+   * it goes. The day it counts against doesn't change.
+   */
+  async settleBudgetPayment(c: Connection, budgetId: string, cents: number): Promise<void> {
+    if (cents > 0)
+      await c.query(
+        "UPDATE gate_payments SET amount_cents=$2 WHERE decision_id=$1 AND source='budget'",
+        [budgetId, cents],
+      );
+    else
+      await c.query("DELETE FROM gate_payments WHERE decision_id=$1 AND source='budget'", [
+        budgetId,
+      ]);
   }
 
   /** The decision an earlier check with this request id made, if it is still in the log. */

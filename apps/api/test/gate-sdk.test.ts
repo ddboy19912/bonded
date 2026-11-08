@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { ANVIL_KEYS } from "@bonded/arena";
 import { connectChain } from "@bonded/keeper";
 import { paymentGate, PaymentBlockedError, PaymentFrozenError } from "@bondedhq/sdk";
+import { x402Guard } from "@bondedhq/sdk/x402";
 import { parseEvmDeployment, selfServeMessage, verifyGateReceipt } from "@bondedhq/shared";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { createApi } from "../src/index.js";
@@ -113,6 +114,9 @@ describe("the SDK's payment gate client against the API", () => {
     expect(error).toBeInstanceOf(PaymentBlockedError);
     const { breach } = error as PaymentBlockedError;
     expect(breach.rules).toEqual(["unknown_payee", "unmatched_invoice"]);
+    // The reasons read as words, as the API sends them: the agent's model reads this message.
+    expect(breach.reasons[0]).toBe("the account is not in the vendor master");
+    expect((error as Error).message).toMatch(/^payment blocked by the mandate: the account is not/);
     expect(await verifyGateReceipt(breach.receipt!, RECEIPT_SIGNER)).toBe(true);
     expect(bank).not.toHaveBeenCalled();
 
@@ -194,5 +198,97 @@ describe("the SDK's payment gate client against the API", () => {
       status: 401,
     });
     expect(bank).not.toHaveBeenCalled();
+  });
+});
+
+describe("budgets through the SDK's gate client", () => {
+  const API = "0x1111111111111111111111111111111111111111";
+  const STRANGER = "0x2222222222222222222222222222222222222222";
+  async function x402Account() {
+    const owned = await signIn();
+    const made = await post(
+      "/gate/accounts",
+      { name: "Agent", mode: "enforce", maxPaymentUsd: 1, maxDailyUsd: 20 },
+      owned,
+    );
+    const base = `/gate/accounts/${made.account.id as string}`;
+    await post(`${base}/vendors`, { id: "weather", name: "Weather API", account: API }, owned);
+    const off = await app.request(base, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${owned}` },
+      body: JSON.stringify({ invoiceMatching: false }),
+    });
+    expect(off.status).toBe(200);
+    const key = made.apiKey.key as string;
+    return {
+      key,
+      gate: paymentGate({
+        apiKey: key,
+        apiUrl: "http://api.test",
+        fetch: toApi,
+        receiptKey: RECEIPT_SIGNER,
+      }),
+    };
+  }
+  const requirements = (payTo: string, amount: string) => ({
+    scheme: "exact",
+    network: "eip155:8453",
+    asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    amount,
+    payTo,
+  });
+  const context = (payTo: string, amount: string) => ({
+    paymentRequired: { x402Version: 2, resource: { url: "https://api.example.com/forecast" } },
+    selectedRequirements: requirements(payTo, amount),
+  });
+
+  it("opens a checked budget, spends sub-cent payments locally, and closes with a receipt over each", async () => {
+    const { gate } = await x402Account();
+    const budget = await gate.budget({ account: API, amountUsd: 0.01, maxPaymentUsd: 0.005 });
+    expect(budget.terms).toMatchObject({ budgetMicros: 10_000, maxPaymentMicros: 5_000 });
+    for (let i = 0; i < 3; i++) await budget.spend(1_000);
+    await expect(budget.spend(6_000)).rejects.toBeInstanceOf(PaymentBlockedError);
+    expect(budget.spentMicros).toBe(3_000);
+    await budget.close();
+    const closed = (budget as unknown as { closeDecision: Record<string, any> }).closeDecision; // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(closed).toMatchObject({ kind: "budget_close", decision: "pass", amountUsd: 0.01 });
+    expect(await verifyGateReceipt(closed.receipt, RECEIPT_SIGNER)).toBe(true);
+    expect(closed.input.spends.map((s: { amountMicros: number }) => s.amountMicros)).toEqual([
+      1_000, 1_000, 1_000,
+    ]);
+  });
+
+  it("an x402 guard on the gate pays a listed service from one budget and refuses a stranger", async () => {
+    const { gate, key } = await x402Account();
+    const guard = x402Guard({ guard: gate, budget: { amountUsd: 0.05 } });
+    for (let i = 0; i < 5; i++) expect(await guard.check(context(API, "1000"))).toBeUndefined(); // $0.001 each
+    const refused = await guard.check(context(STRANGER, "1000"));
+    expect(refused).toEqual({
+      abort: true,
+      reason: expect.stringMatching(
+        /blocked by the mandate: the account is not in the vendor master/,
+      ),
+    });
+    expect(guard.budgets()).toHaveLength(1);
+    expect(guard.budgets()[0]!.spentMicros).toBe(5_000);
+    await guard.close();
+    const listed = await app.request("/payments/budgets", {
+      headers: { Authorization: `Bearer ${key}` },
+    });
+    const items = ((await listed.json()) as { items: Record<string, unknown>[] }).items;
+    expect(items).toEqual([expect.objectContaining({ open: false, payments: 5, spentUsd: 0.005 })]);
+  });
+
+  it("refuses a budget whose receipt isn't signed by the pinned key", async () => {
+    const { key } = await x402Account();
+    const gate = paymentGate({
+      apiKey: key,
+      apiUrl: "http://api.test",
+      fetch: toApi,
+      receiptKey: privateKeyToAccount(generatePrivateKey()).address,
+    });
+    await expect(gate.budget({ account: API, amountUsd: 1 })).rejects.toThrow(
+      /can't be trusted: its receipt isn't signed/,
+    );
   });
 });

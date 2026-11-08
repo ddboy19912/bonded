@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import { serve } from "@hono/node-server";
 import { ArenaGateway, assertHeldOutOffMetaApi, loadDotEnv } from "@bonded/arena";
-import { Database, GateStore, GateWatchStore } from "@bonded/db";
+import { Database, GateBudgetStore, GateStore, GateWatchStore } from "@bonded/db";
 import {
   GateAnchorJob,
   Keeper,
@@ -35,6 +35,7 @@ import { REMOTE_EPISODE_TIMEOUT_MS, gatewayAgents } from "./remote-agent.js";
 import { DbRunnerAuth, RunnerPresenceWriter } from "./runners.js";
 import { secretBoxFromEnv } from "./secrets.js";
 import { GateWatcher, watchReadersFromEnv } from "./gate-watch.js";
+import { sweepBudgets } from "./gate-budget.js";
 import { Notifier, emailFromEnv } from "./notifications.js";
 import { workPreviewOne } from "./preview-worker.js";
 import { workCheckOne } from "./check-worker.js";
@@ -224,6 +225,18 @@ if (role === "migrate") {
         process.env.RAILWAY_GIT_COMMIT_SHA?.trim().slice(0, 12) ||
         null,
     });
+    // Budgets that expired close on their own (gate-budget.ts): the close is a signed decision, so
+    // it runs where the receipt key is.
+    if (process.env.GATE_RECEIPT_PRIVATE_KEY) {
+      const budgetDeps = {
+        db,
+        store: new GateStore(db, gateMandateHash),
+        budgets: new GateBudgetStore(db),
+        receiptKey: key("GATE_RECEIPT_PRIVATE_KEY"),
+        now: Date.now,
+      };
+      tasks.push(loop("Gate budget sweep", () => sweepBudgets(budgetDeps), 60_000));
+    }
     server = serve({
       fetch: api.fetch,
       port: z.coerce
@@ -281,12 +294,14 @@ if (role === "migrate") {
       .parse(process.env.GATE_DECISION_RETENTION_DAYS ?? 365);
     const gateStore = new GateStore(db, gateMandateHash);
     const gateWatchStore = new GateWatchStore(db);
+    const gateBudgetStore = new GateBudgetStore(db);
     // Watch mode's wallets (gate-watch.ts), on every chain it can read.
     if (watchReaders.size > 0) {
       const watcher = new GateWatcher({
         db,
         store: gateStore,
         watch: gateWatchStore,
+        budgets: gateBudgetStore,
         readers: watchReaders,
         notifier: new Notifier(db, {
           ...(secrets ? { secrets } : {}),
@@ -311,6 +326,7 @@ if (role === "migrate") {
           // The payment gate's decision log (payments made are kept: the duplicate rule reads them).
           await gateStore.pruneDecisions(new Date(Date.now() - gateRetentionDays * 86_400_000));
           await gateWatchStore.pruneWatched(new Date(Date.now() - gateRetentionDays * 86_400_000));
+          await gateBudgetStore.prune(new Date(Date.now() - gateRetentionDays * 86_400_000));
         },
         3_600_000,
       ),

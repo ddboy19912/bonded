@@ -7,7 +7,8 @@ rates agents against (`checkInvoicePayment`, `checkRefundPayment` and `isVerifie
 and freeze, and answers with the decision and a signed receipt.
 
 Code: `src/gate.ts` (routes), `src/gate-check.ts` (the check), `packages/db/src/gate.ts` (storage,
-migrations `0024_payment_gate.sql` to `0032_remove_key_routes.sql`),
+migrations `0024_payment_gate.sql` to `0033_gate_budgets.sql`), `src/gate-budget.ts` and
+`packages/db/src/gate-budget.ts` (budgets),
 `packages/shared/src/gate-receipt.ts` (receipts, input and mandate hashing, offline verification),
 `packages/shared/src/gate-log.ts` (daily log roots and proofs), `apps/keeper/src/gate-anchor.ts`
 (the keeper job that makes and posts them), `contracts/evm/src/GateAnchor.sol` (where they go on
@@ -85,6 +86,47 @@ Payments read after they were made (`gate-watch.ts`). Nothing here can stop a pa
 A payment that matches an allowed check (same payee and amount, up to 24 hours before it) is recorded with `checkedFirst: true`, and its rules aren't run: the check judged it. Each check matches one payment. Any other runs through `checkWatchedPayment`, is added to `gate_payments` with source `watch`, and alerts the owner (`payment_seen_breach`, or `gate_skipped` with `expectChecks` on and no other rule broken). `freezeOnBreach` applies. Watched payments get no receipt and aren't in the decision log or its log roots.
 
 The keeper reads wallets every 30 seconds on every chain in `WATCH_CHAINS` (Ethereum, Base, Arbitrum, Base Sepolia), each through a free public node set in the code. Nothing needs setting. `GATE_WATCH_RPC_URLS`, a JSON object of chain id to RPC URL on both the API and the keeper, can replace a chain's node. The public nodes keep limited history: Ethereum's reaches about a day and a half back, so a keeper down longer than that stops reading Ethereum wallets until a node with more history is set there. A failing wallet doesn't stop the others. It reads the stablecoins in `WATCH_CHAINS`, valued at one dollar, after each chain's confirmations. A new wallet starts at the current block. Transfers between an account's own wallets, and zero-value transfers, are skipped. `pruneWatched` follows `GATE_DECISION_RETENTION_DAYS`; what a watched payment added to `gate_payments` stays.
+
+## Budgets
+
+One check for many small payments to one payee (`gate-budget.ts`), for payments too small and too
+frequent to check one at a time, such as x402 calls of $0.001. Amounts in a budget are
+micro-dollars (millionths of a dollar, the unit USDC counts in), so a $0.001 payment counts as
+exactly that. The account needs invoice matching off.
+
+| Route | What it does |
+|---|---|
+| `POST /payments/budgets` | API key. Ask for a budget: `{ account, amountUsd, maxPaymentUsd?, ttlSeconds?, requestId? }`. `amountUsd` has at most two decimals; `maxPaymentUsd` up to six (default and most: the account's per-payment limit); `ttlSeconds` 60 to 3,600 (the default). Answers like a check, with `budget` (null unless it opened) |
+| `POST /payments/budgets/:budgetId/spends` | API key. Up to 500 payments made against it: `{ id, amountMicros, reference?, at }`. The same `id` records nothing |
+| `POST /payments/budgets/:budgetId/close` | API key. Close it now. Closing a closed one gives back its close decision |
+| `GET /payments/budgets`, `.../:budgetId` | API key. Budgets, newest first (`?open=true`, `?limit=`, `?before=`); one budget with its payments |
+| `GET /gate/accounts/:id/budgets`, `.../:budgetId` | Owner. The same |
+
+- **The budget check** is a decision of kind `budget` with a receipt. Its rules (`checkBudget` in
+  `packages/shared/src/payment-budget.ts`): the payee is a vendor's account (`unknown_payee`), the
+  whole budget fits in what's left of the day (`over_daily_cap`), and with an hourly limit there is
+  room for a payment (`over_hourly_limit`), counting what open budgets may still pay. The input
+  carries `terms`: the payee, the budget, the per-payment limit, how many payments it covers (what
+  the hourly limit had room for) and when it opens and ends. `evaluateGateInput` checks the terms
+  follow from the rest of the input, so the receipt's input hash commits to them.
+- **Opened** (allowed, or let through by Monitor mode), the whole budget is reserved: a
+  `gate_payments` row with source `budget` counts toward the day. Blocked or refused, nothing opens.
+- **Payments against it** are checked by the agent's code (the SDK), with no call to the API, then
+  reported. The API checks each against the terms again (`budgetSpendProblem`) and records it even
+  when it doesn't fit, since it was already paid; one that breaks the terms alerts the owner
+  (`payment_breach`) and freezes the account when it freezes on a breach. Each one counts toward
+  the hourly limit.
+- **Closing** is a decision of kind `budget_close`: its input is the terms and every payment in the
+  order reported, its receipt's amount is what was spent rounded up to the cent, its reference is
+  the budget's id, and it breaks `over_budget` when any payment broke the terms. The reservation
+  becomes what was spent; with nothing spent, it goes. Budgets that ended more than 10 minutes ago
+  close on their own: the API checks every minute (where `GATE_RECEIPT_PRIVATE_KEY` is set), and a
+  new budget closes the account's first.
+- **Watch** matches a payment to an open budget when it pays the budget's payee while the budget is
+  open, fits the per-payment limit, and leaves the payments matched to it within the budget by
+  exact amount and count. A matched payment has `matched_budget` set, breaks nothing and adds
+  nothing to `gate_payments`: the reservation already counts. Wallets read exact amounts; a
+  payment log can send `amountUsd` with up to six decimals.
 
 ## The check
 
@@ -247,14 +289,17 @@ daily limit even if it never settles.
 
 Tables: `gate_accounts`, `gate_mandates`, `gate_api_keys`, `gate_vendors`, `gate_invoices`,
 `gate_refunds`, `gate_tickets`, `gate_payments`, `gate_decisions`, `gate_usage_daily`,
-`gate_log_roots` (migration 0026), `gate_watch_wallets` and `gate_watched_payments` (0030), and
-`gate_card_hooks` (0031). Amounts are whole cents. Migration 0032 dropped the tables of the old card
-route and payout route, which held customers' Stripe keys; their decisions and payments stay.
+`gate_log_roots` (migration 0026), `gate_watch_wallets` and `gate_watched_payments` (0030),
+`gate_card_hooks` (0031), and `gate_budgets` and `gate_budget_spends` (0033). Amounts are whole
+cents, except in budgets and a watched payment's `amount_micros`, which are micro-dollars. Migration
+0032 dropped the tables of the old card route and payout route, which held customers' Stripe keys;
+their decisions and payments stay.
 
 The decision log keeps the record only (rules, amounts, payee account, reference, hashes, the
 receipt and the rules' input: the attempt, limits, payee accounts, approved invoices or refunds,
 the day's payments and tickets), never an invoice document or image. The keeper deletes decisions
-older than `GATE_DECISION_RETENTION_DAYS` (365 by default) hourly. Payments made are kept, because
+older than `GATE_DECISION_RETENTION_DAYS` (365 by default) hourly, and budgets closed before
+then with their payments. Payments made are kept, because
 the duplicate rule reads them. Log roots and what was posted on chain are kept too.
 
 ## Settings

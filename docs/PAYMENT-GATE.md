@@ -110,7 +110,19 @@ To guard an agent's existing pay tool, pass the gate (or the local guard) to the
 | OpenAI Agents SDK | `guardOpenAiAgentsPayTool` from `@bondedhq/sdk/openai-agents` (from version 0.1.5) |
 | x402 | `guardX402Client` from `@bondedhq/sdk/x402` (from version 0.1.5) |
 
-For x402, the gate checks each payment before the x402 client signs it. Turn invoice matching off and add each service's `payTo` address as a vendor. Only USDC prices count, and a price under a cent counts as one cent. Details: [the SDK's README](../packages/sdk/README.md#x402).
+For x402, the gate checks each payment before the x402 client signs it, using a budget for each service (below). Turn invoice matching off and add each service's `payTo` address as a vendor. Only USDC prices count. Details: [the SDK's README](../packages/sdk/README.md#x402).
+
+### Budgets: many small payments to one payee
+
+Some payments are too small and too frequent to check one at a time, like an agent paying an API $0.001 a call. For these the agent asks for a budget instead, say $1 for the weather API for the next hour.
+
+- The gate checks the budget once: the payee must be on your list, and the whole budget must fit in what's left of the day's limit. The answer has a signed receipt, like any check.
+- The SDK checks each payment against the budget on the agent's side, with no call to Bonded, to the fraction of a cent. A payment that doesn't fit is blocked in Enforce mode.
+- The SDK reports the payments, and closing the budget gives a second receipt that covers every one. Until then the whole budget counts toward the day; after, only what was spent.
+- A budget lasts an hour at most, and closes on its own once it ends. With an hourly limit, it covers only the payments left in the hour.
+- Watch counts the wallet's payments to that payee as covered by the budget, so they don't raise "skipped the gate".
+
+The dashboard's Activity tab shows open budgets above the log.
 
 ## Pay by card
 

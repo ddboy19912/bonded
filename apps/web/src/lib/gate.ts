@@ -150,7 +150,7 @@ export interface GateMandateVersion {
 
 export interface GateDecision {
   id: string;
-  kind: "invoice" | "refund" | "bank_change" | "payment";
+  kind: "invoice" | "refund" | "bank_change" | "payment" | "budget" | "budget_close";
   decision: "pass" | "breach" | "frozen";
   result: "allowed" | "blocked" | "refused";
   message: string;
@@ -328,6 +328,12 @@ export const gateApi = {
   /** GET …/watched: the payments seen after they were made, newest first. */
   watched: (session: string, id: string, cursor?: string) =>
     request<Page<GateWatchedPayment>>(`${account(id)}/watched${before(cursor)}`, bearer(session)),
+  /** GET …/budgets: budgets for many small payments to one payee, newest first. */
+  budgets: (session: string, id: string, open = false) =>
+    request<{ items: GateBudget[]; next: string | null }>(
+      `${account(id)}/budgets${open ? "?open=true" : ""}`,
+      bearer(session),
+    ),
   /** GET /gate/receipt-key: the address every receipt is signed with. Public. */
   receiptKey: () => request<{ address: Address }>("/gate/receipt-key"),
 
@@ -398,9 +404,39 @@ export const gateApi = {
     ),
 };
 
+/** A budget: one check for many small payments to one payee (an x402 API, say). */
+export interface GateBudget {
+  id: string;
+  payee: string;
+  vendorId: string | null;
+  budgetUsd: number;
+  maxPaymentUsd: number;
+  /** How many payments it covers; null with no hourly limit. */
+  maxPayments: number | null;
+  startsAt: string;
+  expiresAt: string;
+  spentUsd: number;
+  payments: number;
+  open: boolean;
+  closedAt: string | null;
+  closeDecision: string | null;
+}
+
+/** A decision in a few words: "Payment of $612.40", "Budget of $5.00", "Bank change for nimbus". */
+export function decisionTitle(d: { kind: string; amountUsd: number; vendorId: string | null }) {
+  if (d.kind === "bank_change") return `Bank change for ${d.vendorId}`;
+  if (d.kind === "budget") return `Budget of ${dollars(d.amountUsd)}`;
+  if (d.kind === "budget_close") return `Budget closed, ${dollars(d.amountUsd)} spent`;
+  return `${d.kind === "refund" ? "Refund" : "Payment"} of ${dollars(d.amountUsd)}`;
+}
+
 /** An amount in dollars, with cents: $612.40. */
 export const dollars = (usd: number) =>
   `$${usd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/** An exact amount, past the cent when it has to be: $0.001, $0.0045, $1.20. */
+export const exactDollars = (usd: number) =>
+  `$${usd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`;
 
 /**
  * Dollars as typed into a form, or null when it isn't a positive amount with at most two

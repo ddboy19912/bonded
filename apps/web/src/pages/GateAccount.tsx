@@ -5,6 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/shadcn/alert";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/shadcn/empty";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
 import { Activity } from "../components/gate/activity";
+import { OpenBudgets } from "../components/gate/budgets";
 import { Alerts } from "../components/gate/alerts";
 import { Cards } from "../components/gate/cards";
 import { AccountStatus, ConfirmButton, limit } from "../components/gate/common";
@@ -108,6 +109,7 @@ function Detail({ account, session }: { account: Account; session: string }) {
           ))}
         </TabsList>
         <TabsContent value="activity">
+          <OpenBudgets account={account} session={session} />
           <Activity account={account} session={session} chainRoot={chainRoot} />
         </TabsContent>
         <TabsContent value="connect">

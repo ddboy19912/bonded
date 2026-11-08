@@ -1,7 +1,7 @@
-import type { PaymentAttempt } from "@bondedhq/shared";
+import { normalAccount } from "@bondedhq/shared";
+import type { BudgetRequest, BudgetSpend, PaymentBudget } from "./budget.js";
 import { BondedError } from "./errors.js";
-import type { GatePayment } from "./gate.js";
-import { isPaymentRefusal, type PaymentGuard } from "./payments.js";
+import { isPaymentRefusal } from "./payments.js";
 
 /**
  * One way to pay that an x402 server offers, as `@x402/core` gives it to client hooks. In x402
@@ -29,6 +29,27 @@ export interface X402PaymentContext {
 /** A hook result that stops the payment: the x402 client signs nothing. */
 export type X402Abort = { abort: true; reason: string };
 
+/** The `x402Client` hooks the guard registers (`@x402/core`'s client, or anything shaped like it). */
+export interface X402ClientHooks {
+  onBeforePaymentCreation(
+    hook: (context: X402PaymentContext) => Promise<void | X402Abort>,
+  ): unknown;
+  onAfterPaymentCreation?(
+    hook: (context: X402PaymentContext & { paymentPayload: object }) => Promise<void>,
+  ): unknown;
+  onPaymentCreationFailure?(
+    hook: (context: X402PaymentContext & { error: Error }) => Promise<void>,
+  ): unknown;
+  onPaymentResponse?(
+    hook: (context: {
+      paymentPayload: object;
+      settleResponse?: { success: boolean; transaction?: string };
+      paymentRequired?: unknown;
+      error?: Error;
+    }) => Promise<void>,
+  ): unknown;
+}
+
 /** A US dollar stablecoin the guard counts at one dollar per token. */
 export interface X402Asset {
   /** CAIP-2 network id, or an x402 version 1 network name. */
@@ -39,8 +60,9 @@ export interface X402Asset {
 }
 
 /**
- * USDC on the networks x402 lists it for, by network id (and the version 1 name, where it has one). The guard
- * only counts these (and any `assets` you add) as dollars; a price in anything else is refused.
+ * USDC on the networks x402 lists it for, by network id (and the version 1 name, where it has one).
+ * The guard only counts these (and any `assets` you add) as dollars; a price in anything else is
+ * refused.
  */
 export const X402_USD_ASSETS: readonly X402Asset[] = [
   ...evm(["eip155:8453", "base"], "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
@@ -65,79 +87,188 @@ function evm(networks: string[], asset: string): X402Asset[] {
   return networks.map((network) => ({ network, asset, decimals: 6 }));
 }
 
-export interface GuardX402Options {
+export interface X402GuardOptions {
   /**
-   * A `PaymentGuard`, or the hosted `PaymentGate`. Its mandate needs invoice matching off
-   * (`invoiceMatching: false`, or the setting on your gate account): x402 payments have no invoices.
-   * Each service's `payTo` address goes on the vendor list, so the agent pays only services you
-   * listed.
+   * A `PaymentGuard`, or the hosted `PaymentGate`: anything with `budget()`. Its mandate needs
+   * invoice matching off, and each service's `payTo` address on the vendor list, so the agent
+   * pays only services you listed.
    */
-  guard: Pick<PaymentGuard, "pay">;
+  guard: { budget(request: BudgetRequest): Promise<PaymentBudget> };
+  /**
+   * The budget opened for each service: `amountUsd` (default $1, raised to fit a bigger price),
+   * `ttlSeconds` (default an hour) and `maxPaymentUsd` (default the mandate's per-payment limit).
+   */
+  budget?: { amountUsd?: number; ttlSeconds?: number; maxPaymentUsd?: number };
   /** More US dollar stablecoins to accept, beyond `X402_USD_ASSETS`. */
   assets?: readonly X402Asset[];
-  /**
-   * Reads the payment from the x402 requirements. Default: `payTo` as the account, the price in
-   * US dollars rounded up to the next cent, and no reference.
-   */
+  /** Reads the payee and the exact price. Default: `payTo`, and the price in micro-dollars. */
   toPayment?: (
     requirements: X402Requirements,
     context: X402PaymentContext,
-  ) => PaymentAttempt | GatePayment;
+  ) => { account: string; amountMicros: number };
+  /** Errors from closing a used-up budget in the background. Default: ignored. */
+  onError?: (error: unknown) => void;
 }
 
 /**
- * Checks every x402 payment against the payment mandate before the x402 client signs it. Register
- * it on the `x402Client` your fetch or axios wrapper uses:
+ * Checks every x402 payment against a budget for its service before the x402 client signs it.
  *
- * ```ts
- * import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
- * import { guardX402Client } from "@bondedhq/sdk/x402";
+ * The first payment to a service opens a budget for it (`guard.budget`): one check against the
+ * rules, and with the hosted gate a signed receipt. Every payment then checks against that budget
+ * in exact micro-dollars with no network call, so a $0.001 call is fast and counts as $0.001.
+ * When a budget is used up or ends, the next payment closes it and opens another.
  *
- * const guard = paymentGuard({ mandate: { ...limits, invoiceMatching: false }, vendors, onBreach: alert });
- * const client = guardX402Client(new x402Client().register("eip155:*", new ExactEvmScheme(signer)), { guard });
- * const paidFetch = wrapFetchWithPayment(fetch, client);
- * ```
- *
- * When the guard refuses (Enforce mode blocked it, the guard is frozen, the gate couldn't be
- * reached, or the price isn't in a dollar stablecoin it knows), the client signs nothing and the
- * request fails with the reason. In Monitor mode a breaking payment is signed and `onBreach`
- * reports it.
- *
- * The rules count whole cents, so a price under a cent counts as one cent: limits err on the safe
- * side. A payment the guard allows counts as made from that moment, even if the server then turns
- * the payment down.
+ * - A refused payment is never signed: the hook aborts and the request fails with the reason. In
+ *   Monitor mode a payment that breaks the budget is signed and `onBreach` reports it.
+ * - A payment the server turns down (it answers 402 again, or settlement fails) is taken back.
+ * - Call `close()` when the agent stops, so the unspent part of each budget stops counting toward
+ *   the day. Unclosed hosted budgets close themselves soon after they end.
  */
-export function guardX402Client<C extends { onBeforePaymentCreation(hook: X402Hook): unknown }>(
-  client: C,
-  options: GuardX402Options,
-): C {
-  client.onBeforePaymentCreation(x402PaymentCheck(options));
-  return client;
-}
+export class X402Guard {
+  readonly #options: X402GuardOptions;
+  readonly #assets: readonly X402Asset[];
+  readonly #budgets = new Map<string, PaymentBudget>();
+  readonly #locks = new Map<string, Promise<unknown>>();
+  readonly #byRequirements = new WeakMap<object, Counted>();
+  readonly #byPayload = new WeakMap<object, Counted>();
 
-/** An `onBeforePaymentCreation` hook. */
-export type X402Hook = (context: X402PaymentContext) => Promise<void | X402Abort>;
+  constructor(options: X402GuardOptions) {
+    this.#options = options;
+    this.#assets = [...(options.assets ?? []), ...X402_USD_ASSETS];
+  }
 
-/** The hook `guardX402Client` registers, for clients you set up some other way. */
-export function x402PaymentCheck(options: GuardX402Options): X402Hook {
-  const assets = [...(options.assets ?? []), ...X402_USD_ASSETS];
-  const toPayment = options.toPayment ?? ((r: X402Requirements) => defaultPayment(r, assets));
-  return async (context) => {
+  /** Registers the guard's hooks on an x402 client and returns the client. */
+  register<C extends X402ClientHooks>(client: C): C {
+    client.onBeforePaymentCreation((context) => this.check(context));
+    client.onAfterPaymentCreation?.(async (context) => {
+      const counted = this.#byRequirements.get(context.selectedRequirements);
+      if (counted) this.#byPayload.set(context.paymentPayload, counted);
+    });
+    client.onPaymentCreationFailure?.(async (context) => {
+      const counted = this.#byRequirements.get(context.selectedRequirements);
+      if (counted) counted.budget.release(counted.spend.id);
+    });
+    client.onPaymentResponse?.(async (context) => {
+      const counted = this.#byPayload.get(context.paymentPayload);
+      if (!counted) return;
+      if (context.settleResponse?.success) {
+        if (context.settleResponse.transaction)
+          counted.budget.settle(counted.spend.id, context.settleResponse.transaction);
+      } else if (context.paymentRequired || context.settleResponse?.success === false) {
+        counted.budget.release(counted.spend.id);
+      }
+    });
+    return client;
+  }
+
+  /** The `onBeforePaymentCreation` hook: counts the payment against its service's budget. */
+  async check(context: X402PaymentContext): Promise<void | X402Abort> {
     try {
-      const attempt = toPayment(context.selectedRequirements, context);
-      await options.guard.pay(attempt, () => undefined);
+      const { account, amountMicros } = (
+        this.#options.toPayment ?? ((r) => x402Price(r, this.#assets))
+      )(context.selectedRequirements, context);
+      const counted = await this.#exclusive(normalAccount(account), async (key) => {
+        const budget = await this.#budgetFor(key, account, amountMicros);
+        const spend = await budget.spend(amountMicros, {
+          reference: context.paymentRequired.resource?.url?.slice(0, 200) ?? "",
+        });
+        return { budget, spend };
+      });
+      this.#byRequirements.set(context.selectedRequirements, counted);
       return undefined;
     } catch (error) {
       if (isPaymentRefusal(error)) return { abort: true, reason: error.message };
       throw error;
     }
-  };
+  }
+
+  /** The open budgets, one per service. */
+  budgets(): PaymentBudget[] {
+    return [...this.#budgets.values()];
+  }
+
+  /** Closes every budget: sends what's left and stops the unspent part counting. */
+  async close(): Promise<void> {
+    const open = [...this.#budgets.values()];
+    this.#budgets.clear();
+    await Promise.all(open.map((b) => b.close()));
+  }
+
+  /** The service's budget, or a new one when there's none, it ended, or the payment won't fit. */
+  async #budgetFor(key: string, account: string, amountMicros: number): Promise<PaymentBudget> {
+    const current = this.#budgets.get(key);
+    if (current && !current.closed) {
+      // It fits; or it's over the per-payment limit, which a new budget would have too, so the
+      // current one says no.
+      if (!current.problem(amountMicros) || amountMicros > current.terms.maxPaymentMicros)
+        return current;
+    }
+    if (current) {
+      this.#budgets.delete(key);
+      current.close().catch(this.#options.onError ?? (() => undefined));
+    }
+    const asked = this.#options.budget?.amountUsd ?? 1;
+    const budget = await this.#options.guard.budget({
+      account,
+      amountUsd: Math.max(asked, Math.ceil(amountMicros / 10_000) / 100),
+      ...(this.#options.budget?.ttlSeconds === undefined
+        ? {}
+        : { ttlSeconds: this.#options.budget.ttlSeconds }),
+      ...(this.#options.budget?.maxPaymentUsd === undefined
+        ? {}
+        : { maxPaymentUsd: this.#options.budget.maxPaymentUsd }),
+    });
+    this.#budgets.set(key, budget);
+    return budget;
+  }
+
+  /** One payment per service at a time, so two can't both open a budget or both take the last of one. */
+  #exclusive<T>(key: string, run: (key: string) => Promise<T>): Promise<T> {
+    const next = (this.#locks.get(key) ?? Promise.resolve()).then(
+      () => run(key),
+      () => run(key),
+    );
+    this.#locks.set(
+      key,
+      next.catch(() => undefined),
+    );
+    return next;
+  }
+}
+
+interface Counted {
+  budget: PaymentBudget;
+  spend: BudgetSpend;
+}
+
+/** An x402 guard: see `X402Guard`. */
+export function x402Guard(options: X402GuardOptions): X402Guard {
+  return new X402Guard(options);
+}
+
+/**
+ * Registers a new `X402Guard` on an x402 client and returns the client, for when you never need
+ * to close its budgets yourself (hosted budgets close themselves after they end; local ones close
+ * when the next budget opens).
+ */
+export function guardX402Client<C extends X402ClientHooks>(
+  client: C,
+  options: X402GuardOptions,
+): C {
+  return new X402Guard(options).register(client);
 }
 
 const sameAsset = (a: string, b: string) =>
   a.startsWith("0x") && b.startsWith("0x") ? a.toLowerCase() === b.toLowerCase() : a === b;
 
-function defaultPayment(r: X402Requirements, assets: readonly X402Asset[]): PaymentAttempt {
+/**
+ * The payee and the exact price in micro-dollars, for a price in a dollar stablecoin the guard
+ * knows. Past six decimals it rounds up.
+ */
+export function x402Price(
+  r: X402Requirements,
+  assets: readonly X402Asset[] = X402_USD_ASSETS,
+): { account: string; amountMicros: number } {
   const units = r.amount ?? r.maxAmountRequired;
   if (typeof units !== "string" || !/^\d+$/.test(units))
     throw new BondedError("INVALID_PAYMENT", "the x402 price must be a whole number of units");
@@ -149,9 +280,13 @@ function defaultPayment(r: X402Requirements, assets: readonly X402Asset[]): Paym
       "INVALID_PAYMENT",
       `the x402 price is in ${r.asset} on ${r.network}, not a US dollar stablecoin the guard knows`,
     );
-  // Whole cents, rounded up: the rules count cents, and rounding down could make a price free.
-  const scale = 10n ** BigInt(known.decimals);
-  const cents = (BigInt(units) * 100n + scale - 1n) / scale;
-  if (cents === 0n) throw new BondedError("INVALID_PAYMENT", "the x402 price is zero");
-  return { account: r.payTo, amountUsd: Number(cents) / 100 };
+  const value = BigInt(units);
+  const micros =
+    known.decimals <= 6
+      ? value * 10n ** BigInt(6 - known.decimals)
+      : (value + 10n ** BigInt(known.decimals - 6) - 1n) / 10n ** BigInt(known.decimals - 6);
+  if (micros === 0n) throw new BondedError("INVALID_PAYMENT", "the x402 price is zero");
+  if (micros > BigInt(Number.MAX_SAFE_INTEGER))
+    throw new BondedError("INVALID_PAYMENT", "the x402 price is too large");
+  return { account: r.payTo, amountMicros: Number(micros) };
 }

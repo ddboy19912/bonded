@@ -11,6 +11,7 @@ import {
   GateWatcher,
   WATCH_CHAINS,
   tokenCents,
+  tokenMicros,
   viemWalletReader,
   watchReadersFromEnv,
   type WalletReader,
@@ -306,6 +307,7 @@ describe("Watch mode: wallets", () => {
     to,
     symbol: "USDC",
     amountCents,
+    amountMicros: amountCents * 10_000,
     txHash: `0x${"11".repeat(32)}`,
     logIndex,
     paidAt: new Date(clock),
@@ -478,11 +480,13 @@ describe("Activity and connections", () => {
         payeeNorm: THIEF.toUpperCase(),
         vendorId: null,
         amountCents: 100,
+        amountMicros: 1_000_000,
         reference: "",
         rules: [],
         lossCents: 0,
         overpaidCents: 0,
         matchedDecision: null,
+        matchedBudget: null,
         details: { chainId: BASE, token: "USDC", txHash: "0x1" },
         paidAt: new Date(clock),
       }),
@@ -514,6 +518,10 @@ describe("Watch mode: reading a chain", () => {
   it("values tokens in cents, keeps tiny payments, and ignores nothing moved", () => {
     expect(tokenCents(612_400_000n, 6)).toBe(61_240);
     expect(tokenCents(1_000n, 6)).toBe(1);
+    // Exact micro-dollars, rounded up past six decimals.
+    expect(tokenMicros(1_000n, 6)).toBe(1_000);
+    expect(tokenMicros(1n, 18)).toBe(1);
+    expect(tokenMicros(5n, 2)).toBe(50_000);
     expect(tokenCents(0n, 6)).toBe(0);
     expect(tokenCents(5_000n, 6)).toBe(1);
     expect(tokenCents(15_000n, 6)).toBe(2);
@@ -546,6 +554,7 @@ describe("Watch mode: reading a chain", () => {
         to: THIEF,
         symbol: "USDC",
         amountCents: 8_000,
+        amountMicros: 80_000_000,
         txHash: `0x${"22".repeat(32)}`,
         logIndex: 0,
         paidAt: new Date(1_793_577_600_000),

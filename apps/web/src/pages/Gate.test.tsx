@@ -20,6 +20,8 @@ import { deployment } from "../config";
 import { ApiError } from "../lib/api";
 import { saveSession } from "../lib/connect";
 import {
+  decisionTitle,
+  exactDollars,
   gateApi,
   parseUsd,
   type GateAccount,
@@ -30,6 +32,7 @@ import {
 import { Gate } from "./Gate";
 import { GateAccount as AccountPage } from "./GateAccount";
 import { GateVerify } from "./GateVerify";
+import { endsIn } from "../components/gate/budgets";
 
 const WALLET = "0x00000000000000000000000000000000000000a1";
 const wallet = vi.hoisted(() => ({
@@ -277,6 +280,7 @@ beforeEach(() => {
     next: null,
   });
   vi.spyOn(gateApi, "tickets").mockResolvedValue({ items: [] });
+  vi.spyOn(gateApi, "budgets").mockResolvedValue({ items: [], next: null });
   vi.spyOn(gateApi, "cardHooks").mockResolvedValue({ items: [] });
   vi.spyOn(gateApi, "keys").mockResolvedValue({
     items: [
@@ -736,6 +740,52 @@ describe("the payment gate's rules page", () => {
     const modal = await screen.findByRole("dialog");
     expect(within(modal).getByText(/so it has no receipt/)).toBeTruthy();
     expect(within(modal).queryByText("Allowed")).toBeNull();
+  });
+
+  it("shows open budgets above the log, spent to the fraction of a cent", async () => {
+    const opened = Date.now();
+    vi.mocked(gateApi.budgets).mockResolvedValue({
+      items: [
+        {
+          id: "b-1",
+          payee: "0X1111111111111111111111111111111111111111",
+          vendorId: "weather",
+          budgetUsd: 1,
+          maxPaymentUsd: 0.01,
+          maxPayments: 100,
+          startsAt: new Date(opened).toISOString(),
+          expiresAt: new Date(opened + 42 * 60_000).toISOString(),
+          spentUsd: 0.0045,
+          payments: 3,
+          open: true,
+          closedAt: null,
+          closeDecision: null,
+        },
+      ],
+      next: null,
+    });
+    signedIn();
+    showAccount();
+    expect(await screen.findByText("Open budgets")).toBeTruthy();
+    expect(screen.getByText("weather")).toBeTruthy();
+    expect(screen.getByText("$0.0045")).toBeTruthy();
+    expect(screen.getByText("of $1.00")).toBeTruthy();
+    expect(screen.getByText("ends in 42m")).toBeTruthy();
+    expect(gateApi.budgets).toHaveBeenCalledWith(expect.any(String), ACCOUNT_ID, true);
+  });
+
+  it("names budget decisions in the log", () => {
+    expect(decisionTitle({ kind: "budget", amountUsd: 5, vendorId: null })).toBe("Budget of $5.00");
+    expect(decisionTitle({ kind: "budget_close", amountUsd: 0.01, vendorId: null })).toBe(
+      "Budget closed, $0.01 spent",
+    );
+    expect(decisionTitle({ kind: "payment", amountUsd: 612.4, vendorId: null })).toBe(
+      "Payment of $612.40",
+    );
+    expect(exactDollars(0.001)).toBe("$0.001");
+    expect(exactDollars(1.2)).toBe("$1.20");
+    expect(endsIn("2026-11-08T10:30:00Z", Date.parse("2026-11-08T10:00:00Z"))).toBe("ends in 30m");
+    expect(endsIn("2026-11-08T10:00:30Z", Date.parse("2026-11-08T10:00:00Z"))).toBe("ending");
   });
 
   it("asks the API for a filter, and says when nothing matches", async () => {

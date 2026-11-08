@@ -18,6 +18,7 @@ import {
 import { Spinner } from "@/components/shadcn/spinner";
 import { ago, short } from "../../lib/format";
 import {
+  decisionTitle,
   dollars,
   gateApi,
   type GateAccount,
@@ -40,10 +41,7 @@ export const RESULT: Record<
   refused: { label: "Refused", tone: "warn" },
 };
 
-const headline = (d: GateDecision) =>
-  d.kind === "bank_change"
-    ? `Bank change for ${d.vendorId}`
-    : `${d.kind === "refund" ? "Refund" : "Payment"} of ${dollars(d.amountUsd)}`;
+const headline = (d: GateDecision) => decisionTitle(d);
 
 /** One check in the log. Pressing it opens the decision, its receipt and the checks to run on it. */
 function DecisionRow({

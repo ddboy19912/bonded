@@ -30,11 +30,15 @@ export interface GateWatchedPaymentRecord {
   payeeNorm: string;
   vendorId: string | null;
   amountCents: number;
+  /** The exact amount in micro-dollars, when known (wallets); null otherwise. */
+  amountMicros: number | null;
   reference: string;
   rules: string[];
   lossCents: number;
   overpaidCents: number;
   matchedDecision: string | null;
+  /** The budget it fell under (migration 0033); many payments can fall under one. */
+  matchedBudget: string | null;
   details: Record<string, string | number>;
   paidAt: Date;
   seenAt: Date;
@@ -60,11 +64,14 @@ const watched = (r: Record<string, unknown>): GateWatchedPaymentRecord => ({
   payeeNorm: r.payee_norm as string,
   vendorId: (r.vendor_id as string | null) ?? null,
   amountCents: Number(r.amount_cents),
+  amountMicros:
+    r.amount_micros === null || r.amount_micros === undefined ? null : Number(r.amount_micros),
   reference: r.reference as string,
   rules: r.rules as string[],
   lossCents: Number(r.loss_cents),
   overpaidCents: Number(r.overpaid_cents),
   matchedDecision: (r.matched_decision as string | null) ?? null,
+  matchedBudget: (r.matched_budget as string | null) ?? null,
   details: r.details as Record<string, string | number>,
   paidAt: r.paid_at as Date,
   seenAt: r.seen_at as Date,
@@ -178,8 +185,9 @@ export class GateWatchStore {
   ): Promise<GateWatchedPaymentRecord> {
     const r = await c.query(
       `INSERT INTO gate_watched_payments(account_id,source,external_id,payee,payee_norm,vendor_id,
-         amount_cents,reference,rules,loss_cents,overpaid_cents,matched_decision,details,paid_at)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+         amount_cents,reference,rules,loss_cents,overpaid_cents,matched_decision,details,paid_at,
+         amount_micros,matched_budget)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
       [
         w.accountId,
         w.source,
@@ -195,6 +203,8 @@ export class GateWatchStore {
         w.matchedDecision,
         JSON.stringify(w.details),
         w.paidAt,
+        w.amountMicros,
+        w.matchedBudget,
       ],
     );
     return watched(r.rows[0]);
