@@ -66,6 +66,11 @@ export interface X402SignerOptions {
    * `maxTimeoutSeconds`; a payment that would stay usable longer than this is refused.
    */
   maxValiditySeconds?: number;
+  /**
+   * How long the key may take to sign, in milliseconds (default 10,000). A KMS call that takes
+   * longer is given up: the payment is taken back from its budget and nothing is returned.
+   */
+  signTimeoutMs?: number;
   /** Called after each signature, and each refusal. For logs; errors here are ignored. */
   onSigned?: (event: X402SignedEvent) => void;
   onRefused?: (event: X402RefusedEvent) => void;
@@ -127,6 +132,7 @@ export class X402Signer {
   readonly #assets: readonly X402Asset[];
   readonly #chains: Map<number, string>;
   readonly #maxValidityMs: number;
+  readonly #signTimeoutMs: number;
   readonly #now: () => number;
   /** Signed payments by token and nonce, kept until they expire, so a retry isn't counted twice. */
   readonly #signed = new Map<string, { digest: string; signature: Hex; validBeforeMs: number }>();
@@ -155,6 +161,10 @@ export class X402Signer {
     if (!Number.isInteger(maxValidity) || maxValidity < 10 || maxValidity > 86_400)
       throw new Error("maxValiditySeconds must be a whole number from 10 to 86,400");
     this.#maxValidityMs = maxValidity * 1000;
+    const signTimeout = options.signTimeoutMs ?? 10_000;
+    if (!Number.isInteger(signTimeout) || signTimeout < 100)
+      throw new Error("signTimeoutMs must be a whole number of at least 100");
+    this.#signTimeoutMs = signTimeout;
     this.#now = options.now ?? Date.now;
     this.#guard = new X402Guard({
       guard: options.guard,
@@ -240,7 +250,11 @@ export class X402Signer {
     const verdict = await this.#guard.check(context);
     if (verdict) throw new X402SignerRefusal("refused", verdict.reason);
     try {
-      return await this.#options.account.signTypedData(typedData);
+      return await withTimeout(
+        this.#options.account.signTypedData(typedData),
+        this.#signTimeoutMs,
+        "the key took too long to sign",
+      );
     } catch (error) {
       await this.#onFailure?.({ ...context, error: error as Error });
       throw error;
@@ -321,7 +335,8 @@ export class X402Signer {
     const validBefore = whole(m.validBefore, "validBefore");
     if (typeof m.nonce !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(m.nonce))
       throw invalid("the nonce must be 32 bytes of hex");
-    const nonce = m.nonce as Hex;
+    // One spelling per nonce, so a retry in other letter case matches the payment already signed.
+    const nonce = m.nonce.toLowerCase() as Hex;
     const nowMs = this.#now();
     const nowS = BigInt(Math.floor(nowMs / 1000));
     if (validBefore <= nowS) throw invalid("the payment's time window has already ended");
@@ -389,4 +404,19 @@ function address(value: unknown, field: string): Address {
 /** An x402 signer: see `X402Signer`. */
 export function x402Signer(options: X402SignerOptions): X402Signer {
   return new X402Signer(options);
+}
+
+/** Rejects if `promise` hasn't settled within `ms`; whatever it settles to later is ignored. */
+async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
 }

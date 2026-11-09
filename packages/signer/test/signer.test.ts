@@ -123,6 +123,26 @@ describe("X402Signer", () => {
     expect(signer.budgets()[0]!.spentMicros).toBe(0);
   });
 
+  it("gives up on a key that takes too long, and takes the payment back", async () => {
+    const key = account();
+    const { guard } = localGuard();
+    const stuck = { address: key.address, signTypedData: () => new Promise<Hex>(() => {}) };
+    const signer = new X402Signer({ account: stuck, guard, signTimeoutMs: 100, now: () => NOW_MS });
+    await expect(signer.sign(payment(key.address))).rejects.toThrow(/too long/);
+    expect(signer.budgets()[0]!.spentMicros).toBe(0);
+  });
+
+  it("treats a nonce in other letter case as the same payment", async () => {
+    const { key, signer } = setup();
+    const n = `0x${"ab".repeat(32)}` as Hex;
+    const first = await signer.sign(payment(key.address, { nonce: n }));
+    const again = await signer.sign(
+      payment(key.address, { nonce: n.toUpperCase().replace("0X", "0x") }),
+    );
+    expect(again).toBe(first);
+    expect(signer.budgets()[0]!.payments).toBe(1);
+  });
+
   it("fails closed when the hosted gate can't be reached", async () => {
     const key = account();
     const gate = paymentGate({

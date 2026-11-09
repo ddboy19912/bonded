@@ -65,9 +65,8 @@ export function x402SignerHandler(
         } satisfies X402SignerInfo);
       }
       if (request.method !== "POST") return problem(404, "not_found", "use POST");
-      const text = await request.text();
-      if (Buffer.byteLength(text) > MAX_BODY_BYTES)
-        return problem(400, "invalid", "the request is too large");
+      const text = await readCapped(request);
+      if (text === undefined) return problem(400, "invalid", "the request is too large");
       let body: Partial<X402SignRequest>;
       try {
         body = JSON.parse(text) as Partial<X402SignRequest>;
@@ -166,4 +165,25 @@ function json(status: number, body: unknown): Response {
 
 function problem(status: number, error: X402SignerProblem["error"], reason: string): Response {
   return json(status, { error, reason } satisfies X402SignerProblem);
+}
+
+/** The body as text, or `undefined` once it passes `MAX_BODY_BYTES`: never reads more than that. */
+async function readCapped(request: Request): Promise<string | undefined> {
+  const declared = Number(request.headers.get("content-length") ?? 0);
+  if (declared > MAX_BODY_BYTES) return undefined;
+  if (!request.body) return "";
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > MAX_BODY_BYTES) {
+      await reader.cancel();
+      return undefined;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString("utf8");
 }

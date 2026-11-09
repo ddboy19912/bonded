@@ -57,7 +57,11 @@ export interface RemoteX402SignerOptions {
   url: string;
   /** One of the signer's tokens. It can only ask for x402 payments, never move money itself. */
   token: string;
-  /** How long to wait for each request, in milliseconds (default 15,000). */
+  /**
+   * How long to wait for each request, in milliseconds (default 35,000). The signer may need to
+   * open a budget with the gate (up to two tries of 10 seconds) and then wait for its KMS (up to
+   * 10 seconds); giving up sooner would make the agent retry a payment the signer still counts.
+   */
   timeoutMs?: number;
   fetch?: typeof fetch;
 }
@@ -89,7 +93,7 @@ export async function remoteX402Signer(
 ): Promise<RemoteX402Signer> {
   const base = options.url.replace(/\/+$/, "");
   const fetchFn = options.fetch ?? fetch;
-  const timeoutMs = options.timeoutMs ?? 15_000;
+  const timeoutMs = options.timeoutMs ?? 35_000;
 
   async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
     let response: Response;
