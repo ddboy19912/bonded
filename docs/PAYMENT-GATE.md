@@ -100,6 +100,18 @@ It fails closed, so if the gate can't be reached your function isn't called. It 
 
 The SDK also has a local guard that runs the same rules inside your own process, so invoices never leave your system. It makes no receipts and no log.
 
+To guard an agent's existing pay tool, pass the gate (or the local guard) to the helper for its framework. A refused payment goes back to the model as an error, so it can react:
+
+| Framework | Helper |
+|---|---|
+| Vercel AI SDK | `guardAiSdkPayTool` from `@bondedhq/sdk/ai-sdk` |
+| LangChain, LangGraph | `guardLangChainPayTool` from `@bondedhq/sdk/langchain` |
+| An MCP server | `guardMcpPayHandler` from `@bondedhq/sdk/mcp` |
+| OpenAI Agents SDK | `guardOpenAiAgentsPayTool` from `@bondedhq/sdk/openai-agents` (from version 0.1.5) |
+| x402 | `guardX402Client` from `@bondedhq/sdk/x402` (from version 0.1.5) |
+
+For x402, the gate checks each payment before the x402 client signs it. Turn invoice matching off and add each service's `payTo` address as a vendor. Only USDC prices count, and a price under a cent counts as one cent. Details: [the SDK's README](../packages/sdk/README.md#x402).
+
 ## Pay by card
 
 Your agent pays with cards from your own card program: Stripe Issuing, Lithic or Marqeta. Before each charge, the program asks Bonded. In Enforce mode a charge that breaks a rule is declined; in Monitor mode it goes through and is logged as a breach. Bonded holds no key for your program. It can't make, fund or charge a card. If Bonded doesn't answer in time, the charge is declined.

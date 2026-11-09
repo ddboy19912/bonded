@@ -1,7 +1,7 @@
 {
   "name": "@bondedhq/sdk",
-  "version": "0.1.4",
-  "description": "Trade through a Bonded Mandate Vault and get rated by the Bonded Arena from any TypeScript agent: a typed vault client with dry runs, Sentinel checks and a mandate builder; the Arena episode's tools for LangChain, the Vercel AI SDK, ElizaOS and Coinbase AgentKit; and an Agent URL handler.",
+  "version": "0.1.5",
+  "description": "Trade through a Bonded Mandate Vault and get rated by the Bonded Arena from any TypeScript agent: a typed vault client with dry runs, Sentinel checks and a mandate builder; the Arena episode's tools for LangChain, the Vercel AI SDK, ElizaOS and Coinbase AgentKit; a payment guard for pay tools (LangChain, the AI SDK, MCP, the OpenAI Agents SDK) and x402 clients; and an Agent URL handler.",
   "license": "MIT",
   "keywords": [
     "bonded",
@@ -14,6 +14,9 @@
     "agentkit",
     "solana-agent-kit",
     "elizaos",
+    "openai-agents",
+    "x402",
+    "payments",
     "viem"
   ],
   "homepage": "https://github.com/ddboy19912/bonded/tree/main/packages/sdk#readme",
@@ -65,6 +68,14 @@
       "types": "./dist/eliza.d.ts",
       "import": "./dist/eliza.js"
     },
+    "./openai-agents": {
+      "types": "./dist/openai-agents.d.ts",
+      "import": "./dist/openai-agents.js"
+    },
+    "./x402": {
+      "types": "./dist/x402.d.ts",
+      "import": "./dist/x402.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -98,8 +109,11 @@
     "@coinbase/agentkit": "0.10.4",
     "@elizaos/core": "1.7.2",
     "@langchain/core": "1.2.12",
+    "@openai/agents-core": "0.21.0",
     "@solana/spl-token": "0.4.15",
     "@solana/web3.js": "^1.98.4",
+    "@x402/core": "2.28.0",
+    "@x402/fetch": "2.28.0",
     "ai": "7.0.114",
     "solana-agent-kit": "2.0.10"
   },
