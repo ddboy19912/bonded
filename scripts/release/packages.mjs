@@ -14,6 +14,7 @@ export const PACKAGES = [
   { name: "@bondedhq/shared", dir: "packages/shared" },
   { name: "@bondedhq/solana", dir: "packages/solana" },
   { name: "@bondedhq/sdk", dir: "packages/sdk" },
+  { name: "@bondedhq/signer", dir: "packages/signer" },
   { name: "@bondedhq/runner", dir: "apps/runner" },
 ];
 
