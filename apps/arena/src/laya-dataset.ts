@@ -30,7 +30,7 @@ export interface LayaRow {
   questions: string;
   gold: string;
   /** Not read by the notebook; kept for analysis and per-class evaluation. */
-  source: "arena" | "synthetic" | "contrast";
+  source: "arena" | "synthetic" | "contrast" | "payments";
   attackClass: string | null;
 }
 

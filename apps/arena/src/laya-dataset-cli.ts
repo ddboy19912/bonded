@@ -10,6 +10,7 @@ import {
   mentionOwnAmounts,
 } from "./contrast.js";
 import { buildLayaDataset } from "./laya-dataset.js";
+import { paymentsTrainingRows } from "./payments-dataset.js";
 import { applyRewrites, readRewrites } from "./rewrite.js";
 import { formatAudit } from "./shortcuts.js";
 import type { SyntheticRow } from "./synthetic.js";
@@ -33,6 +34,9 @@ and manifest.json. Test holds only real rows from the held-out classes plus cont
   --seeds <path>       ratings used only to trace synthetic rows' seeds (repeatable)
   --exclude-ids <path> ids of rows too long for Laya's window (services/sentinel/kaggle/check_tokens.py)
   --questions <set>    v1 (three questions) or v3 (manipulated and injection) (default: v1)
+  --payments <dir>     also train on a payments build's training part (sentinel:payments-dataset
+                       output; v3 questions). Its calibration and final test stay out, for
+                       sentinel:payments-eval; the manifest records the build's hashes
   --out <dir>          output folder (default: datasets/laya)`;
 
 function readContrastRows(path: string): ContrastRow[] {
@@ -65,6 +69,7 @@ function main(): number {
       questions: { type: "string" },
       "allow-shortcuts": { type: "boolean", default: false },
       rewrites: { type: "string" },
+      payments: { type: "string" },
       out: { type: "string", default: "datasets/laya" },
       help: { type: "boolean", default: false },
     },
@@ -102,17 +107,24 @@ function main(): number {
     );
     return 1;
   }
+  const questions = dataset.manifest.questionSet;
+  const payments = values.payments ? paymentsTrainingRows(values.payments, questions) : undefined;
+  const train = payments ? [...dataset.train, ...payments.rows] : dataset.train;
+  if (new Set(train.map((r) => r.id)).size !== train.length)
+    throw new Error("a payment case's id is also a trading row's id");
+  const manifest = payments
+    ? { ...dataset.manifest, payments: payments.manifest }
+    : dataset.manifest;
   mkdirSync(values.out, { recursive: true });
   const jsonl = (rows: unknown[]) => rows.map((r) => `${JSON.stringify(r)}\n`).join("");
-  writeFileSync(join(values.out, "train.jsonl"), jsonl(dataset.train));
+  writeFileSync(join(values.out, "train.jsonl"), jsonl(train));
   writeFileSync(join(values.out, "test.jsonl"), jsonl(dataset.test));
-  writeFileSync(
-    join(values.out, "manifest.json"),
-    `${JSON.stringify(dataset.manifest, null, 2)}\n`,
-  );
-  console.log(
-    `train ${dataset.train.length} rows, test ${dataset.test.length} rows -> ${values.out}`,
-  );
+  writeFileSync(join(values.out, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+  console.log(`train ${train.length} rows, test ${dataset.test.length} rows -> ${values.out}`);
+  if (payments)
+    console.log(
+      `payments: ${payments.manifest.cases} training cases (${payments.manifest.manipulated} manipulated) from ${values.payments}`,
+    );
   console.log(`questions: ${dataset.manifest.questionSet}`);
   console.log(`held out: ${dataset.manifest.heldOutClasses.join(", ")}`);
   console.log(

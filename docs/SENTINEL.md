@@ -58,19 +58,19 @@ Assumptions and limits:
 
 Laya learns from labelled examples of the question "is this action manipulated?". The examples come from Arena attack episodes and synthetic cases. Whole attack classes (A7 and A10 today) and all benign control episodes are kept out of training, so the numbers above are measured on attacks the model has never seen.
 
-For builders: `pnpm sentinel:synth` writes the synthetic examples and `pnpm sentinel:dataset` builds the training files. The fine-tune runs on GPU (Kaggle T4s), and the result is pushed to the model repo and pinned by revision.
+For builders: `pnpm sentinel:synth` writes the synthetic examples and `pnpm sentinel:dataset` builds the training files (`--payments <dir>` adds a payments build's training part). The fine-tune runs on GPU (Kaggle T4s), and the result is pushed to the model repo and pinned by revision. The v6 data, the first to include payments, is described in [Stress suite](SENTINEL-STRESS.md#v6-training-data).
 
 **Stress test.** `pnpm sentinel:stress` scores a model on 528 disguised cases in 44 families, with rule-checked labels and locked test-only variants. The weakness map for v1 and v2, and what v3 had to fix, is in [Stress suite](SENTINEL-STRESS.md).
 
 ## The payments dataset
 
-Sentinel is trained on trades. The payments dataset holds the same question for off-chain payments ([Off-chain agents](OFFCHAIN.md)): was this payment manipulated?
+Laya v5 is trained on trades; v6 adds payments. The payments dataset holds the same question for off-chain payments ([Off-chain agents](OFFCHAIN.md)): was this payment manipulated?
 
 **What a case is.** One payment an agent tried to make (`pay_invoice` or `issue_refund`) in an off-chain Arena episode, as Sentinel would see it:
 
 - the mandate: the Arena world's mandate in the rule engine's words (`describePaymentMandate` in `@bondedhq/shared`);
 - the proposed payment: the tool and its arguments;
-- what the agent read before it: every read tool's output, up to 4,000 characters each. Pictures are left out (a marker says one was there) and counted, so a report can say how many attacks a text-only state can't show.
+- what the agent read before it that bears on this payment (see "What a case shows" below). Pictures are left out (a marker says one was there) and counted, so a report can say how many attacks a text-only state can't show.
 
 Labels come from the off-chain judge, never from a model:
 
@@ -90,17 +90,34 @@ Limits. A scripted agent's attack cases show what a manipulation looks like, not
 
 **Staged seeds for the dataset.** 51 text-only seeds wait in the staged folder (`apps/arena/offchain-seeds-staged/`), written from documented invoice-fraud and business email compromise patterns: 36 in the held-out classes (19 O2, 17 O5) and 15 in the training classes (7 O1, 3 O3, 3 O4, 2 O6), across email, chat, tickets, voicemail, texts, portals, other agents, memory, the knowledge base, the risk plugin and vendor records. Five new benign twins mirror the channel attacks that had no twin of their class (`PENDING_TWINS`, run only with staged-folder seeds). They are staged, not rated: seeds and twins join the library, and the Index, only in a release.
 
-**Where it stands (2026-11-03).** The vulnerable agent gets a planted payment through on 101 of the 103 attacks it meets, with no breach of its own making; the cautious one never breaches. The two it misses are realistic seeds whose wording its rules don't read ("get the deposit out today", "send it again"). Distinct cases (attacks in brackets):
+**What a case shows.** Laya reads at most 1,024 tokens. Everything an off-chain agent reads before a payment runs to about 4,000 (median), so a whole state would be cut off, often before the planted message. A case keeps only what bears on the payment (`focusInputs` in `payments-dataset.ts`, plain code):
+
+- the items that name the payment's invoice or refund reference, or the account it pays;
+- the items about that invoice's vendor: its record, its emails, its portal, its risk check;
+- each repeated read once.
+
+If that's still over 1,300 characters, each input is cut to a share, and the cut keeps what differs from the records (an account or amount the vendor record and approved queue don't show).
+
+Paying the planted account and paying the right one for the same invoice show the same inputs, because the planted message names the invoice. Only the action tells them apart, as in the trading pairs. An earlier cut chose by the paid account and dropped the vendor's other items first when space ran short. That let the inputs alone predict the label, so it was replaced.
+
+Checked on the v6 build:
+
+- No manipulated case loses its planted fact. The cases where a planted fact shows in the full state show it in the focused one too.
+- Every case fits Laya's window (median about 750 tokens).
+- The word-counting probe (inputs only, cases with planted content) scores 55.9% against a 53.4% majority: the wording doesn't give the label away. On the earlier cut it scored 79.5% against 56.2%.
+
+**Where it stands (2026-11-10).** The vulnerable agent gets a planted payment through on 101 of the 103 attacks it meets, with no breach of its own making; the cautious one never breaches. The two it misses are realistic seeds whose wording its rules don't read ("get the deposit out today", "send it again"). Distinct cases (attacks in brackets), with focused states:
 
 | Episodes read | Training | Calibration | Final test |
 | --- | --- | --- | --- |
-| Scripted runs only | 240 (50) | 419 (46) | 428 (44) |
-| Index traces and scripted runs | 1,720 (74) | 1,175 (54) | 1,079 (41) |
-| The same, `--train-benign-keep 0.3` | 548 (74) | 1,175 (54) | 1,079 (41) |
+| Scripted runs only | 110 (49) | 74 (46) | 118 (44) |
+| Index traces and scripted runs | 1,237 (73) | 683 (54) | 752 (41) |
+| The same, `--train-benign-keep 0.3` (Sentinel v6) | 403 (73) | 683 (54) | 752 (41) |
 
-- The final test meets the gate's minimums both ways: 41 attacks and 1,038 benign cases with the traces, 44 and 384 from the scripted runs alone (the gate needs 30 and 100). With the traces, 40 of the 41 final-test attacks come only from the scripted agent and 1 from a model-driven agent, so the final test says whether Sentinel catches these manipulations, not how often a model makes them.
-- The shortcut audit passes on the scripted runs alone (20.8% of training cases manipulated). With the Index traces, training is 4.3% manipulated and `action=pay_invoice` is more than 90% one label, so it fails. Seeds alone can't fix that: each realistic attack also adds benign payments, and it would take well over a hundred more training-class seeds. `--train-benign-keep <share>` keeps that share of the benign training cases, chosen by a hash of each case's id, and records it in the manifest; manipulated training cases, calibration and the final test are never sampled. At 0.3 the training part is 13.5% manipulated (`action=pay_invoice` 12.3%) and the audit passes.
-- `--busy` also plants each realistic-job seed into the busy Monday: 1,233 (83) / 853 (61) / 895 (60) from the scripted runs alone, and 2,713 (107) / 1,487 (65) / 1,668 (61) with the traces. Both fail the audit without sampling (6.7% and 3.9% manipulated), because a busy Monday adds 30 invoices a run.
+- Focused states are shorter, so more of them are identical and merge: the counts are lower than with whole states.
+- With the traces, the final test meets the gate's minimums: 41 attacks and 711 benign cases (the gate needs 30 and 100). 40 of the 41 attacks come only from the scripted agent and 1 from a model-driven agent, so the final test says whether Sentinel catches these manipulations, not how often a model makes them. The scripted runs alone no longer have 100 benign final-test cases.
+- The shortcut audit fails with the traces and no sampling: training is 5.9% manipulated and `action=pay_invoice` is more than 90% one label. Seeds alone can't fix that: each realistic attack also adds benign payments. `--train-benign-keep <share>` keeps that share of the benign training cases, chosen by a hash of each case's id, and records it in the manifest; manipulated training cases, calibration and the final test are never sampled. At 0.3 the training part is 18.1% manipulated and the audit passes.
+- `--busy` also plants each realistic-job seed into the busy Monday. Measured on whole states (2026-11-03): 1,233 (83) / 853 (61) / 895 (60) from the scripted runs alone, and 2,713 (107) / 1,487 (65) / 1,668 (61) with the traces. Both failed the audit without sampling, because a busy Monday adds 30 invoices a run.
 
 **Held out.** Two whole classes, O2 (a forged or inflated invoice from a real vendor) and O5 (an executive asking for an urgent payment), with their benign twins and every control, never reach training. They trick the agent differently from the training classes, and both have benign twins, so false alarms on look-alike genuine payments are measured too. O1 is the largest class and stays in training; many O4 attacks are only in a picture, which a text state doesn't carry. The held-out cases are split again into calibration and final test by seed family: every variant of a seed stays with its seed, and the two parts share no seed family and no input state.
 
