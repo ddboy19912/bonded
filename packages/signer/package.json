@@ -1,0 +1,79 @@
+{
+  "name": "@bondedhq/signer",
+  "version": "0.1.0",
+  "description": "An x402 signer the agent can't get around: run it on your own server with the wallet key in your KMS, and it signs each x402 payment only if it fits the payee's budget on Bonded's payment gate. Bonded never holds the key.",
+  "license": "MIT",
+  "keywords": [
+    "bonded",
+    "x402",
+    "ai-agents",
+    "payments",
+    "kms",
+    "eip-3009",
+    "usdc"
+  ],
+  "homepage": "https://github.com/ddboy19912/bonded/tree/main/packages/signer#readme",
+  "bugs": {
+    "url": "https://github.com/ddboy19912/bonded/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ddboy19912/bonded.git",
+    "directory": "packages/signer"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "bin": {
+    "bonded-signer": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.map",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src test",
+    "test": "vitest run",
+    "prepack": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@bondedhq/sdk": "workspace:^",
+    "viem": "^2.56.9"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-kms": "3.1164.0",
+    "@x402/core": "2.28.0",
+    "@x402/evm": "2.28.0",
+    "@x402/fetch": "2.28.0"
+  },
+  "peerDependencies": {
+    "@aws-sdk/client-kms": "^3.600.0",
+    "@google-cloud/kms": "^4.0.0 || ^5.0.0 || ^6.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@aws-sdk/client-kms": {
+      "optional": true
+    },
+    "@google-cloud/kms": {
+      "optional": true
+    }
+  }
+}

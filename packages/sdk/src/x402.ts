@@ -290,3 +290,16 @@ export function x402Price(
     throw new BondedError("INVALID_PAYMENT", "the x402 price is too large");
   return { account: r.payTo, amountMicros: Number(micros) };
 }
+
+export {
+  remoteX402Signer,
+  X402_SIGNER_ERROR_CODES,
+  X402_SIGNER_PATHS,
+  type RemoteX402Signer,
+  type RemoteX402SignerOptions,
+  type X402SignerInfo,
+  type X402SignerProblem,
+  type X402SignRequest,
+  type X402SignResponse,
+  type X402TypedData,
+} from "./x402-remote.js";
