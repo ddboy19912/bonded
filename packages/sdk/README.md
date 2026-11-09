@@ -299,6 +299,21 @@ await x402.close();
 - `guardX402Client(client, { guard })` registers a guard and returns the client, if you never close
   budgets yourself. `x402Price(requirements)` gives the payee and exact price it reads.
 
+The guard runs in the agent's process, so code that holds the wallet key can still sign without
+it. To stop that, keep the key out of the agent: run [`@bondedhq/signer`](../signer/README.md) on
+your own server, with the key in your KMS, and give the agent `remoteX402Signer` in place of a
+wallet. The signer runs the same budgets and signs only payments that fit:
+
+```ts
+import { remoteX402Signer } from "@bondedhq/sdk/x402";
+
+const signer = await remoteX402Signer({ url: "http://bonded-signer:8402", token });
+const client = new x402Client().register("eip155:*", new ExactEvmScheme(signer));
+```
+
+A payment the signer won't sign fails with a `BondedError` (`SIGNER_REFUSED`, `SIGNER_UNAVAILABLE`,
+`SIGNER_UNAUTHORIZED` or `INVALID_PAYMENT`); `isPaymentRefusal` recognizes each.
+
 ## Hosted payment gate (off chain)
 
 The same rules as the guard, run by Bonded instead of inside your process. Your vendors, approved

@@ -125,6 +125,12 @@ Some payments are too small and too frequent to check one at a time, like an age
 
 The dashboard's Activity tab shows open budgets above the log.
 
+### A signer the agent can't skip (x402)
+
+The SDK's x402 check runs inside the agent's own process, so code that holds the wallet key can pay without it. To close that gap, take the key away from the agent. [`@bondedhq/signer`](../packages/signer/README.md) is a small service you run on your own server, with the wallet key in your own KMS (AWS or Google) or a key file. The agent asks it to sign each x402 payment, and it signs only USDC transfers from its own address that fit the payee's budget. Everything else it refuses. If the gate can't be reached when a budget needs opening, it signs nothing.
+
+Bonded never holds the key. Put the signer's address on the Watch tab: only the signer can sign for it, so a payment the gate never saw means the key leaked.
+
 ## Pay by card
 
 Your agent pays with cards from your own card program: Stripe Issuing, Lithic or Marqeta. Before each charge, the program asks Bonded. In Enforce mode a charge that breaks a rule is declined; in Monitor mode it goes through and is logged as a breach. Bonded holds no key for your program. It can't make, fund or charge a card. If Bonded doesn't answer in time, the charge is declined.
@@ -203,7 +209,7 @@ Watched payments have no receipt and stay out of the decision log, because Bonde
 
 ## What it doesn't do
 
-- **It only sees what your code sends it.** On the check route the check is voluntary: code that pays without asking skips it, so keep the raw pay function out of the agent's reach. Card hooks close that gap for cards: your card provider asks before every charge.
+- **It only sees what your code sends it.** On the check route the check is voluntary: code that pays without asking skips it, so keep the raw pay function out of the agent's reach. Card hooks close that gap for cards: your card provider asks before every charge. The x402 signer closes it for x402: the agent never has the key.
 - **It doesn't move money.** Your own bank or payment API makes the payment.
 - **It doesn't pay back losses yet.** Cover is on chain today. Off-chain cover is planned.
 - **Rules can be followed and fraud can still happen.** If a real vendor's own systems are hacked and a correct invoice is paid to its correct account, no rule breaks.

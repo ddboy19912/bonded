@@ -19,6 +19,7 @@ import {
   usdToMicros,
   type VerifiedChange,
 } from "@bondedhq/shared";
+import { X402_SIGNER_ERROR_CODES } from "./x402-remote.js";
 import { BudgetBase, type BudgetRequest, type BudgetSpend, type PaymentBudget } from "./budget.js";
 import {
   BondedError,
@@ -672,7 +673,7 @@ export function guardVendorChanges<I, Rest extends unknown[], R>(
 
 /**
  * The payment guard or gate refused (blocked, frozen, arguments it can't check, or the gate gave no
- * answer to act on): no money moved.
+ * answer to act on), or a remote x402 signer didn't sign: no money moved.
  */
 export function isPaymentRefusal(
   error: unknown,
@@ -681,7 +682,9 @@ export function isPaymentRefusal(
     error instanceof PaymentBlockedError ||
     error instanceof PaymentFrozenError ||
     error instanceof PaymentGateError ||
-    (error instanceof BondedError && error.code === "INVALID_PAYMENT")
+    (error instanceof BondedError &&
+      (error.code === "INVALID_PAYMENT" ||
+        (X402_SIGNER_ERROR_CODES as readonly string[]).includes(error.code)))
   );
 }
 

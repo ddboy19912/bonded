@@ -23,6 +23,8 @@ import * as agentUrl from "@bondedhq/sdk/agent-url";
 import * as shared from "@bondedhq/shared";
 import * as sharedAgentUrl from "@bondedhq/shared/agent-url";
 import * as solana from "@bondedhq/solana";
+import * as x402 from "@bondedhq/sdk/x402";
+import * as signer from "@bondedhq/signer";
 
 for (const name of ["BondedVault", "buildMandate", "fromBondedEnv", "isBondedEpisode", "episodeVault", "guarded"])
   assert.equal(typeof sdk[name], "function", "@bondedhq/sdk exports " + name);
@@ -31,6 +33,10 @@ for (const name of ["connectEpisodeTools", "mcpConfig", "finishEpisode", "isBond
 assert.equal(typeof shared.parseEpisodeEnv, "function");
 assert.equal(typeof sharedAgentUrl.verifyAgentUrlRequest, "function");
 assert.ok(solana.PROGRAM_IDS.vault, "@bondedhq/solana loads its IDLs");
+for (const name of ["x402Guard", "x402Price", "remoteX402Signer"])
+  assert.equal(typeof x402[name], "function", "@bondedhq/sdk/x402 exports " + name);
+for (const name of ["x402Signer", "x402SignerHandler", "serveX402Signer"])
+  assert.equal(typeof signer[name], "function", "@bondedhq/signer exports " + name);
 
 // The Agent URL handler answers a challenge it can verify, and refuses one it can't.
 const secret = "bonded_as_release-check";
