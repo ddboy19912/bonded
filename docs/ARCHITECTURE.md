@@ -170,6 +170,7 @@ flowchart LR
 
 - **Ask first** and **card hooks** decide before the money moves: Enforce blocks or declines, Monitor lets it through and logs a breach. One exception: a card hook declines cash, money orders and gambling (`blocked_merchant`) in both modes. Each decision gets a receipt signed by Bonded that anyone can check offline.
 - **Watch** decides nothing in time. It runs payments already made through the same rules and alerts on a breach. With **Expect a check first** on, a payment with no allowed check for the same payee and amount in the 24 hours before is also a breach (`skipped_gate`). Each check covers one payment, so an allowed check that was never paid can cover a later identical payment that skipped the gate.
+- **Budgets** cover many small payments to one payee, such as x402 calls. The gate checks the budget once and signs it; the SDK checks each payment against it on the agent's side, in exact micro-dollars, and reports it; closing the budget signs a receipt over every payment. Watch counts the wallet's payments to that payee as covered.
 - **No key that moves money.** Bonded holds API key hashes, a card program's signing secret or a password hash, and public wallet addresses. It can't make, fund or charge a payment.
 - **Rules are code.** The same inputs always give the same decision, and the receipt carries the input's hash: anyone with the input (the check's answer includes it) can match the hash and run the rules again.
 

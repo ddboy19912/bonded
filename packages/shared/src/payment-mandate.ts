@@ -26,6 +26,7 @@ export const GATE_RULES = [
   "over_hourly_limit",
   "skipped_gate",
   "blocked_merchant",
+  "over_budget",
 ] as const;
 export type GateRule = (typeof GATE_RULES)[number];
 
@@ -45,6 +46,7 @@ export const GATE_RULE_WORDS: Record<GateRule, string> = {
   over_hourly_limit: "too many payments in the last hour",
   skipped_gate: "it was paid with no check first",
   blocked_merchant: "the merchant deals in cash, money orders or gambling",
+  over_budget: "it spent beyond its budget",
 };
 
 export interface PaymentLimits {

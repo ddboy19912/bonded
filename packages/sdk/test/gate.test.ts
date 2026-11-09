@@ -63,7 +63,7 @@ async function answer(asked: Record<string, unknown>, d: Decided = {}, key = KEY
     message: "",
     mode: receipt.mode,
     rules,
-    reasons: rules.map((r) => PAYMENT_RULE_WORDS[r]),
+    reasons: rules.map((rule) => ({ rule, words: PAYMENT_RULE_WORDS[rule] })),
     amountUsd: receipt.amountCents / 100,
     lossUsd: 0,
     overpaidUsd: 0,

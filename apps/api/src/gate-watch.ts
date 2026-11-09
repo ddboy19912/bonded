@@ -14,6 +14,7 @@ import type {
   Connection,
   Database,
   GateAccountRecord,
+  GateBudgetStore,
   GateStore,
   GateWatchedPaymentRecord,
   GateWatchStore,
@@ -54,6 +55,8 @@ export interface WatchedInput {
   externalId: string;
   account: string;
   amountCents: number;
+  /** The exact amount in micro-dollars, when known: needed to fall under a budget. */
+  amountMicros?: number | undefined;
   reference: string;
   paidAt: Date;
   details?: Record<string, string | number>;
@@ -69,7 +72,7 @@ export interface WatchedOutcome {
 
 /** Record one payment seen after it was made, in one transaction holding the account's lock. */
 export async function recordWatched(
-  deps: { db: Database; store: GateStore; watch: GateWatchStore },
+  deps: { db: Database; store: GateStore; watch: GateWatchStore; budgets?: GateBudgetStore },
   accountId: string,
   input: WatchedInput,
 ): Promise<WatchedOutcome> {
@@ -87,9 +90,12 @@ export async function recordWatched(
       payee: input.account,
       payeeNorm,
       amountCents: input.amountCents,
+      amountMicros: input.amountMicros ?? null,
       reference: input.reference,
       details: input.details ?? {},
       paidAt: input.paidAt,
+      matchedBudget: null,
+      matchedSpend: null,
     };
     const matched = await watch.matchingCheck(c, accountId, {
       payeeNorm,
@@ -108,75 +114,127 @@ export async function recordWatched(
       });
       return { payment, repeated: false, froze: false, account };
     }
-    const day = utcDay(input.paidAt);
-    const referenceNorm = normalReference(input.reference);
-    const state = await store.checkState(c, accountId, {
-      kind: "invoice",
-      accountNorm: payeeNorm,
-      referenceNorm,
-      day,
-    });
-    const check = checkWatchedPayment(
-      {
-        limits: {
-          maxPaymentUsd: account.maxPaymentCents / 100,
-          maxDailyUsd: account.maxDailyCents / 100,
-          // As on a check, the hourly limit only applies with invoice matching off.
-          maxPaymentsPerHour: account.invoiceMatching ? null : account.maxPaymentsPerHour,
-        },
-        invoiceMatching: account.invoiceMatching,
-        payees: state.payees,
-        invoices: state.invoices.map((i) => ({ ...i, amountUsd: i.amountCents / 100 })),
-        payments: state.payments.map((p) => ({
-          account: p.account,
-          vendorId: p.vendorId,
-          amountUsd: p.amountCents / 100,
-          invoiceReference: p.reference,
-          day: p.day,
-          ...(p.kind === "refund" ? { kind: "refund" as const } : {}),
-        })),
-        paymentsLastHour: await store.paymentsSince(
-          c,
-          accountId,
-          new Date(input.paidAt.getTime() - 3_600_000),
-        ),
-        day,
-      },
-      {
-        account: input.account,
-        amountUsd: input.amountCents / 100,
-        invoiceReference: input.reference,
-      },
-    );
-    if (!check.ok) throw new Refused(400, check.error);
-    const rules: GateRule[] = account.expectChecks ? [...check.rules, "skipped_gate"] : check.rules;
+    // A budget's payment: the one the agent's code reported, by payee and exact amount. Its
+    // budget's check covered it, and the budget's reservation counts it toward the limits.
+    if (deps.budgets && input.amountMicros !== undefined) {
+      const q = {
+        payeeNorm,
+        amountMicros: input.amountMicros,
+        paidAt: input.paidAt,
+        driftMs: MATCH_AFTER_MS,
+      };
+      const reported = await deps.budgets.matchingSpend(c, accountId, q);
+      // Not reported yet, under an open budget whose terms it fits: it waits for its report. If
+      // none comes by the close, the close judges it as a payment with no check.
+      const waiting = reported ? undefined : await deps.budgets.matching(c, accountId, q);
+      if (reported || waiting) {
+        const payment = await watch.addWatched(c, {
+          ...record,
+          vendorId: null,
+          rules: [],
+          lossCents: 0,
+          overpaidCents: 0,
+          matchedDecision: null,
+          matchedBudget: reported?.budgetId ?? waiting!,
+          matchedSpend: reported?.spendId ?? null,
+        });
+        return { payment, repeated: false, froze: false, account };
+      }
+    }
+    const judged = await judgeWatched(c, store, account, record);
     const payment = await watch.addWatched(c, {
       ...record,
+      ...judged.verdict,
+      matchedDecision: null,
+    });
+    return { payment, repeated: false, froze: judged.froze, account };
+  });
+}
+
+/**
+ * Run a payment seen after it was made through the rules, as a payment with no check before it:
+ * it counts toward the limits (a `gate_payments` row, source `watch`), breaks `skipped_gate` too
+ * when the account expects a check first, and freezes the account on a breach if it says so.
+ */
+export async function judgeWatched(
+  c: Connection,
+  store: GateStore,
+  account: GateAccountRecord,
+  w: {
+    payee: string;
+    payeeNorm: string;
+    amountCents: number;
+    reference: string;
+    paidAt: Date;
+  },
+): Promise<{
+  verdict: { vendorId: string | null; rules: GateRule[]; lossCents: number; overpaidCents: number };
+  froze: boolean;
+}> {
+  const day = utcDay(w.paidAt);
+  const referenceNorm = normalReference(w.reference);
+  const state = await store.checkState(c, account.id, {
+    kind: "invoice",
+    accountNorm: w.payeeNorm,
+    referenceNorm,
+    day,
+  });
+  const check = checkWatchedPayment(
+    {
+      limits: {
+        maxPaymentUsd: account.maxPaymentCents / 100,
+        maxDailyUsd: account.maxDailyCents / 100,
+        // As on a check, the hourly limit only applies with invoice matching off.
+        maxPaymentsPerHour: account.invoiceMatching ? null : account.maxPaymentsPerHour,
+      },
+      invoiceMatching: account.invoiceMatching,
+      payees: state.payees,
+      invoices: state.invoices.map((i) => ({ ...i, amountUsd: i.amountCents / 100 })),
+      payments: state.payments.map((p) => ({
+        account: p.account,
+        vendorId: p.vendorId,
+        amountUsd: p.amountCents / 100,
+        invoiceReference: p.reference,
+        day: p.day,
+        ...(p.kind === "refund" ? { kind: "refund" as const } : {}),
+      })),
+      paymentsLastHour: await store.paymentsSince(
+        c,
+        account.id,
+        new Date(w.paidAt.getTime() - 3_600_000),
+      ),
+      day,
+    },
+    { account: w.payee, amountUsd: w.amountCents / 100, invoiceReference: w.reference },
+  );
+  if (!check.ok) throw new Refused(400, check.error);
+  const rules: GateRule[] = account.expectChecks ? [...check.rules, "skipped_gate"] : check.rules;
+  await store.addPayment(
+    account.id,
+    {
+      source: "watch",
+      kind: "invoice",
+      payee: w.payee,
+      payeeNorm: w.payeeNorm,
+      vendorId: check.vendorId,
+      amountCents: w.amountCents,
+      reference: w.reference,
+      referenceNorm,
+      day,
+    },
+    c,
+  );
+  const froze = rules.length > 0 && account.freezeOnBreach && account.frozenAt === null;
+  if (froze) await store.freeze(c, account.id, null);
+  return {
+    verdict: {
       vendorId: check.vendorId,
       rules,
       lossCents: Math.round(check.lossUsd * 100),
       overpaidCents: Math.round(check.overpaidUsd * 100),
-      matchedDecision: null,
-    });
-    await store.addPayment(
-      accountId,
-      {
-        source: "watch",
-        kind: "invoice",
-        payee: input.account,
-        payeeNorm,
-        vendorId: check.vendorId,
-        amountCents: input.amountCents,
-        reference: input.reference,
-        referenceNorm,
-        day,
-      },
-      c,
-    );
-    const froze = rules.length > 0 && account.freezeOnBreach && account.frozenAt === null;
-    if (froze) await store.freeze(c, accountId, null);
-    return { payment, repeated: false, froze, account };
-  });
+    },
+    froze,
+  };
 }
 
 const dollars = (cents: number) =>
@@ -285,6 +343,8 @@ export interface WalletTransfer {
   symbol: string;
   /** Rounded to the cent, and at least one: a smaller payment is still a payment. */
   amountCents: number;
+  /** The exact amount in micro-dollars, rounded up past six decimals. */
+  amountMicros: number;
   txHash: string;
   logIndex: number;
   paidAt: Date;
@@ -300,6 +360,13 @@ export interface WalletReader {
 const TRANSFER = parseAbiItem(
   "event Transfer(address indexed from, address indexed to, uint256 value)",
 );
+
+/** Micro-dollars of a dollar token amount, rounded up past six decimals. */
+export function tokenMicros(value: bigint, decimals: number): number {
+  if (decimals <= 6) return Number(value * 10n ** BigInt(6 - decimals));
+  const scale = 10n ** BigInt(decimals - 6);
+  return Number((value + scale - 1n) / scale);
+}
 
 /** Whole cents of a token amount. Zero stays zero: a spoofed transfer of nothing is no payment. */
 export function tokenCents(value: bigint, decimals: number): number {
@@ -345,6 +412,7 @@ export function viemWalletReader(
           to,
           symbol: token.symbol,
           amountCents: tokenCents(value, token.decimals),
+          amountMicros: tokenMicros(value, token.decimals),
           txHash: log.transactionHash,
           logIndex: log.logIndex,
           paidAt,
@@ -390,6 +458,7 @@ export class GateWatcher {
       db: Database;
       store: GateStore;
       watch: GateWatchStore;
+      budgets?: GateBudgetStore;
       notifier: Notifier;
       readers: ReadonlyMap<number, WalletReader>;
       now?: () => number;
@@ -433,6 +502,7 @@ export class GateWatcher {
             externalId: `wallet:${wallet.chainId}:${t.txHash}:${t.logIndex}`,
             account: t.to,
             amountCents: t.amountCents,
+            amountMicros: t.amountMicros,
             reference: "",
             paidAt: t.paidAt,
             details: {
@@ -464,12 +534,16 @@ const text = (max: number) =>
     .min(1)
     .max(max)
     .regex(/^[^\p{Cc}]*$/u);
-const cents = z
+/** Dollars with up to six decimals: whole cents (at least one) and exact micro-dollars. */
+const exactUsd = z
   .number()
   .positive()
   .max(100_000_000_000)
-  .refine((v) => Math.abs(v * 100 - Math.round(v * 100)) < 1e-6)
-  .transform((v) => Math.round(v * 100));
+  .refine((v) => Math.abs(v * 1e6 - Math.round(v * 1e6)) < 1e-3, "at most six decimals")
+  .transform((v) => {
+    const micros = Math.round(v * 1e6);
+    return { micros, cents: Math.max(1, Math.round(micros / 10_000)) };
+  });
 const logInput = z.strictObject({
   payments: z
     .array(
@@ -477,7 +551,8 @@ const logInput = z.strictObject({
         /** Your id for the payment: sending it again records nothing. */
         id: z.string().regex(/^[A-Za-z0-9._:-]{1,128}$/),
         account: payee,
-        amountUsd: cents,
+        /** Up to six decimals: an exact amount can fall under a budget. */
+        amountUsd: exactUsd,
         reference: text(100).optional(),
         paidAt: z.iso.datetime({ offset: true }),
       }),
@@ -555,6 +630,7 @@ export function gateWatchRoutes(
     db: Database;
     store: GateStore;
     watch: GateWatchStore;
+    budgets?: GateBudgetStore;
     notifier: Notifier;
     now: () => number;
     /** Chains this service can read (GATE_WATCH_RPC_URLS). */
@@ -606,7 +682,8 @@ export function gateWatchRoutes(
           source: "log",
           externalId: `log:${p.id}`,
           account: p.account,
-          amountCents: p.amountUsd,
+          amountCents: p.amountUsd.cents,
+          amountMicros: p.amountUsd.micros,
           reference: p.reference ?? "",
           paidAt: new Date(p.paidAt),
         });

@@ -30,11 +30,17 @@ export interface GateWatchedPaymentRecord {
   payeeNorm: string;
   vendorId: string | null;
   amountCents: number;
+  /** The exact amount in micro-dollars, when known (wallets); null otherwise. */
+  amountMicros: number | null;
   reference: string;
   rules: string[];
   lossCents: number;
   overpaidCents: number;
   matchedDecision: string | null;
+  /** The budget it fell under (migration 0033); many payments can fall under one. */
+  matchedBudget: string | null;
+  /** The payment reported against that budget that it is; null while none is. */
+  matchedSpend: string | null;
   details: Record<string, string | number>;
   paidAt: Date;
   seenAt: Date;
@@ -60,11 +66,16 @@ const watched = (r: Record<string, unknown>): GateWatchedPaymentRecord => ({
   payeeNorm: r.payee_norm as string,
   vendorId: (r.vendor_id as string | null) ?? null,
   amountCents: Number(r.amount_cents),
+  amountMicros:
+    r.amount_micros === null || r.amount_micros === undefined ? null : Number(r.amount_micros),
   reference: r.reference as string,
   rules: r.rules as string[],
   lossCents: Number(r.loss_cents),
   overpaidCents: Number(r.overpaid_cents),
   matchedDecision: (r.matched_decision as string | null) ?? null,
+  matchedBudget: (r.matched_budget as string | null) ?? null,
+  matchedSpend:
+    r.matched_spend === null || r.matched_spend === undefined ? null : String(r.matched_spend),
   details: r.details as Record<string, string | number>,
   paidAt: r.paid_at as Date,
   seenAt: r.seen_at as Date,
@@ -178,8 +189,9 @@ export class GateWatchStore {
   ): Promise<GateWatchedPaymentRecord> {
     const r = await c.query(
       `INSERT INTO gate_watched_payments(account_id,source,external_id,payee,payee_norm,vendor_id,
-         amount_cents,reference,rules,loss_cents,overpaid_cents,matched_decision,details,paid_at)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+         amount_cents,reference,rules,loss_cents,overpaid_cents,matched_decision,details,paid_at,
+         amount_micros,matched_budget,matched_spend)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
       [
         w.accountId,
         w.source,
@@ -195,7 +207,24 @@ export class GateWatchStore {
         w.matchedDecision,
         JSON.stringify(w.details),
         w.paidAt,
+        w.amountMicros,
+        w.matchedBudget,
+        w.matchedSpend,
       ],
+    );
+    return watched(r.rows[0]);
+  }
+
+  /** A watched payment judged again (a budget closed without it reported): its rules and losses. */
+  async rejudge(
+    c: Connection,
+    id: string,
+    v: { vendorId: string | null; rules: string[]; lossCents: number; overpaidCents: number },
+  ): Promise<GateWatchedPaymentRecord> {
+    const r = await c.query(
+      `UPDATE gate_watched_payments SET vendor_id=$2, rules=$3, loss_cents=$4, overpaid_cents=$5
+       WHERE id=$1 RETURNING *`,
+      [id, v.vendorId, v.rules, v.lossCents, v.overpaidCents],
     );
     return watched(r.rows[0]);
   }
@@ -257,9 +286,10 @@ export class GateWatchStore {
   async watchedByIds(
     accountId: string,
     ids: readonly string[],
+    q: Queryable = this.pool,
   ): Promise<GateWatchedPaymentRecord[]> {
     if (ids.length === 0) return [];
-    const r = await this.pool.query(
+    const r = await q.query(
       "SELECT * FROM gate_watched_payments WHERE account_id=$1 AND id = ANY($2::bigint[])",
       [accountId, [...ids]],
     );

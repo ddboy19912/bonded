@@ -1,5 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { Database, GateAccountRecord, GateDecisionRecord, GateStore } from "@bonded/db";
+import {
+  GateBudgetStore,
+  type Database,
+  type GateAccountRecord,
+  type GateDecisionRecord,
+  type GateStore,
+} from "@bonded/db";
 import {
   canonicalJson,
   evaluateGateInput,
@@ -129,6 +135,11 @@ export async function runGateCheck(
         payees: state.payees,
         payments: state.payments,
       };
+      // Payments open budgets may still make count toward the hourly limit too.
+      const reserved =
+        general && account.maxPaymentsPerHour !== null
+          ? await new GateBudgetStore(db).reservedPayments(c, account.id, at)
+          : 0;
       input = general
         ? {
             kind: "payment",
@@ -139,6 +150,7 @@ export async function runGateCheck(
               account.id,
               new Date(at.getTime() - 3_600_000),
             ),
+            ...(reserved > 0 ? { reservedPayments: reserved } : {}),
           }
         : request.kind === "invoice"
           ? { kind: "invoice", ...common, invoices: state.invoices }

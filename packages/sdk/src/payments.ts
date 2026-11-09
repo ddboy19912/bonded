@@ -1,4 +1,6 @@
 import {
+  type BudgetTerms,
+  checkBudget,
   checkGeneralPayment,
   checkInvoicePayment,
   checkRefundPayment,
@@ -14,8 +16,10 @@ import {
   type PaymentLimits,
   type SignedGateReceipt,
   utcDay,
+  usdToMicros,
   type VerifiedChange,
 } from "@bondedhq/shared";
+import { BudgetBase, type BudgetRequest, type BudgetSpend, type PaymentBudget } from "./budget.js";
 import {
   BondedError,
   PaymentBlockedError,
@@ -61,11 +65,26 @@ export interface PaymentGuardState {
    * `unknown_payee`.
    */
   unverifiedChanges: VerifiedChange[];
+  /**
+   * Open budgets (`budget()`): their terms and what was counted against them. Each one's whole
+   * amount is in `payments` until it closes. Absent in state saved before budgets existed.
+   */
+  budgets?: LocalBudgetState[];
+  /** When budget payments were made in the last hour (Unix milliseconds), for the hourly limit. */
+  budgetSpends?: number[];
+}
+
+/** An open local budget, as the guard's state keeps it. */
+export interface LocalBudgetState {
+  id: string;
+  terms: BudgetTerms;
+  spentMicros: number;
+  payments: number;
 }
 
 /** One payment (or bank change) that broke the mandate, as the guard reports it. */
 export interface PaymentBreach {
-  kind: "invoice" | "refund" | "vendor_change";
+  kind: "invoice" | "refund" | "vendor_change" | "budget";
   /** Every rule broken, most serious first. */
   rules: GateRule[];
   /** Each rule in plain words (`GATE_RULE_WORDS`), in the same order. */
@@ -73,7 +92,7 @@ export interface PaymentBreach {
   /** Enforce mode stopped it: the pay function was not called. */
   blocked: boolean;
   account: string;
-  /** The invoice or refund reference; empty for a bank change. */
+  /** The invoice or refund reference; empty for a bank change or a budget. */
   reference: string;
   /** The vendor whose verified account this is (or, for a bank change, the vendor changed). */
   vendorId: string | null;
@@ -136,7 +155,12 @@ const copy = (state: PaymentGuardState): PaymentGuardState => ({
   payments: state.payments.map((p) => ({ ...p })),
   frozen: state.frozen,
   unverifiedChanges: state.unverifiedChanges.map((c) => ({ ...c })),
+  budgets: (state.budgets ?? []).map((b) => ({ ...b, terms: { ...b.terms } })),
+  budgetSpends: [...(state.budgetSpends ?? [])],
 });
+
+/** The reference a local budget's reservation is recorded under. */
+const budgetReference = (id: string) => `budget:${id}`;
 
 /**
  * The payment mandate, checked inside your own process: the same rules (`@bondedhq/shared`'s
@@ -291,6 +315,154 @@ export class PaymentGuard {
     });
   }
 
+  /**
+   * Opens a budget: one check for many small payments to one payee (see `PaymentBudget`). Needs
+   * `invoiceMatching: false`. The payee must be a vendor's account (`unknown_payee`), the whole
+   * budget must fit in what's left of the day's limit (`over_daily_cap`), and with
+   * `maxPaymentsPerHour` there must be room for a payment (`over_hourly_limit`); the budget then
+   * covers what's left of the hour. Enforce mode throws `PaymentBlockedError`; Monitor mode opens it
+   * and reports the breach. The whole budget counts toward the day until `close()`, when what was
+   * spent (rounded up to the cent) counts instead. A budget past its end is closed the next time
+   * one is opened.
+   */
+  budget(request: BudgetRequest): Promise<PaymentBudget> {
+    return this.#exclusive(async () => {
+      if (this.#state.frozen) throw new PaymentFrozenError();
+      if (this.mandate.invoiceMatching !== false)
+        throw new BondedError("CONFIG", "budgets need invoiceMatching: false on the mandate");
+      const now = this.#now();
+      const day = utcDay(now);
+      if (this.#settleExpired(now.getTime())) await this.#save();
+      const ttlSeconds = request.ttlSeconds ?? 3600;
+      if (!Number.isInteger(ttlSeconds) || ttlSeconds < 60 || ttlSeconds > 3600)
+        throw new BondedError(
+          "INVALID_PAYMENT",
+          "ttlSeconds must be a whole number from 60 to 3,600",
+        );
+      const maxAll = usdToMicros(this.mandate.maxPaymentUsd) ?? 0;
+      const asked =
+        request.maxPaymentUsd === undefined ? maxAll : usdToMicros(request.maxPaymentUsd);
+      if (asked === undefined || asked <= 0)
+        throw new BondedError(
+          "INVALID_PAYMENT",
+          "maxPaymentUsd must be positive, with at most six decimals",
+        );
+      const check = checkBudget(
+        {
+          limits: {
+            ...this.mandate,
+            maxPaymentsPerHour: this.mandate.maxPaymentsPerHour ?? null,
+          },
+          payees: await this.#payees(),
+          payments: this.#state.payments,
+          paymentsLastHour: this.#paymentsLastHour(),
+          reservedPayments: this.#reservedPayments(),
+          day,
+        },
+        { account: request.account, budgetUsd: request.amountUsd },
+      );
+      if (!check.ok) throw new BondedError("INVALID_PAYMENT", check.error);
+      const id = `local-${crypto.randomUUID()}`;
+      if (check.rules.length > 0)
+        await this.#breach({
+          kind: "budget",
+          rules: check.rules,
+          reasons: words(check.rules),
+          blocked: this.mandate.mode === "enforce",
+          account: request.account,
+          reference: "",
+          vendorId: check.vendorId,
+          amountUsd: request.amountUsd,
+          lossUsd: 0,
+          overpaidUsd: 0,
+          day,
+        });
+      const terms: BudgetTerms = {
+        account: normalAccount(request.account),
+        budgetMicros: Math.round(request.amountUsd * 100) * 10_000,
+        maxPaymentMicros: Math.min(asked, maxAll),
+        maxPayments: check.maxPayments,
+        startsAtMs: now.getTime(),
+        expiresAtMs: now.getTime() + ttlSeconds * 1000,
+      };
+      // The reservation: no time, so it doesn't count as a payment for the hourly limit.
+      this.#state.payments.push({
+        account: request.account,
+        vendorId: check.vendorId,
+        amountUsd: Math.round(request.amountUsd * 100) / 100,
+        invoiceReference: budgetReference(id),
+        day,
+      });
+      const kept: LocalBudgetState = { id, terms, spentMicros: 0, payments: 0 };
+      this.#state.budgets = [...(this.#state.budgets ?? []), kept];
+      await this.#save();
+      return new LocalBudget(id, terms, this.mandate.mode, () => this.#now().getTime(), {
+        frozen: () => this.#state.frozen,
+        report: (breach) => this.#report(breach),
+        recorded: (spend) =>
+          this.#exclusive(async () => {
+            const b = this.#state.budgets?.find((x) => x.id === id);
+            if (b) {
+              b.spentMicros += spend.amountMicros;
+              b.payments += 1;
+            }
+            this.#state.budgetSpends = [...(this.#state.budgetSpends ?? []), spend.atMs];
+            await this.#save();
+          }),
+        released: (spend) =>
+          void this.#exclusive(async () => {
+            const b = this.#state.budgets?.find((x) => x.id === id);
+            if (b) {
+              b.spentMicros -= spend.amountMicros;
+              b.payments -= 1;
+            }
+            const spends = this.#state.budgetSpends ?? [];
+            const at = spends.lastIndexOf(spend.atMs);
+            if (at >= 0) spends.splice(at, 1);
+            await this.#save();
+          }),
+        close: () =>
+          this.#exclusive(async () => {
+            if (this.#closeBudget(id)) await this.#save();
+          }),
+      });
+    });
+  }
+
+  /** Payments open budgets may still make, for the hourly limit. A budget past its end makes none. */
+  #reservedPayments(): number {
+    const now = this.#now().getTime();
+    return (this.#state.budgets ?? []).reduce(
+      (sum, b) =>
+        b.terms.maxPayments === null || b.terms.expiresAtMs <= now
+          ? sum
+          : sum + Math.max(0, b.terms.maxPayments - b.payments),
+      0,
+    );
+  }
+
+  /** Closes budgets past their end. True when any closed. */
+  #settleExpired(nowMs: number): boolean {
+    const expired = (this.#state.budgets ?? []).filter((b) => b.terms.expiresAtMs <= nowMs);
+    for (const b of expired) this.#closeBudget(b.id);
+    return expired.length > 0;
+  }
+
+  /** The budget's reservation becomes what it spent, rounded up to the cent. */
+  #closeBudget(id: string): boolean {
+    const budget = this.#state.budgets?.find((b) => b.id === id);
+    if (!budget) return false;
+    this.#state.budgets = this.#state.budgets!.filter((b) => b.id !== id);
+    const at = this.#state.payments.findIndex((p) => p.invoiceReference === budgetReference(id));
+    if (at >= 0) {
+      const cents = Math.ceil(budget.spentMicros / 10_000);
+      if (cents > 0)
+        this.#state.payments[at] = { ...this.#state.payments[at]!, amountUsd: cents / 100 };
+      else this.#state.payments.splice(at, 1);
+    }
+    return true;
+  }
+
   /** Runs the shared rule check against the builder's data and the guard's payments. */
   async #check(attempt: PaymentAttempt, kind: "invoice" | "refund", day: string) {
     const payees = await this.#payees();
@@ -308,7 +480,8 @@ export class PaymentGuard {
                 limits: { ...limits, maxPaymentsPerHour: limits.maxPaymentsPerHour ?? null },
                 payees,
                 payments,
-                paymentsLastHour: this.#paymentsLastHour(),
+                // Payments open budgets may still make count toward the hourly limit too.
+                paymentsLastHour: this.#paymentsLastHour() + this.#reservedPayments(),
                 day,
               },
               attempt,
@@ -321,11 +494,17 @@ export class PaymentGuard {
     return check;
   }
 
-  /** Payments in the last hour. One restored from before the guard kept times doesn't count. */
+  /**
+   * Payments in the last hour, budget payments included. One restored from before the guard kept
+   * times doesn't count.
+   */
   #paymentsLastHour(): number {
     const since = this.#now().getTime() - 3_600_000;
-    return this.#state.payments.filter((p) => p.at !== undefined && Date.parse(p.at) >= since)
-      .length;
+    this.#state.budgetSpends = (this.#state.budgetSpends ?? []).filter((at) => at >= since);
+    return (
+      this.#state.payments.filter((p) => p.at !== undefined && Date.parse(p.at) >= since).length +
+      this.#state.budgetSpends.length
+    );
   }
 
   /**
@@ -352,6 +531,12 @@ export class PaymentGuard {
 
   /** Reports a breach, freezes if the mandate says so, and throws when Enforce mode blocks it. */
   async #breach(breach: PaymentBreach): Promise<void> {
+    await this.#report(breach);
+    if (breach.blocked) throw new PaymentBlockedError(breach);
+  }
+
+  /** Freezes if the mandate says so, and tells `onBreach`. */
+  async #report(breach: PaymentBreach): Promise<void> {
     if (this.mandate.freezeOnBreach) {
       this.#state.frozen = true;
       await this.#save();
@@ -361,7 +546,6 @@ export class PaymentGuard {
       rules: [...breach.rules],
       reasons: [...breach.reasons],
     });
-    if (breach.blocked) throw new PaymentBlockedError(breach);
   }
 
   async #save(): Promise<void> {
@@ -377,6 +561,46 @@ export class PaymentGuard {
 }
 
 const words = (rules: readonly GateRule[]) => rules.map((r) => GATE_RULE_WORDS[r]);
+
+/** A budget the local guard opened: spends are counted in its state, nothing is sent anywhere. */
+class LocalBudget extends BudgetBase {
+  constructor(
+    id: string,
+    terms: BudgetTerms,
+    mode: "monitor" | "enforce",
+    now: () => number,
+    private readonly ledger: {
+      frozen: () => boolean;
+      report: (breach: PaymentBreach) => Promise<void>;
+      recorded: (spend: BudgetSpend) => Promise<void>;
+      released: (spend: BudgetSpend) => void;
+      close: () => Promise<void>;
+    },
+  ) {
+    super(id, terms, mode, now, (breach) => ledger.report(breach));
+  }
+
+  override spend(amountMicros: number, options?: { id?: string; reference?: string }) {
+    if (this.ledger.frozen()) return Promise.reject(new PaymentFrozenError());
+    return super.spend(amountMicros, options);
+  }
+  protected recorded(spend: BudgetSpend) {
+    return this.ledger.recorded(spend);
+  }
+  protected releasable() {
+    return !this.closed;
+  }
+  protected released(spend: BudgetSpend) {
+    this.ledger.released(spend);
+  }
+  flush() {
+    return Promise.resolve();
+  }
+  async close() {
+    this.markClosed();
+    await this.ledger.close();
+  }
+}
 
 /** A payment guard: see `PaymentGuard`. */
 export function paymentGuard(options: PaymentGuardOptions): PaymentGuard {

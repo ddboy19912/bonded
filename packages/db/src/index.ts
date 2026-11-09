@@ -5,6 +5,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 export * from "./schema.js";
 export * from "./gate.js";
 export * from "./gate-watch.js";
+export * from "./gate-budget.js";
 export * from "./gate-card-hook.js";
 export * from "./data-api.js";
 export type Connection = pg.PoolClient;
@@ -607,6 +608,7 @@ export class Database {
       "0030_gate_watch.sql",
       "0031_gate_card_hooks.sql",
       "0032_remove_key_routes.sql",
+      "0033_gate_budgets.sql",
     ];
     await this.transaction(async (c) => {
       await c.query("SELECT pg_advisory_xact_lock(7001)");

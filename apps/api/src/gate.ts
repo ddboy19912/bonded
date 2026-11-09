@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { Context, Hono } from "hono";
 import { z } from "zod";
 import {
+  GateBudgetStore,
   GateStore,
   GateWatchStore,
   type Database,
@@ -34,6 +35,7 @@ import { Notifier, type EmailSender } from "./notifications.js";
 import type { SecretBox } from "./secrets.js";
 import { alertOwner, decisionView, runGateCheck, type GateCheckRequest } from "./gate-check.js";
 import { gateWatchRoutes } from "./gate-watch.js";
+import { gateBudgetRoutes } from "./gate-budget.js";
 import { gateCardHookRoutes, type GateCardHookOptions } from "./gate-card-hook.js";
 
 /**
@@ -863,10 +865,24 @@ export function gateRoutes(
     }),
   );
 
+  const budgets = new GateBudgetStore(db);
+  gateBudgetRoutes(app, {
+    db,
+    store,
+    budgets,
+    notifier,
+    receiptKey: options.receiptKey,
+    now,
+    watch: new GateWatchStore(db),
+    owned: (c) => owned(c, options.reads),
+    keyed,
+    allowCheck: (accountId) => checks.allow(accountId),
+  });
   gateWatchRoutes(app, {
     db,
     store,
     watch: new GateWatchStore(db),
+    budgets,
     notifier,
     now,
     chains: options.watchChains ?? [],

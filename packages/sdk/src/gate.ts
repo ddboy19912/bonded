@@ -1,5 +1,9 @@
 import {
+  budgetCloseCents,
+  type BudgetTerms,
+  evaluateGateInput,
   type GateInput,
+  gateInputHash,
   type GateLogProof,
   type GateRule,
   normalAccount,
@@ -15,6 +19,7 @@ import {
   PaymentGateError,
 } from "./errors.js";
 import type { PaymentBreach } from "./payments.js";
+import { BudgetBase, type BudgetRequest, type BudgetSpend, type PaymentBudget } from "./budget.js";
 
 /** Bonded's hosted API. */
 export const BONDED_API_URL = "https://api-production-ba50.up.railway.app";
@@ -37,7 +42,7 @@ export type GateCheck =
 /** A decision, as the gate's log keeps it. */
 export interface GateDecision {
   id: string;
-  kind: "invoice" | "refund" | "bank_change" | "card" | "payment";
+  kind: "invoice" | "refund" | "bank_change" | "card" | "payment" | "budget" | "budget_close";
   decision: "pass" | "breach" | "frozen";
   result: "allowed" | "blocked" | "refused";
   allowed: boolean;
@@ -46,7 +51,7 @@ export interface GateDecision {
   /** Every rule broken, most serious first. */
   rules: GateRule[];
   /** Each rule in plain words, in the same order. */
-  reasons: string[];
+  reasons: { rule: GateRule; words: string }[];
   amountUsd: number;
   lossUsd: number;
   overpaidUsd: number;
@@ -194,6 +199,75 @@ export class PaymentGate {
     return update();
   }
 
+  /**
+   * Opens a budget: one check for many small payments to one payee (see `PaymentBudget`). The gate
+   * checks it against the general rules (the account needs invoice matching off), reserves the
+   * whole budget against the day's limit and signs a receipt whose input commits to the terms;
+   * this checks the receipt, then recomputes the input's hash and reruns its rules. Each `spend`
+   * is checked here with no network call; payments go to the gate in the background (every
+   * `flushMs`, 5 seconds by default, once `holdMs` has passed so a turned-down payment can be taken
+   * back) and on `close()`, whose receipt commits to every one. Throws `PaymentBlockedError`
+   * (Enforce), `PaymentFrozenError` or `PaymentGateError` without opening one.
+   */
+  async budget(
+    request: BudgetRequest,
+    options: { flushMs?: number; holdMs?: number; onError?: (error: unknown) => void } = {},
+  ): Promise<PaymentBudget> {
+    const body = {
+      account: request.account,
+      amountUsd: request.amountUsd,
+      ...(request.maxPaymentUsd === undefined ? {} : { maxPaymentUsd: request.maxPaymentUsd }),
+      ...(request.ttlSeconds === undefined ? {} : { ttlSeconds: request.ttlSeconds }),
+      requestId: request.requestId ?? crypto.randomUUID(),
+    };
+    let answer: GateAnswer | undefined;
+    let last: unknown;
+    for (let attempt = 0; attempt < TRIES && !answer; attempt++) {
+      try {
+        answer = await this.#request<GateAnswer>("/payments/budgets", {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+      } catch (error) {
+        last = error;
+        const unanswered =
+          error instanceof PaymentGateError && (!error.status || error.status >= 500);
+        if (!unanswered) throw error;
+      }
+    }
+    if (!answer) throw last;
+    const terms = await this.#verifyBudget(answer, body);
+    await this.#settle(answer);
+    return new HostedBudget(answer.id, terms, answer.mode, Date.now, this.#options.onBreach, {
+      flushMs: options.flushMs ?? 5_000,
+      holdMs: options.holdMs ?? 10_000,
+      onError: options.onError ?? (() => undefined),
+      send: (spends) =>
+        this.#request<{ problems: { id: string; problem: string }[]; frozen: boolean }>(
+          `/payments/budgets/${encodeURIComponent(answer!.id)}/spends`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              spends: spends.map((s) => ({
+                id: s.id,
+                amountMicros: s.amountMicros,
+                reference: s.reference,
+                at: new Date(s.atMs).toISOString(),
+              })),
+            }),
+          },
+        ),
+      close: async () => {
+        const closed = await this.#request<GateAnswer>(
+          `/payments/budgets/${encodeURIComponent(answer!.id)}/close`,
+          { method: "POST" },
+        );
+        await this.#verifyClose(closed, answer!.id);
+        return closed;
+      },
+    });
+  }
+
   /** The gate account's decisions, newest first. Pass `next` back as `before` for older ones. */
   decisions(
     query: { limit?: number; before?: string; result?: GateDecision["result"] } = {},
@@ -250,6 +324,88 @@ export class PaymentGate {
     if (!matches) throw wrong("its receipt is for a different decision or payment");
   }
 
+  /** The budget answer's receipt and input check out; returns the terms it grants. */
+  async #verifyBudget(
+    answer: GateAnswer,
+    asked: { account: string; amountUsd: number; maxPaymentUsd?: number; ttlSeconds?: number },
+  ): Promise<BudgetTerms> {
+    const wrong = (what: string) =>
+      new PaymentGateError(`the gate's budget can't be trusted: ${what}`, undefined, {
+        receipt: true,
+      });
+    const signed = answer.receipt;
+    if (!signed?.receipt) throw wrong("it has no receipt");
+    if (this.#options.verifyReceipts !== false) {
+      const signer = await this.#receiptSigner();
+      if (!(await verifyGateReceipt(signed, signer).catch(() => false)))
+        throw wrong("its receipt isn't signed by Bonded's receipt key");
+    }
+    const r = signed.receipt;
+    const input = answer.input;
+    if (
+      r.kind !== "budget" ||
+      r.decisionId !== answer.id ||
+      r.decision !== answer.decision ||
+      r.result !== answer.result ||
+      answer.allowed !== (r.result === "allowed") ||
+      r.payee !== normalAccount(asked.account) ||
+      r.amountCents !== Math.round(asked.amountUsd * 100)
+    )
+      throw wrong("its receipt is for a different budget");
+    if (!input || input.kind !== "budget" || gateInputHash(input) !== r.inputHash)
+      throw wrong("its input doesn't match the receipt");
+    if (r.decision !== "frozen") {
+      const verdict = evaluateGateInput(input);
+      if (!verdict.ok || verdict.rules.join() !== r.rules.join())
+        throw wrong("its rules don't follow from its input");
+    }
+    const t = input.terms;
+    const ttlMs = (asked.ttlSeconds ?? 3600) * 1000;
+    const maxAsked =
+      asked.maxPaymentUsd === undefined ? Infinity : Math.round(asked.maxPaymentUsd * 1e6);
+    if (
+      t.account !== r.payee ||
+      t.budgetMicros !== r.amountCents * 10_000 ||
+      t.expiresAtMs - t.startsAtMs !== ttlMs ||
+      t.maxPaymentMicros > maxAsked
+    )
+      throw wrong("its terms aren't the ones asked for");
+    return t;
+  }
+
+  /** A budget close's receipt checks out and commits to its input. */
+  async #verifyClose(answer: GateAnswer, budgetId: string): Promise<void> {
+    if (this.#options.verifyReceipts === false) return;
+    const wrong = (what: string) =>
+      new PaymentGateError(`the gate's budget close can't be trusted: ${what}`, undefined, {
+        receipt: true,
+      });
+    const signed = answer.receipt;
+    if (!signed?.receipt) throw wrong("it has no receipt");
+    const signer = await this.#receiptSigner();
+    if (!(await verifyGateReceipt(signed, signer).catch(() => false)))
+      throw wrong("its receipt isn't signed by Bonded's receipt key");
+    const r = signed.receipt;
+    if (r.kind !== "budget_close" || r.reference !== budgetId || r.decisionId !== answer.id)
+      throw wrong("its receipt is for a different budget");
+    const input = answer.input;
+    // A close given back again has no input to check beyond its signed receipt.
+    if (!input) return;
+    if (
+      input.kind !== "budget_close" ||
+      input.budgetId !== budgetId ||
+      gateInputHash(input) !== r.inputHash
+    )
+      throw wrong("its input doesn't match the receipt");
+    const verdict = evaluateGateInput(input);
+    if (
+      !verdict.ok ||
+      verdict.rules.join() !== r.rules.join() ||
+      r.amountCents !== budgetCloseCents(input)
+    )
+      throw wrong("its rules or amount don't follow from its input");
+  }
+
   #receiptSigner(): Promise<Address> {
     if (this.#options.receiptKey) return Promise.resolve(this.#options.receiptKey);
     this.#signer ??= this.#request<{ address: Address }>("/gate/receipt-key")
@@ -297,6 +453,95 @@ export function paymentGate(options: PaymentGateOptions): PaymentGate {
   return new PaymentGate(options);
 }
 
+/**
+ * A budget the hosted gate opened. Spends wait `holdMs` (so one the payee turned down can be taken
+ * back), then go to the gate every `flushMs`; `close()` sends the rest and closes it.
+ */
+class HostedBudget extends BudgetBase {
+  #pending: BudgetSpend[] = [];
+  /** Spends on their way to the gate: too late to take back. */
+  #inFlight = new Set<BudgetSpend>();
+  #sending: Promise<void> | undefined;
+  #timer: ReturnType<typeof setInterval> | undefined;
+  #closing: Promise<void> | undefined;
+
+  constructor(
+    id: string,
+    terms: BudgetTerms,
+    mode: "monitor" | "enforce",
+    now: () => number,
+    onBreach: ((breach: PaymentBreach) => void | Promise<void>) | undefined,
+    private readonly link: {
+      flushMs: number;
+      holdMs: number;
+      onError: (error: unknown) => void;
+      send: (
+        spends: BudgetSpend[],
+      ) => Promise<{ problems: { id: string; problem: string }[]; frozen: boolean }>;
+      close: () => Promise<GateAnswer>;
+    },
+  ) {
+    super(id, terms, mode, now, onBreach);
+  }
+
+  /** The close decision, once closed. */
+  closeDecision: GateAnswer | undefined;
+
+  protected recorded(spend: BudgetSpend) {
+    this.#pending.push(spend);
+    if (!this.#timer) {
+      this.#timer = setInterval(() => {
+        this.#send(false).catch(this.link.onError);
+      }, this.link.flushMs);
+      this.#timer.unref?.();
+    }
+    return Promise.resolve();
+  }
+  protected releasable(spend: BudgetSpend) {
+    return this.#pending.includes(spend) && !this.#inFlight.has(spend);
+  }
+  protected released(spend: BudgetSpend) {
+    this.#pending = this.#pending.filter((s) => s !== spend);
+  }
+
+  flush() {
+    return this.#send(true);
+  }
+
+  close() {
+    this.#closing ??= (async () => {
+      this.markClosed();
+      if (this.#timer) clearInterval(this.#timer);
+      while (this.#pending.length > 0 || this.#sending) await this.#send(true);
+      this.closeDecision = await this.link.close();
+    })().catch((error: unknown) => {
+      // Nothing is lost: what wasn't sent is still pending, so closing again tries again.
+      this.#closing = undefined;
+      throw error;
+    });
+    return this.#closing;
+  }
+
+  /** Sends what's due (everything when `all`), 500 at a time, one send at a time. */
+  async #send(all: boolean): Promise<void> {
+    while (this.#sending) await this.#sending;
+    const cutoff = this.now() - this.link.holdMs;
+    const due = this.#pending.filter((s) => all || s.atMs <= cutoff).slice(0, 500);
+    if (due.length === 0) return;
+    for (const s of due) this.#inFlight.add(s);
+    this.#sending = (async () => {
+      const answer = await this.link.send(due);
+      this.#pending = this.#pending.filter((s) => !due.includes(s));
+      if (answer.frozen) this.markClosed();
+    })().finally(() => {
+      for (const s of due) this.#inFlight.delete(s);
+      this.#sending = undefined;
+    });
+    await this.#sending;
+    if (all && this.#pending.length > 0) await this.#send(true);
+  }
+}
+
 function breachOf(answer: GateAnswer): PaymentBreach {
   return {
     kind:
@@ -304,9 +549,11 @@ function breachOf(answer: GateAnswer): PaymentBreach {
         ? "vendor_change"
         : answer.kind === "refund"
           ? "refund"
-          : "invoice",
+          : answer.kind === "budget"
+            ? "budget"
+            : "invoice",
     rules: answer.rules,
-    reasons: answer.reasons,
+    reasons: answer.reasons.map((r) => (typeof r === "string" ? r : r.words)),
     blocked: !answer.allowed,
     account: answer.payee,
     reference: answer.reference,

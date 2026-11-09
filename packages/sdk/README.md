@@ -235,39 +235,69 @@ What it doesn't do: it is a local check, so code that calls your pay function di
 Keep the unwrapped function out of the agent's reach. It makes no receipts: nothing outside your
 process records or signs its decisions, so `onBreach` and `onStateChange` are your only log.
 
+### Budgets
+
+For many small payments to one payee, such as an API that charges $0.001 a call, ask for a budget
+and check each payment against it. The budget is checked once against the rules; each payment is
+checked against the budget with no rule check and no network call, in exact micro-dollars
+(millionths of a dollar), so $0.001 counts as $0.001. Budgets need `invoiceMatching: false`.
+
+```ts
+const budget = await guard.budget({ account: "0x1111111111111111111111111111111111111111", amountUsd: 1 });
+
+await budget.spend(1_000); // $0.001: throws PaymentBlockedError in Enforce mode if it doesn't fit
+await budget.close(); // the unspent part stops counting toward the day
+```
+
+- **The check:** the payee must be a vendor's account (`unknown_payee`), the whole budget must fit
+  in what's left of the day (`over_daily_cap`), and with `maxPaymentsPerHour` there must be room
+  for a payment (`over_hourly_limit`). Enforce throws `PaymentBlockedError`; Monitor opens it and
+  reports the breach.
+- **The terms** (`budget.terms`): the payee, the budget, the most one payment may be
+  (`maxPaymentUsd`, default the mandate's per-payment limit), how many payments it covers (what's
+  left of the hour, with an hourly limit) and its end (`ttlSeconds`, an hour at most).
+- **Each payment:** `spend(amountMicros)` checks it against the terms. One that doesn't fit breaks
+  `over_budget`: Enforce throws and doesn't count it; Monitor counts it and reports it. Spend
+  before you pay. `release(id)` takes back one the payee turned down.
+- **The day:** the whole budget counts toward the daily limit until `close()`; then what was spent,
+  rounded up to the cent. A budget past its end is closed the next time one is opened.
+- **The hosted gate:** `gate.budget(...)` is the same, with a signed receipt whose input commits to
+  the terms; the SDK checks the receipt, recomputes the input's hash and reruns its rules. Payments
+  go to the gate in the background and on `close()`, whose receipt commits to every one. Unclosed
+  budgets close themselves soon after they end.
+
 ### x402
 
-For an agent that pays for APIs with [x402](https://x402.org), check each payment before the x402
+For an agent that pays for APIs with [x402](https://x402.org): check each payment before the x402
 client signs it. Turn invoice matching off, and put each service's `payTo` address on the vendor
 list, so the agent pays only services you chose:
 
 ```ts
 import { wrapFetchWithPayment, x402Client } from "@x402/fetch";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
-import { guardX402Client } from "@bondedhq/sdk/x402";
+import { x402Guard } from "@bondedhq/sdk/x402";
 
-const guard = paymentGuard({
-  mandate: { mode: "enforce", invoiceMatching: false, maxPaymentUsd: 1, maxDailyUsd: 20, maxPaymentsPerHour: 100, freezeOnBreach: false },
-  vendors: [{ id: "weather-api", account: "0x1111111111111111111111111111111111111111" }],
-  onBreach: (breach) => alert(breach),
-});
+const guard = paymentGate({ apiKey: process.env.BONDED_GATE_KEY! }); // or a local paymentGuard
+const x402 = x402Guard({ guard, budget: { amountUsd: 1 } });
+const client = x402.register(new x402Client().register("eip155:*", new ExactEvmScheme(signer)));
+const paidFetch = wrapFetchWithPayment(fetch, client);
 
-const client = new x402Client().register("eip155:*", new ExactEvmScheme(signer));
-const paidFetch = wrapFetchWithPayment(fetch, guardX402Client(client, { guard }));
+// ...and when the agent stops:
+await x402.close();
 ```
 
+- The first payment to a service opens a budget for it (`budget.amountUsd`, default $1, raised to
+  fit a bigger price). Each payment then checks against that budget, exact to the micro-dollar.
+  When it's used up or ends, the next payment closes it and opens another.
 - A refused payment is never signed: the request fails with the reason. Monitor mode signs it and
   reports the breach.
+- A payment the server turns down (it answers 402 again, or settlement fails) is taken back. One
+  that settles is reported with its transaction hash.
 - Prices count only in USDC on the networks x402 lists it for (Base, Ethereum, Arbitrum, Polygon,
-  Avalanche and Solana, plus Base Sepolia and Solana devnet). A price in any other token is refused; add your own
-  dollar stablecoins with `assets`.
-- The rules count whole cents, so a price under a cent counts as one cent. Limits err on the safe
-  side.
-- A payment the guard allows counts as made from then on, even if the server then turns it down.
-- Pass the hosted `gate` as `guard` for a logged decision and a signed receipt per payment. Turn
-  invoice matching off on the gate account.
-- `x402PaymentCheck({ guard })` is the hook on its own, for an `x402Client` you set up elsewhere
-  (`client.onBeforePaymentCreation(hook)`).
+  Avalanche and Solana, plus Base Sepolia and Solana devnet). A price in any other token is
+  refused; add your own dollar stablecoins with `assets`.
+- `guardX402Client(client, { guard })` registers a guard and returns the client, if you never close
+  budgets yourself. `x402Price(requirements)` gives the payee and exact price it reads.
 
 ## Hosted payment gate (off chain)
 

@@ -263,6 +263,7 @@ describe("payment mandate: payments with no invoice", () => {
       "over_hourly_limit",
       "skipped_gate",
       "blocked_merchant",
+      "over_budget",
     ]);
     expect(PAYMENT_RULES).not.toContain("skipped_gate");
     expect(PAYMENT_RULES).not.toContain("blocked_merchant");

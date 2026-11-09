@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { GATE_RULE_WORDS, type GateRule } from "@bondedhq/shared";
 import {
-  dollars,
+  decisionTitle,
   decisionFromReceipt,
   gateApi,
   parseSharedReceipt,
@@ -113,7 +113,7 @@ function Checked({ shared, result }: { shared: SharedReceipt; result: Verificati
           <span className="font-semibold">
             {r.kind === "bank_change"
               ? "Bank change"
-              : `${r.kind === "refund" ? "Refund" : "Payment"} of ${dollars(r.amountCents / 100)}`}
+              : decisionTitle({ kind: r.kind, amountUsd: r.amountCents / 100, vendorId: null })}
           </span>
           <span className="font-mono text-[0.92em] text-muted">{r.payee}</span>
           {r.reference && <span className="text-muted">{r.reference}</span>}

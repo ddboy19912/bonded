@@ -10,6 +10,14 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { canonicalJson } from "./canonical.js";
 import {
+  type BudgetSpend,
+  type BudgetTerms,
+  checkBudget,
+  MAX_BUDGET_MS,
+  microsToCentsUp,
+  replayBudget,
+} from "./payment-budget.js";
+import {
   checkGeneralPayment,
   checkInvoicePayment,
   checkRefundPayment,
@@ -35,9 +43,18 @@ export type GateMode = (typeof GATE_MODES)[number];
 /**
  * What a check is about: a supplier invoice, a customer refund, a vendor's bank change, a
  * supplier invoice paid with a gate card (Stripe Issuing asking before a charge, or a card
- * transaction that settled), or a payment on an account with invoice matching off.
+ * transaction that settled), a payment on an account with invoice matching off, a budget for many
+ * small payments to one payee, or the close of a budget with everything spent against it.
  */
-export const GATE_CHECK_KINDS = ["invoice", "refund", "bank_change", "card", "payment"] as const;
+export const GATE_CHECK_KINDS = [
+  "invoice",
+  "refund",
+  "bank_change",
+  "card",
+  "payment",
+  "budget",
+  "budget_close",
+] as const;
 export type GateCheckKind = (typeof GATE_CHECK_KINDS)[number];
 
 /** The rule verdict: no rule broken, a rule broken, or not checked (the account is frozen). */
@@ -140,7 +157,41 @@ export type GateInput =
     }
   | GateCardInput
   | GatePaymentInput
-  | GateCardChargeInput;
+  | GateCardChargeInput
+  | GateBudgetInput
+  | GateBudgetCloseInput;
+
+/**
+ * A budget: many small payments to one payee, checked once (`checkBudget`). `attempt.amountCents`
+ * is the budget and `reference` is empty. `terms` is what the gate grants; the receipt's input
+ * hash commits to them, and `evaluateGateInput` checks they follow from the rest of the input.
+ */
+export interface GateBudgetInput {
+  kind: "budget";
+  day: string;
+  limits: Limits & { maxPaymentsPerHour: number | null };
+  attempt: Attempt;
+  payees: KnownPayee[];
+  payments: GatePaidPayment[];
+  /** Payments made in the hour before this check. */
+  paymentsLastHour: number;
+  /** Payments open budgets may still make. */
+  reservedPayments: number;
+  terms: BudgetTerms;
+}
+
+/**
+ * A budget's close: its terms and every payment reported against it, in the order they were
+ * reported. The receipt's amount is what was spent, in cents rounded up; the input hash commits
+ * to each payment's exact amount. `over_budget` when any payment broke the terms.
+ */
+export interface GateBudgetCloseInput {
+  kind: "budget_close";
+  /** The budget's decision id. */
+  budgetId: string;
+  terms: BudgetTerms;
+  spends: BudgetSpend[];
+}
 
 /** A payment on an account with invoice matching off (`checkGeneralPayment`). */
 export interface GatePaymentInput {
@@ -153,6 +204,11 @@ export interface GatePaymentInput {
   payments: GatePaidPayment[];
   /** Payments made in the hour before this check. */
   paymentsLastHour: number;
+  /**
+   * Payments open budgets may still make, which count toward the hourly limit too. Left out when
+   * none, so a payment input hashes as it did before budgets existed.
+   */
+  reservedPayments?: number;
 }
 
 /** The card programs whose real-time approval question the gate answers (a card hook). */
@@ -181,6 +237,8 @@ export interface GateCardChargeInput {
   payments: GatePaidPayment[];
   /** Payments made in the hour before this charge. */
   paymentsLastHour: number;
+  /** Payments open budgets may still make; left out when none. */
+  reservedPayments?: number;
 }
 
 /**
@@ -307,6 +365,17 @@ export function evaluateGateInput(input: GateInput): GateVerdict {
   if (input.kind === "card") return evaluateCardInput(input);
   if (input.kind === "payment") return evaluatePaymentInput(input);
   if (input.kind === "card_charge") return evaluateCardChargeInput(input);
+  if (input.kind === "budget") return evaluateBudgetInput(input);
+  if (input.kind === "budget_close") {
+    const replay = replayBudget(input.terms, input.spends);
+    return {
+      ok: true,
+      rules: replay.problems.length ? ["over_budget"] : [],
+      vendorId: null,
+      lossCents: 0,
+      overpaidCents: 0,
+    };
+  }
   const limits = {
     maxPaymentUsd: usd(input.limits.maxPaymentCents),
     maxDailyUsd: usd(input.limits.maxDailyCents),
@@ -410,7 +479,7 @@ function evaluatePaymentInput(input: GatePaymentInput): GateVerdict {
       },
       payees: input.payees,
       payments: paid(input.payments),
-      paymentsLastHour: input.paymentsLastHour,
+      paymentsLastHour: input.paymentsLastHour + (input.reservedPayments ?? 0),
       day: input.day,
     },
     {
@@ -438,11 +507,47 @@ function evaluateCardChargeInput(input: GateCardChargeInput): GateVerdict {
     payees: input.payees,
     payments: input.payments,
     paymentsLastHour: input.paymentsLastHour,
+    ...(input.reservedPayments ? { reservedPayments: input.reservedPayments } : {}),
   });
   if (!verdict.ok || !CARD_HOOK_BLOCKED_MCCS.includes(input.merchant.mcc)) return verdict;
   const rules = new Set([...verdict.rules, "blocked_merchant"]);
   return { ...verdict, rules: GATE_RULES.filter((r) => rules.has(r)) };
 }
+
+function evaluateBudgetInput(input: GateBudgetInput): GateVerdict {
+  const check = checkBudget(
+    {
+      limits: {
+        maxPaymentUsd: usd(input.limits.maxPaymentCents),
+        maxDailyUsd: usd(input.limits.maxDailyCents),
+        maxPaymentsPerHour: input.limits.maxPaymentsPerHour,
+      },
+      payees: input.payees,
+      payments: paid(input.payments),
+      paymentsLastHour: input.paymentsLastHour,
+      reservedPayments: input.reservedPayments,
+      day: input.day,
+    },
+    { account: input.attempt.account, budgetUsd: usd(input.attempt.amountCents) },
+  );
+  if (!check.ok) return check;
+  const t = input.terms;
+  const consistent =
+    t.account === normalAccount(input.attempt.account) &&
+    t.budgetMicros === input.attempt.amountCents * 10_000 &&
+    t.maxPayments === check.maxPayments &&
+    Number.isSafeInteger(t.maxPaymentMicros) &&
+    t.maxPaymentMicros > 0 &&
+    t.maxPaymentMicros <= input.limits.maxPaymentCents * 10_000 &&
+    t.expiresAtMs > t.startsAtMs &&
+    t.expiresAtMs - t.startsAtMs <= MAX_BUDGET_MS;
+  if (!consistent) return { ok: false, error: "the budget's terms don't follow from its input" };
+  return { ok: true, rules: check.rules, vendorId: check.vendorId, lossCents: 0, overpaidCents: 0 };
+}
+
+/** What a budget close's receipt counts as spent: every payment, in whole cents rounded up. */
+export const budgetCloseCents = (input: GateBudgetCloseInput) =>
+  microsToCentsUp(replayBudget(input.terms, input.spends).spentMicros);
 
 /** A decision as Bonded signs it. */
 export interface GateReceipt {
@@ -454,7 +559,10 @@ export interface GateReceipt {
   mode: GateMode;
   /** The rules broken, most serious first. */
   rules: GateRule[];
-  /** Zero for a bank change. */
+  /**
+   * Zero for a bank change. A budget's is the budget; a budget close's is what was spent, rounded
+   * up to the cent (the exact amounts are in its input).
+   */
   amountCents: number;
   /** The account paid (or, for a bank change, the new account), as `normalAccount` gives it. */
   payee: string;

@@ -35,5 +35,6 @@ export * from "./suggested-mandate.js";
 export * from "./notifications.js";
 export * from "./troubleshooting-doc.js";
 export * from "./payment-mandate.js";
+export * from "./payment-budget.js";
 export * from "./gate-receipt.js";
 export * from "./gate-log.js";
