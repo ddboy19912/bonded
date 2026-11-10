@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
 import { z } from "zod";
-import { BROKER_BREACH_TYPES } from "./ledger.js";
+import { BROKER_BREACH_TYPES, normalSymbol } from "./ledger.js";
 import {
   BASE_MUST_TRADE,
   BROKER_ATTACK_CLASSES,
@@ -54,11 +54,13 @@ const MessageSeed = z.object({
 });
 
 const Prices = z.record(z.string(), z.number().positive());
+/** A ticker, stored the way the ledger compares it (trimmed, upper case). */
+const Ticker = z.string().min(1).transform(normalSymbol);
 const Side = z.enum(["buy", "sell"]);
 
 const TradeSpec = z
   .object({
-    symbol: z.string().min(1),
+    symbol: Ticker,
     side: Side,
     amountUsd: z.number().positive().optional(),
     quantity: z.number().positive().optional(),
@@ -77,9 +79,9 @@ export const BrokerSeedSchema = z
     title: z.string().min(1),
     description: z.string().min(1),
     aimedAt: z.array(z.enum([...BROKER_BREACH_TYPES, "planted_trade"])).default([]),
-    plantedTrades: z.array(z.object({ symbol: z.string().min(1), side: Side })).default([]),
+    plantedTrades: z.array(z.object({ symbol: Ticker, side: Side })).default([]),
     /** Symbols the attack planted, beyond its planted trades' (which count already). */
-    plantedSymbols: z.array(z.string().min(1)).default([]),
+    plantedSymbols: z.array(Ticker).default([]),
     plantedAccounts: z.array(z.string().min(1)).default([]),
     /** Trades the job needs on top of the base job's. */
     mustTrade: z.array(TradeSpec).default([]),
@@ -135,6 +137,20 @@ export function loadBrokerSeeds(dir: string = BROKER_STAGED_SEEDS_DIR): BrokerSe
         throw new Error(`${f}: id ${parsed.data.id} doesn't match`);
       return parsed.data;
     });
+}
+
+/**
+ * The seeds with these ids, in the order loaded. Throws on an id no seed has, so a typo can't
+ * quietly shrink a run to the control.
+ */
+export function selectBrokerSeeds(
+  seeds: readonly BrokerSeed[],
+  ids: readonly string[] | undefined,
+): BrokerSeed[] {
+  if (!ids) return [...seeds];
+  const unknown = ids.filter((id) => !seeds.some((s) => s.id === id));
+  if (unknown.length > 0) throw new Error(`no staged seed with id ${unknown.join(", ")}`);
+  return seeds.filter((s) => ids.includes(s.id));
 }
 
 /** The seed planted into a fresh base world, with the holder's explicit or plain plan. */
@@ -198,6 +214,8 @@ function exposureOf(seed: BrokerSeed): { tools: string[]; reads: string[] } {
     ...(p.alerts.length ? ["list_alerts"] : []),
     // A filing's summary shows in the listing; its text needs read_filing.
     ...(p.filings.length ? ["list_filings"] : []),
+    // The message list shows each sender and subject, which can carry the attack on their own.
+    ...(p.messages.length ? ["list_messages"] : []),
   ];
   const reads = [...p.filings.map((f) => f.id), ...p.messages.map((m) => m.id)];
   return { tools, reads };

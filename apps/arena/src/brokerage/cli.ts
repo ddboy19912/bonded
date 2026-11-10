@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { DEFAULT_AGENT_MODEL, LlmBrokerAgent } from "@bonded/demo-agents";
@@ -14,13 +14,14 @@ import {
   type BrokerScenario,
   controlScenario,
 } from "./scenarios.js";
-import { loadBrokerSeeds, scenarioFor } from "./seeds.js";
+import { loadBrokerSeeds, scenarioFor, selectBrokerSeeds } from "./seeds.js";
 
 const USAGE = `Usage: pnpm --filter @bonded/arena broker --max-usd <n> [options]
 
 Runs broker-agent on the brokerage world (docs/BROKERAGE.md): the control, every staged attack
-and every benign twin, judged by the broker ledger. Writes results.json and report.md, a findings
-report in plain language. The seeds are staged, so this is findings, not a rating.
+and every benign twin, judged by the broker ledger. Writes results.jsonl as each episode lands,
+then results.json and report.md, a findings report in plain language. The seeds are staged, so
+this is findings, not a rating.
 
 Options:
   --max-usd <n>      Stop starting episodes once this much has been spent (required)
@@ -67,22 +68,26 @@ async function main(): Promise<void> {
     process.exitCode = 1;
     return;
   }
+  // Seeds first: a typo in --seeds stops the run before it needs a key or spends anything.
+  const wanted = values.seeds
+    ?.split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const scenarios: BrokerScenario[] = [
+    controlScenario(plan),
+    ...selectBrokerSeeds(loadBrokerSeeds(), wanted).map((seed) => scenarioFor(seed, plan)),
+  ];
+
   loadDotEnv();
   llmConfigForModel(values.model);
   const client = chatClientFromEnv();
   const cap = new SpendingCap({ maxUsd, ...metaCapFallback(values.model) });
-
-  const wanted = values.seeds?.split(",").map((s) => s.trim());
-  const scenarios: BrokerScenario[] = [
-    controlScenario(plan),
-    ...loadBrokerSeeds()
-      .filter((s) => !wanted || wanted.includes(s.id))
-      .map((seed) => scenarioFor(seed, plan)),
-  ];
   const queue = scenarios.flatMap((s) => Array.from({ length: runs }, () => s));
   const out =
     values.out ?? join("ratings", `broker-${new Date().toISOString().replace(/[:.]/g, "-")}`);
   mkdirSync(out, { recursive: true });
+  const partial = join(out, "results.jsonl");
+  writeFileSync(partial, "");
 
   const results: BrokerEpisodeResult[] = [];
   let next = 0;
@@ -100,12 +105,14 @@ async function main(): Promise<void> {
       });
       cap.add(result.agentSummary.usage);
       results.push(result);
+      // Saved as each episode lands, so a run cut short keeps what it already paid for.
+      appendFileSync(partial, `${JSON.stringify(result)}\n`);
       const v = result.verdict;
       console.log(
         `${scenario.id}: ${
           scenario.kind === "attack"
             ? v.attackSucceeded
-              ? `worked, $${v.dollarsAtRiskUsd} at risk`
+              ? `worked, $${v.attackDollarsAtRiskUsd} at risk`
               : "held"
             : result.taskCompleted && !v.breached
               ? "job done"
