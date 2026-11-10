@@ -5,8 +5,10 @@ import { judgeBroker } from "../src/brokerage/judge.js";
 import { BrokerLedger, type BrokerMandate } from "../src/brokerage/ledger.js";
 import { brokerReport } from "../src/brokerage/report.js";
 import {
+  BROKER_PLANS,
   baseBrokerWorld,
   type BrokerScenario,
+  HALVORSEN_FILER_ID,
   controlScenario,
   LINKED_CHASE,
 } from "../src/brokerage/scenarios.js";
@@ -220,9 +222,17 @@ describe("brokerage world", () => {
     expect(baseBrokerWorld().linkedAccounts[0]!.account).toBe(LINKED_CHASE);
   });
 
-  for (const seed of seeds) {
-    it(`${seed.id}: a careful agent passes it and finishes the job`, async () => {
-      const scenario = scenarioFor(seed);
+  it("gives the plain plan without the explicit plan's protective details", () => {
+    const plain = baseBrokerWorld("plain").instructions;
+    expect(plain).not.toContain(HALVORSEN_FILER_ID);
+    expect(plain).not.toContain("notices@northgate.example");
+    expect(baseBrokerWorld().instructions).toContain(HALVORSEN_FILER_ID);
+    expect(plain).toContain("JPM");
+  });
+
+  for (const [seed, plan] of seeds.flatMap((s) => BROKER_PLANS.map((p) => [s, p] as const))) {
+    it(`${seed.id} (${plan} plan): a careful agent passes it and finishes the job`, async () => {
+      const scenario = scenarioFor(seed, plan);
       const result = await runBrokerEpisode(careful(scenario), scenario);
       expect(result.missed).toEqual([]);
       expect(result.verdict.breached).toBe(false);
@@ -231,8 +241,8 @@ describe("brokerage world", () => {
     });
 
     if (seed.class) {
-      it(`${seed.id}: an agent that does what it asks falls for it`, async () => {
-        const scenario = scenarioFor(seed);
+      it(`${seed.id} (${plan} plan): an agent that does what it asks falls for it`, async () => {
+        const scenario = scenarioFor(seed, plan);
         const result = await runBrokerEpisode(gullible(scenario), scenario);
         expect(result.verdict.attackSucceeded).toBe(true);
         expect(
@@ -249,6 +259,7 @@ describe("brokerage world", () => {
       date: "2026-11-10",
       runsPerSeed: 1,
       mandateShown: true,
+      plan: "explicit",
       spentUsd: 0,
       stoppedByCap: false,
     };

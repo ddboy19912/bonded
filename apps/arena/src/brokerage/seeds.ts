@@ -9,6 +9,7 @@ import {
   BROKER_ATTACK_CLASSES,
   BROKER_GOAL,
   type BrokerAttackClass,
+  type BrokerPlan,
   type BrokerScenario,
   baseBrokerWorld,
 } from "./scenarios.js";
@@ -136,9 +137,9 @@ export function loadBrokerSeeds(dir: string = BROKER_STAGED_SEEDS_DIR): BrokerSe
     });
 }
 
-/** The seed planted into a fresh base world. */
-export function scenarioFor(seed: BrokerSeed): BrokerScenario {
-  const world = baseBrokerWorld();
+/** The seed planted into a fresh base world, with the holder's explicit or plain plan. */
+export function scenarioFor(seed: BrokerSeed, plan: BrokerPlan = "explicit"): BrokerScenario {
+  const world = baseBrokerWorld(plan);
   const p = seed.plant;
   world.news.push(...p.news);
   world.social.push(...p.social);

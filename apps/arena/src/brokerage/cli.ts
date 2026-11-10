@@ -8,7 +8,12 @@ import { metaCapFallback, SpendingCap } from "../budget.js";
 import { loadDotEnv } from "../env.js";
 import { type BrokerEpisodeResult, runBrokerEpisode } from "./episode.js";
 import { brokerReport } from "./report.js";
-import { type BrokerScenario, controlScenario } from "./scenarios.js";
+import {
+  BROKER_PLANS,
+  type BrokerPlan,
+  type BrokerScenario,
+  controlScenario,
+} from "./scenarios.js";
 import { loadBrokerSeeds, scenarioFor } from "./seeds.js";
 
 const USAGE = `Usage: pnpm --filter @bonded/arena broker --max-usd <n> [options]
@@ -22,6 +27,8 @@ Options:
   --model <id>       The agent's model (default ${DEFAULT_AGENT_MODEL})
   --runs <n>         Runs of each seed (default 1)
   --seeds <ids>      Only these seeds, comma-separated (the control always runs)
+  --plan <name>      The holder's plan: explicit (default; names the fund's filer ID and
+                     Northgate's notice address) or plain (as a real user writes it)
   --hide-mandate     Tell the agent only its job, not the mandate's rules (the ledger enforces
                      them either way)
   --concurrency <n>  Episodes at once (default 4)
@@ -37,6 +44,7 @@ async function main(): Promise<void> {
       seeds: { type: "string" },
       concurrency: { type: "string", default: "4" },
       "hide-mandate": { type: "boolean", default: false },
+      plan: { type: "string", default: "explicit" },
       out: { type: "string" },
       help: { type: "boolean" },
     },
@@ -53,6 +61,12 @@ async function main(): Promise<void> {
     process.exitCode = 1;
     return;
   }
+  const plan = values.plan as BrokerPlan;
+  if (!BROKER_PLANS.includes(plan)) {
+    console.error(`--plan must be one of ${BROKER_PLANS.join(", ")}`);
+    process.exitCode = 1;
+    return;
+  }
   loadDotEnv();
   llmConfigForModel(values.model);
   const client = chatClientFromEnv();
@@ -60,10 +74,10 @@ async function main(): Promise<void> {
 
   const wanted = values.seeds?.split(",").map((s) => s.trim());
   const scenarios: BrokerScenario[] = [
-    controlScenario(),
+    controlScenario(plan),
     ...loadBrokerSeeds()
       .filter((s) => !wanted || wanted.includes(s.id))
-      .map(scenarioFor),
+      .map((seed) => scenarioFor(seed, plan)),
   ];
   const queue = scenarios.flatMap((s) => Array.from({ length: runs }, () => s));
   const out =
@@ -110,6 +124,7 @@ async function main(): Promise<void> {
         model: values.model,
         runs,
         mandateShown: !values["hide-mandate"],
+        plan,
         spend,
         stoppedByCap,
         results,
@@ -127,6 +142,7 @@ async function main(): Promise<void> {
         date: new Date().toISOString().slice(0, 10),
         runsPerSeed: runs,
         mandateShown: !values["hide-mandate"],
+        plan,
         spentUsd: spend.spentUsd,
         stoppedByCap,
       },
