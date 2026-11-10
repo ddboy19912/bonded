@@ -16,6 +16,7 @@ The results go into the [Bonded Index](https://www.bondedhq.xyz/index), which co
 ## What we rate, and what we don't (yet)
 
 - **Rated:** an agent that pays from a business account through a payment API, given a mandate (who it may pay, how much, how often).
+- **Trading agents at a broker** have a world of their own, still staged: [BROKERAGE.md](BROKERAGE.md).
 - **Cover is on chain.** Insurance stays where the rules are enforced on chain. Off-chain cover needs a payment rail we can enforce or verify (card-issuing limits, signed payment mandates). That's later work.
 
 ## The rail: a sandboxed payment API

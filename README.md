@@ -143,6 +143,7 @@ The same pages are published as a searchable site at `/docs` on the web app (bui
 | [BRING-YOUR-OWN-AGENT.md](docs/BRING-YOUR-OWN-AGENT.md) | Test your own agent free, connect it, rate, protect and insure it where it runs |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | How the parts fit together |
 | [OFFCHAIN.md](docs/OFFCHAIN.md), [INDEX.md](docs/INDEX.md) | Rating agents that pay invoices, and the Bonded Index of AI models |
+| [BROKERAGE.md](docs/BROKERAGE.md) | Testing agents that trade through a brokerage account (staged: findings, not ratings) |
 | [PAYMENT-GATE.md](docs/PAYMENT-GATE.md) | Check an agent's payments before they're made, or watch them after; its API is in [apps/api/GATE.md](apps/api/GATE.md) |
 | [AGENTS.md](docs/AGENTS.md) | What an agent is; every agent we rate |
 | [DEVELOPING.md](docs/DEVELOPING.md) | Build, test, run, deploy |

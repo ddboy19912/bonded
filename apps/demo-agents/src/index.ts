@@ -43,6 +43,7 @@ export {
   type GuardVerdict,
   PolicyGuard,
 } from "./hardened/guard.js";
+export { BROKER_SYSTEM_PROMPT, LlmBrokerAgent, type LlmBrokerAgentOptions } from "./broker/llm.js";
 export { GuardedAgent } from "./guarded.js";
 export { LlmHardenedAgent, type LlmHardenedAgentOptions } from "./hardened/llm.js";
 export { ScriptedHardenedAgent } from "./hardened/scripted.js";
