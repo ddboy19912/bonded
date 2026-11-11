@@ -167,4 +167,4 @@ Assumptions: one agent template, 3 runs of each episode per briefing, one simula
 
 1. **Release.** Runner 0.1.4, SDK 0.1.7 and shared 0.1.6 carry protocol 2, so partners can use `npx @bondedhq/runner --world brokerage` and `onBrokerageEpisode` for brokerage previews. The gateway must be deployed before the runner is published: only an updated gateway accepts a runner started with `--world brokerage`. Vault-world runners are unaffected either way, because they still say protocol 1. The same gateway change can serve the invoice world next, so outside invoice-paying agents can be tested too.
 2. **Broker tool names.** Offer the world under the tool names real broker integrations use, so a team points its agent at Bonded instead of its broker with no code changes. Start with the broker the first partner uses.
-3. **More models.** Rate the dearer Index models on the stock-trading rows (Sonnet 5.5, Muse Spark Open) when a pitch or partner needs the comparison.
+3. **More models.** Rate Claude Sonnet 5.5 or Haiku 5.5 on the stock-trading rows when a pitch or partner needs the comparison. Muse models are no longer tested.
