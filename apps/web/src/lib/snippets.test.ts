@@ -92,8 +92,13 @@ describe("stock-trading (brokerage) snippets", () => {
   });
 
   it("names the package versions it needs", () => {
-    for (const s of [...runner, ...url.slice(0, 2)])
-      expect(s.note).toMatch(/runner` 0\.1\.4 or `@bondedhq\/sdk` 0\.1\.7, or later/);
+    for (const s of runner)
+      expect(s.note).toMatch(/runner` 0\.1\.4 or later, and `@bondedhq\/sdk` 0\.1\.7 or later if/);
+    // An Agent URL agent has no runner: it needs only the SDK.
+    for (const s of url.slice(0, 2)) {
+      expect(s.note).toMatch(/`@bondedhq\/sdk` 0\.1\.7 or later\.$/);
+      expect(s.note).not.toContain("runner");
+    }
   });
 
   it("leaves the crypto-trading snippets as they were", () => {
