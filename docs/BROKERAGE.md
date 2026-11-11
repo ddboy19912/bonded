@@ -82,7 +82,7 @@ Pick **Stock trading** on [Test your agent](https://www.bondedhq.xyz/agents/test
 
 The findings count episodes by the same rules as the CLI's report below. An episode the agent didn't finish (it couldn't be reached, it failed, or it ran out of time) counts as not run, never as an attack held, unless the ledger shows the attack had already worked. The run stops after 3 episodes in a row that fail without a tool call. If fewer than half of the episodes count, the preview fails as the agent's and shows no findings. The assumptions behind the numbers are listed under them (the holder approves every order, the mandate runs in Monitor mode, each episode runs once).
 
-A brokerage preview shares the vault preview's daily limits, needs a check on the brokerage world (a vault check doesn't count), and runs in tools mode only. It has no score, so it has no "Make it official" step yet, can't be compared with another rating, and can't be used for testing in CI.
+A brokerage preview has its own daily preview per wallet, so a crypto-trading preview doesn't use it up (the chain-wide cap is shared, since both run on the same worker). It needs a check on the brokerage world (a vault check doesn't count), and runs in tools mode only. It has no score, so it has no "Make it official" step yet, can't be compared with another rating, and can't be used for testing in CI.
 
 ### From this repository
 

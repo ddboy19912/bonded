@@ -119,12 +119,6 @@ export function TestAgent() {
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<unknown>(null);
 
-  const allowance = useQuery({
-    queryKey: ["preview-allowance", address],
-    queryFn: () => byoaApi.previewAllowance(address!),
-    enabled: Boolean(address),
-    refetchInterval: 60_000,
-  });
   const previews = useQuery({
     queryKey: ["previews", session?.session],
     queryFn: () => byoaApi.listPreviews(session!.session),
@@ -149,6 +143,14 @@ export function TestAgent() {
           : streaming
             ? false
             : 15_000,
+  });
+  // Each world has its own daily preview: ask about the open preview's world, else the one chosen.
+  const allowanceWorld = preview.data?.world ?? world;
+  const allowance = useQuery({
+    queryKey: ["preview-allowance", address, allowanceWorld],
+    queryFn: () => byoaApi.previewAllowance(address!, allowanceWorld),
+    enabled: Boolean(address),
+    refetchInterval: 60_000,
   });
   const previewKey = ["preview", previewId, session?.session];
   const over = preview.data ? FINISHED.includes(preview.data.status) : false;

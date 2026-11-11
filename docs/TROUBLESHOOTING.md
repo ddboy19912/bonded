@@ -788,6 +788,24 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 **What to do:** Verify the new merchant with the vendor out of band, add a ticket for that vendor with the account `card:&lt;network id&gt;`, then send its id as `ticket`.
 
+### gate-budget-needs-no-invoices
+
+**Message:** Budgets are for payments with no invoices: turn invoice matching off on this gate account.
+
+**What to do:** A budget limits what an agent spends when it pays without invoices. Turn invoice matching off on the account (PUT /gate/accounts/:id with `invoiceMatching: false`), or keep it on and check each payment against its invoice instead.
+
+### gate-budget-closed
+
+**Message:** That budget is closed: open a new one.
+
+**What to do:** A closed budget takes no more spends. Open a new budget with POST /payments/budgets and send its spends there.
+
+### gate-budget-close-expired
+
+**Message:** That budget was closed and its log entry has expired.
+
+**What to do:** The budget is closed, but the decision that closed it was deleted after the retention period, so its receipt can't be given again. Keep close receipts you may need before the retention period (GATE_DECISION_RETENTION_DAYS) ends.
+
 ## Data APIs and testing in CI
 
 ### data-key-missing

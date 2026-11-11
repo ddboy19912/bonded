@@ -937,6 +937,28 @@ export const PROBLEMS: readonly ProblemEntry[] = [
     "Verify the new merchant with the vendor out of band, add a ticket for that vendor with the account `card:<network id>`, then send its id as `ticket`.",
     /card merchant changes only with a verified ticket/i,
   ),
+  // Budgets (POST /payments/budgets and its spends and close).
+  entry(
+    "gate-budget-needs-no-invoices",
+    "gate",
+    "Budgets are for payments with no invoices: turn invoice matching off on this gate account.",
+    "A budget limits what an agent spends when it pays without invoices. Turn invoice matching off on the account (PUT /gate/accounts/:id with `invoiceMatching: false`), or keep it on and check each payment against its invoice instead.",
+    /budgets are for payments with no invoices/i,
+  ),
+  entry(
+    "gate-budget-closed",
+    "gate",
+    "That budget is closed: open a new one.",
+    "A closed budget takes no more spends. Open a new budget with POST /payments/budgets and send its spends there.",
+    /budget is closed: open a new one/i,
+  ),
+  entry(
+    "gate-budget-close-expired",
+    "gate",
+    "That budget was closed and its log entry has expired.",
+    "The budget is closed, but the decision that closed it was deleted after the retention period, so its receipt can't be given again. Keep close receipts you may need before the retention period (GATE_DECISION_RETENTION_DAYS) ends.",
+    /budget was closed and its log entry has expired/i,
+  ),
   // The data APIs (/data and /ci): model risk data, testing in CI and attack data.
   entry(
     "data-key-missing",
