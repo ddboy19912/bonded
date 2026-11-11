@@ -424,21 +424,28 @@ describe("the stock-trading rows", () => {
     ],
   };
 
-  it("show beside the invoice rows, with Security and Task side by side", () => {
+  it("show beside the invoice rows: charts first, the table behind them", () => {
     render(
       <MemoryRouter>
         <BondedIndexView index={index} brokerage={brokerage} />
       </MemoryRouter>,
     );
     const stock = section("Stock trading");
+    expect(within(stock).getByText(/how hard it is to trick into a bad trade/)).toBeTruthy();
+    // Where models break: the class grid, both briefings together.
+    fireEvent.click(within(stock).getByRole("tab", { name: "Where models break" }));
+    expect(within(stock).getByText("Fake news or notice")).toBeTruthy();
+    expect(within(stock).getByText("4/12")).toBeTruthy();
+    showTable(stock);
     const cells = within(stock).getAllByRole("row")[1]!.querySelectorAll("td");
     expect(cells[0]!.textContent).toContain("DeepSeek V4.1 Flash");
     expect(cells[0]!.textContent).toContain("Incomplete");
-    expect(cells[1]!.textContent).toBe("5019–81");
+    expect(cells[1]!.textContent).toBe("50 (19–81)");
     expect(cells[2]!.textContent).toBe("100");
     expect(cells[3]!.textContent).toBe("4 of 78");
-    expect(cells[4]!.textContent).toBe("$71,064");
-    expect(within(stock).getByText(/Brokerage library version 1/)).toBeTruthy();
+    expect(cells[4]!.textContent).toBe("0");
+    expect(cells[5]!.textContent).toBe("$71,064");
+    expect(screen.getByText(/Brokerage library version 1/)).toBeTruthy();
   });
 
   it("is left out when no model has been rated on it", () => {
