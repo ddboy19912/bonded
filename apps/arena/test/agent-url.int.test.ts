@@ -167,7 +167,7 @@ describe("Agent URL episodes", () => {
     const through = await runEpisode(sandbox, { agent, attack: spec() });
     expect(verdictOf(through)).toEqual(verdictOf(local));
     const sent = at.received.find((m) => m.type === "episode")!;
-    const key = sent.type === "episode" ? sent.sessionKey : undefined;
+    const key = sent.type === "episode" && sent.world !== "brokerage" ? sent.sessionKey : undefined;
     expect(key).toMatch(/^0x[0-9a-f]{64}$/);
     const vaultAgent = await sandbox.publicClient.readContract({
       address: through.vault,

@@ -1,9 +1,10 @@
 import type { AgentRunSummary, AgentToolbox, ArenaAgent } from "@bondedhq/shared";
 import { describe, expect, it } from "vitest";
-import { runBrokerEpisode } from "../src/brokerage/episode.js";
+import { didNotFinish, neverRan, runBrokerEpisode } from "../src/brokerage/episode.js";
 import { judgeBroker } from "../src/brokerage/judge.js";
 import { BrokerLedger, type BrokerMandate } from "../src/brokerage/ledger.js";
 import { brokerReport } from "../src/brokerage/report.js";
+import { flagsNotForRemote, runBrokerQueue } from "../src/brokerage/run.js";
 import {
   BROKER_PLANS,
   baseBrokerWorld,
@@ -383,6 +384,111 @@ describe("brokerage world", () => {
       const result = await runBrokerEpisode(careful(scenario), scenario);
       const report = brokerReport(info, [scenario], [result]);
       expect(report).not.toContain("where an attack worked");
+      expect(report).toContain("Attacks worked in 0 of 1 attack episodes");
+      expect(report).not.toContain("didn't finish");
+    });
+
+    /** Fails after its plan, as an agent that crashes or runs out of time does. */
+    const thenFails = (plan: ArenaAgent, why: string): ArenaAgent => ({
+      name: "fails",
+      run: async (task, tools) => {
+        await plan.run(task, tools);
+        throw new Error(why);
+      },
+    });
+    const nothing = new ScriptedAgent(async () => {});
+
+    it("doesn't count an attack as held when the agent never finished the episode", async () => {
+      const scenario = scenarioFor(seed);
+      const held = await runBrokerEpisode(careful(scenario), scenario);
+      const unreached = await runBrokerEpisode(
+        thenFails(nothing, "no runner | connected"),
+        scenario,
+      );
+      expect(didNotFinish(held)).toBe(false);
+      expect(neverRan(unreached)).toBe(true);
+      expect(unreached.verdict.attackSucceeded).toBe(false);
+
+      const report = brokerReport(info, [scenario], [held, unreached]);
+      expect(report).toContain("**1 of 2 episodes didn't finish**");
+      // One finished episode held; the other isn't in the count.
+      expect(report).toContain("Attacks worked in 0 of 1 attack episodes");
+      expect(report).toContain("| 0 of 1 | 0 of 2 |");
+      expect(report).toContain(`| \`${scenario.id}\` | 0 | no runner \\| connected |`);
+
+      const none = brokerReport(info, [scenario], [unreached]);
+      expect(none).toContain("No attack episode finished");
+      expect(none).toContain("| not tested |");
+      expect(none).not.toMatch(/Attacks worked in/);
+    });
+
+    it("still counts an attack that worked before the agent failed", async () => {
+      const scenario = scenarioFor(seed);
+      const result = await runBrokerEpisode(thenFails(gullible(scenario), "timed out"), scenario);
+      expect(didNotFinish(result)).toBe(true);
+      expect(neverRan(result)).toBe(false);
+      expect(result.verdict.attackSucceeded).toBe(true);
+      const report = brokerReport(info, [scenario], [result]);
+      expect(report).toContain("Attacks worked in 1 of 1 attack episodes");
+      expect(report).toContain("## Episodes that didn't finish");
+    });
+
+    it("words the run for an outside agent, which runs its own model", () => {
+      const outside = { ...info, model: undefined, agentReportedUsd: 0.42 };
+      const report = brokerReport(outside, [], []);
+      expect(report).toContain("Run 2026-11-10 on the agent's own model,");
+      expect(report).toContain(
+        "Bonded spent nothing: the agent ran its own model (it reported $0.42 of its own spend).",
+      );
+      expect(brokerReport(info, [], [])).toContain("Run 2026-11-10 with none,");
+      expect(brokerReport(info, [], [])).toContain("Spend $0.00.");
+    });
+  });
+
+  describe("a run of episodes", () => {
+    const scenarios = seeds.slice(0, 5).map((s) => scenarioFor(s));
+    const unreachable: ArenaAgent = {
+      name: "unreachable",
+      run: () => Promise.reject(new Error("no runner is connected for this agent")),
+    };
+
+    it("stops when an outside agent fails three episodes in a row without a tool call", async () => {
+      const run = await runBrokerQueue(scenarios, () => unreachable, {
+        concurrency: 1,
+        stopAfterUnreached: 3,
+      });
+      expect(run.results).toHaveLength(3);
+      expect(run.stoppedEarly).toMatch(/3 episodes in a row.*no runner is connected/);
+      expect(run.stoppedByCap).toBe(false);
+    });
+
+    it("keeps going when a failure is followed by an episode that ran", async () => {
+      let n = 0;
+      const seen: string[] = [];
+      const run = await runBrokerQueue(
+        scenarios,
+        // Every other episode fails before a tool call: never three in a row.
+        () => (n++ % 2 === 0 ? unreachable : careful(scenarios[n - 1]!)),
+        { concurrency: 1, stopAfterUnreached: 3, onResult: (r) => seen.push(r.scenarioId) },
+      );
+      expect(run.results).toHaveLength(scenarios.length);
+      expect(run.stoppedEarly).toBeUndefined();
+      expect(seen).toEqual(scenarios.map((s) => s.id));
+    });
+
+    it("runs every episode for Bonded's own agent, whose failures are one episode's", async () => {
+      const run = await runBrokerQueue(scenarios, () => unreachable, { concurrency: 2 });
+      expect(run.results).toHaveLength(scenarios.length);
+      expect(run.stoppedEarly).toBeUndefined();
+    });
+
+    it("names the flags that do nothing for an outside agent", () => {
+      expect(flagsNotForRemote({ runs: "2", plan: "plain", agent: "remote" })).toEqual([]);
+      expect(flagsNotForRemote({ model: "x", concurrency: "4", "max-usd": "1" })).toEqual([
+        "--model",
+        "--concurrency",
+        "--max-usd",
+      ]);
     });
   });
 });

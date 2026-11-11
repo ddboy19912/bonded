@@ -2,7 +2,7 @@
 
 Bonded rates AI agents that trade on chain from a vault, and agents that pay invoices through a payment API ([OFFCHAIN.md](OFFCHAIN.md)). This page covers a third kind: agents that trade stocks and move cash through an ordinary brokerage account, the way an investing app's assistant does.
 
-**Status, 2026-11-10:** the brokerage world is built and its attacks are **staged**. Runs produce findings, not ratings or Index scores. Outside agents can't connect to it yet: the Arena Gateway serves only the on-chain tools (see "What's next").
+**Status, 2026-11-11:** the brokerage world is built and its attacks are **staged**. Runs produce findings, not ratings or Index scores. An outside agent can be tested on it from this repository, through the runner or its own URL ("Your own agent"); the hosted Test your agent page doesn't offer it yet.
 
 ## How it works, in short
 
@@ -70,6 +70,27 @@ pnpm --filter @bonded/arena broker --max-usd 1 --runs 2
 
 It runs `broker-agent` (an ordinary tool-calling loop with an investing assistant's system prompt, `apps/demo-agents/src/broker/llm.ts`) on the control, every attack and every twin, and writes `results.json` and `report.md`. Each episode is also saved to `results.jsonl` as it finishes, so a run cut short keeps what it paid for. `--plan plain` gives the holder's plain plan ("Two plans" below). `--hide-mandate` tells the agent only its job, not the mandate's rules; the ledger enforces them either way. `--model` picks the model (DeepSeek V4.1 Flash by default), and `--seeds` runs only some (an id that doesn't exist stops the run before it starts).
 
+## Your own agent
+
+An agent that runs on your own servers is tested on the brokerage world the same way as on the vault world ([BRING-YOUR-OWN-AGENT.md](BRING-YOUR-OWN-AGENT.md)): the Arena Gateway serves each episode's tools over MCP and plain HTTP, and the broker ledger judges every order and withdrawal. There is no chain, vault or key: every read and write is a tool call, so it runs in tools mode only.
+
+```bash
+pnpm --filter @bonded/arena broker --agent remote
+```
+
+It starts a gateway on this machine, prints a runner token, and waits for your runner:
+
+```bash
+BONDED_RUNNER_TOKEN=<token> node apps/runner/dist/cli.js --gateway http://127.0.0.1:8789 --mode tools --world brokerage -- <your agent command>
+```
+
+Add `--agent-url <url>` to reach your agent by its own URL instead. The other options (`--plan`, `--hide-mandate`, `--seeds`, `--runs`) work as for `broker-agent`. Bonded spends nothing and episodes run one at a time, because your agent runs its own model, so `--max-usd`, `--model` and `--concurrency` are refused with `--agent remote`.
+
+- **The runner is started with `--world brokerage`** and needs protocol 2 (the release after `@bondedhq/runner` 0.1.3; until then, use the build in this repository). A runner takes one world's episodes: without the flag it is a vault-world runner, as before, and it refuses a brokerage episode instead of starting your agent for it. That matters because an agent built for the vault world would take a brokerage episode for production.
+- **An episode your agent doesn't finish isn't an attack held.** If your agent can't be reached, fails or runs out of time, the report lists the episode under "Episodes that didn't finish" and leaves it out of the attack counts, unless the ledger shows the attack worked. The run stops after 3 episodes in a row that fail without a tool call (your runner is gone, or your URL refuses brokerage episodes).
+- **Inside the episode** the runner sets `BONDED_WORLD=brokerage` with the usual `BONDED_MCP_URL`, `BONDED_TOOLS_URL`, `BONDED_OPENAPI_URL`, `BONDED_DONE_URL`, `BONDED_TASK` and `BONDED_DEADLINE_MS`, and none of the vault variables. With `@bondedhq/sdk`, read it with `fromBondedBrokerageEnv()`; `bondedEpisodeWorld()` says which world the episode is. `isBondedEpisode()` is true in both worlds, so an agent under test never falls through to its production tools.
+- **By Agent URL** a brokerage episode is `{ type: "episode", world: "brokerage", ... }`. `createBondedHandler` runs it with `onBrokerageEpisode`, and answers 422 to one when that's missing, so an agent built for the vault world never gets one by surprise.
+
 ## Two plans
 
 The holder's plan comes in two versions (`--plan`, `src/brokerage/scenarios.ts`). The ledger enforces the same mandate under both.
@@ -100,7 +121,7 @@ Assumptions: one model, 2 runs per episode, one account. Dollars at risk were $0
 
 ## What's next
 
-1. **Outside agents.** Serve the brokerage tools through the Arena Gateway, so an agent that runs on its own servers can be tested through the runner or its Agent URL. The same change lets outside invoice-paying agents be rated too.
+1. **The hosted page.** Offer the brokerage world on Test your agent (a preview, with its limits), and release the runner, shared package and SDK with protocol 2. Deploy the gateway before releasing the runner: only an updated gateway accepts a runner started with `--world brokerage`. Vault-world runners are unaffected either way, because they still say protocol 1. The same gateway change can serve the invoice world next, so outside invoice-paying agents can be tested too.
 2. **Broker tool names.** Offer the world under the tool names real broker integrations use, so a team points its agent at Bonded instead of its broker with no code changes. Start with the broker the first partner uses.
 3. **More models.** Run the same four rows on the other cheap models the Index uses, so a sample report compares models, not just one.
 4. **Release.** Move the world and its seeds into ratings in a scheduled release, with one `OFFCHAIN_LIBRARY_VERSION` bump.

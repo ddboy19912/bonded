@@ -1,15 +1,18 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import {
   type AgentMode,
+  type AnyEpisodeMessage,
   type EpisodeMessage,
+  type EpisodeWorld,
   episodeEnv,
+  episodeWorld,
   parseRunnerMessage,
   RUNNER_CLOSE,
   RUNNER_CONNECT_PATH,
   RUNNER_HEARTBEAT_MS,
   RUNNER_KILL_GRACE_MS,
   RUNNER_MAX_MESSAGE_BYTES,
-  RUNNER_PROTOCOL_VERSION,
+  runnerProtocolFor,
   RUNNER_TAIL_BYTES,
   type RunnerToServer,
   ServerToRunner,
@@ -35,6 +38,11 @@ export interface RunnerOptions {
   gateway: string;
   token: string;
   mode: AgentMode;
+  /**
+   * The world the agent was built for (default vault). The runner says it in hello and takes
+   * episodes of this world only: it never starts the agent for another world's episode.
+   */
+  world?: EpisodeWorld;
   /** The agent's TEE: the runner fetches its evidence for each episode's nonce. */
   teeUrl?: string;
   /** The agent command and its arguments. */
@@ -93,6 +101,8 @@ export class Runner {
 
   constructor(private readonly options: RunnerOptions) {
     if (options.command.length === 0) throw new Error("no agent command given");
+    if ((options.world ?? "vault") !== "vault" && options.mode !== "tools")
+      throw new Error(`the ${options.world} world runs in tools mode only`);
     const problem = gatewayUrlProblem(options.gateway);
     if (problem) throw new Error(problem);
     this.log = options.log ?? (() => {});
@@ -164,12 +174,17 @@ export class Runner {
       socket.on("open", () => {
         openedAt = Date.now();
         lastPong = Date.now();
-        this.log(`connected to ${this.options.gateway} (${this.options.mode} mode)`);
+        this.log(
+          `connected to ${this.options.gateway} (${this.options.mode} mode${this.world === "vault" ? "" : `, ${this.world} world`})`,
+        );
         this.write({
           type: "hello",
           runnerVersion: this.options.version ?? "dev",
-          protocol: RUNNER_PROTOCOL_VERSION,
+          // The oldest protocol that has this world: a vault-world runner still works with a
+          // gateway that hasn't been updated.
+          protocol: runnerProtocolFor(this.world),
           mode: this.options.mode,
+          ...(this.world === "vault" ? {} : { world: this.world }),
           ...(this.options.teeUrl ? { teeUrl: this.options.teeUrl } : {}),
           codeHash: this.code.codeHash,
           codeSource: this.code.codeSource,
@@ -229,8 +244,28 @@ export class Runner {
     if (this.outbox.length > OUTBOX_LIMIT) this.outbox.shift();
   }
 
-  private async runEpisode(episode: EpisodeMessage): Promise<void> {
+  /** The world this runner was started for. */
+  private get world(): EpisodeWorld {
+    return this.options.world ?? "vault";
+  }
+
+  private async runEpisode(episode: AnyEpisodeMessage): Promise<void> {
     const started = Date.now();
+    // An agent built for one world is never started for another's episode: outside the world it
+    // knows, it could take the episode for production and act with its real tools.
+    if (episodeWorld(episode) !== this.world) {
+      this.log(
+        `episode ${episode.episodeId}: refused, it is a ${episodeWorld(episode)} episode and this runner was started for the ${this.world} world`,
+      );
+      this.write({
+        type: "episode_done",
+        episodeId: episode.episodeId,
+        exitCode: null,
+        durationMs: 0,
+        error: `this runner was started for the ${this.world} world, not ${episodeWorld(episode)} (see --world)`,
+      });
+      return;
+    }
     if (this.running) {
       this.write({
         type: "episode_done",
@@ -245,7 +280,7 @@ export class Runner {
     this.running = running;
     this.log(`episode ${episode.episodeId}: starting the agent`);
     try {
-      if (episode.nonce) await this.sendEvidence(episode);
+      if (episode.nonce && episode.world !== "brokerage") await this.sendEvidence(episode);
       if (running.cancelled) {
         this.write({
           type: "episode_done",
@@ -274,7 +309,7 @@ export class Runner {
 
   /** Runs the agent command to completion (or until it is killed). */
   private launch(
-    episode: EpisodeMessage,
+    episode: AnyEpisodeMessage,
     running: Running,
   ): Promise<{
     exitCode: number | null;
@@ -290,6 +325,18 @@ export class Runner {
     delete env.BONDED_RUNNER_TOKEN;
     delete env.BONDED_AGENT_KEY;
     delete env.BONDED_VAULT_ADDRESS;
+    // A brokerage episode has no chain: nothing left over in the runner's own environment may
+    // look like one to the agent.
+    if (episode.world === "brokerage")
+      for (const name of [
+        "BONDED_VAULT",
+        "BONDED_CHAIN_ID",
+        "BONDED_CONTRACTS",
+        "BONDED_RPC_URL",
+        "BONDED_SESSION_KEY",
+        "BONDED_TEE_KEY_ID",
+      ])
+        delete env[name];
     const stdout = new Tail(RUNNER_TAIL_BYTES);
     const stderr = new Tail(RUNNER_TAIL_BYTES);
     const echo = this.options.echo ?? true;

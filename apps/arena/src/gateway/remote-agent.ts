@@ -5,9 +5,11 @@ import {
   type AgentTask,
   type AgentToolbox,
   type AttackSurface,
+  type BrokerageEpisodeMessage,
   type DoneRequest,
   type EpisodeDoneMessage,
   type EpisodeMessage,
+  type EpisodeWorld,
   RUNNER_KILL_GRACE_MS,
   type RunnerToServer,
 } from "@bondedhq/shared";
@@ -17,7 +19,7 @@ import type { Sandbox } from "../sandbox.js";
 import { ArenaToolbox } from "../toolbox.js";
 import { marketTokens } from "../vault.js";
 import { liveClientVersion } from "./rpc.js";
-import type { ArenaGateway, EpisodeActivity, GatewayEpisode } from "./server.js";
+import type { ArenaGateway, EpisodeActivity, EpisodeSpec, GatewayEpisode } from "./server.js";
 
 /**
  * An agent that runs on its operator's own servers, rated through the Arena Gateway. To the
@@ -90,8 +92,16 @@ export type RemoteEpisodeEvent =
 
 export interface RemoteAgentOptions {
   gateway: ArenaGateway;
-  /** The sandbox the rating runs in (chain mode forwards RPC to it and funds the agent's key). */
-  sandbox: Sandbox;
+  /**
+   * The sandbox the rating runs in (chain mode forwards RPC to it and funds the agent's key).
+   * Required for the vault world; another world has no chain.
+   */
+  sandbox?: Sandbox;
+  /**
+   * The world the agent is tested in (default vault). A brokerage episode runs in tools mode
+   * against the brokerage toolbox, with no sandbox, and needs a protocol 2 runner.
+   */
+  world?: EpisodeWorld;
   /**
    * The key of the runner to use: what its runner token maps to (RunnerIdentity.key). Shorthand
    * for `transport: { kind: "runner", key }`.
@@ -185,6 +195,20 @@ export interface RemoteEpisode {
 
 export type RemoteRunSummary = AgentRunSummary & { remote: RemoteEpisode };
 
+/** A toolbox the gateway can serve: it keeps a trace (the episode's steps) and ends on a signal. */
+type TracedToolbox = AgentToolbox & {
+  readonly trace: readonly unknown[];
+  readonly signal: AbortSignal;
+};
+
+const isTraced = (tools: AgentToolbox): tools is TracedToolbox =>
+  Array.isArray((tools as { trace?: unknown }).trace) &&
+  (tools as { signal?: unknown }).signal instanceof AbortSignal;
+
+/** Told to whoever runs a brokerage episode on a runner that can't take one. */
+export const BROKERAGE_RUNNER_NEEDED =
+  "this runner doesn't take brokerage episodes: update @bondedhq/runner (it needs protocol 2) and start it with --world brokerage";
+
 const DEFAULT_TIMEOUT_MS = 4 * 60_000;
 /** How long an agent that posted /done has to exit before it is stopped. */
 const DONE_EXIT_GRACE_MS = 2_000;
@@ -206,6 +230,12 @@ export class RemoteAgent implements SelfSigningAgent {
     if (!transport) throw new Error("a remote agent needs a runner key or an agent URL");
     if (transport.kind === "url" && options.tee)
       throw new Error("a TEE-bound agent connects through the runner, not an agent URL");
+    const world = options.world ?? "vault";
+    if (world === "vault" && !options.sandbox) throw new Error("the vault world needs a sandbox");
+    if (world !== "vault" && options.mode !== "tools")
+      throw new Error(`the ${world} world runs in tools mode only`);
+    if (world !== "vault" && options.tee)
+      throw new Error(`TEE-bound agents are rated on the vault world only`);
     this.transport = transport;
     this.name =
       options.name ??
@@ -221,6 +251,10 @@ export class RemoteAgent implements SelfSigningAgent {
 
   get mode(): AgentMode {
     return this.options.mode;
+  }
+
+  get world(): EpisodeWorld {
+    return this.options.world ?? "vault";
   }
 
   /** Chain mode: the key this episode's vault accepts, funded with test gas. */
@@ -239,8 +273,9 @@ export class RemoteAgent implements SelfSigningAgent {
   }
 
   async run(task: AgentTask, tools: AgentToolbox): Promise<RemoteRunSummary> {
-    if (!(tools instanceof ArenaToolbox))
-      throw new Error("a remote agent runs only against the Arena's own toolbox");
+    // The vault world's toolbox serves the vault world only, and no other world is served from it.
+    if (!isTraced(tools) || tools instanceof ArenaToolbox !== (this.world === "vault"))
+      throw new Error("a remote agent runs only against the Arena's own toolbox for its world");
     if (this.running) throw new Error("a remote agent runs one episode at a time");
     this.running = true;
     try {
@@ -259,37 +294,45 @@ export class RemoteAgent implements SelfSigningAgent {
     }
   }
 
+  /** The vault world's sandbox and toolbox. Only a vault episode has them. */
+  private vaultWorld(toolbox: TracedToolbox): { sandbox: Sandbox; toolbox: ArenaToolbox } {
+    const { sandbox } = this.options;
+    if (!sandbox || !(toolbox instanceof ArenaToolbox))
+      throw new Error(`the ${this.world} world has no vault or chain`);
+    return { sandbox, toolbox };
+  }
+
   /** The episode's gateway endpoints, behind a fresh capability token. */
   private async openGatewayEpisode(
     episodeId: string,
-    toolbox: ArenaToolbox,
+    toolbox: TracedToolbox,
     signer: `0x${string}` | undefined,
     gated: boolean,
-    forkScope: ReturnType<Sandbox["forkScope"]>,
+    forkScope: ReturnType<Sandbox["forkScope"]> | undefined,
   ): Promise<GatewayEpisode> {
-    const { gateway, sandbox, mode } = this.options;
-    const clientVersion =
-      mode === "chain"
-        ? ((sandbox.forkUrl ? await liveClientVersion(sandbox.forkUrl) : undefined) ??
-          gateway.clientVersion)
-        : undefined;
+    const { gateway, mode } = this.options;
+    let chain: EpisodeSpec["chain"];
+    if (mode === "chain") {
+      const { sandbox, toolbox: vaultTools } = this.vaultWorld(toolbox);
+      const clientVersion =
+        (sandbox.forkUrl ? await liveClientVersion(sandbox.forkUrl) : undefined) ??
+        gateway.clientVersion;
+      chain = {
+        upstream: sandbox.rpcUrl,
+        chainId: sandbox.chain.id,
+        vault: vaultTools.vault,
+        agent: signer!,
+        ...(forkScope ? { forkScope } : {}),
+        ...(clientVersion ? { clientVersion } : {}),
+      };
+    }
     const opened = gateway.openEpisode({
       episodeId,
       toolbox,
       mode,
+      world: this.world,
       gated,
-      ...(mode === "chain"
-        ? {
-            chain: {
-              upstream: sandbox.rpcUrl,
-              chainId: sandbox.chain.id,
-              vault: toolbox.vault,
-              agent: signer!,
-              ...(forkScope ? { forkScope } : {}),
-              ...(clientVersion ? { clientVersion } : {}),
-            },
-          }
-        : {}),
+      ...(chain ? { chain } : {}),
     });
     if (this.options.onEvent) opened.onActivity((activity) => this.emit(activity));
     return opened;
@@ -299,12 +342,23 @@ export class RemoteAgent implements SelfSigningAgent {
   private episodeMessage(
     episodeId: string,
     task: AgentTask,
-    toolbox: ArenaToolbox,
+    toolbox: TracedToolbox,
     opened: GatewayEpisode,
     timeoutMs: number,
     nonce?: `0x${string}`,
-  ): EpisodeMessage {
-    const { sandbox, mode } = this.options;
+  ): EpisodeMessage | BrokerageEpisodeMessage {
+    const { mode } = this.options;
+    if (this.world === "brokerage")
+      return {
+        type: "episode",
+        world: "brokerage",
+        episodeId,
+        task,
+        mode: "tools",
+        endpoints: opened.endpoints,
+        deadlineMs: timeoutMs,
+      };
+    const { sandbox, toolbox: vaultTools } = this.vaultWorld(toolbox);
     return {
       type: "episode",
       episodeId,
@@ -312,7 +366,7 @@ export class RemoteAgent implements SelfSigningAgent {
       mode,
       endpoints: opened.endpoints,
       chainId: sandbox.chain.id,
-      vault: toolbox.vault,
+      vault: vaultTools.vault,
       contracts: {
         exchange: sandbox.deployment.router,
         tokens: marketTokens(sandbox).map(({ symbol, address, decimals }) => ({
@@ -330,7 +384,7 @@ export class RemoteAgent implements SelfSigningAgent {
     };
   }
 
-  private async runEpisode(task: AgentTask, toolbox: ArenaToolbox): Promise<RemoteRunSummary> {
+  private async runEpisode(task: AgentTask, toolbox: TracedToolbox): Promise<RemoteRunSummary> {
     const { gateway, sandbox, mode } = this.options;
     const timeoutMs = this.options.episodeTimeoutMs ?? DEFAULT_TIMEOUT_MS;
     const episodeId = randomUUID();
@@ -360,10 +414,30 @@ export class RemoteAgent implements SelfSigningAgent {
     );
     const code = runner.code;
     if (code) record.code = code;
+    // A runner takes one world's episodes: its agent is never started for another world's.
+    const refused =
+      this.world === "brokerage"
+        ? runner.canRunBrokerage
+          ? undefined
+          : BROKERAGE_RUNNER_NEEDED
+        : runner.world === "vault"
+          ? undefined
+          : `this runner was started for the ${runner.world} world: start one without --world for the vault world`;
+    if (refused) {
+      record.runnerError = refused;
+      record.durationMs = Date.now() - started;
+      gateway.releaseRunner(runner, episodeId);
+      return {
+        steps: toolbox.trace.length,
+        stoppedBecause: "error",
+        finalMessage: record.runnerError,
+        remote: record,
+      };
+    }
     let episode: GatewayEpisode | undefined;
     let sent = false;
     // On a budgeted fork, what the agent's reads cost the live chain is charged to it alone.
-    const forkScope = sandbox.forkScope();
+    const forkScope = sandbox?.forkScope();
     const cleanups: (() => void)[] = [];
     // The runner's exit report for this episode (undefined if the runner goes away first). It
     // stays subscribed past the episode's end, so a report arriving late is still caught.
@@ -485,7 +559,7 @@ export class RemoteAgent implements SelfSigningAgent {
   private async runUrlEpisode(
     transport: Extract<AgentTransport, { kind: "url" }>,
     task: AgentTask,
-    toolbox: ArenaToolbox,
+    toolbox: TracedToolbox,
     record: RemoteEpisode,
     signer: `0x${string}` | undefined,
     started: number,
@@ -499,7 +573,7 @@ export class RemoteAgent implements SelfSigningAgent {
       episodeId,
       this.options.runnerWaitMs ?? 60_000,
     );
-    const forkScope = sandbox.forkScope();
+    const forkScope = sandbox?.forkScope();
     const cleanups: (() => void)[] = [];
     let episode: GatewayEpisode | undefined;
     try {
@@ -594,7 +668,7 @@ export class RemoteAgent implements SelfSigningAgent {
     why: string,
     record: RemoteEpisode,
     episode: GatewayEpisode,
-    toolbox: ArenaToolbox,
+    toolbox: TracedToolbox,
     timeoutMs: number,
   ): AgentRunSummary {
     const steps = toolbox.trace.length;

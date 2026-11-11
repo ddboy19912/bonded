@@ -4,7 +4,9 @@ import {
   type AgentMode,
   type AgentToolbox,
   type ArenaAgent,
+  type BrokerageEpisodeMessage,
   type EpisodeMessage,
+  type EpisodeWorld,
   parseRunnerMessage,
   RUNNER_PROTOCOL_VERSION,
   type RunnerToServer,
@@ -97,6 +99,12 @@ export interface FakeRunnerOptions {
   transport?: Transport;
   /** How often it pings (default 5 s). */
   pingMs?: number;
+  /** The protocol it says it speaks (default the current one). */
+  protocol?: number;
+  /** The world it says it was started for (`--world`). A vault-world runner names none. */
+  world?: EpisodeWorld;
+  /** Runs a brokerage episode (protocol 2). Without it, brokerage episodes are ignored. */
+  onBrokerage?: (episode: BrokerageEpisodeMessage, runner: FakeRunner) => Promise<void> | void;
   /** Extra hello fields (a code hash). */
   hello?: {
     codeHash?: `0x${string}`;
@@ -131,8 +139,9 @@ export async function fakeRunner(options: FakeRunnerOptions): Promise<FakeRunner
   runner.send({
     type: "hello",
     runnerVersion: "test",
-    protocol: RUNNER_PROTOCOL_VERSION,
+    protocol: options.protocol ?? RUNNER_PROTOCOL_VERSION,
     mode: options.mode,
+    ...(options.world ? { world: options.world } : {}),
     ...options.hello,
   });
   const ping = setInterval(
@@ -166,7 +175,8 @@ export async function fakeRunner(options: FakeRunnerOptions): Promise<FakeRunner
     });
   socket.on("message", (data) => {
     const message = parseRunnerMessage(ServerToRunner, String(data));
-    if (message?.type === "episode") {
+    // These fixtures play vault-world agents; a brokerage episode is a different world.
+    if (message?.type === "episode" && message.world !== "brokerage") {
       runner.received.push(message);
       void Promise.resolve(run(message, runner)).catch((error: unknown) =>
         runner.send({
@@ -176,6 +186,25 @@ export async function fakeRunner(options: FakeRunnerOptions): Promise<FakeRunner
           durationMs: 0,
           stderrTail: String(error),
         }),
+      );
+    } else if (message?.type === "episode" && options.onBrokerage) {
+      const started = Date.now();
+      void Promise.resolve(options.onBrokerage(message, runner)).then(
+        () =>
+          runner.send({
+            type: "episode_done",
+            episodeId: message.episodeId,
+            exitCode: 0,
+            durationMs: Date.now() - started,
+          }),
+        (error: unknown) =>
+          runner.send({
+            type: "episode_done",
+            episodeId: message.episodeId,
+            exitCode: 1,
+            durationMs: 0,
+            stderrTail: String(error),
+          }),
       );
     } else if (message?.type === "cancel") {
       runner.cancels.push(message.episodeId);

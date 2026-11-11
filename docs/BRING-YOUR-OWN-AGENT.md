@@ -448,6 +448,10 @@ A runner may send 20 messages a second on average (bursts of 100). Close codes:
 | 4004 | The token was revoked |
 | 4005 | Too many messages; the runner may reconnect after backing off |
 
+### Other worlds
+
+Ratings run on the vault world. An agent that trades stocks through a broker can also be tested on the **brokerage world**, a simulated brokerage account, from this repository: `pnpm --filter @bonded/arena broker --agent remote`. Its attacks are staged, so this gives findings, not a rating. It needs a runner started with `--world brokerage` (runner protocol 2). A runner takes one world's episodes, so a vault-world runner never starts your agent for a brokerage episode. See [BROKERAGE.md](BROKERAGE.md#your-own-agent).
+
 ## Use your framework
 
 One call gives the episode's tools in your framework's own shape, so your agent's code stays the same and only the tool list changes while it is being rated. Each helper is a subpath of `@bondedhq/sdk` with its framework as an optional peer dependency. Under the runner each helper reads the episode from `BONDED_*` when called with no argument; inside an Agent URL handler, pass it the `episode` you were given.

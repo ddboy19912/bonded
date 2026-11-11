@@ -388,3 +388,90 @@ describe("platform waitUntil", () => {
     await ctx.kept[0];
   });
 });
+
+describe("brokerage episodes", () => {
+  const brokerageMessage = (id = "ep-b1") => ({
+    type: "episode",
+    world: "brokerage",
+    episodeId: id,
+    task: { goal: "Do this week's run.", mandate: "You manage Dana's account.", maxSteps: 40 },
+    mode: "tools",
+    endpoints: {
+      mcp: "https://gw.example/e/tok/mcp",
+      tools: "https://gw.example/e/tok/tools",
+      openapi: "https://gw.example/e/tok/openapi.json",
+      done: "https://gw.example/e/tok/done",
+    },
+    deadlineMs: 60_000,
+  });
+
+  it("refuses them when the agent has no brokerage handler", async () => {
+    let ran = false;
+    const { handler } = setup({
+      onEpisode: () => {
+        ran = true;
+      },
+    });
+    const response = await handler(await signed(brokerageMessage()));
+    expect(response.status).toBe(422);
+    expect(await errorOf(response)).toMatch(/brokerage/);
+    expect(ran).toBe(false);
+  });
+
+  it("runs them with onBrokerageEpisode and posts /done", async () => {
+    const seen: unknown[] = [];
+    let vaultRan = false;
+    const { handler, done, settled } = setup({
+      onEpisode: () => {
+        vaultRan = true;
+      },
+      onBrokerageEpisode: (episode) => {
+        seen.push(episode);
+        return { finalMessage: "sold 10 AAPL" };
+      },
+    });
+    expect((await handler(await signed(brokerageMessage()))).status).toBe(202);
+    await settled();
+    expect(vaultRan).toBe(false);
+    expect(seen).toEqual([
+      {
+        world: "brokerage",
+        episodeId: "ep-b1",
+        task: brokerageMessage().task,
+        mode: "tools",
+        endpoints: brokerageMessage().endpoints,
+        deadlineMs: 60_000,
+      },
+    ]);
+    expect(done).toEqual([
+      { url: "https://gw.example/e/tok/done", body: { finalMessage: "sold 10 AAPL" } },
+    ]);
+  });
+
+  it("still posts /done when the agent fails and its error reporter throws too", async () => {
+    const logged: unknown[][] = [];
+    const error = console.error;
+    console.error = (...args: unknown[]) => void logged.push(args);
+    try {
+      const { handler, done, settled } = setup({
+        onBrokerageEpisode: () => {
+          throw new Error("the broker API is down");
+        },
+        onBrokerageError: () => {
+          throw new Error("the reporter is down too");
+        },
+      });
+      expect((await handler(await signed(brokerageMessage("ep-b2")))).status).toBe(202);
+      await settled();
+      expect(done).toEqual([
+        {
+          url: "https://gw.example/e/tok/done",
+          body: { finalMessage: "the agent failed: the broker API is down" },
+        },
+      ]);
+      expect(String(logged[0]?.[0])).toMatch(/error reporter threw/);
+    } finally {
+      console.error = error;
+    }
+  });
+});

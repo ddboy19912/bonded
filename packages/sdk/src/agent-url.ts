@@ -7,7 +7,7 @@ import {
   answerAgentUrlVerify,
   verifyAgentUrlRequest,
 } from "@bondedhq/shared/agent-url";
-import type { BondedEpisode } from "./episode.js";
+import type { BondedBrokerageEpisode, BondedEpisode } from "./episode.js";
 import { finishEpisode } from "./done.js";
 import type { EpisodeUsage } from "./mcp.js";
 
@@ -64,6 +64,17 @@ export interface BondedHandlerOptions {
     episode: BondedEpisode,
     context: EpisodeContext,
   ): Promise<EpisodeOutcome | void> | EpisodeOutcome | void;
+  /**
+   * Runs one brokerage episode (a simulated brokerage account; docs/BROKERAGE.md). Without it, the
+   * handler refuses brokerage episodes with 422, so an agent built for the vault world never gets
+   * one by surprise. Errors are passed to `onBrokerageError` (default `console.error`).
+   */
+  onBrokerageEpisode?(
+    episode: BondedBrokerageEpisode,
+    context: EpisodeContext,
+  ): Promise<EpisodeOutcome | void> | EpisodeOutcome | void;
+  /** Called when `onBrokerageEpisode` throws (default: `console.error`). `/done` is still posted. */
+  onBrokerageError?: (error: unknown, episode: BondedBrokerageEpisode) => void;
   /**
    * Your agent's version (a release tag, a git commit). Reported when Bonded verifies the URL;
    * it becomes the rating's code hash when you don't declare one.
@@ -126,18 +137,43 @@ export function createBondedHandler(options: BondedHandlerOptions): BondedHandle
   const replay = new AgentUrlReplayGuard(tolerance);
   const running = new Map<string, AbortController>();
 
-  const run = async (episode: BondedEpisode, controller: AbortController) => {
+  const onBrokerageError =
+    options.onBrokerageError ??
+    ((error: unknown, episode: BondedBrokerageEpisode) =>
+      console.error(`Bonded brokerage episode ${episode.episodeId} failed:`, error));
+
+  const run = async <E extends BondedEpisode | BondedBrokerageEpisode>(
+    episode: E,
+    controller: AbortController,
+    work: (
+      episode: E,
+      context: EpisodeContext,
+    ) => Promise<EpisodeOutcome | void> | EpisodeOutcome | void,
+    reportError: (error: unknown, episode: E) => void,
+  ) => {
     const deadline = setTimeout(
       () => controller.abort(new Error("the episode's deadline passed")),
       episode.deadlineMs,
     );
+    // A reporter that throws must not stop `/done` from being posted: the gateway would wait out
+    // the deadline for an episode that has already failed.
+    const report = (error: unknown) => {
+      try {
+        reportError(error, episode);
+      } catch (reporterError) {
+        console.error(
+          `Bonded episode ${episode.episodeId}: the error reporter threw:`,
+          reporterError,
+        );
+      }
+    };
     let outcome: EpisodeOutcome | void;
     let failed = false;
     try {
-      outcome = await options.onEpisode(episode, { signal: controller.signal });
+      outcome = await work(episode, { signal: controller.signal });
     } catch (error) {
       failed = true;
-      if (!controller.signal.aborted) onError(error, episode);
+      if (!controller.signal.aborted) report(error);
       outcome = {
         finalMessage:
           `the agent failed: ${error instanceof Error ? error.message : String(error)}`.slice(
@@ -163,7 +199,7 @@ export function createBondedHandler(options: BondedHandlerOptions): BondedHandle
         options.fetch ? { fetch: options.fetch } : {},
       );
     } catch (error) {
-      if (!failed) onError(error, episode);
+      if (!failed) report(error);
     }
   };
 
@@ -201,18 +237,29 @@ export function createBondedHandler(options: BondedHandlerOptions): BondedHandle
       return json(200, { ok: true, cancelled: controller !== undefined });
     }
 
-    const episode = toEpisode(message);
-    if (running.has(episode.episodeId))
-      return json(200, { ok: true, episodeId: episode.episodeId, alreadyRunning: true });
+    if (message.world === "brokerage" && !options.onBrokerageEpisode)
+      return json(422, {
+        error: "this agent doesn't take brokerage episodes (no onBrokerageEpisode)",
+      });
+    if (running.has(message.episodeId))
+      return json(200, { ok: true, episodeId: message.episodeId, alreadyRunning: true });
     if (running.size >= maxConcurrent)
       return json(429, { error: `already running ${running.size} episodes` });
     const controller = new AbortController();
-    running.set(episode.episodeId, controller);
-    const work = run(episode, controller);
+    running.set(message.episodeId, controller);
+    const work =
+      message.world === "brokerage"
+        ? run(
+            toBrokerageEpisode(message),
+            controller,
+            (e, c) => options.onBrokerageEpisode!(e, c),
+            onBrokerageError,
+          )
+        : run(toEpisode(message), controller, (e, c) => options.onEpisode(e, c), onError);
     // Called as a method: Cloudflare's ctx.waitUntil needs its `this`.
     if (context?.waitUntil) context.waitUntil(work);
     else options.waitUntil?.(work);
-    return json(202, { ok: true, episodeId: episode.episodeId });
+    return json(202, { ok: true, episodeId: message.episodeId });
   };
 }
 
@@ -235,8 +282,24 @@ async function signingSecret(
   return secrets[0]!;
 }
 
+/** A brokerage episode as the agent sees it (the same shape `fromBondedBrokerageEnv` returns). */
+function toBrokerageEpisode(
+  message: Extract<AgentUrlMessage, { type: "episode"; world: "brokerage" }>,
+): BondedBrokerageEpisode {
+  return {
+    world: "brokerage",
+    episodeId: message.episodeId,
+    task: message.task,
+    mode: "tools",
+    endpoints: message.endpoints,
+    deadlineMs: message.deadlineMs,
+  };
+}
+
 /** The episode as the agent sees it (the same shape `fromBondedEnv` returns). */
-function toEpisode(message: Extract<AgentUrlMessage, { type: "episode" }>): BondedEpisode {
+function toEpisode(
+  message: Exclude<Extract<AgentUrlMessage, { type: "episode" }>, { world: "brokerage" }>,
+): BondedEpisode {
   // The runner protocol's message, minus `type`, `nonce` and `teeKeyId` (TEE-bound agents use
   // the runner).
   return {

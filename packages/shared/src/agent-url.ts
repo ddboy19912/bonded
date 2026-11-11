@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CancelMessage, codeHashOf, EpisodeMessage } from "./runner.js";
+import { BrokerageEpisodeMessage, CancelMessage, codeHashOf, EpisodeMessage } from "./runner.js";
 
 /**
  * Agent URL mode: the second way to connect an agent to the Arena (the first is the runner).
@@ -76,7 +76,8 @@ export const AgentUrlVerifyAnswer = z.object({
 export type AgentUrlVerifyAnswer = z.infer<typeof AgentUrlVerifyAnswer>;
 
 /** Every body the gateway POSTs to an agent URL. */
-export const AgentUrlMessage = z.discriminatedUnion("type", [
+export const AgentUrlMessage = z.union([
+  BrokerageEpisodeMessage,
   EpisodeMessage,
   CancelMessage,
   AgentUrlVerifyMessage,

@@ -1,4 +1,9 @@
-import { type AgentTask, EpisodeEnv, parseEpisodeEnv } from "@bondedhq/shared";
+import {
+  type AgentTask,
+  EpisodeEnv,
+  parseBrokerageEpisodeEnv,
+  parseEpisodeEnv,
+} from "@bondedhq/shared";
 import { type Address, defineChain, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { BondedError } from "./errors.js";
@@ -50,11 +55,16 @@ export const bondedEpisodeEnv = EpisodeEnv;
  * ```ts
  * const tools = isBondedEpisode() ? await bondedLangChainTools() : productionTools;
  * ```
+ *
+ * True in every world, so an agent under test never falls through to its production tools. In a
+ * world the agent wasn't built for, the helpers then fail loudly: in a brokerage episode
+ * `fromBondedEnv` and the vault tool helpers throw `EPISODE_ENV`. `bondedEpisodeWorld()` says
+ * which world it is.
  */
 export function isBondedEpisode(
   env: Record<string, string | undefined> = typeof process === "undefined" ? {} : process.env,
 ): boolean {
-  return parseEpisodeEnv(env).ok;
+  return bondedEpisodeWorld(env) !== undefined;
 }
 
 /**
@@ -111,4 +121,69 @@ export function episodeVault(episode: BondedEpisode): BondedVault {
     account: privateKeyToAccount(episode.sessionKey),
     router: episode.contracts.exchange,
   });
+}
+
+/**
+ * A brokerage episode: the agent manages a simulated brokerage account (stocks, filings, orders,
+ * cash withdrawals) through the episode's tools. There is no chain, vault or key: every read and
+ * write is a tool call, and the Arena judges it by the brokerage ledger. Needs runner protocol 2
+ * (the runner release after 0.1.3), started with `--world brokerage`.
+ */
+export interface BondedBrokerageEpisode {
+  world: "brokerage";
+  episodeId: string;
+  task: AgentTask;
+  mode: "tools";
+  endpoints: {
+    /** MCP over streamable HTTP. */
+    mcp: string;
+    /** Plain HTTP: `GET {tools}` lists them, `POST {tools}/{name}` with JSON args calls one. */
+    tools: string;
+    openapi: string;
+    /** `POST` here when finished (`{ finalMessage? }`). */
+    done: string;
+  };
+  /** How long the agent has, in milliseconds from when it starts. */
+  deadlineMs: number;
+}
+
+/**
+ * Which world the runner's episode is for: `vault` (on-chain trading from a Mandate Vault, read
+ * with `fromBondedEnv`), `brokerage` (read with `fromBondedBrokerageEnv`), or undefined when this
+ * process isn't running a Bonded episode.
+ *
+ * ```ts
+ * const world = bondedEpisodeWorld();
+ * const tools =
+ *   world === "brokerage"
+ *     ? await myBrokerageTools(fromBondedBrokerageEnv())
+ *     : world === "vault"
+ *       ? await bondedLangChainTools()
+ *       : productionTools;
+ * ```
+ */
+export function bondedEpisodeWorld(
+  env: Record<string, string | undefined> = typeof process === "undefined" ? {} : process.env,
+): "vault" | "brokerage" | undefined {
+  // Fails closed: once the runner has named the brokerage world for an episode, that is the
+  // answer even if another variable is malformed. `fromBondedBrokerageEnv` then names the bad
+  // variable, where "not an episode" would send the agent to its production tools.
+  if (env.BONDED_WORLD === "brokerage" && env.BONDED_EPISODE_ID?.trim()) return "brokerage";
+  return parseEpisodeEnv(env).ok ? "vault" : undefined;
+}
+
+/**
+ * Reads a brokerage episode the Bonded runner set up from the environment. Throws `BondedError`
+ * (`EPISODE_ENV`) naming every missing or malformed variable.
+ */
+export function fromBondedBrokerageEnv(
+  env: Record<string, string | undefined> = process.env,
+): BondedBrokerageEpisode {
+  const parsed = parseBrokerageEpisodeEnv(env);
+  if (!parsed.ok)
+    throw new BondedError(
+      "EPISODE_ENV",
+      `not a valid Bonded brokerage episode environment: ${parsed.problems.join("; ")}`,
+    );
+  return parsed.episode;
 }

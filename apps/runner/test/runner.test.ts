@@ -12,6 +12,7 @@ import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  type BrokerageEpisodeMessage,
   type EpisodeMessage,
   parseRunnerMessage,
   RUNNER_CLOSE,
@@ -155,6 +156,11 @@ function episode(fields: Partial<EpisodeMessage> = {}): EpisodeMessage {
   };
 }
 
+function brokerageEpisode(): BrokerageEpisodeMessage {
+  const { type, episodeId, task, endpoints, deadlineMs } = episode();
+  return { type, world: "brokerage", episodeId, task, mode: "tools", endpoints, deadlineMs };
+}
+
 const node = (script: string) => [process.execPath, "-e", script];
 
 describe("the runner", { timeout: TEST_MS }, () => {
@@ -165,12 +171,94 @@ describe("the runner", { timeout: TEST_MS }, () => {
       version: "9.9.9",
       heartbeatMs: 100,
     });
-    expect(gateway.of("hello")[0]).toMatchObject({
-      runnerVersion: "9.9.9",
-      protocol: 1,
-      mode: "chain",
-    });
+    // A vault-world runner still says protocol 1 and names no world, so a gateway that hasn't
+    // been updated to protocol 2 keeps accepting it.
+    const hello = gateway.of("hello")[0]!;
+    expect(hello).toMatchObject({ runnerVersion: "9.9.9", protocol: 1, mode: "chain" });
+    expect(hello).not.toHaveProperty("world");
     await eventually(() => gateway.of("ping").length >= 2);
+  });
+
+  it("started for the brokerage world, says so in hello with protocol 2", async () => {
+    const { gateway } = await setup({ command: node(""), world: "brokerage" });
+    expect(gateway.of("hello")[0]).toMatchObject({
+      protocol: 2,
+      mode: "tools",
+      world: "brokerage",
+    });
+    expect(
+      () =>
+        new Runner({
+          gateway: gateway.url,
+          token: TOKEN,
+          mode: "chain",
+          world: "brokerage",
+          command: node(""),
+        }),
+    ).toThrow(/tools mode only/);
+  });
+
+  it("runs a brokerage episode with no vault variables, even ones it inherited", async () => {
+    const inherited = {
+      BONDED_VAULT: "0x000000000000000000000000000000000000dEaD",
+      BONDED_CHAIN_ID: "1",
+      BONDED_CONTRACTS: "{}",
+      BONDED_RPC_URL: "http://127.0.0.1:1",
+      BONDED_SESSION_KEY: PRODUCTION_KEY,
+      BONDED_TEE_KEY_ID: "left-over",
+    };
+    Object.assign(process.env, inherited);
+    try {
+      const { gateway } = await setup({
+        world: "brokerage",
+        command: node(
+          "const e=process.env;console.log(JSON.stringify({world:e.BONDED_WORLD,id:e.BONDED_EPISODE_ID," +
+            "mode:e.BONDED_MODE,tools:e.BONDED_TOOLS_URL,done:e.BONDED_DONE_URL," +
+            "vault:Object.keys(e).filter((k)=>['BONDED_VAULT','BONDED_CHAIN_ID','BONDED_CONTRACTS'," +
+            "'BONDED_RPC_URL','BONDED_SESSION_KEY','BONDED_TEE_KEY_ID'].includes(k))}))",
+        ),
+      });
+      // A nonce asks a vault-world runner for TEE evidence; the brokerage world has none to give.
+      const ep = { ...brokerageEpisode(), nonce: `0x${"ab".repeat(32)}` as const };
+      gateway.send(ep);
+      await eventually(() => gateway.of("episode_done").length === 1);
+      expect(gateway.of("tee_evidence")).toEqual([]);
+      const done = gateway.of("episode_done")[0]!;
+      expect(done).toMatchObject({ episodeId: ep.episodeId, exitCode: 0 });
+      expect(JSON.parse(done.stdoutTail!)).toEqual({
+        world: "brokerage",
+        id: ep.episodeId,
+        mode: "tools",
+        tools: ep.endpoints.tools,
+        done: ep.endpoints.done,
+        vault: [],
+      });
+    } finally {
+      for (const name of Object.keys(inherited)) delete process.env[name];
+    }
+  });
+
+  it.each([
+    ["a vault-world runner", undefined, brokerageEpisode, /vault world, not brokerage/],
+    ["a brokerage-world runner", "brokerage" as const, episode, /brokerage world, not vault/],
+  ])("%s never starts its agent for the other world's episode", async (_, world, make, why) => {
+    const dir = mkdtempSync(join(tmpdir(), "bonded-runner-world-"));
+    stops.push(async () => rmSync(dir, { recursive: true, force: true }));
+    const marker = join(dir, "started");
+    const { gateway } = await setup({
+      ...(world ? { world } : {}),
+      command: node(`require("node:fs").writeFileSync(${JSON.stringify(marker)}, "x")`),
+    });
+    const ep = make();
+    gateway.send(ep);
+    await eventually(() => gateway.of("episode_done").length === 1);
+    expect(gateway.of("episode_done")[0]).toMatchObject({
+      episodeId: ep.episodeId,
+      exitCode: null,
+      error: expect.stringMatching(why) as unknown,
+    });
+    expect(gateway.of("episode_started")).toEqual([]);
+    expect(existsSync(marker)).toBe(false);
   });
 
   it("calls onConnect once connected, and starts the agent in its cwd", async () => {
