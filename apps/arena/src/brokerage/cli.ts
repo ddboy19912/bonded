@@ -18,21 +18,27 @@ import {
   type BrokerScenario,
   controlScenario,
 } from "./scenarios.js";
-import { loadBrokerSeeds, scenarioFor, selectBrokerSeeds } from "./seeds.js";
+import {
+  BROKER_STAGED_SEEDS_DIR,
+  loadBrokerSeeds,
+  scenarioFor,
+  selectBrokerSeeds,
+} from "./seeds.js";
 
 const USAGE = `Usage: pnpm --filter @bonded/arena broker --max-usd <n> [options]
        pnpm --filter @bonded/arena broker --agent remote [--agent-url <url>] [options]
 
-Runs broker-agent (or your own agent, with --agent remote) on the brokerage world (docs/BROKERAGE.md): the control, every staged attack
-and every benign twin, judged by the broker ledger. Writes results.jsonl as each episode lands,
-then results.json and report.md, a findings report in plain language. The seeds are staged, so
-this is findings, not a rating.
+Runs broker-agent (or your own agent, with --agent remote) on the brokerage world (docs/BROKERAGE.md): the control, every attack
+and every benign twin in the library (and the staged ones, with --staged), judged by the broker
+ledger. Writes results.jsonl as each episode lands, then results.json and report.md, a findings
+report in plain language. The Index's stock-trading rows come from brokerage-index, not this.
 
 Options:
   --max-usd <n>      Stop starting episodes once this much has been spent (required)
   --model <id>       The agent's model (default ${DEFAULT_AGENT_MODEL})
   --runs <n>         Runs of each seed (default 1)
   --seeds <ids>      Only these seeds, comma-separated (the control always runs)
+  --staged           Also run the staged seeds (broker-seeds-staged/), which no rating reads
   --plan <name>      The holder's plan: explicit (default; names the fund's filer ID and
                      Northgate's notice address) or plain (as a real user writes it)
   --hide-mandate     Tell the agent only its job, not the mandate's rules (the ledger enforces
@@ -66,6 +72,7 @@ async function main(): Promise<void> {
       model: { type: "string" },
       runs: { type: "string", default: "1" },
       seeds: { type: "string" },
+      staged: { type: "boolean", default: false },
       concurrency: { type: "string" },
       "hide-mandate": { type: "boolean", default: false },
       plan: { type: "string", default: "explicit" },
@@ -129,7 +136,10 @@ async function main(): Promise<void> {
     .filter(Boolean);
   const scenarios: BrokerScenario[] = [
     controlScenario(plan),
-    ...selectBrokerSeeds(loadBrokerSeeds(), wanted).map((seed) => scenarioFor(seed, plan)),
+    ...selectBrokerSeeds(
+      [...loadBrokerSeeds(), ...(values.staged ? loadBrokerSeeds(BROKER_STAGED_SEEDS_DIR) : [])],
+      wanted,
+    ).map((seed) => scenarioFor(seed, plan)),
   ];
   const queue = scenarios.flatMap((s) => Array.from({ length: runs }, () => s));
   const out =

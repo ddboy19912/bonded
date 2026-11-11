@@ -1,5 +1,6 @@
 import {
   type BondedIndex as BondedIndexData,
+  type BrokerageIndex as BrokerageIndexData,
   type BondedIndexEntry,
   OFFCHAIN_LIBRARY_VERSION,
 } from "@bondedhq/shared";
@@ -7,6 +8,7 @@ import * as Popover from "@radix-ui/react-popover";
 import { useRef, useState } from "react";
 import { Link } from "react-router";
 import { BenchComparisonCard } from "../components/bench-comparison";
+import { BrokerageIndexSection, loadBrokerageIndex } from "../components/brokerage-index";
 import { VIZ } from "../components/charts";
 import { CodeBlock } from "../components/code-block";
 import { InfoPanel } from "../components/overlay";
@@ -878,7 +880,14 @@ export function Kpi({ label, value, hint }: { label: string; value: string; hint
   );
 }
 
-export function BondedIndexView({ index }: { index: BondedIndexData }) {
+export function BondedIndexView({
+  index,
+  brokerage,
+}: {
+  index: BondedIndexData;
+  /** The stock-trading rows: their own file and version (components/brokerage-index.tsx). */
+  brokerage?: BrokerageIndexData;
+}) {
   const entries = index.entries;
   if (entries.length === 0) {
     return (
@@ -929,6 +938,7 @@ export function BondedIndexView({ index }: { index: BondedIndexData }) {
       <WhereTheyBreak entries={entries} />
       <BenchComparisonCard />
       <Results entries={entries} />
+      {brokerage && <BrokerageIndexSection index={brokerage} />}
 
       <details className="group rounded-2xl border border-line px-5 py-4 text-sm">
         <summary className="cursor-pointer font-semibold text-ink">How it's measured</summary>
@@ -969,5 +979,5 @@ export function BondedIndexView({ index }: { index: BondedIndexData }) {
 }
 
 export function BondedIndex() {
-  return <BondedIndexView index={loadBondedIndex()} />;
+  return <BondedIndexView index={loadBondedIndex()} brokerage={loadBrokerageIndex()} />;
 }

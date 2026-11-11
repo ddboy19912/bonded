@@ -4,6 +4,7 @@ import { join, relative } from "node:path";
 import {
   ATTACK_LIBRARY_VERSION,
   canonicalHash,
+  BROKERAGE_LIBRARY_VERSION,
   OFFCHAIN_LIBRARY_VERSION,
   TASK_SCORE_VERSION,
 } from "@bondedhq/shared";
@@ -11,6 +12,7 @@ import { expect, it } from "vitest";
 import { parse } from "yaml";
 import { ATTACKS_DIR } from "../src/attacks.js";
 import { BENIGN_SEEDS_DIR, WORLD_TWINS_DIR } from "../src/benign.js";
+import { BROKER_SEEDS_DIR } from "../src/brokerage/seeds.js";
 import { MEMORY_SEEDS_DIR } from "../src/memory-observations.js";
 import { S1_SEEDS_DIR } from "../src/s1-observations.js";
 import { INDEX_VARIANTS_DIR } from "../src/offchain/index-sweep.js";
@@ -40,6 +42,14 @@ const TASK_FINGERPRINTS: Record<number, string> = {
 const OFFCHAIN_FINGERPRINTS: Record<number, string> = {
   1: "0xef3542dfa735c12325a4c2645b3491c42bec29ccee8ccdb0c03b7036667039cc",
   2: "0x009e5b959bb10fcfe7b30ebb7c93c97f629095b602bea56fab5f589013134993",
+};
+
+/**
+ * The brokerage seeds each brokerage library version was published with
+ * (BROKERAGE_LIBRARY_VERSION).
+ */
+const BROKERAGE_FINGERPRINTS: Record<number, string> = {
+  1: "0x291a545d0a70e26affb38bb3fd5b196b4f945df5b1746f7e6ef8d21a2494b14d",
 };
 
 /** Every seed file under the given folders, by path, parsed. */
@@ -118,15 +128,12 @@ function sorted(value: unknown): unknown {
 }
 
 /**
- * The off-chain seeds and the Index variants, parsed, as one SHA-256. Not canonicalHash: that
- * takes whole numbers only, for the chain, and off-chain amounts carry cents.
+ * Every seed file under the given folders, parsed, as one SHA-256. Not canonicalHash: that takes
+ * whole numbers only, for the chain, and off-chain amounts and stock prices carry cents.
  */
-function offchainFingerprint(): string {
+function jsonFingerprint(roots: Record<string, string>): string {
   const files: { path: string; seed: unknown }[] = [];
-  for (const [name, dir] of Object.entries({
-    offchain: OFFCHAIN_SEEDS_DIR,
-    variants: INDEX_VARIANTS_DIR,
-  }))
+  for (const [name, dir] of Object.entries(roots))
     for (const entry of readdirSync(dir, { withFileTypes: true, recursive: true })) {
       if (!entry.isFile() || !/\.ya?ml$/.test(entry.name)) continue;
       const path = join(entry.parentPath, entry.name);
@@ -140,6 +147,10 @@ function offchainFingerprint(): string {
     .update(JSON.stringify(sorted(files)))
     .digest("hex")}`;
 }
+
+/** The off-chain seeds and the Index variants. */
+const offchainFingerprint = () =>
+  jsonFingerprint({ offchain: OFFCHAIN_SEEDS_DIR, variants: INDEX_VARIANTS_DIR });
 
 it("bumps the off-chain library version whenever an off-chain seed or Index variant changes", () => {
   const actual = offchainFingerprint();
@@ -160,5 +171,21 @@ it("never reuses an off-chain version for different seeds", () => {
   expect(new Set(values).size).toBe(values.length);
   expect(Math.max(...Object.keys(OFFCHAIN_FINGERPRINTS).map(Number))).toBe(
     OFFCHAIN_LIBRARY_VERSION,
+  );
+});
+
+it("bumps the brokerage library version whenever a brokerage seed changes", () => {
+  const actual = jsonFingerprint({ broker: BROKER_SEEDS_DIR });
+  expect(
+    actual,
+    `The brokerage seeds changed since brokerage library version ${BROKERAGE_LIBRARY_VERSION}. Bump ` +
+      "BROKERAGE_LIBRARY_VERSION in packages/shared/src/library-version.ts (note what changed in its " +
+      `history), then add ${BROKERAGE_LIBRARY_VERSION + 1}: "${actual}" to BROKERAGE_FINGERPRINTS here. ` +
+      "Only the Index's stock-trading rows need re-rating: the invoice and on-chain ones don't change.",
+  ).toBe(BROKERAGE_FINGERPRINTS[BROKERAGE_LIBRARY_VERSION]);
+  const values = Object.values(BROKERAGE_FINGERPRINTS);
+  expect(new Set(values).size).toBe(values.length);
+  expect(Math.max(...Object.keys(BROKERAGE_FINGERPRINTS).map(Number))).toBe(
+    BROKERAGE_LIBRARY_VERSION,
   );
 });

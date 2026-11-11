@@ -26,6 +26,7 @@
     "s1": "node dist/s1-cli.js",
     "offchain": "node dist/offchain/cli.js",
     "broker": "node dist/brokerage/cli.js",
+    "brokerage-index": "node dist/brokerage/index-cli.js",
     "offchain-adaptive": "node dist/offchain/adaptive-cli.js",
     "offchain-findings": "node dist/offchain/findings-cli.js",
     "incident-seed": "node dist/incident-cli.js",

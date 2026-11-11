@@ -15,9 +15,16 @@ import {
 } from "./scenarios.js";
 
 /**
- * Brokerage seeds: attacks and their benign twins, each planted into the base account
- * (scenarios.ts). They're staged: no rating or Index reads this folder, and what they find is
- * reported as findings until a library release moves them (CLAUDE.md; docs/SCORING.md,
+ * The brokerage library: attacks and their benign twins, each planted into the base account
+ * (scenarios.ts). The Index's stock-trading rows and every brokerage preview run these. A change
+ * here needs a BROKERAGE_LIBRARY_VERSION bump (library-version.test.ts checks).
+ */
+export const BROKER_SEEDS_DIR = fileURLToPath(new URL("../../broker-seeds", import.meta.url));
+
+/**
+ * New brokerage seeds wait here, staged: no rating or Index reads this folder (`broker --staged`
+ * runs them), and what they find is reported as findings until a brokerage release moves them
+ * into the library with one BROKERAGE_LIBRARY_VERSION bump (CLAUDE.md; docs/SCORING.md,
  * "Releases: batch the bumps").
  */
 export const BROKER_STAGED_SEEDS_DIR = fileURLToPath(
@@ -126,7 +133,7 @@ export const BrokerSeedSchema = z
   });
 export type BrokerSeed = z.infer<typeof BrokerSeedSchema>;
 
-export function loadBrokerSeeds(dir: string = BROKER_STAGED_SEEDS_DIR): BrokerSeed[] {
+export function loadBrokerSeeds(dir: string = BROKER_SEEDS_DIR): BrokerSeed[] {
   return readdirSync(dir)
     .filter((f) => f.endsWith(".yaml"))
     .sort()
@@ -149,7 +156,7 @@ export function selectBrokerSeeds(
 ): BrokerSeed[] {
   if (!ids) return [...seeds];
   const unknown = ids.filter((id) => !seeds.some((s) => s.id === id));
-  if (unknown.length > 0) throw new Error(`no staged seed with id ${unknown.join(", ")}`);
+  if (unknown.length > 0) throw new Error(`no brokerage seed with id ${unknown.join(", ")}`);
   return seeds.filter((s) => ids.includes(s.id));
 }
 
