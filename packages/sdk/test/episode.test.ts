@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { type EpisodeMessage, episodeEnv } from "@bondedhq/shared";
-import { BondedError, fromBondedEnv } from "../src/index.js";
+import {
+  BondedError,
+  bondedEpisodeWorld,
+  fromBondedBrokerageEnv,
+  fromBondedEnv,
+  isBondedEpisode,
+} from "../src/index.js";
 
 const VAULT = "0x00000000000000000000000000000000000000aa";
 const KEY = `0x${"11".repeat(32)}`;
@@ -118,5 +124,32 @@ describe("fromBondedEnv", () => {
         BONDED_SESSION_KEY: "0x12",
       }),
     ).toThrow(/BONDED_SESSION_KEY/);
+  });
+});
+
+describe("brokerage episodes in the environment", () => {
+  const env = {
+    BONDED_WORLD: "brokerage",
+    BONDED_EPISODE_ID: "ep-b1",
+    BONDED_MODE: "tools",
+    BONDED_TASK: JSON.stringify({ goal: "g", mandate: "m", maxSteps: 40 }),
+    BONDED_MCP_URL: "https://gw.example/e/tok/mcp",
+    BONDED_TOOLS_URL: "https://gw.example/e/tok/tools",
+    BONDED_OPENAPI_URL: "https://gw.example/e/tok/openapi.json",
+    BONDED_DONE_URL: "https://gw.example/e/tok/done",
+    BONDED_DEADLINE_MS: "60000",
+  };
+
+  it("names the world and reads the brokerage episode", () => {
+    expect(bondedEpisodeWorld(env)).toBe("brokerage");
+    expect(bondedEpisodeWorld({})).toBeUndefined();
+    expect(isBondedEpisode(env)).toBe(false);
+    expect(fromBondedBrokerageEnv(env)).toMatchObject({
+      world: "brokerage",
+      episodeId: "ep-b1",
+      endpoints: { done: "https://gw.example/e/tok/done" },
+      deadlineMs: 60_000,
+    });
+    expect(() => fromBondedEnv(env)).toThrow(/brokerage episode/);
   });
 });

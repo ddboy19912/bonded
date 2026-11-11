@@ -37,6 +37,8 @@ Options:
 | `--quiet`             | Don't copy the agent's output to the terminal.                                                                                                                                                                                                                                                                                         |
 | `--version`           | Print the runner's version.                                                                                                                                                                                                                                                                                                            |
 
+A brokerage episode (runner protocol 2; docs/BROKERAGE.md) sets `BONDED_WORLD=brokerage` and none of the vault variables (`BONDED_VAULT`, `BONDED_CHAIN_ID`, `BONDED_CONTRACTS`, `BONDED_RPC_URL`, `BONDED_SESSION_KEY`, `BONDED_TEE_KEY_ID`), which the runner also removes from what the agent inherits.
+
 `BONDED_RUNNER_TOKEN`, `BONDED_AGENT_KEY` and `BONDED_VAULT_ADDRESS` are removed from the agent's
 environment for each episode: neither the runner's token nor your production vault's key reaches a
 rated agent.

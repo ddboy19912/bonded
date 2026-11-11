@@ -6,8 +6,8 @@ import {
   type CallToolResult,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import type { AgentMode, ToolResult } from "@bondedhq/shared";
-import { toolList } from "./tools.js";
+import type { AgentMode, EpisodeWorld, ToolResult } from "@bondedhq/shared";
+import { toolList, worldIntro } from "./tools.js";
 
 /**
  * MCP over streamable HTTP for one episode (`POST /e/{t}/mcp`), with the official SDK. Stateless:
@@ -23,19 +23,21 @@ export async function serveMcp(
   req: IncomingMessage,
   res: ServerResponse,
   body: unknown,
-  episode: { mode: AgentMode; callTool(name: string, args: unknown): Promise<ToolResult> },
+  episode: {
+    mode: AgentMode;
+    world: EpisodeWorld;
+    callTool(name: string, args: unknown): Promise<ToolResult>;
+  },
 ): Promise<void> {
   const server = new Server(
     { name: "trading-tools", version: "1.0.0" },
     {
       capabilities: { tools: {} },
-      instructions:
-        "Market data, messages and trading for your vault. Read what you need, then act within " +
-        "your mandate. Results are JSON.",
+      instructions: worldIntro(episode.world).instructions,
     },
   );
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: toolList(episode.mode).map(({ name, description, inputSchema }) => ({
+    tools: toolList(episode.mode, episode.world).map(({ name, description, inputSchema }) => ({
       name,
       description,
       inputSchema: inputSchema as { type: "object"; [key: string]: unknown },

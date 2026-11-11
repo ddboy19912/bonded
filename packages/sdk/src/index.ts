@@ -121,9 +121,12 @@ export {
 } from "./vault-tools.js";
 export {
   bondedEpisodeEnv,
+  bondedEpisodeWorld,
   episodeVault,
+  fromBondedBrokerageEnv,
   fromBondedEnv,
   isBondedEpisode,
+  type BondedBrokerageEpisode,
   type BondedEpisode,
 } from "./episode.js";
 export {

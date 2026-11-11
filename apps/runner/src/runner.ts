@@ -1,6 +1,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import {
   type AgentMode,
+  type AnyEpisodeMessage,
   type EpisodeMessage,
   episodeEnv,
   parseRunnerMessage,
@@ -229,7 +230,7 @@ export class Runner {
     if (this.outbox.length > OUTBOX_LIMIT) this.outbox.shift();
   }
 
-  private async runEpisode(episode: EpisodeMessage): Promise<void> {
+  private async runEpisode(episode: AnyEpisodeMessage): Promise<void> {
     const started = Date.now();
     if (this.running) {
       this.write({
@@ -245,7 +246,7 @@ export class Runner {
     this.running = running;
     this.log(`episode ${episode.episodeId}: starting the agent`);
     try {
-      if (episode.nonce) await this.sendEvidence(episode);
+      if (episode.nonce && episode.world !== "brokerage") await this.sendEvidence(episode);
       if (running.cancelled) {
         this.write({
           type: "episode_done",
@@ -274,7 +275,7 @@ export class Runner {
 
   /** Runs the agent command to completion (or until it is killed). */
   private launch(
-    episode: EpisodeMessage,
+    episode: AnyEpisodeMessage,
     running: Running,
   ): Promise<{
     exitCode: number | null;
@@ -290,6 +291,18 @@ export class Runner {
     delete env.BONDED_RUNNER_TOKEN;
     delete env.BONDED_AGENT_KEY;
     delete env.BONDED_VAULT_ADDRESS;
+    // A brokerage episode has no chain: nothing left over in the runner's own environment may
+    // look like one to the agent.
+    if (episode.world === "brokerage")
+      for (const name of [
+        "BONDED_VAULT",
+        "BONDED_CHAIN_ID",
+        "BONDED_CONTRACTS",
+        "BONDED_RPC_URL",
+        "BONDED_SESSION_KEY",
+        "BONDED_TEE_KEY_ID",
+      ])
+        delete env[name];
     const stdout = new Tail(RUNNER_TAIL_BYTES);
     const stderr = new Tail(RUNNER_TAIL_BYTES);
     const echo = this.options.echo ?? true;

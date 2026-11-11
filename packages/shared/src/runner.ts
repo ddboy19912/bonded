@@ -14,8 +14,18 @@ import { evmAddress } from "./schemas/common.js";
  * edge instead of half-handled.
  */
 
-/** Bumped when a message changes in a way an older runner or gateway can't read. */
-export const RUNNER_PROTOCOL_VERSION = 1;
+/**
+ * Bumped when a message changes in a way an older runner or gateway can't read. Version 2 adds
+ * brokerage episodes (`BrokerageEpisodeMessage`), which have no chain, vault or contracts.
+ */
+export const RUNNER_PROTOCOL_VERSION = 2;
+/**
+ * The oldest runner protocol the gateway still accepts. A version 1 runner is rated on the vault
+ * world only: the gateway never sends it a brokerage episode.
+ */
+export const RUNNER_MIN_PROTOCOL_VERSION = 1;
+/** The first protocol version that can run brokerage episodes. */
+export const BROKERAGE_PROTOCOL_VERSION = 2;
 /** The runner pings this often; the gateway drops a runner silent for three intervals. */
 export const RUNNER_HEARTBEAT_MS = 15_000;
 /** Most of an agent's stdout and stderr the runner sends back, from the end of each. */
@@ -120,8 +130,20 @@ export type EpisodeContracts = z.infer<typeof EpisodeContracts>;
 
 // Server → runner.
 
+/**
+ * What an episode puts in front of the agent:
+ * - vault: the on-chain market, trading from a Mandate Vault (the original episode, and the
+ *   default when a message doesn't say);
+ * - brokerage: a simulated brokerage account, with stocks, filings and cash withdrawals
+ *   (docs/BROKERAGE.md). Tools mode only; no chain.
+ */
+export const EpisodeWorld = z.enum(["vault", "brokerage"]);
+export type EpisodeWorld = z.infer<typeof EpisodeWorld>;
+
 export const EpisodeMessage = z.object({
   type: z.literal("episode"),
+  /** Absent in protocol 1, which had only the vault world. */
+  world: z.literal("vault").optional(),
   episodeId: id,
   task: AgentTaskSchema,
   mode: AgentMode,
@@ -147,15 +169,35 @@ export const EpisodeMessage = z.object({
 });
 export type EpisodeMessage = z.infer<typeof EpisodeMessage>;
 
+/**
+ * A brokerage episode (protocol 2): the same task, endpoints and deadline, with no chain, vault
+ * or contracts. Writes (orders, withdrawals) are tool calls, so it runs in tools mode only.
+ */
+export const BrokerageEpisodeMessage = z.object({
+  type: z.literal("episode"),
+  world: z.literal("brokerage"),
+  episodeId: id,
+  task: AgentTaskSchema,
+  mode: z.literal("tools"),
+  endpoints: EpisodeEndpoints,
+  deadlineMs: z.number().int().positive(),
+  nonce: hex.optional(),
+});
+export type BrokerageEpisodeMessage = z.infer<typeof BrokerageEpisodeMessage>;
+
+/** Either kind of episode. A message that names no world is a vault episode. */
+export const AnyEpisodeMessage = z.union([BrokerageEpisodeMessage, EpisodeMessage]);
+export type AnyEpisodeMessage = z.infer<typeof AnyEpisodeMessage>;
+
+/** The world an episode message is for. */
+export const episodeWorld = (episode: { world?: EpisodeWorld }): EpisodeWorld =>
+  episode.world ?? "vault";
+
 /** Stop the episode's agent: SIGTERM, then SIGKILL after RUNNER_KILL_GRACE_MS. */
 export const CancelMessage = z.object({ type: z.literal("cancel"), episodeId: id });
 export const PongMessage = z.object({ type: z.literal("pong"), at: z.number().optional() });
 
-export const ServerToRunner = z.discriminatedUnion("type", [
-  EpisodeMessage,
-  CancelMessage,
-  PongMessage,
-]);
+export const ServerToRunner = z.union([AnyEpisodeMessage, CancelMessage, PongMessage]);
 export type ServerToRunner = z.infer<typeof ServerToRunner>;
 
 /**
@@ -275,8 +317,22 @@ export function parseRunnerMessage<T>(schema: z.ZodType<T>, data: string): T | u
  * The environment the runner gives the agent command for an episode. Every value is a string;
  * the task is JSON. The session key is only present in chain mode without a TEE.
  */
-export function episodeEnv(episode: EpisodeMessage): Record<string, string> {
+export function episodeEnv(episode: AnyEpisodeMessage): Record<string, string> {
+  if (episode.world === "brokerage") {
+    return {
+      BONDED_WORLD: "brokerage",
+      BONDED_EPISODE_ID: episode.episodeId,
+      BONDED_MODE: episode.mode,
+      BONDED_TASK: JSON.stringify(episode.task),
+      BONDED_MCP_URL: episode.endpoints.mcp,
+      BONDED_TOOLS_URL: episode.endpoints.tools,
+      BONDED_OPENAPI_URL: episode.endpoints.openapi,
+      BONDED_DONE_URL: episode.endpoints.done,
+      BONDED_DEADLINE_MS: String(episode.deadlineMs),
+    };
+  }
   return {
+    BONDED_WORLD: "vault",
     BONDED_EPISODE_ID: episode.episodeId,
     BONDED_MODE: episode.mode,
     BONDED_TASK: JSON.stringify(episode.task),
@@ -314,6 +370,8 @@ const envJson = <T extends z.ZodType>(schema: T) =>
  */
 export const EpisodeEnv = z
   .object({
+    /** Set by protocol 2 runners; a vault episode when absent. */
+    BONDED_WORLD: z.literal("vault").optional(),
     BONDED_EPISODE_ID: id,
     BONDED_MODE: AgentMode,
     BONDED_TASK: envJson(AgentTaskSchema),
@@ -365,6 +423,13 @@ export type EpisodeFromEnv = Omit<EpisodeMessage, "type" | "nonce">;
 export function parseEpisodeEnv(
   env: Record<string, string | undefined>,
 ): { ok: true; episode: EpisodeFromEnv } | { ok: false; problems: string[] } {
+  if (env.BONDED_WORLD === "brokerage")
+    return {
+      ok: false,
+      problems: [
+        "BONDED_WORLD is brokerage: this is a brokerage episode, with no vault (read it with parseBrokerageEpisodeEnv)",
+      ],
+    };
   const parsed = EpisodeEnv.safeParse(env);
   if (!parsed.success)
     return {
@@ -390,6 +455,51 @@ export function parseEpisodeEnv(
       contracts: e.BONDED_CONTRACTS,
       ...(e.BONDED_SESSION_KEY ? { sessionKey: e.BONDED_SESSION_KEY } : {}),
       ...(e.BONDED_TEE_KEY_ID ? { teeKeyId: e.BONDED_TEE_KEY_ID } : {}),
+      deadlineMs: e.BONDED_DEADLINE_MS,
+    },
+  };
+}
+
+/** The BONDED_* variables of a brokerage episode, as `episodeEnv` writes them. */
+export const BrokerageEpisodeEnv = z.object({
+  BONDED_WORLD: z.literal("brokerage"),
+  BONDED_EPISODE_ID: id,
+  BONDED_MODE: z.literal("tools"),
+  BONDED_TASK: envJson(AgentTaskSchema),
+  BONDED_MCP_URL: url,
+  BONDED_TOOLS_URL: url,
+  BONDED_OPENAPI_URL: url,
+  BONDED_DONE_URL: url,
+  BONDED_DEADLINE_MS: z.coerce.number().int().positive(),
+});
+
+/** A brokerage episode as its agent sees it, read back from the environment. */
+export type BrokerageEpisodeFromEnv = Omit<BrokerageEpisodeMessage, "type" | "nonce">;
+
+/** Reads a brokerage episode from BONDED_* variables (the inverse of `episodeEnv`). */
+export function parseBrokerageEpisodeEnv(
+  env: Record<string, string | undefined>,
+): { ok: true; episode: BrokerageEpisodeFromEnv } | { ok: false; problems: string[] } {
+  const parsed = BrokerageEpisodeEnv.safeParse(env);
+  if (!parsed.success)
+    return {
+      ok: false,
+      problems: parsed.error.issues.map((i) => `${i.path.join(".") || "environment"} ${i.message}`),
+    };
+  const e = parsed.data;
+  return {
+    ok: true,
+    episode: {
+      world: "brokerage",
+      episodeId: e.BONDED_EPISODE_ID,
+      task: e.BONDED_TASK,
+      mode: e.BONDED_MODE,
+      endpoints: {
+        mcp: e.BONDED_MCP_URL,
+        tools: e.BONDED_TOOLS_URL,
+        openapi: e.BONDED_OPENAPI_URL,
+        done: e.BONDED_DONE_URL,
+      },
       deadlineMs: e.BONDED_DEADLINE_MS,
     },
   };

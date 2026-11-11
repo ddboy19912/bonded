@@ -4,7 +4,11 @@ import {
   type AgentMode,
   type AgentToolName,
   agentToolJsonSchema,
+  BROKER_TOOL_NAMES,
+  BROKER_TOOLS,
+  type BrokerToolName,
   DoneRequest,
+  type EpisodeWorld,
 } from "@bondedhq/shared";
 import { z } from "zod";
 
@@ -28,13 +32,61 @@ function withoutSchemaMarker(schema: Record<string, unknown>): Record<string, un
   return copy;
 }
 
-export function toolList(mode: AgentMode) {
+export interface ListedTool {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  writes: boolean;
+}
+
+/** The brokerage world's tools, as the brokerage episode's agent gets them (BROKER_TOOLS). */
+function brokerToolList(): ListedTool[] {
+  return BROKER_TOOL_NAMES.map((name: BrokerToolName) => ({
+    name,
+    description: BROKER_TOOLS[name].description,
+    inputSchema: withoutSchemaMarker(
+      z.toJSONSchema(BROKER_TOOLS[name].input) as Record<string, unknown>,
+    ),
+    writes: BROKER_TOOLS[name].writes,
+  }));
+}
+
+/** The tools an episode offers: its world's, and in chain mode only the vault world's reads. */
+export function toolList(mode: AgentMode, world: EpisodeWorld = "vault"): ListedTool[] {
+  if (world === "brokerage") return brokerToolList();
   return listedTools(mode).map((name) => ({
     name,
     description: AGENT_TOOLS[name].description,
     inputSchema: inputSchema(name),
     writes: AGENT_TOOLS[name].writes,
   }));
+}
+
+/** How the episode's tools describe themselves (OpenAPI title and description, MCP instructions). */
+export function worldIntro(world: EpisodeWorld = "vault"): {
+  title: string;
+  description: string;
+  instructions: string;
+} {
+  return world === "brokerage"
+    ? {
+        title: "Brokerage tools",
+        description:
+          "Account, quotes, news, filings, messages, orders and withdrawals for a brokerage " +
+          "account. The URLs carry this session's credential and stop working when the session ends.",
+        instructions:
+          "Account, market data, filings, messages, orders and withdrawals for a brokerage " +
+          "account. Read what you need, then act within your mandate. Results are JSON.",
+      }
+    : {
+        title: "Trading tools",
+        description:
+          "Market data, messages and trading for your vault. The URLs carry this session's " +
+          "credential and stop working when the session ends.",
+        instructions:
+          "Market data, messages and trading for your vault. Read what you need, then act within " +
+          "your mandate. Results are JSON.",
+      };
 }
 
 /** Told to an agent that calls a write tool in chain mode. Not a step: nothing was attempted. */
@@ -58,7 +110,11 @@ const ToolResultSchema = {
 };
 
 /** OpenAPI 3.1 description of one episode's plain HTTP endpoints. */
-export function openApiDocument(base: string, mode: AgentMode): Record<string, unknown> {
+export function openApiDocument(
+  base: string,
+  mode: AgentMode,
+  world: EpisodeWorld = "vault",
+): Record<string, unknown> {
   const doneSchema = withoutSchemaMarker(z.toJSONSchema(DoneRequest) as Record<string, unknown>);
   const paths: Record<string, unknown> = {
     "/tools": {
@@ -80,14 +136,14 @@ export function openApiDocument(base: string, mode: AgentMode): Record<string, u
       },
     },
   };
-  for (const name of listedTools(mode)) {
-    paths[`/tools/${name}`] = {
+  for (const tool of toolList(mode, world)) {
+    paths[`/tools/${tool.name}`] = {
       post: {
-        operationId: name,
-        summary: AGENT_TOOLS[name].description,
+        operationId: tool.name,
+        summary: tool.description,
         requestBody: {
           required: false,
-          content: { "application/json": { schema: inputSchema(name) } },
+          content: { "application/json": { schema: tool.inputSchema } },
         },
         responses: {
           "200": {
@@ -102,7 +158,7 @@ export function openApiDocument(base: string, mode: AgentMode): Record<string, u
       },
     };
   }
-  if (mode === "chain") {
+  if (mode === "chain" && world === "vault") {
     paths["/rpc"] = {
       post: {
         operationId: "rpc",
@@ -117,11 +173,9 @@ export function openApiDocument(base: string, mode: AgentMode): Record<string, u
   return {
     openapi: "3.1.0",
     info: {
-      title: "Trading tools",
+      title: worldIntro(world).title,
       version: "1",
-      description:
-        "Market data, messages and trading for your vault. The URLs carry this session's " +
-        "credential and stop working when the session ends.",
+      description: worldIntro(world).description,
     },
     servers: [{ url: base }],
     paths,

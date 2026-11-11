@@ -6,7 +6,10 @@ import {
   type AgentMode,
   type AttackSurface,
   DoneRequest,
+  type AgentToolbox,
+  BROKERAGE_PROTOCOL_VERSION,
   type EpisodeEndpoints,
+  type EpisodeWorld,
   type HelloMessage,
   isAgentToolName,
   isWellFormedRunnerToken,
@@ -15,6 +18,7 @@ import {
   RUNNER_CONNECT_PATH,
   RUNNER_HEARTBEAT_MS,
   RUNNER_MAX_MESSAGE_BYTES,
+  RUNNER_MIN_PROTOCOL_VERSION,
   RUNNER_PROTOCOL_VERSION,
   RunnerToServer,
   type ServerToRunner,
@@ -246,6 +250,11 @@ export class RunnerSession {
     return this.closedReason;
   }
 
+  /** Whether the runner speaks a protocol that has brokerage episodes (protocol 2 and later). */
+  get canRunBrokerage(): boolean {
+    return (this.hello?.protocol ?? 0) >= BROKERAGE_PROTOCOL_VERSION;
+  }
+
   /** The code hash the runner worked out and its source, when it reported one in hello. */
   /**
    * The code hash the runner worked out and its source, when it reported one in hello. Reported
@@ -308,8 +317,11 @@ export class RunnerSession {
 /** What an episode needs from the gateway. */
 export interface EpisodeSpec {
   episodeId: string;
-  toolbox: ArenaToolbox;
+  /** The vault world's ArenaToolbox, or another world's (the brokerage BrokerToolbox). */
+  toolbox: AgentToolbox;
   mode: AgentMode;
+  /** The world whose tools the episode serves (default vault). Only the vault world has chain mode. */
+  world?: EpisodeWorld;
   /** Chain mode: where the RPC endpoint forwards, and whose transactions it accepts. */
   chain?: Omit<RpcBinding, "toolbox">;
   /** Hold every request until `open()` is called (a TEE-bound episode waits for its evidence). */
@@ -346,6 +358,10 @@ export class GatewayEpisode {
 
   get mode(): AgentMode {
     return this.spec.mode;
+  }
+
+  get world(): EpisodeWorld {
+    return this.spec.world ?? "vault";
   }
 
   get isClosed(): boolean {
@@ -438,7 +454,8 @@ export class GatewayEpisode {
   /** A tool call from MCP or HTTP: logged with its surface, then run by the toolbox. */
   async callTool(name: string, args: unknown): Promise<ToolResult> {
     if (this.closed || this.finished) return { ok: false, error: "the episode is over" };
-    const surface = toolSurface(name) ?? null;
+    // Attack surfaces are the vault world's; another world's reads are logged without one.
+    const surface = this.world === "vault" ? (toolSurface(name) ?? null) : null;
     if (this.mode === "chain" && isAgentToolName(name) && AGENT_TOOLS[name].writes) {
       this.emitActivity({ type: "tool", name, surface, ok: false, error: CHAIN_MODE_WRITE });
       return { ok: false, error: CHAIN_MODE_WRITE };
@@ -592,6 +609,8 @@ export class ArenaGateway {
   /** Serves an episode behind a fresh capability token. Close it when the episode ends. */
   openEpisode(spec: EpisodeSpec): GatewayEpisode {
     if (spec.mode === "chain" && !spec.chain) throw new Error("a chain-mode episode needs a chain");
+    if ((spec.world ?? "vault") !== "vault" && (spec.mode === "chain" || spec.chain))
+      throw new Error("only the vault world has chain mode");
     const token = newCapabilityToken();
     const key = hashToken(token);
     const base = `${this.url}/e/${token}`;
@@ -653,9 +672,9 @@ export class ArenaGateway {
     const method = req.method ?? "GET";
     const base = `${this.url}/e/${episode.token}`;
     if (route === "tools" && method === "GET")
-      return reply(res, 200, { tools: toolList(episode.mode) });
+      return reply(res, 200, { tools: toolList(episode.mode, episode.world) });
     if (route === "openapi.json" && method === "GET")
-      return reply(res, 200, openApiDocument(base, episode.mode));
+      return reply(res, 200, openApiDocument(base, episode.mode, episode.world));
     if (route === "mcp") {
       if (method !== "POST") {
         res.setHeader("allow", "POST");
@@ -670,7 +689,7 @@ export class ArenaGateway {
       const args = await readJson(req, this.limits.bodyBytes, {});
       return reply(res, 200, await episode.callTool(tool[1]!, args));
     }
-    if (route === "rpc" && method === "POST" && episode.spec.chain) {
+    if (route === "rpc" && method === "POST" && episode.spec.chain && episode.world === "vault") {
       const body = await readJson(req, this.limits.rpcBodyBytes);
       if (episode.finished || episode.isClosed)
         return reply(res, 200, {
@@ -682,7 +701,8 @@ export class ArenaGateway {
         body,
         {
           ...episode.spec.chain,
-          toolbox: episode.spec.toolbox,
+          // openEpisode allows a chain binding only for the vault world, whose toolbox this is.
+          toolbox: episode.spec.toolbox as ArenaToolbox,
           budget: episode.rpcBudget(this.limits),
           gas: episode.gasBudget(this.limits),
           signal: episode.signal,
@@ -883,7 +903,10 @@ export class ArenaGateway {
       if (!message) return session.close(RUNNER_CLOSE.protocol, "malformed message");
       if (!session.hello) {
         if (message.type !== "hello") return session.close(RUNNER_CLOSE.protocol, "hello first");
-        if (message.protocol !== RUNNER_PROTOCOL_VERSION)
+        if (
+          message.protocol < RUNNER_MIN_PROTOCOL_VERSION ||
+          message.protocol > RUNNER_PROTOCOL_VERSION
+        )
           return session.close(RUNNER_CLOSE.protocol, "unsupported protocol version");
         // "url" labels a version an agent URL reported; a runner can't claim it.
         if (message.codeSource === "url")

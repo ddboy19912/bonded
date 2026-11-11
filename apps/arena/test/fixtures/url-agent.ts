@@ -4,6 +4,7 @@ import {
   AgentUrlReplayGuard,
   answerAgentUrlVerify,
   type ArenaAgent,
+  type BrokerageEpisodeMessage,
   type DoneRequest,
   type EpisodeMessage,
   verifyAgentUrlRequest,
@@ -22,6 +23,8 @@ export interface UrlAgentOptions {
   transport?: Transport;
   /** Replaces the default episode handler (run after the 202 is sent). */
   onEpisode?: (episode: EpisodeMessage) => Promise<void> | void;
+  /** Runs a brokerage episode (after the 202). Without it, brokerage episodes get 400. */
+  onBrokerageEpisode?: (episode: BrokerageEpisodeMessage) => Promise<void> | void;
   /** Usage the default handler reports at /done. */
   usage?: DoneRequest["usage"];
   /** Answers verify with this version. */
@@ -97,6 +100,16 @@ export async function urlAgent(options: UrlAgentOptions): Promise<UrlAgent> {
         if (message.type === "cancel") {
           state.cancels.push(message.episodeId);
           res.writeHead(204).end();
+          return;
+        }
+        if (message.world === "brokerage") {
+          const onBrokerage = options.onBrokerageEpisode;
+          if (!onBrokerage) {
+            res.writeHead(400).end();
+            return;
+          }
+          res.writeHead(202).end();
+          void Promise.resolve(onBrokerage(message)).catch(() => {});
           return;
         }
         if (options.episodeStatus) {

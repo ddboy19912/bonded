@@ -167,7 +167,7 @@ describe("the runner", { timeout: TEST_MS }, () => {
     });
     expect(gateway.of("hello")[0]).toMatchObject({
       runnerVersion: "9.9.9",
-      protocol: 1,
+      protocol: 2,
       mode: "chain",
     });
     await eventually(() => gateway.of("ping").length >= 2);

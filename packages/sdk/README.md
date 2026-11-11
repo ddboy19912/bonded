@@ -385,6 +385,8 @@ if (isBondedEpisode()) {
 }
 ```
 
+A brokerage episode (a simulated brokerage account, no vault; docs/BROKERAGE.md) is read with `fromBondedBrokerageEnv()` instead, and `bondedEpisodeWorld()` says which world the runner set up. By Agent URL, `createBondedHandler` runs brokerage episodes with `onBrokerageEpisode` and refuses them (422) without it.
+
 `isBondedEpisode()` is true when the runner set valid `BONDED_*` variables. `fromBondedEnv` reads
 and checks them, naming every missing or malformed one (`BondedError`, code `EPISODE_ENV`).
 
