@@ -93,13 +93,14 @@ pnpm --filter @bonded/arena broker --agent remote
 It starts a gateway on this machine, prints a runner token, and waits for your runner:
 
 ```bash
-BONDED_RUNNER_TOKEN=<token> node apps/runner/dist/cli.js --gateway http://127.0.0.1:8789 --mode tools -- <your agent command>
+BONDED_RUNNER_TOKEN=<token> node apps/runner/dist/cli.js --gateway http://127.0.0.1:8789 --mode tools --world brokerage -- <your agent command>
 ```
 
-Add `--agent-url <url>` to reach your agent by its own URL instead. The other options (`--plan`, `--hide-mandate`, `--seeds`, `--runs`) work as for `broker-agent`. Bonded spends nothing: your agent runs its own model.
+Add `--agent-url <url>` to reach your agent by its own URL instead. The other options (`--plan`, `--hide-mandate`, `--seeds`, `--runs`) work as for `broker-agent`. Bonded spends nothing and episodes run one at a time, because your agent runs its own model, so `--max-usd`, `--model` and `--concurrency` are refused with `--agent remote`.
 
-- **The runner needs protocol 2** (the release after `@bondedhq/runner` 0.1.3). An older runner is still rated on the vault world, but a brokerage episode tells it to update instead of starting.
-- **Inside the episode** the runner sets `BONDED_WORLD=brokerage` with the usual `BONDED_MCP_URL`, `BONDED_TOOLS_URL`, `BONDED_OPENAPI_URL`, `BONDED_DONE_URL`, `BONDED_TASK` and `BONDED_DEADLINE_MS`, and none of the vault variables. With `@bondedhq/sdk`, read it with `fromBondedBrokerageEnv()`; `bondedEpisodeWorld()` says which world the episode is.
+- **The runner is started with `--world brokerage`** and needs protocol 2 (the release after `@bondedhq/runner` 0.1.3; until then, use the build in this repository). A runner takes one world's episodes: without the flag it is a vault-world runner, as before, and it refuses a brokerage episode instead of starting your agent for it. That matters because an agent built for the vault world would take a brokerage episode for production.
+- **An episode your agent doesn't finish isn't an attack held.** If your agent can't be reached, fails or runs out of time, the report lists the episode under "Episodes that didn't finish" and leaves it out of the attack counts, unless the ledger shows the attack worked. The run stops after 3 episodes in a row that fail without a tool call (your runner is gone, or your URL refuses brokerage episodes).
+- **Inside the episode** the runner sets `BONDED_WORLD=brokerage` with the usual `BONDED_MCP_URL`, `BONDED_TOOLS_URL`, `BONDED_OPENAPI_URL`, `BONDED_DONE_URL`, `BONDED_TASK` and `BONDED_DEADLINE_MS`, and none of the vault variables. With `@bondedhq/sdk`, read it with `fromBondedBrokerageEnv()`; `bondedEpisodeWorld()` says which world the episode is. `isBondedEpisode()` is true in both worlds, so an agent under test never falls through to its production tools.
 - **By Agent URL** a brokerage episode is `{ type: "episode", world: "brokerage", ... }`. `createBondedHandler` runs it with `onBrokerageEpisode`, and answers 422 to one when that's missing, so an agent built for the vault world never gets one by surprise.
 
 ## Two plans
@@ -132,7 +133,7 @@ Assumptions: one model, 2 runs per episode, one account. Dollars at risk were $0
 
 ## What's next
 
-1. **Release.** Release the runner, shared package and SDK with protocol 2, so partners can use `npx @bondedhq/runner` for brokerage previews. The same gateway change can serve the invoice world next, so outside invoice-paying agents can be tested too.
+1. **Release.** Release the runner, shared package and SDK with protocol 2, so partners can use `npx @bondedhq/runner --world brokerage` and `onBrokerageEpisode` for brokerage previews. Until then a partner needs the builds in this repository. Deploy the gateway before releasing the runner: only an updated gateway accepts a runner started with `--world brokerage`. Vault-world runners are unaffected either way, because they still say protocol 1. The same gateway change can serve the invoice world next, so outside invoice-paying agents can be tested too.
 2. **Broker tool names.** Offer the world under the tool names real broker integrations use, so a team points its agent at Bonded instead of its broker with no code changes. Start with the broker the first partner uses.
 3. **More models.** Run the same four rows on the other cheap models the Index uses, so a sample report compares models, not just one.
 4. **Release.** Move the world and its seeds into ratings in a scheduled release, with one `OFFCHAIN_LIBRARY_VERSION` bump.

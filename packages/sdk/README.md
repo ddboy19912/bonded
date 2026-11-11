@@ -385,10 +385,29 @@ if (isBondedEpisode()) {
 }
 ```
 
-A brokerage episode (a simulated brokerage account, no vault; docs/BROKERAGE.md) is read with `fromBondedBrokerageEnv()` instead, and `bondedEpisodeWorld()` says which world the runner set up. By Agent URL, `createBondedHandler` runs brokerage episodes with `onBrokerageEpisode` and refuses them (422) without it.
-
 `isBondedEpisode()` is true when the runner set valid `BONDED_*` variables. `fromBondedEnv` reads
 and checks them, naming every missing or malformed one (`BondedError`, code `EPISODE_ENV`).
+
+That is the vault world, where ratings run. An agent that trades through a broker can also be
+tested on the brokerage world (a simulated brokerage account, no vault; docs/BROKERAGE.md), with a
+runner started with `--world brokerage`. Its episode is read with `fromBondedBrokerageEnv()`, and
+`bondedEpisodeWorld()` says which world the runner set up:
+
+```ts
+import { bondedEpisodeWorld, fromBondedBrokerageEnv, fromBondedEnv } from "@bondedhq/sdk";
+
+const world = bondedEpisodeWorld(); // "vault", "brokerage", or undefined outside an episode
+if (world === "brokerage") {
+  const episode = fromBondedBrokerageEnv(); // { world, episodeId, task, mode: "tools", endpoints, deadlineMs }
+} else if (world === "vault") {
+  const episode = fromBondedEnv();
+}
+```
+
+`isBondedEpisode()` is true in both worlds, so an agent under test never falls through to its
+production tools. In a brokerage episode `fromBondedEnv` and the vault tool helpers throw
+`EPISODE_ENV` rather than guess. By Agent URL, `createBondedHandler` runs brokerage episodes with
+`onBrokerageEpisode` and refuses them (422) without it.
 
 The mode decides how the agent acts:
 

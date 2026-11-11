@@ -5,13 +5,20 @@ import {
   isWellFormedRunnerToken,
   newAgentSecret,
 } from "@bondedhq/shared";
-import { ArenaGateway, newRunnerToken, RemoteAgent, StaticRunnerTokens } from "./gateway/index.js";
+import { positiveInt } from "./flags.js";
+import {
+  ArenaGateway,
+  BROKERAGE_RUNNER_NEEDED,
+  newRunnerToken,
+  RemoteAgent,
+  StaticRunnerTokens,
+} from "./gateway/index.js";
 import type { Sandbox } from "./sandbox.js";
 
 /**
  * Local runs of a remote agent (bring your own agent): a gateway on this machine, and the agent
  * reached through its runner or its own URL. Used by `arena run|rate|check --agent remote` (the
- * vault world) and `broker --runner|--agent-url` (the brokerage world).
+ * vault world) and `broker --agent remote [--agent-url <url>]` (the brokerage world).
  */
 
 /**
@@ -46,6 +53,9 @@ export async function startRemote(
     throw new Error(
       "--runner-token must be bonded_rt_ followed by at least 16 base64url characters",
     );
+  // Every flag is checked before the gateway takes its port, so a typo leaves nothing listening.
+  const port = positiveInt(values["gateway-port"], "--gateway-port");
+  const waitMs = positiveInt(values["runner-wait"], "--runner-wait") * 1000;
   const gateway = new ArenaGateway({
     tokens: new StaticRunnerTokens({ [token]: "local" }),
     ...(values["public-url"] ? { publicUrl: values["public-url"] } : {}),
@@ -54,52 +64,57 @@ export async function startRemote(
       if (e.type === "disconnected") console.log(`Runner disconnected (${e.reason})`);
     },
   });
-  const url = await gateway.listen({
-    port: positiveInt(values["gateway-port"], "--gateway-port"),
-    host: values["gateway-host"] ?? "127.0.0.1",
-  });
-  console.log(`\nArena Gateway listening at ${url}`);
-  console.log("Start your agent's runner in another terminal:\n");
-  const tokenShown = given ? "<your token>" : token;
-  console.log(
-    `  BONDED_RUNNER_TOKEN=${tokenShown} npx @bondedhq/runner --gateway ${url} ` +
-      `--mode ${mode} -- <your agent command>\n`,
-  );
-  console.log("or, from this repository (until @bondedhq/runner is published):\n");
-  console.log(
-    `  BONDED_RUNNER_TOKEN=${tokenShown} node apps/runner/dist/cli.js --gateway ${url} ` +
-      `--mode ${mode} -- <your agent command>\n`,
-  );
-  const waitMs = positiveInt(values["runner-wait"], "--runner-wait") * 1000;
-  const deadline = Date.now() + waitMs;
-  console.log(`Waiting up to ${waitMs / 1000} s for the runner...`);
-  while (!gateway.runner("local")) {
-    if (Date.now() > deadline) {
-      await gateway.close();
-      throw new Error("no runner connected in time");
+  const url = await gateway.listen({ port, host: values["gateway-host"] ?? "127.0.0.1" });
+  try {
+    console.log(`\nArena Gateway listening at ${url}`);
+    const tokenShown = given ? "<your token>" : token;
+    const flags = `--gateway ${url} --mode ${mode}${world === "vault" ? "" : ` --world ${world}`}`;
+    const fromRepository = `  BONDED_RUNNER_TOKEN=${tokenShown} node apps/runner/dist/cli.js ${flags} -- <your agent command>\n`;
+    if (world === "vault") {
+      console.log("Start your agent's runner in another terminal:\n");
+      console.log(
+        `  BONDED_RUNNER_TOKEN=${tokenShown} npx @bondedhq/runner ${flags} -- <your agent command>\n`,
+      );
+      console.log("or, from this repository:\n");
+      console.log(fromRepository);
+    } else {
+      // The published runner is protocol 1 until its next release: it can't take this world yet.
+      console.log(
+        `Start your agent's runner in another terminal, from this repository (the published ` +
+          `@bondedhq/runner gets the ${world} world in its next release):\n`,
+      );
+      console.log(fromRepository);
     }
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-  const runnerMode = gateway.runner("local")?.hello?.mode;
-  if (runnerMode !== mode) {
+    const deadline = Date.now() + waitMs;
+    console.log(`Waiting up to ${waitMs / 1000} s for the runner...`);
+    while (!gateway.runner("local")) {
+      if (Date.now() > deadline) throw new Error("no runner connected in time");
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    const runner = gateway.runner("local");
+    const runnerMode = runner?.hello?.mode;
+    if (runnerMode !== mode)
+      throw new Error(`the runner is in ${runnerMode} mode, but --mode is ${mode}`);
+    if (world === "brokerage" && !runner?.canRunBrokerage) throw new Error(BROKERAGE_RUNNER_NEEDED);
+    if (world === "vault" && runner?.world !== "vault")
+      throw new Error(
+        `the runner was started for the ${runner?.world} world: start it without --world`,
+      );
+    const agent = new RemoteAgent({
+      gateway,
+      ...(sandbox ? { sandbox } : {}),
+      world,
+      runner: "local",
+      mode,
+      name: values.name ?? "remote/local",
+      episodeTimeoutMs,
+    });
+    const code = runner?.code;
+    return { gateway, agent, ...(code ? { code } : {}) };
+  } catch (error) {
     await gateway.close();
-    throw new Error(`the runner is in ${runnerMode} mode, but --mode is ${mode}`);
+    throw error;
   }
-  if (world === "brokerage" && !gateway.runner("local")?.canRunBrokerage) {
-    await gateway.close();
-    throw new Error("this runner is too old for brokerage episodes: update @bondedhq/runner");
-  }
-  const agent = new RemoteAgent({
-    gateway,
-    ...(sandbox ? { sandbox } : {}),
-    world,
-    runner: "local",
-    mode,
-    name: values.name ?? "remote/local",
-    episodeTimeoutMs,
-  });
-  const code = gateway.runner("local")?.code;
-  return { gateway, agent, ...(code ? { code } : {}) };
 }
 
 /**
@@ -131,52 +146,45 @@ async function startAgentUrl(
     throw new Error(
       "--agent-secret must be bonded_as_ followed by at least 16 base64url characters",
     );
+  const port = positiveInt(values["gateway-port"], "--gateway-port");
   const gateway = new ArenaGateway({
     tokens: new StaticRunnerTokens(),
     ...(values["public-url"] ? { publicUrl: values["public-url"] } : {}),
     agentUrl: { allowLoopback: true },
   });
-  const base = await gateway.listen({
-    port: positiveInt(values["gateway-port"], "--gateway-port"),
-    host: values["gateway-host"] ?? "127.0.0.1",
-  });
-  console.log(`\nArena Gateway listening at ${base}`);
-  const problem = gateway.agentUrls.urlProblem(url);
-  if (problem) {
-    await gateway.close();
-    throw new Error(problem);
-  }
-  if (!given) {
-    console.log("Your agent checks each call's signature with this secret (for this run only):\n");
-    console.log(`  BONDED_AGENT_SECRET=${secret}\n`);
-    console.log("Start your agent with it, then press Enter.");
-    await new Promise<void>((resolve) => process.stdin.once("data", () => resolve()));
-    process.stdin.pause();
-  }
-  let code: { hash: `0x${string}`; source: string } | undefined;
-  if (options.verify) {
-    const verified = await gateway.agentUrls.verify(url, secret);
-    if (!verified.ok) {
-      await gateway.close();
-      throw new Error(verified.problem);
+  const base = await gateway.listen({ port, host: values["gateway-host"] ?? "127.0.0.1" });
+  try {
+    console.log(`\nArena Gateway listening at ${base}`);
+    const problem = gateway.agentUrls.urlProblem(url);
+    if (problem) throw new Error(problem);
+    if (!given) {
+      console.log(
+        "Your agent checks each call's signature with this secret (for this run only):\n",
+      );
+      console.log(`  BONDED_AGENT_SECRET=${secret}\n`);
+      console.log("Start your agent with it, then press Enter.");
+      await new Promise<void>((resolve) => process.stdin.once("data", () => resolve()));
+      process.stdin.pause();
     }
-    console.log(`Agent URL verified${verified.version ? ` (version ${verified.version})` : ""}`);
-    if (verified.codeHash) code = { hash: verified.codeHash, source: "url" };
+    let code: { hash: `0x${string}`; source: string } | undefined;
+    if (options.verify) {
+      const verified = await gateway.agentUrls.verify(url, secret);
+      if (!verified.ok) throw new Error(verified.problem);
+      console.log(`Agent URL verified${verified.version ? ` (version ${verified.version})` : ""}`);
+      if (verified.codeHash) code = { hash: verified.codeHash, source: "url" };
+    }
+    const agent = new RemoteAgent({
+      gateway,
+      ...(sandbox ? { sandbox } : {}),
+      world: options.world ?? "vault",
+      transport: { kind: "url", url, secret, registration: "local" },
+      mode,
+      name: values.name ?? "remote/url",
+      episodeTimeoutMs,
+    });
+    return { gateway, agent, ...(code ? { code } : {}) };
+  } catch (error) {
+    await gateway.close();
+    throw error;
   }
-  const agent = new RemoteAgent({
-    gateway,
-    ...(sandbox ? { sandbox } : {}),
-    world: options.world ?? "vault",
-    transport: { kind: "url", url, secret, registration: "local" },
-    mode,
-    name: values.name ?? "remote/url",
-    episodeTimeoutMs,
-  });
-  return { gateway, agent, ...(code ? { code } : {}) };
-}
-
-function positiveInt(text: string | undefined, flag: string): number {
-  const n = Number(text);
-  if (!Number.isInteger(n) || n < 1) throw new Error(`${flag} must be a whole number`);
-  return n;
 }

@@ -143,7 +143,9 @@ describe("brokerage episodes in the environment", () => {
   it("names the world and reads the brokerage episode", () => {
     expect(bondedEpisodeWorld(env)).toBe("brokerage");
     expect(bondedEpisodeWorld({})).toBeUndefined();
-    expect(isBondedEpisode(env)).toBe(false);
+    // Under test in either world: an agent must not fall through to its production tools.
+    expect(isBondedEpisode(env)).toBe(true);
+    expect(isBondedEpisode({})).toBe(false);
     expect(fromBondedBrokerageEnv(env)).toMatchObject({
       world: "brokerage",
       episodeId: "ep-b1",
@@ -151,5 +153,15 @@ describe("brokerage episodes in the environment", () => {
       deadlineMs: 60_000,
     });
     expect(() => fromBondedEnv(env)).toThrow(/brokerage episode/);
+  });
+
+  it("fails closed when a brokerage episode's variables are malformed", () => {
+    const broken = { ...env, BONDED_DONE_URL: "not a url" };
+    // Still an episode, in the brokerage world: reading it names the bad variable.
+    expect(bondedEpisodeWorld(broken)).toBe("brokerage");
+    expect(isBondedEpisode(broken)).toBe(true);
+    expect(() => fromBondedBrokerageEnv(broken)).toThrow(/BONDED_DONE_URL/);
+    // BONDED_WORLD alone, with no episode, is not an episode.
+    expect(bondedEpisodeWorld({ BONDED_WORLD: "brokerage" })).toBeUndefined();
   });
 });

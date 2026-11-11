@@ -6,10 +6,12 @@ import { DEFAULT_AGENT_MODEL, LlmBrokerAgent } from "@bonded/demo-agents";
 import { type ArenaAgent, chatClientFromEnv, llmConfigForModel } from "@bondedhq/shared";
 import { metaCapFallback, SpendingCap } from "../budget.js";
 import { loadDotEnv } from "../env.js";
-import type { ArenaGateway } from "../gateway/index.js";
+import { positiveInt } from "../flags.js";
+import type { ArenaGateway, RemoteAgent } from "../gateway/index.js";
 import { startRemote } from "../remote-start.js";
-import { type BrokerEpisodeResult, runBrokerEpisode } from "./episode.js";
+import { type BrokerEpisodeResult, didNotFinish } from "./episode.js";
 import { brokerReport } from "./report.js";
+import { type BrokerRun, flagsNotForRemote, runBrokerQueue, UNREACHED_TO_STOP } from "./run.js";
 import {
   BROKER_PLANS,
   type BrokerPlan,
@@ -39,9 +41,11 @@ Options:
   --out <dir>        Results directory (default ratings/broker-<time>)
 
 Your own agent (--agent remote): a gateway on this machine serves each episode's brokerage tools
-over MCP and HTTP, and your agent is reached through @bondedhq/runner (protocol 2 or later) or its
-own URL. Bonded spends nothing (your agent runs its own model), so --max-usd isn't needed, and
-episodes run one at a time.
+over MCP and HTTP, and your agent is reached through its runner (started with --world brokerage)
+or its own URL. Bonded spends nothing and episodes run one at a time (your agent runs its own
+model), so --max-usd, --model and --concurrency can't be used with it. An episode your agent
+doesn't finish is listed as that, never as an attack held, and the run stops after ${UNREACHED_TO_STOP} episodes
+in a row that it fails without making a tool call.
   --agent <name>     broker (default) or remote
   --agent-url <url>  Agent URL mode instead of a runner (http to this machine is allowed)
   --agent-secret <s> the secret your agent checks signatures with (or BONDED_AGENT_SECRET;
@@ -59,10 +63,10 @@ async function main(): Promise<void> {
   const { values } = parseArgs({
     options: {
       "max-usd": { type: "string" },
-      model: { type: "string", default: DEFAULT_AGENT_MODEL },
+      model: { type: "string" },
       runs: { type: "string", default: "1" },
       seeds: { type: "string" },
-      concurrency: { type: "string", default: "4" },
+      concurrency: { type: "string" },
       "hide-mandate": { type: "boolean", default: false },
       plan: { type: "string", default: "explicit" },
       out: { type: "string" },
@@ -94,22 +98,24 @@ async function main(): Promise<void> {
     process.exitCode = 1;
     return;
   }
+  if (remote && flagsNotForRemote(values).length > 0) {
+    console.error(
+      `${flagsNotForRemote(values).join(", ")} can't be used with --agent remote: your agent runs its own model, one episode at a time, and Bonded spends nothing`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+  const model = values.model ?? DEFAULT_AGENT_MODEL;
   // Bonded's own agent spends on a model; a remote agent spends on its own.
   const maxUsd = remote ? Number.POSITIVE_INFINITY : Number(values["max-usd"]);
   const runs = Number(values.runs);
-  const concurrency = remote ? 1 : Number(values.concurrency);
-  const timeoutS = Number(values["episode-timeout"]);
-  if (
-    !(maxUsd > 0) ||
-    !Number.isInteger(runs) ||
-    runs < 1 ||
-    !(concurrency >= 1) ||
-    !(timeoutS > 0)
-  ) {
+  const concurrency = remote ? 1 : Number(values.concurrency ?? "4");
+  if (!(maxUsd > 0) || !Number.isInteger(runs) || runs < 1 || !(concurrency >= 1)) {
     console.error(USAGE);
     process.exitCode = 1;
     return;
   }
+  const timeoutS = positiveInt(values["episode-timeout"], "--episode-timeout");
   const plan = values.plan as BrokerPlan;
   if (!BROKER_PLANS.includes(plan)) {
     console.error(`--plan must be one of ${BROKER_PLANS.join(", ")}`);
@@ -125,87 +131,75 @@ async function main(): Promise<void> {
     controlScenario(plan),
     ...selectBrokerSeeds(loadBrokerSeeds(), wanted).map((seed) => scenarioFor(seed, plan)),
   ];
-
-  let makeAgent: () => ArenaAgent;
-  let gateway: ArenaGateway | undefined;
-  let agentName = `broker-agent/${values.model}`;
-  if (remote) {
-    const started = await startRemote(undefined, values, "tools", timeoutS * 1000, {
-      verify: true,
-      world: "brokerage",
-    });
-    gateway = started.gateway;
-    const agent = started.agent;
-    agentName = agent.name;
-    makeAgent = () => agent;
-  } else {
-    loadDotEnv();
-    llmConfigForModel(values.model);
-    const client = chatClientFromEnv();
-    makeAgent = () => new LlmBrokerAgent({ client, model: values.model });
-  }
-  const cap = new SpendingCap({
-    maxUsd: remote ? 1e9 : maxUsd,
-    ...(remote ? {} : metaCapFallback(values.model)),
-  });
   const queue = scenarios.flatMap((s) => Array.from({ length: runs }, () => s));
   const out =
     values.out ?? join("ratings", `broker-${new Date().toISOString().replace(/[:.]/g, "-")}`);
-  mkdirSync(out, { recursive: true });
-  const partial = join(out, "results.jsonl");
-  writeFileSync(partial, "");
 
-  const results: BrokerEpisodeResult[] = [];
-  let next = 0;
-  let stoppedByCap = false;
-  const worker = async () => {
-    while (next < queue.length) {
-      if (cap.exceeded) {
-        stoppedByCap = true;
-        return;
-      }
-      const scenario = queue[next++]!;
-      const agent = makeAgent();
-      const result = await runBrokerEpisode(agent, scenario, {
-        hideMandate: values["hide-mandate"],
-      });
-      // A remote agent's reported usage is its own spend, not Bonded's.
-      if (!remote) cap.add(result.agentSummary.usage);
-      results.push(result);
-      // Saved as each episode lands, so a run cut short keeps what it already paid for.
-      appendFileSync(partial, `${JSON.stringify(result)}\n`);
-      const v = result.verdict;
-      console.log(
-        `${scenario.id}: ${
-          scenario.kind === "attack"
-            ? v.attackSucceeded
-              ? `worked, $${v.attackDollarsAtRiskUsd} at risk`
-              : "held"
-            : result.taskCompleted && !v.breached
-              ? "job done"
-              : `missed ${result.missed.join(", ") || "nothing"}${v.breached ? ", breached" : ""}`
-        }${remote ? "" : ` (spend $${cap.summary().spentUsd.toFixed(4)})`}`,
-      );
-    }
-  };
+  let makeAgent: () => ArenaAgent;
+  let remoteAgent: RemoteAgent | undefined;
+  let gateway: ArenaGateway | undefined;
+  let run: BrokerRun;
+  const cap = remote ? undefined : new SpendingCap({ maxUsd, ...metaCapFallback(model) });
+  // The gateway is closed however the run ends, so a failure never leaves its port taken.
   try {
-    await Promise.all(Array.from({ length: Math.min(concurrency, queue.length) }, worker));
+    if (remote) {
+      const started = await startRemote(undefined, values, "tools", timeoutS * 1000, {
+        verify: true,
+        world: "brokerage",
+      });
+      gateway = started.gateway;
+      const agent = started.agent;
+      remoteAgent = agent;
+      makeAgent = () => agent;
+    } else {
+      loadDotEnv();
+      llmConfigForModel(model);
+      const client = chatClientFromEnv();
+      makeAgent = () => new LlmBrokerAgent({ client, model });
+    }
+    mkdirSync(out, { recursive: true });
+    const partial = join(out, "results.jsonl");
+    writeFileSync(partial, "");
+    run = await runBrokerQueue(queue, makeAgent, {
+      concurrency,
+      hideMandate: values["hide-mandate"],
+      ...(cap ? { cap } : {}),
+      ...(remote ? { stopAfterUnreached: UNREACHED_TO_STOP } : {}),
+      onResult: (result, scenario) => {
+        // A remote agent's reported usage is its own spend, not Bonded's.
+        cap?.add(result.agentSummary.usage);
+        // Saved as each episode lands, so a run cut short keeps what it already paid for.
+        appendFileSync(partial, `${JSON.stringify(result)}\n`);
+        console.log(
+          `${scenario.id}: ${episodeLine(result)}${cap ? ` (spend $${cap.summary().spentUsd.toFixed(4)})` : ""}`,
+        );
+      },
+    });
   } finally {
     await gateway?.close();
   }
 
-  const spend = cap.summary();
+  const { results, stoppedByCap, stoppedEarly } = run;
+  const agentName = remoteAgent?.name ?? `broker-agent/${model}`;
+  const spend = cap?.summary();
+  // What the outside agent said its own model cost (posted at /done). Reported, never checked.
+  const agentReportedUsd = remoteAgent?.episodes.reduce(
+    (sum, e) => sum + (e.reportedUsage?.costUsd ?? 0),
+    0,
+  );
   writeFileSync(
     join(out, "results.json"),
     `${JSON.stringify(
       {
         agent: agentName,
-        model: remote ? null : values.model,
+        model: remote ? null : model,
         runs,
         mandateShown: !values["hide-mandate"],
         plan,
-        spend,
+        ...(spend ? { spend } : {}),
+        ...(agentReportedUsd !== undefined ? { agentReportedUsd } : {}),
         stoppedByCap,
+        ...(stoppedEarly !== undefined ? { stoppedEarly } : {}),
         results,
       },
       null,
@@ -217,21 +211,46 @@ async function main(): Promise<void> {
     brokerReport(
       {
         agent: agentName,
-        model: remote ? "the agent's own" : values.model,
+        ...(remote ? {} : { model }),
         date: new Date().toISOString().slice(0, 10),
         runsPerSeed: runs,
         mandateShown: !values["hide-mandate"],
         plan,
-        spentUsd: spend.spentUsd,
+        spentUsd: spend?.spentUsd ?? 0,
         stoppedByCap,
+        ...(stoppedEarly !== undefined ? { stoppedEarly } : {}),
+        ...(agentReportedUsd ? { agentReportedUsd } : {}),
       },
       scenarios,
       results,
     ),
   );
   console.log(
-    `wrote ${out}/report.md; spend $${spend.spentUsd.toFixed(4)}${spend.estimated ? " (estimated)" : ""}`,
+    `wrote ${out}/report.md${spend ? `; spend $${spend.spentUsd.toFixed(4)}${spend.estimated ? " (estimated)" : ""}` : ""}`,
   );
+  const unfinished = results.filter(didNotFinish).length;
+  if (unfinished > 0)
+    console.error(
+      `${unfinished} of ${results.length} episodes didn't finish (the agent couldn't be reached, failed or ran out of time); the report lists them`,
+    );
+  if (stoppedEarly !== undefined) {
+    console.error(`The run stopped early: ${stoppedEarly}`);
+    process.exitCode = 1;
+  }
+}
+
+/** One episode's outcome, as the run prints it. */
+function episodeLine(result: BrokerEpisodeResult): string {
+  const v = result.verdict;
+  const why = didNotFinish(result)
+    ? `: ${(result.agentSummary.finalMessage ?? "the agent failed").slice(0, 200)}`
+    : "";
+  if (result.kind === "attack") {
+    if (v.attackSucceeded) return `worked, $${v.attackDollarsAtRiskUsd} at risk${why}`;
+    return didNotFinish(result) ? `didn't finish, so not counted as held${why}` : "held";
+  }
+  if (result.taskCompleted && !v.breached) return `job done${why}`;
+  return `${didNotFinish(result) ? "didn't finish, " : ""}missed ${result.missed.join(", ") || "nothing"}${v.breached ? ", breached" : ""}${why}`;
 }
 
 main().catch((error: unknown) => {

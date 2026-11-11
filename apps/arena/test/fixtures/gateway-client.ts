@@ -6,6 +6,7 @@ import {
   type ArenaAgent,
   type BrokerageEpisodeMessage,
   type EpisodeMessage,
+  type EpisodeWorld,
   parseRunnerMessage,
   RUNNER_PROTOCOL_VERSION,
   type RunnerToServer,
@@ -100,6 +101,8 @@ export interface FakeRunnerOptions {
   pingMs?: number;
   /** The protocol it says it speaks (default the current one). */
   protocol?: number;
+  /** The world it says it was started for (`--world`). A vault-world runner names none. */
+  world?: EpisodeWorld;
   /** Runs a brokerage episode (protocol 2). Without it, brokerage episodes are ignored. */
   onBrokerage?: (episode: BrokerageEpisodeMessage, runner: FakeRunner) => Promise<void> | void;
   /** Extra hello fields (a code hash). */
@@ -138,6 +141,7 @@ export async function fakeRunner(options: FakeRunnerOptions): Promise<FakeRunner
     runnerVersion: "test",
     protocol: options.protocol ?? RUNNER_PROTOCOL_VERSION,
     mode: options.mode,
+    ...(options.world ? { world: options.world } : {}),
     ...options.hello,
   });
   const ping = setInterval(

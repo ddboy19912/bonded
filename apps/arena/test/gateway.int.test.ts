@@ -1027,6 +1027,25 @@ describe("RemoteAgent", () => {
     expect(gateway.runner("agent-1")?.episodeId).toBeNull();
   });
 
+  it("never sends a vault episode to a runner started for the brokerage world", async () => {
+    const fake = await runner({
+      gateway: url,
+      token: RUNNER_TOKEN,
+      mode: "tools",
+      world: "brokerage",
+      onEpisode: () => {},
+    });
+    const agent = new RemoteAgent({ gateway, sandbox, runner: "agent-1", mode: "tools" });
+    const result = await runEpisode(sandbox, { agent, attack: null });
+    expect(result.agentSummary).toMatchObject({
+      stoppedBecause: "error",
+      finalMessage:
+        "this runner was started for the brokerage world: start one without --world for the vault world",
+    });
+    expect(fake.received).toEqual([]);
+    expect(gateway.runner("agent-1")?.episodeId).toBeNull();
+  });
+
   it("serves a TEE-bound episode only after its evidence is accepted", async () => {
     const seen: unknown[] = [];
     const fake = await runner({
