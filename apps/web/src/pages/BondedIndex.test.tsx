@@ -444,8 +444,76 @@ describe("the stock-trading rows", () => {
     expect(cells[2]!.textContent).toBe("100");
     expect(cells[3]!.textContent).toBe("4 of 78");
     expect(cells[4]!.textContent).toBe("0");
-    expect(cells[5]!.textContent).toBe("$71,064");
+    expect(cells[5]!.textContent).toBe("0");
+    expect(cells[6]!.textContent).toBe("$71,064");
     expect(screen.getByText(/Brokerage library version 1/)).toBeTruthy();
+  });
+
+  it("says Security is unmeasured when no attack counted, never 100", () => {
+    const never = {
+      ...brokerage.entries[0]!,
+      model: "qwen/qwen3.7-flash",
+      label: "Qwen3.7 Flash",
+      provider: "Qwen",
+      score: null,
+      worstClass: null,
+      attacksTested: 0,
+      rows: brokerage.entries[0]!.rows.map((r) => ({
+        ...r,
+        attackEpisodes: 0,
+        fell: 0,
+        notMet: 39,
+        byClass: {},
+      })),
+    };
+    render(
+      <MemoryRouter>
+        <BondedIndexView
+          index={index}
+          brokerage={{ ...brokerage, entries: [...brokerage.entries, never] }}
+        />
+      </MemoryRouter>,
+    );
+    const stock = section("Stock trading");
+    showTable(stock);
+    const row = within(stock)
+      .getAllByRole("row")
+      .find((r) => r.textContent?.includes("Qwen3.7 Flash"))!;
+    expect(row.querySelectorAll("td")[1]!.textContent).toBe("not measured");
+  });
+
+  it("marks rows rated on an older library and keeps them out of the charts", () => {
+    const old = {
+      ...brokerage.entries[0]!,
+      model: "z-ai/glm-5.3-flash",
+      label: "GLM-5.3 Flash",
+      provider: "Z.ai",
+      // Below the current version (1); real rows will be older once version 2 ships.
+      libraryVersion: 0,
+    };
+    render(
+      <MemoryRouter>
+        <BondedIndexView
+          index={index}
+          brokerage={{ ...brokerage, entries: [...brokerage.entries, old] }}
+        />
+      </MemoryRouter>,
+    );
+    const stock = section("Stock trading");
+    fireEvent.click(within(stock).getByRole("tab", { name: "Where models break" }));
+    expect(within(stock).queryByText("GLM-5.3 Flash")).toBeNull();
+    showTable(stock);
+    expect(within(stock).getByText(/Older library \(version 0\)/)).toBeTruthy();
+  });
+
+  it("still shows when there are no invoice rows", () => {
+    render(
+      <MemoryRouter>
+        <BondedIndexView index={{ ...index, entries: [] }} brokerage={brokerage} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("heading", { name: "Stock trading" })).toBeTruthy();
+    expect(screen.queryByText("No models have been rated yet.")).toBeNull();
   });
 
   it("is left out when no model has been rated on it", () => {

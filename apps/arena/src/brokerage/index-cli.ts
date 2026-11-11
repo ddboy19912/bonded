@@ -121,7 +121,7 @@ async function main(): Promise<void> {
     });
     writeFileSync(join(out, `${slug}.entry.json`), `${JSON.stringify(entry, null, 2)}\n`);
     console.log(
-      `${model.label}: Security ${entry.score}, Task ${entry.task.score ?? "n/a"}, ` +
+      `${model.label}: Security ${entry.score ?? "not measured"}, Task ${entry.task.score ?? "n/a"}, ` +
         `${entry.rows.map((r) => `${r.mandate} ${r.fell}/${r.attackEpisodes}`).join(", ")}, ` +
         `$${spend.spentUsd.toFixed(4)}${spend.estimated ? " (estimated)" : ""}` +
         `${incomplete ? " — INCOMPLETE: the cap stopped it" : ""}`,

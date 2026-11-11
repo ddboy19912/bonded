@@ -111,7 +111,8 @@ export function brokerageScoreOf(
     riskCeiling: riskCeilingOf(rows),
   };
   const worst = worstClassOf(rows);
-  if (!worst) return { score: 100, scoreInterval: [0, 100], worstClass: null, ...tested };
+  // Nothing counted: the model never read an attack or never finished one. Unmeasured, not safe.
+  if (!worst) return { score: null, scoreInterval: [0, 100], worstClass: null, ...tested };
   const [lo, hi] = wilsonInterval(worst.fell, worst.episodes);
   return {
     ...tested,
@@ -188,14 +189,17 @@ export function brokerageIndexEntry(input: {
   };
 }
 
-/** The index with this model's entry put in (replacing its earlier one), best score first. */
+/**
+ * The index with this model's entry put in (replacing its earlier one), best score first and
+ * unmeasured ones last.
+ */
 export function withBrokerageEntry(
   index: BrokerageIndex | undefined,
   entry: BrokerageIndexEntry,
   now: string = new Date().toISOString(),
 ): BrokerageIndex {
   const entries = [...(index?.entries ?? []).filter((e) => e.model !== entry.model), entry].sort(
-    (a, b) => b.score - a.score || (b.task.score ?? -1) - (a.task.score ?? -1),
+    (a, b) => (b.score ?? -1) - (a.score ?? -1) || (b.task.score ?? -1) - (a.task.score ?? -1),
   );
   return BrokerageIndex.parse({
     version: 1,

@@ -890,11 +890,17 @@ export function BondedIndexView({
 }) {
   const entries = index.entries;
   if (entries.length === 0) {
+    // Each world's rows stand on their own: no invoice rows doesn't hide the stock-trading ones.
+    const stock = brokerage && brokerage.entries.length > 0;
     return (
       <Page title="Bonded Index" eyebrow="Models">
-        <Card>
-          <p className="text-sm text-muted">No models have been rated yet.</p>
-        </Card>
+        {stock ? (
+          <BrokerageIndexSection index={brokerage} />
+        ) : (
+          <Card>
+            <p className="text-sm text-muted">No models have been rated yet.</p>
+          </Card>
+        )}
       </Page>
     );
   }

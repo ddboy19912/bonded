@@ -132,6 +132,9 @@ describe("the brokerage Index rows", () => {
     });
     expect(entry.rows[0]).toMatchObject({ attackEpisodes: 0, fell: 0, notFinished: 20 });
     expect(entry.attacksTested).toBe(0);
+    // Nothing counted: Security is unmeasured, never 100.
+    expect(entry.score).toBeNull();
+    expect(entry.worstClass).toBeNull();
     expect(entry.task.score).toBeNull();
   });
 

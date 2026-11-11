@@ -1,5 +1,9 @@
 import { useState } from "react";
-import { BrokerageIndex, type BrokerageIndexEntry } from "@bondedhq/shared";
+import {
+  BROKERAGE_LIBRARY_VERSION,
+  BrokerageIndex,
+  type BrokerageIndexEntry,
+} from "@bondedhq/shared";
 import raw from "../../../../config/brokerage-index.json?raw";
 import { ChartCard, DataTable, fallFill, ModelBars, ProviderLogo } from "./index-charts";
 
@@ -33,6 +37,14 @@ const worked = (e: BrokerageIndexEntry) => {
 
 const steered = (e: BrokerageIndexEntry) => e.rows.reduce((n, r) => n + r.steeredUsd, 0);
 const notMet = (e: BrokerageIndexEntry) => e.rows.reduce((n, r) => n + r.notMet, 0);
+const notFinished = (e: BrokerageIndexEntry) => e.rows.reduce((n, r) => n + r.notFinished, 0);
+
+/** Security as shown: unmeasured when no attack counted, never 100. */
+const securityText = (e: BrokerageIndexEntry) =>
+  e.score === null ? "not measured" : `${e.score} (${e.scoreInterval[0]}–${e.scoreInterval[1]})`;
+
+/** Rated on an older brokerage library: not comparable with current rows. */
+const older = (e: BrokerageIndexEntry) => e.libraryVersion < BROKERAGE_LIBRARY_VERSION;
 
 /** A class's counts over both briefings: how often it got through. */
 function classCell(e: BrokerageIndexEntry, cls: string) {
@@ -66,6 +78,7 @@ function ResultsTable({ entries }: { entries: BrokerageIndexEntry[] }) {
         "Task",
         "Attacks that worked",
         "Never read",
+        "Didn't finish",
         "Traded on them",
         "Cost",
       ]}
@@ -79,12 +92,18 @@ function ResultsTable({ entries }: { entries: BrokerageIndexEntry[] }) {
             {e.incomplete && (
               <span className="block text-[10px] text-warn">Incomplete: the run stopped early</span>
             )}
+            {older(e) && (
+              <span className="block text-[10px] text-muted">
+                Older library (version {e.libraryVersion}): not in the charts
+              </span>
+            )}
           </span>
         </span>,
-        `${e.score} (${e.scoreInterval[0]}–${e.scoreInterval[1]})`,
+        securityText(e),
         e.task.score === null ? "—" : `${e.task.score}`,
         worked(e),
         `${notMet(e)}`,
+        `${notFinished(e)}`,
         usd(steered(e)),
         `$${e.cost.spentUsd.toFixed(2)}${e.cost.estimated ? " est." : ""}`,
       ])}
@@ -151,11 +170,16 @@ function ClassGrid({ entries }: { entries: BrokerageIndexEntry[] }) {
 /** The stock-trading card: Security, Task and where models break, with the table behind it. */
 export function BrokerageIndexSection({ index }: { index: BrokerageIndex }) {
   const [tab, setTab] = useState<Tab>("security");
-  const entries = index.entries;
-  if (entries.length === 0) return null;
+  const all = index.entries;
+  if (all.length === 0) return null;
+  // The charts rank only rows on the current library; older ones stay in the table, marked.
+  const current = all.filter((e) => !older(e));
+  const entries = current.length > 0 ? current : all;
   const first = entries[0]!;
   const versions = new Set(entries.map((e) => e.libraryVersion));
   const byTask = [...entries].sort((a, b) => (b.task.score ?? -1) - (a.task.score ?? -1));
+  // A model with no attack counted has no Security to chart; the table says "not measured".
+  const measured = entries.filter((e) => e.score !== null);
   const bars = (list: BrokerageIndexEntry[], value: (e: BrokerageIndexEntry) => number | null) =>
     list.map((e) => ({
       entry: e,
@@ -165,8 +189,8 @@ export function BrokerageIndexSection({ index }: { index: BrokerageIndex }) {
         <span className="flex flex-col gap-0.5">
           <b className="text-ink">{e.label}</b>
           <span>
-            Security <b className="text-ink">{e.score}</b> ({e.scoreInterval[0]}–
-            {e.scoreInterval[1]}) · Task <b className="text-ink">{e.task.score ?? "—"}</b>
+            Security <b className="text-ink">{securityText(e)}</b> · Task{" "}
+            <b className="text-ink">{e.task.score ?? "—"}</b>
           </span>
           <span className="text-muted">
             {worked(e)} attacks worked · {notMet(e)} never read
@@ -182,7 +206,7 @@ export function BrokerageIndexSection({ index }: { index: BrokerageIndex }) {
         tabs={TABS}
         tab={tab}
         onTab={(id) => setTab(id as Tab)}
-        table={<ResultsTable entries={entries} />}
+        table={<ResultsTable entries={[...entries, ...all.filter(older)]} />}
       >
         {tab === "class" ? (
           <ClassGrid entries={entries} />
@@ -190,7 +214,7 @@ export function BrokerageIndexSection({ index }: { index: BrokerageIndex }) {
           <ModelBars
             key={tab}
             bars={
-              tab === "task" ? bars(byTask, (e) => e.task.score) : bars(entries, (e) => e.score)
+              tab === "task" ? bars(byTask, (e) => e.task.score) : bars(measured, (e) => e.score)
             }
             series={[{ key: "v", label: tab === "task" ? "Task" : "Security" }]}
             domain={[0, 100]}
