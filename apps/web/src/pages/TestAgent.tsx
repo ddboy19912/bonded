@@ -447,10 +447,8 @@ export function TestAgent() {
                   withdrawals), not the vault's: list them first. The commands and code below are
                   for stock trading
                   {p.connection === "runner"
-                    ? ": the runner is started with --world brokerage."
-                    : ": the handler takes brokerage episodes with onBrokerageEpisode."}{" "}
-                  This needs the brokerage world in @bondedhq/runner and @bondedhq/sdk, which comes
-                  with the release after runner 0.1.3.
+                    ? ": the runner is started with --world brokerage. This needs @bondedhq/runner 0.1.4 or later."
+                    : ": the handler takes brokerage episodes with onBrokerageEpisode. This needs @bondedhq/sdk 0.1.7 or later."}
                 </p>
               )}
               {p && status && subject && auth && (

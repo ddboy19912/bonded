@@ -157,9 +157,12 @@ ${lead}const kit = await AgentKit.from({
   ];
 }
 
-/** Told under every brokerage snippet: the packages that have this world aren't published yet. */
-export const BROKERAGE_RELEASE_NOTE =
-  "Stock trading needs the brokerage world in `@bondedhq/sdk` and `@bondedhq/runner`, which comes with the release after runner 0.1.3. Until it is published, use the builds in the Bonded repository.";
+/** Told under the brokerage runner snippets: the package versions that have this world. */
+export const BROKERAGE_RUNNER_NOTE =
+  "Stock trading needs `@bondedhq/runner` 0.1.4 or later, and `@bondedhq/sdk` 0.1.7 or later if you use it.";
+
+/** Told under the brokerage Agent URL snippets. */
+export const BROKERAGE_URL_NOTE = "Stock trading needs `@bondedhq/sdk` 0.1.7 or later.";
 
 /**
  * Snippets for a stock-trading (brokerage) preview. The episode has no vault or chain: its tools
@@ -184,7 +187,7 @@ const tools =
     ? await bondedLangChainTools(fromBondedBrokerageEnv())
     : productionTools;
 const agent = createReactAgent({ llm, tools });`,
-        note: BROKERAGE_RELEASE_NOTE,
+        note: BROKERAGE_RUNNER_NOTE,
         imports: [
           { from: "@bondedhq/sdk", names: ["bondedEpisodeWorld", "fromBondedBrokerageEnv"] },
           { from: "@bondedhq/sdk/langchain", names: ["bondedLangChainTools"] },
@@ -202,7 +205,7 @@ const tools =
   bondedEpisodeWorld() === "brokerage"
     ? await bondedAiSdkTools(fromBondedBrokerageEnv())
     : productionTools;`,
-        note: BROKERAGE_RELEASE_NOTE,
+        note: BROKERAGE_RUNNER_NOTE,
         imports: [
           { from: "@bondedhq/sdk", names: ["bondedEpisodeWorld", "fromBondedBrokerageEnv"] },
           { from: "@bondedhq/sdk/ai-sdk", names: ["bondedAiSdkTools"] },
@@ -221,7 +224,7 @@ const tools =
 curl -s "$BONDED_TOOLS_URL"                                # list the tools
 curl -s -X POST "$BONDED_TOOLS_URL/get_instructions" -d '{}'   # call one
 curl -s -X POST "$BONDED_DONE_URL" -H 'content-type: application/json' -d '{"finalMessage":"done"}'`,
-        note: `There is no vault or chain: every read, order and withdrawal is a tool call. ${BROKERAGE_RELEASE_NOTE}`,
+        note: `There is no vault or chain: every read, order and withdrawal is a tool call. ${BROKERAGE_RUNNER_NOTE}`,
         imports: [],
       },
     ];
@@ -253,7 +256,7 @@ export const POST = createBondedHandler({
   // Crypto-trading episodes: not this agent's world.
   onEpisode: () => ({ finalMessage: "this agent trades stocks, not tokens" }),
 });`,
-      note: `It checks the signature, answers the ownership check, replies at once and posts done with what \`onBrokerageEpisode\` returns. ${BROKERAGE_RELEASE_NOTE}`,
+      note: `It checks the signature, answers the ownership check, replies at once and posts done with what \`onBrokerageEpisode\` returns. ${BROKERAGE_URL_NOTE}`,
       imports: [
         { from: "@bondedhq/sdk/agent-url", names: ["createBondedHandler"] },
         { from: "@bondedhq/sdk/ai-sdk", names: ["bondedAiSdkTools"] },
@@ -269,7 +272,7 @@ export const POST = createBondedHandler({
 // Inside onBrokerageEpisode(episode) in your handler (the first tab).
 const tools = await bondedLangChainTools(episode);
 const agent = createReactAgent({ llm, tools });`,
-      note: BROKERAGE_RELEASE_NOTE,
+      note: BROKERAGE_URL_NOTE,
       imports: [{ from: "@bondedhq/sdk/langchain", names: ["bondedLangChainTools"] }],
     },
     {
