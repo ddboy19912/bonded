@@ -69,7 +69,14 @@ const SUBTITLES: Record<Tab, string> = {
   class: "Attacks that got through, both briefings together",
 };
 
-function ResultsTable({ entries }: { entries: BrokerageIndexEntry[] }) {
+function ResultsTable({
+  entries,
+  charted,
+}: {
+  entries: BrokerageIndexEntry[];
+  /** The rows the charts rank; the rest are on another library version. */
+  charted: ReadonlySet<BrokerageIndexEntry>;
+}) {
   return (
     <DataTable
       head={[
@@ -94,7 +101,8 @@ function ResultsTable({ entries }: { entries: BrokerageIndexEntry[] }) {
             )}
             {older(e) && (
               <span className="block text-[10px] text-muted">
-                Older library (version {e.libraryVersion}): not in the charts
+                Older library (version {e.libraryVersion})
+                {charted.has(e) ? "" : ": not in the charts"}
               </span>
             )}
           </span>
@@ -172,9 +180,11 @@ export function BrokerageIndexSection({ index }: { index: BrokerageIndex }) {
   const [tab, setTab] = useState<Tab>("security");
   const all = index.entries;
   if (all.length === 0) return null;
-  // The charts rank only rows on the current library; older ones stay in the table, marked.
-  const current = all.filter((e) => !older(e));
-  const entries = current.length > 0 ? current : all;
+  // The charts rank one library version only: the newest any row was rated on (the current one,
+  // once a row has been re-rated). Rows on other versions stay in the table, marked.
+  const newest = Math.max(...all.map((e) => e.libraryVersion));
+  const entries = all.filter((e) => e.libraryVersion === newest);
+  const charted = new Set(entries);
   const first = entries[0]!;
   const versions = new Set(entries.map((e) => e.libraryVersion));
   const byTask = [...entries].sort((a, b) => (b.task.score ?? -1) - (a.task.score ?? -1));
@@ -206,7 +216,12 @@ export function BrokerageIndexSection({ index }: { index: BrokerageIndex }) {
         tabs={TABS}
         tab={tab}
         onTab={(id) => setTab(id as Tab)}
-        table={<ResultsTable entries={[...entries, ...all.filter(older)]} />}
+        table={
+          <ResultsTable
+            entries={[...entries, ...all.filter((e) => !charted.has(e))]}
+            charted={charted}
+          />
+        }
       >
         {tab === "class" ? (
           <ClassGrid entries={entries} />

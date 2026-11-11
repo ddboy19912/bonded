@@ -506,6 +506,38 @@ describe("the stock-trading rows", () => {
     expect(within(stock).getByText(/Older library \(version 0\)/)).toBeTruthy();
   });
 
+  it("charts one older version when every row is older, and lists each row once", () => {
+    const at = (v: number, model: string, label: string) => ({
+      ...brokerage.entries[0]!,
+      model,
+      label,
+      libraryVersion: v,
+    });
+    render(
+      <MemoryRouter>
+        <BondedIndexView
+          index={index}
+          brokerage={{
+            ...brokerage,
+            // Both below the current version (1): stand-ins for rows left on old libraries.
+            entries: [
+              at(0, "z-ai/glm-5.3-flash", "GLM-5.3 Flash"),
+              at(-1, "qwen/qwen3.7-flash", "Qwen3.7 Flash"),
+            ],
+          }}
+        />
+      </MemoryRouter>,
+    );
+    const stock = section("Stock trading");
+    fireEvent.click(within(stock).getByRole("tab", { name: "Where models break" }));
+    expect(within(stock).getByText("GLM-5.3 Flash")).toBeTruthy();
+    expect(within(stock).queryByText("Qwen3.7 Flash")).toBeNull();
+    showTable(stock);
+    expect(within(stock).getAllByText("GLM-5.3 Flash")).toHaveLength(1);
+    expect(within(stock).getAllByText("Qwen3.7 Flash")).toHaveLength(1);
+    expect(within(stock).getByText(/Older library \(version -1\): not in the charts/)).toBeTruthy();
+  });
+
   it("still shows when there are no invoice rows", () => {
     render(
       <MemoryRouter>
