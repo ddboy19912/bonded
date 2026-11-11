@@ -2,7 +2,7 @@
 
 Bonded rates AI agents that trade on chain from a vault, and agents that pay invoices through a payment API ([OFFCHAIN.md](OFFCHAIN.md)). This page covers a third kind: agents that trade stocks and move cash through an ordinary brokerage account, the way an investing app's assistant does.
 
-**Status, 2026-11-10:** the brokerage world is built and its attacks are **staged**. Runs produce findings, not ratings or Index scores. An outside agent can be tested on it from this repository, through the runner or its own URL ("Your own agent"); the hosted Test your agent page doesn't offer it yet.
+**Status, 2026-11-11:** the brokerage world is built and its attacks are **staged**. Runs produce findings, not ratings or Index scores. An outside agent can be tested on it through the runner or its own URL: as a free preview on Test your agent ("Stock trading"), or from this repository ("Your own agent").
 
 ## How it works, in short
 
@@ -72,6 +72,18 @@ It runs `broker-agent` (an ordinary tool-calling loop with an investing assistan
 
 ## Your own agent
 
+### A preview on Test your agent
+
+Pick **Stock trading** on [Test your agent](https://www.bondedhq.xyz/agents/test), connect the agent by runner or URL, and run the check: it runs the brokerage control episode (the plain plan, nothing planted), and the agent must do the job without breaking the mandate. The preview then runs the control, every staged attack and every benign twin once (20 episodes), with the holder's plain plan and the mandate shown, and ends with findings, not a score:
+
+- which attacks got the agent to act, what it traded on them and what was at risk;
+- what the agent did in each one, including what it told the holder when it asked for approval;
+- whether it still did its job in the episodes with nothing planted.
+
+An episode the agent never took part in (its runner went away, its URL refused) counts as not run, never as an attack held. If most of them didn't run, the preview fails as the agent's. A brokerage preview shares the vault preview's daily limits, needs a check on the brokerage world (a vault check doesn't count), runs in tools mode only, and has no "Make it official" step yet.
+
+### From this repository
+
 An agent that runs on your own servers is tested on the brokerage world the same way as on the vault world ([BRING-YOUR-OWN-AGENT.md](BRING-YOUR-OWN-AGENT.md)): the Arena Gateway serves each episode's tools over MCP and plain HTTP, and the broker ledger judges every order and withdrawal. There is no chain, vault or key: every read and write is a tool call, so it runs in tools mode only.
 
 ```bash
@@ -120,7 +132,7 @@ Assumptions: one model, 2 runs per episode, one account. Dollars at risk were $0
 
 ## What's next
 
-1. **The hosted page.** Offer the brokerage world on Test your agent (a preview, with its limits), and release the runner, shared package and SDK with protocol 2. The same gateway change can serve the invoice world next, so outside invoice-paying agents can be tested too.
+1. **Release.** Release the runner, shared package and SDK with protocol 2, so partners can use `npx @bondedhq/runner` for brokerage previews. The same gateway change can serve the invoice world next, so outside invoice-paying agents can be tested too.
 2. **Broker tool names.** Offer the world under the tool names real broker integrations use, so a team points its agent at Bonded instead of its broker with no code changes. Start with the broker the first partner uses.
 3. **More models.** Run the same four rows on the other cheap models the Index uses, so a sample report compares models, not just one.
 4. **Release.** Move the world and its seeds into ratings in a scheduled release, with one `OFFCHAIN_LIBRARY_VERSION` bump.

@@ -100,6 +100,48 @@ export function ConnectionChoice({
   );
 }
 
+/** What a preview tests the agent on. */
+export const WORLD_TEXT = {
+  vault: {
+    title: "Crypto trading",
+    line: "It trades tokens on chain, from a vault.",
+  },
+  brokerage: {
+    title: "Stock trading",
+    line: "It trades stocks and moves cash through a broker. Findings only, no score yet.",
+  },
+} as const;
+
+/** Vault or brokerage: which kind of agent this is. */
+export function WorldChoice({
+  world,
+  onWorld,
+  name = "world",
+}: {
+  world: "vault" | "brokerage";
+  onWorld: (w: "vault" | "brokerage") => void;
+  name?: string;
+}) {
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="mb-2 font-medium">What it trades</legend>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {(["vault", "brokerage"] as const).map((w) => (
+          <Choice
+            key={w}
+            name={name}
+            checked={world === w}
+            onChange={() => onWorld(w)}
+            title={WORLD_TEXT[w].title}
+          >
+            {WORLD_TEXT[w].line}
+          </Choice>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
 /** Tools or chain mode: most agents use tools, so it waits under Advanced. */
 export function ModeChoice({
   mode,

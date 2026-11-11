@@ -8,8 +8,10 @@ import {
   type ConnectionKind,
   type Database,
   type PreviewRecord,
+  type PreviewWorld,
   type RatedCode,
 } from "@bonded/db";
+import { brokeragePreviewScenarios } from "@bonded/arena";
 import {
   REMOTE_KIND,
   SELF_SERVE_MAX_AGE_SECONDS,
@@ -102,6 +104,8 @@ interface Subject {
   id: string;
   owner: string;
   mode: AgentMode;
+  /** The world it is tested on: a registered agent is always rated on the vault. */
+  world: PreviewWorld;
   connection: ConnectionKind;
   declaredCode?: string;
   preview?: PreviewRecord;
@@ -115,6 +119,11 @@ const uint = z
 const codeHash = z.string().regex(/^0x[0-9a-fA-F]{64}$/);
 const previewInput = z.strictObject({
   mode: z.enum(["tools", "chain"]),
+  /**
+   * The world the agent is tested on (default vault). The brokerage world (a simulated brokerage
+   * account; docs/BROKERAGE.md) has no chain, so it is tools mode only.
+   */
+  world: z.enum(["vault", "brokerage"]).optional(),
   connection: z.enum(["runner", "url"]).optional(),
   /** Advanced: the owner's own code hash. Without it the runner's or URL's reported one is used. */
   codeHash: codeHash.optional(),
@@ -203,6 +212,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
       id: preview.id,
       owner: preview.owner,
       mode: preview.mode as AgentMode,
+      world: preview.world,
       connection: preview.connection,
       ...(preview.codeHash ? { declaredCode: preview.codeHash } : {}),
       preview,
@@ -225,6 +235,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
       id: agentId,
       owner: record.owner ?? "",
       mode: config.mode ?? "tools",
+      world: "vault",
       connection: await db.connectionOf(key, config),
       ...(config.codeHash ? { declaredCode: config.codeHash } : {}),
     };
@@ -294,6 +305,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
       : current.code;
     const config: CheckConfig = {
       mode: subject.mode,
+      world: subject.world,
       connection: subject.connection,
       credentialId: current.credentialId,
       codeHash: code?.hash ?? null,
@@ -333,7 +345,16 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
         }
       : null;
   }
-  const previewPlan = () => {
+  /**
+   * What a preview runs. A brokerage preview runs the control, every staged attack and every
+   * benign twin once (findings, not a score); a vault preview, the rating plan.
+   */
+  const previewPlan = (world: PreviewWorld = "vault") => {
+    if (world === "brokerage") {
+      const episodes = brokeragePreviewScenarios("plain").length;
+      const budgetMs = Math.min(policy.previewBudgetCeilingMs, episodes * policy.episodeBudgetMs);
+      return { episodes, budgetSeconds: Math.round(budgetMs / 1000) };
+    }
     const library = publishedLibrary();
     const plan = previewRatingPlan(policy, {
       publishedAttacks: library.attacks,
@@ -379,6 +400,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
       chainId: p.chainId,
       owner: p.owner,
       mode: p.mode,
+      world: p.world,
       status: p.status,
       createdAt: p.createdAt.toISOString(),
       updatedAt: p.updatedAt.toISOString(),
@@ -393,21 +415,25 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
       reasonCode: p.error ? problemCode(p.error) : null,
       rating,
       upgradedTo: p.upgradedTo,
-      expectedRating: previewPlan(),
-      upgrade: {
-        kind: REMOTE_KIND,
-        mode: p.mode,
-        connection: p.connection,
-        agentUrl: p.connection === "url" ? (connection.agentUrl?.url ?? null) : null,
-        runner: p.connection === "runner",
-        // Declared code carries over as declared; reported code stays automatic.
-        codeHash: p.codeHash,
-        reportedCode:
-          connection.code && connection.code.source !== "declared" ? connection.code : null,
-        previewId: p.id,
-        previewRatingId: p.ratingId,
-        note: "An official rating always runs again, attested, after you register the agent and stake its bond; this preview's report stays linked.",
-      },
+      expectedRating: previewPlan(p.world),
+      // The brokerage world has no official rating yet: its attacks are staged (findings only).
+      upgrade:
+        p.world === "brokerage"
+          ? null
+          : {
+              kind: REMOTE_KIND,
+              mode: p.mode,
+              connection: p.connection,
+              agentUrl: p.connection === "url" ? (connection.agentUrl?.url ?? null) : null,
+              runner: p.connection === "runner",
+              // Declared code carries over as declared; reported code stays automatic.
+              codeHash: p.codeHash,
+              reportedCode:
+                connection.code && connection.code.source !== "declared" ? connection.code : null,
+              previewId: p.id,
+              previewRatingId: p.ratingId,
+              note: "An official rating always runs again, attested, after you register the agent and stake its bond; this preview's report stays linked.",
+            },
       label: PREVIEW_LABEL,
       attested: false,
       insurable: false,
@@ -419,7 +445,10 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
     const r = (
       await db.pool.query(
         `SELECT id,status,error,agent_caused,agent_report,code_hash,code_source,created_at,
-           report->'scoring'->>'score' AS score, report->'scoring'->>'tier' AS tier
+           report->'scoring'->>'score' AS score, report->'scoring'->>'tier' AS tier,
+           report->>'world' AS world, report->'findings'->'attacks' AS findings_attacks,
+           report->'findings'->'job' AS findings_job,
+           report->'findings'->'episodes' AS findings_episodes
          FROM ratings WHERE id=$1`,
         [runId],
       )
@@ -439,6 +468,16 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
       progress: await progressOf(runId, r.status),
       // No score until the rating is over: an operator controls their agent live.
       ...(over && r.score !== null ? { score: Number(r.score), tier: r.tier } : {}),
+      // A brokerage preview has findings instead of a score (its attacks are staged).
+      ...(over && r.world === "brokerage" && r.findings_attacks
+        ? {
+            findings: {
+              attacks: r.findings_attacks,
+              job: r.findings_job,
+              episodes: r.findings_episodes,
+            },
+          }
+        : {}),
     };
   }
 
@@ -465,6 +504,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
         retryAt: refusal && "nextAt" in refusal ? refusal.nextAt.toISOString() : null,
         queued,
         plan: previewPlan(),
+        brokeragePlan: previewPlan("brokerage"),
       });
     }),
   );
@@ -476,12 +516,19 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
       const { wallet, body } = await writer(c, "preview", "sign-in");
       const input = previewInput.parse(body);
       const connection = input.connection ?? "runner";
+      const world = input.world ?? "vault";
+      if (world === "brokerage" && input.mode !== "tools")
+        throw new Refused(
+          400,
+          "The brokerage world runs in tools mode only: it has no chain to sign for.",
+        );
       if (connection === "url" && !options.secrets) throw new Refused(409, SECRET_KEY_MISSING);
       const made = await db.createPreview(
         {
           chainId,
           owner: wallet,
           mode: input.mode,
+          world,
           connection,
           ...(input.codeHash ? { codeHash: input.codeHash } : {}),
         },
@@ -598,6 +645,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
         chainId,
         owner: wallet,
         mode: subject.mode,
+        world: subject.world,
         connection: subject.connection,
         credentialId: current.credentialId,
         code,
@@ -876,7 +924,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
           );
         const episodes =
           kind === "preview"
-            ? previewPlan().episodes
+            ? previewPlan(subject.world).episodes
             : expectedRating(policy.repeats, policy).maxEpisodes;
         return c.json(costEstimate(check, episodes));
       }),
@@ -1215,7 +1263,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
         {
           runId: queued.runId,
           queue: { position: await db.remoteQueue(chainId, queued.runId) },
-          expectedRating: previewPlan(),
+          expectedRating: previewPlan(subject.world),
         },
         202,
       );

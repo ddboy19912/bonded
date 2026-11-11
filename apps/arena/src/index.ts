@@ -524,3 +524,16 @@ export {
   runConnectionCheck,
   checkIssues,
 } from "./check.js";
+export {
+  type BrokerageAttackFinding,
+  type BrokerageFindings,
+  type BrokerageJobFinding,
+  type BrokeragePreviewOptions,
+  type BrokeragePreviewRun,
+  brokerageFindings,
+  brokeragePreviewScenarios,
+  episodeRan,
+  runBrokeragePreview,
+} from "./brokerage/preview.js";
+export { type BrokerEpisodeResult, runBrokerEpisode } from "./brokerage/episode.js";
+export { BROKER_PLANS, type BrokerPlan } from "./brokerage/scenarios.js";

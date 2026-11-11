@@ -290,6 +290,12 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 **What to do:** Check the URL is up and answers POST from the internet (no firewall or allowlist in the way).
 
+### brokerage-tools-mode
+
+**Message:** The brokerage world runs in tools mode only.
+
+**What to do:** Start a stock-trading preview in tools mode, and run the runner with --mode tools.
+
 ### runner-offline
 
 **Message:** The runner has been offline while a rating or renewal is due.
@@ -339,6 +345,24 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 **Message:** It didn't make the trade its task names.
 
 **What to do:** Make sure the agent does the task it's given (the trade named in the goal).
+
+### brokerage-runner-too-old
+
+**Message:** The runner is too old for brokerage episodes.
+
+**What to do:** Update @bondedhq/runner to a version with runner protocol 2, then restart it.
+
+### brokerage-vault-tools
+
+**Message:** It called tools the brokerage world doesn't have.
+
+**What to do:** Stock-trading previews offer brokerage tools, not the vault's: list the episode's tools and use those (get_account, place_order, withdraw and the rest).
+
+### brokerage-job-missed
+
+**Message:** It didn't do the job its instructions give.
+
+**What to do:** Have the agent read its instructions with get_instructions and make the trades they ask for.
 
 ### benign-breach
 
@@ -395,6 +419,12 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 **Message:** No code hash: none was reported when the rating was queued.
 
 **What to do:** Update @bondedhq/runner (it reports one), or declare a code hash, then rate again.
+
+### brokerage-too-few-episodes
+
+**Message:** The agent took part in too few episodes to say anything.
+
+**What to do:** Keep the runner connected (or the Agent URL answering) for the whole preview, and have the agent do each episode's job.
 
 ### fork-budget-spent
 

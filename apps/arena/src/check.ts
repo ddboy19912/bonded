@@ -1,15 +1,20 @@
 import { randomBytes } from "node:crypto";
 import {
   type AgentMode,
+  type AgentRunSummary,
   AttackSurface,
   type DoneRequest,
+  type EpisodeWorld,
   problemCode,
   type TradingSummary,
 } from "@bondedhq/shared";
+import { runBrokerEpisode } from "./brokerage/episode.js";
+import { controlScenario } from "./brokerage/scenarios.js";
 import { BENIGN_GOALS, benignTrade, type EpisodeResult, runEpisode } from "./episode.js";
 import {
   type AgentTransport,
   RemoteAgent,
+  type RemoteEpisode,
   type RemoteEpisodeEvent,
 } from "./gateway/remote-agent.js";
 import type { ArenaGateway } from "./gateway/server.js";
@@ -106,6 +111,11 @@ export interface ConnectionCheckOptions {
   /** The benign task (default: one of the rating's benign goals, at random). */
   goal?: string;
   vault?: AgentVaultOptions;
+  /**
+   * The world to check on (default vault). A brokerage check runs the brokerage control episode
+   * (the holder's plain plan, nothing planted) with no chain, and needs a protocol 2 runner.
+   */
+  world?: EpisodeWorld;
 }
 
 const SURFACES = AttackSurface.options;
@@ -154,6 +164,10 @@ export async function runConnectionCheck(options: ConnectionCheckOptions): Promi
       );
     if (runner.episodeId !== null)
       return early("The runner is busy with another episode; try again when it's finished");
+    if (options.world === "brokerage" && !runner.canRunBrokerage)
+      return early(
+        "The runner is too old for brokerage episodes: update @bondedhq/runner and restart it",
+      );
     if (runner.code) code = runner.code;
   } else {
     const verified = await gateway.agentUrls.verify(transport.url, transport.secret);
@@ -199,6 +213,78 @@ export async function runConnectionCheck(options: ConnectionCheckOptions): Promi
   };
 
   const timeoutMs = options.episodeTimeoutMs ?? CHECK_EPISODE_TIMEOUT_MS;
+  const seconds = Math.round(timeoutMs / 1000);
+  if (options.world === "brokerage") {
+    if (mode !== "tools")
+      return early(
+        "The brokerage world runs in tools mode only: restart your runner with --mode tools",
+      );
+    const agent = new RemoteAgent({
+      gateway,
+      world: "brokerage",
+      transport,
+      mode: "tools",
+      name: "connection-check",
+      episodeTimeoutMs: timeoutMs,
+      runnerWaitMs: options.runnerWaitMs ?? CHECK_RUNNER_WAIT_MS,
+      onEvent: forward,
+    });
+    const episode = await runBrokerEpisode(agent, controlScenario("plain"));
+    const record = agent.episodes.at(-1);
+    const notRun = record?.urlProblem ?? record?.bondedProblem;
+    if (notRun)
+      return finish({
+        passed: false,
+        problems: [notRun],
+        warnings: [],
+        taskCompleted: null,
+        toolsCalled: tally.tools,
+        surfacesRead: [],
+        ...(code ? { code } : {}),
+      });
+    const problems = endProblems(episode.agentSummary, record, seconds);
+    const warnings: string[] = [];
+    const ranToEnd = problems.length === 0;
+    if (tally.tools === 0)
+      problems.push(
+        "Your agent never called a tool: it must read and trade through the episode's MCP or HTTP endpoints",
+      );
+    const vaultTools = [
+      ...new Set(tally.failedTools.filter((t) => /^unknown tool/.test(t.error)).map((t) => t.name)),
+    ];
+    if (vaultTools.length > 0)
+      problems.push(
+        `It called ${vaultTools.join(", ")}, which the brokerage world doesn't have: list the episode's tools and use those (get_account, place_order, withdraw and the rest)`,
+      );
+    if (!episode.taskCompleted && ranToEnd && tally.tools > 0)
+      problems.push(
+        `It didn't do the job its instructions give (missed ${episode.missed.join(", ")}): read them with get_instructions`,
+      );
+    if (episode.verdict.breached)
+      problems.push(
+        `Its actions broke the mandate in a benign episode (${episode.verdict.breaches.map((b) => b.type).join(", ")}): a preview would count that against it`,
+      );
+    const otherFailures = tally.failedTools.filter((t) => !vaultTools.includes(t.name));
+    if (otherFailures.length > 0)
+      warnings.push(
+        `${otherFailures.length} tool call${otherFailures.length === 1 ? "" : "s"} failed; the first: ${otherFailures[0]!.name}: ${otherFailures[0]!.error}`,
+      );
+    if (!record?.reportedUsage && problems.length === 0)
+      warnings.push(
+        "If your agent uses a model, report its usage at /done: without it, a cost estimate gives time only",
+      );
+    return finish({
+      passed: problems.length === 0,
+      problems,
+      warnings,
+      taskCompleted: tally.tools > 0 ? episode.taskCompleted : null,
+      toolsCalled: tally.tools,
+      surfacesRead: [],
+      ...(record?.reportedUsage ? { usage: record.reportedUsage } : {}),
+      ...(done ? { durationMs: done.durationMs } : {}),
+      ...(code ? { code } : {}),
+    });
+  }
   const sandbox = options.sandbox ?? (await Sandbox.start());
   let result: EpisodeResult;
   let agent: RemoteAgent;
@@ -227,9 +313,7 @@ export async function runConnectionCheck(options: ConnectionCheckOptions): Promi
 
   const record = agent.episodes.at(-1);
   const summary = result.agentSummary;
-  const problems: string[] = [];
   const warnings: string[] = [];
-  const seconds = Math.round(timeoutMs / 1000);
 
   // How it ended. A URL that refused the episode (or that Bonded couldn't call) is the only
   // problem: nothing else ran.
@@ -244,25 +328,7 @@ export async function runConnectionCheck(options: ConnectionCheckOptions): Promi
       surfacesRead: [],
       ...(code ? { code } : {}),
     });
-  if (summary.stoppedBecause === "error") {
-    const message = summary.finalMessage ?? "";
-    if (record?.runnerError && /could not start/.test(record.runnerError))
-      problems.push(`The runner couldn't start your agent: ${record.runnerError}`);
-    else if (/^timed out after/.test(message))
-      problems.push(
-        `It didn't finish within ${seconds} seconds: post to its done URL (or exit) when it has finished`,
-      );
-    else if (/runner disconnected/.test(message))
-      problems.push("The runner disconnected during the episode");
-    else if (/no runner is connected/.test(message)) problems.push("The runner isn't connected");
-    else if (record && record.exitCode !== null && record.exitCode !== 0)
-      problems.push(
-        `It exited with code ${record.exitCode} before finishing (see its output below)`,
-      );
-    else if (record?.signal)
-      problems.push(`It was stopped by ${record.signal} before finishing (see its output below)`);
-    else problems.push(`The episode failed: ${message || "no reason given"}`);
-  }
+  const problems = endProblems(summary, record, seconds);
 
   const ranToEnd = problems.length === 0;
 
@@ -326,6 +392,31 @@ export async function runConnectionCheck(options: ConnectionCheckOptions): Promi
     ...(code ? { code } : {}),
     trading: tradingSummary(result.trades ?? []),
   });
+}
+
+/** How an episode that ran ended, as problems for the operator (none when it finished). */
+function endProblems(
+  summary: AgentRunSummary,
+  record: RemoteEpisode | undefined,
+  seconds: number,
+): string[] {
+  if (summary.stoppedBecause !== "error") return [];
+  const message = summary.finalMessage ?? "";
+  if (record?.runnerError && /could not start/.test(record.runnerError))
+    return [`The runner couldn't start your agent: ${record.runnerError}`];
+  if (record?.runnerError && /too old for brokerage/.test(record.runnerError))
+    return ["The runner is too old for brokerage episodes: update @bondedhq/runner and restart it"];
+  if (/^timed out after/.test(message))
+    return [
+      `It didn't finish within ${seconds} seconds: post to its done URL (or exit) when it has finished`,
+    ];
+  if (/runner disconnected/.test(message)) return ["The runner disconnected during the episode"];
+  if (/no runner is connected/.test(message)) return ["The runner isn't connected"];
+  if (record && record.exitCode !== null && record.exitCode !== 0)
+    return [`It exited with code ${record.exitCode} before finishing (see its output below)`];
+  if (record?.signal)
+    return [`It was stopped by ${record.signal} before finishing (see its output below)`];
+  return [`The episode failed: ${message || "no reason given"}`];
 }
 
 /** A check's problems and warnings with their codes. */

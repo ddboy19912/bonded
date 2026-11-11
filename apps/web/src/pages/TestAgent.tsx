@@ -5,7 +5,13 @@ import { useAccount, useSignMessage } from "wagmi";
 import type { RemoteMode } from "@bondedhq/shared";
 import { deployment } from "../config";
 import { ApiError } from "../lib/api";
-import { byoaApi, type Connection, type PreviewRecord, type PreviewSession } from "../lib/byoa-api";
+import {
+  byoaApi,
+  type Connection,
+  type PreviewRecord,
+  type PreviewSession,
+  type PreviewWorld,
+} from "../lib/byoa-api";
 import {
   PREVIEW_STEPS,
   clearSession,
@@ -39,7 +45,9 @@ import {
   ConnectStep,
   MODE_TEXT,
   ModeChoice,
+  WorldChoice,
 } from "../components/connection-setup";
+import { BrokerageFindingsReport, brokerageReportOf } from "../components/brokerage-findings";
 import { FrameworkQuestions, useFramework } from "../components/framework-questions";
 import { FRAMEWORK_TEXT, connectionFor, hostingFor } from "../lib/frameworks";
 import { Collapsible } from "../components/collapsible";
@@ -103,6 +111,7 @@ export function TestAgent() {
   const [expired, setExpired] = useState(false);
   const [connection, setConnection] = useState<Connection>("url");
   const [mode, setMode] = useState<RemoteMode>("tools");
+  const [world, setWorld] = useState<PreviewWorld>("vault");
   const [framework, setFramework] = useFramework();
   const [changing, setChanging] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -214,7 +223,12 @@ export function TestAgent() {
     setCreating(true);
     setCreateError(null);
     try {
-      const p = await byoaApi.createPreview(session.session, { mode, connection });
+      // The brokerage world has no chain: tools mode only.
+      const p = await byoaApi.createPreview(session.session, {
+        mode: world === "brokerage" ? "tools" : mode,
+        connection,
+        world,
+      });
       // Seeded, so the page goes straight on to connecting without a loading flash.
       queryClient.setQueryData(["preview", p.id, session.session], p);
       setChanging(false);
@@ -229,6 +243,7 @@ export function TestAgent() {
   // "Rate again": a new preview with the same choices; its report compares with this one.
   const rateAgain = async (from: PreviewRecord) => {
     setMode(from.mode);
+    setWorld(from.world ?? "vault");
     setConnection(from.connection);
     if (!session) return;
     setCreating(true);
@@ -237,6 +252,7 @@ export function TestAgent() {
       const next = await byoaApi.createPreview(session.session, {
         mode: from.mode,
         connection: from.connection,
+        world: from.world ?? "vault",
       });
       queryClient.setQueryData(["preview", next.id, session.session], next);
       setParams({ preview: next.id });
@@ -375,6 +391,7 @@ export function TestAgent() {
               }
             >
               <div className="flex flex-col gap-6">
+                <WorldChoice world={world} onWorld={setWorld} />
                 <FrameworkQuestions
                   flat
                   name="preview"
@@ -382,7 +399,9 @@ export function TestAgent() {
                   hosting={hostingFor(connection)}
                   onFramework={setFramework}
                   onHosting={(h) => setConnection(connectionFor(h))}
-                  advanced={<ModeChoice mode={mode} onMode={setMode} />}
+                  advanced={
+                    world === "brokerage" ? undefined : <ModeChoice mode={mode} onMode={setMode} />
+                  }
                 />
                 <div className="flex flex-wrap items-center gap-2">
                   <Button loading={creating} onClick={() => void create()}>
@@ -422,6 +441,12 @@ export function TestAgent() {
               }
               open={stateOf("connect") === "done"}
             >
+              {p?.world === "brokerage" && (
+                <p className="mb-4 text-sm text-muted">
+                  Stock trading needs runner 0.2 or later, in tools mode. Your agent gets the
+                  brokerage tools (account, quotes, filings, orders, withdrawals): list them first.
+                </p>
+              )}
               {p && status && subject && auth && (
                 <ConnectStep
                   key={p.id}
@@ -552,7 +577,14 @@ export function TestAgent() {
             </FlowStep>
 
             <FlowStep n={7} title={STEP_TITLES.report} state={stateOf("report")}>
-              {p && run.data && runFinished ? (
+              {p && run.data && runFinished && p.world === "brokerage" ? (
+                <BrokerageFindingsReport
+                  run={run.data}
+                  report={brokerageReportOf(run.data)}
+                  onRateAgain={() => void rateAgain(p)}
+                  rateAgainBusy={creating}
+                />
+              ) : p && run.data && runFinished ? (
                 <PreviewReport
                   preview={p}
                   run={run.data}

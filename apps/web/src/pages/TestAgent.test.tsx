@@ -174,7 +174,11 @@ describe("Test your agent", () => {
     fireEvent.click(screen.getByRole("radio", { name: /^Chain/ }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     await waitFor(() =>
-      expect(create).toHaveBeenCalledWith("sess", { mode: "chain", connection: "runner" }),
+      expect(create).toHaveBeenCalledWith("sess", {
+        mode: "chain",
+        connection: "runner",
+        world: "vault",
+      }),
     );
     await waitFor(() => expect(screen.getByTestId("search").textContent).toBe("?preview=p7"));
     // The runner's token comes with no signature, straight into the commands.
@@ -206,6 +210,31 @@ describe("Test your agent", () => {
         "npx @bondedhq/runner service --print systemd --gateway https://gw.example -- <your agent command>",
       ),
     ).toBeTruthy();
+  });
+
+  it("creates a stock-trading preview in tools mode, with no mode to pick", async () => {
+    signedIn();
+    const created = preview({ id: "p8", connection: "runner", mode: "tools", world: "brokerage" });
+    const create = vi.spyOn(byoaApi, "createPreview").mockResolvedValue(created);
+    vi.spyOn(byoaApi, "preview").mockResolvedValue(created);
+    vi.spyOn(byoaApi, "createRunnerToken").mockResolvedValue({
+      token: "bonded_rt_preview",
+      gatewayUrl: "https://gw.example",
+    });
+    show();
+    fireEvent.click(await screen.findByRole("radio", { name: /^Stock trading/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /^Python/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /On my computer or server/ }));
+    expect(screen.queryByRole("radio", { name: /^Chain/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await waitFor(() =>
+      expect(create).toHaveBeenCalledWith("sess", {
+        mode: "tools",
+        connection: "runner",
+        world: "brokerage",
+      }),
+    );
+    expect(await screen.findByText(/Stock trading needs runner 0.2 or later/)).toBeTruthy();
   });
 
   it.each([

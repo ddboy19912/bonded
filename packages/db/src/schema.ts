@@ -49,6 +49,8 @@ export const previews = pgTable("previews", {
   chainId: integer("chain_id").notNull(),
   owner: text().notNull(),
   mode: text().notNull(),
+  /** 0034: vault or brokerage. */
+  world: text().notNull().default("vault"),
   connection: text().notNull(),
   codeHash: text("code_hash"),
   status: text().notNull().default("created"),
