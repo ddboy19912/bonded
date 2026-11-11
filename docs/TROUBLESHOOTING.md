@@ -792,7 +792,7 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 **Message:** Budgets are for payments with no invoices: turn invoice matching off on this gate account.
 
-**What to do:** A budget limits what an agent spends when it pays without invoices. Turn invoice matching off on the account (PUT /gate/accounts/:id with `invoiceMatching: false`), or keep it on and check each payment against its invoice instead.
+**What to do:** A budget limits what an agent spends when it pays without invoices. Turning invoice matching off (PUT /gate/accounts/:id with `invoiceMatching: false`) drops the approved-invoice check for every payment on the account, not just the budget's, so the payee list and limits are all that stand in the way. If any payments on the account have invoices, keep matching on and check each payment against its invoice instead.
 
 ### gate-budget-closed
 

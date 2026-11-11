@@ -144,8 +144,9 @@ export function TestAgent() {
             ? false
             : 15_000,
   });
-  // Each world has its own daily preview: ask about the open preview's world, else the one chosen.
-  const allowanceWorld = preview.data?.world ?? world;
+  // Each world has its own daily preview: ask about the world chosen while choosing (before a
+  // preview exists, or while changing one), else the open preview's.
+  const allowanceWorld = changing || !preview.data ? world : (preview.data.world ?? "vault");
   const allowance = useQuery({
     queryKey: ["preview-allowance", address, allowanceWorld],
     queryFn: () => byoaApi.previewAllowance(address!, allowanceWorld),
@@ -382,6 +383,7 @@ export function TestAgent() {
                         onClick={() => {
                           setConnection(p.connection);
                           setMode(p.mode);
+                          setWorld(p.world ?? "vault");
                           setChanging(true);
                         }}
                       >
