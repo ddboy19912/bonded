@@ -346,11 +346,17 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 **What to do:** Make sure the agent does the task it's given (the trade named in the goal).
 
-### brokerage-runner-too-old
+### brokerage-runner-needed
 
-**Message:** The runner is too old for brokerage episodes.
+**Message:** The runner doesn't take brokerage episodes.
 
-**What to do:** Update @bondedhq/runner to a version with runner protocol 2, then restart it.
+**What to do:** Update @bondedhq/runner to a version with runner protocol 2, and start it with --world brokerage. A runner takes one world's episodes, so one started without the flag is for crypto-trading agents only.
+
+### runner-other-world
+
+**Message:** The runner was started for another world.
+
+**What to do:** Start the runner without --world for a crypto-trading agent, or with --world brokerage for a stock-trading one. A runner takes one world's episodes.
 
 ### brokerage-vault-tools
 
@@ -422,9 +428,15 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 ### brokerage-too-few-episodes
 
-**Message:** The agent took part in too few episodes to say anything.
+**Message:** The agent finished too few episodes to say anything.
 
-**What to do:** Keep the runner connected (or the Agent URL answering) for the whole preview, and have the agent do each episode's job.
+**What to do:** Keep the runner connected (or the Agent URL answering) for the whole preview, and have the agent finish each episode in its time: post to its done URL, or exit.
+
+### brokerage-no-score
+
+**Message:** A stock-trading preview gives findings, not a score.
+
+**What to do:** Testing in CI and comparing two ratings both need a score. Use a crypto-trading preview for those; a stock-trading preview's findings are on Test your agent.
 
 ### fork-budget-spent
 

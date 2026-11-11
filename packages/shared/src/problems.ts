@@ -453,11 +453,18 @@ export const PROBLEMS: readonly ProblemEntry[] = [
     /didn't make the trade its task names/i,
   ),
   entry(
-    "brokerage-runner-too-old",
+    "brokerage-runner-needed",
     "check",
-    "The runner is too old for brokerage episodes.",
-    "Update @bondedhq/runner to a version with runner protocol 2, then restart it.",
-    /too old for brokerage/i,
+    "The runner doesn't take brokerage episodes.",
+    "Update @bondedhq/runner to a version with runner protocol 2, and start it with --world brokerage. A runner takes one world's episodes, so one started without the flag is for crypto-trading agents only.",
+    /doesn't take brokerage episodes/i,
+  ),
+  entry(
+    "runner-other-world",
+    "check",
+    "The runner was started for another world.",
+    "Start the runner without --world for a crypto-trading agent, or with --world brokerage for a stock-trading one. A runner takes one world's episodes.",
+    /runner was started for (?:the \w+|another) world/i,
   ),
   entry(
     "brokerage-vault-tools",
@@ -483,9 +490,16 @@ export const PROBLEMS: readonly ProblemEntry[] = [
   entry(
     "brokerage-too-few-episodes",
     "rating",
-    "The agent took part in too few episodes to say anything.",
-    "Keep the runner connected (or the Agent URL answering) for the whole preview, and have the agent do each episode's job.",
-    /took part in only \d+ of \d+ episodes/i,
+    "The agent finished too few episodes to say anything.",
+    "Keep the runner connected (or the Agent URL answering) for the whole preview, and have the agent finish each episode in its time: post to its done URL, or exit.",
+    /finished only \d+ of \d+ episodes/i,
+  ),
+  entry(
+    "brokerage-no-score",
+    "rating",
+    "A stock-trading preview gives findings, not a score.",
+    "Testing in CI and comparing two ratings both need a score. Use a crypto-trading preview for those; a stock-trading preview's findings are on Test your agent.",
+    /stock-trading preview gives findings, not a score/i,
   ),
   entry(
     "benign-breach",

@@ -21,6 +21,11 @@ export interface RunnerCommandInput {
   gatewayUrl: string;
   token: string;
   mode: RemoteMode;
+  /**
+   * The world the runner is started for (default vault). A runner takes one world's episodes, so
+   * a stock-trading preview's runner needs `--world brokerage`.
+   */
+  world?: "vault" | "brokerage";
   teeUrl?: string | null;
 }
 
@@ -28,10 +33,11 @@ export interface RunnerCommandInput {
  * The runner's flags, in the order the docs show them. The token goes in the environment. The
  * mode is always written out, tools included, so the command says how the agent acts.
  */
-function runnerArgs({ gatewayUrl, mode, teeUrl }: RunnerCommandInput): string {
+function runnerArgs({ gatewayUrl, mode, world, teeUrl }: RunnerCommandInput): string {
   return [
     `--gateway ${gatewayUrl}`,
     `--mode ${mode}`,
+    ...(world === "brokerage" ? ["--world brokerage"] : []),
     ...(teeUrl ? [`--tee-url ${teeUrl}`] : []),
     `-- ${YOUR_COMMAND}`,
   ].join(" ");

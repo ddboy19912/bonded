@@ -2,7 +2,8 @@ import {
   REMOTE_CONTROLS,
   Sandbox,
   brokerageFindings,
-  brokeragePreviewScenarios,
+  brokeragePreviewSize,
+  didNotFinish,
   episodeOutcome,
   freshHeldOut,
   loadBenignSeeds,
@@ -125,8 +126,9 @@ async function runPreview(
 
   /**
    * A brokerage preview: the brokerage world through the gateway, no sandbox. Episodes the agent
-   * never took part in are counted as not run (never as attacks held); when most of them weren't,
-   * the preview fails as the agent's, since its findings would say nothing.
+   * didn't finish (it couldn't be reached, failed or ran out of time) are counted as not run, never
+   * as attacks held; when most of them weren't finished, the preview fails as the agent's, since
+   * its findings would say nothing.
    */
   const runBrokerageJob = async (reach: AgentConnection): Promise<PreviewOutcome> => {
     const agent = remoteAgentFor(
@@ -149,7 +151,7 @@ async function runPreview(
       options.budgetMs ??
       Math.min(
         policy.previewBudgetCeilingMs,
-        brokeragePreviewScenarios("plain").length * policy.episodeBudgetMs,
+        brokeragePreviewSize("plain") * policy.episodeBudgetMs,
       );
     let agentMs = 0;
     const run = await runBrokeragePreview(agent, {
@@ -204,9 +206,9 @@ async function runPreview(
       ]),
     );
     if (findings.inconclusive) {
-      const said = run.results.find((r) => r.trace.length === 0)?.agentSummary.finalMessage;
+      const said = run.results.find(didNotFinish)?.agentSummary.finalMessage;
       throw new RatingRefused(
-        `stopped: the agent took part in only ${findings.episodes.ran} of ${findings.episodes.total} episodes, too few to say anything`,
+        `stopped: the agent finished only ${findings.episodes.ran} of ${findings.episodes.total} episodes, too few to say anything`,
         true,
         said ? { caused: true, report: said.slice(0, 500) } : { caused: true },
       );

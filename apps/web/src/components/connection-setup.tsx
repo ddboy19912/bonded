@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { RemoteMode } from "@bondedhq/shared";
 import { runnerCommand, runnerDockerCommand, runnerView } from "../lib/byoa";
-import { byoaApi, type Auth, type Connection, type Subject } from "../lib/byoa-api";
+import {
+  byoaApi,
+  type Auth,
+  type Connection,
+  type PreviewWorld,
+  type Subject,
+} from "../lib/byoa-api";
 import {
   agentUrlError,
   codeSourceLabel,
@@ -208,6 +214,7 @@ export function ConnectRunner({
   autoCreate = false,
   showBadge = true,
   framework,
+  world = "vault",
 }: {
   subject: Subject;
   auth: Auth;
@@ -215,6 +222,8 @@ export function ConnectRunner({
   onChanged: () => unknown;
   teeUrl?: string | null;
   framework?: Framework | undefined;
+  /** What the agent is tested on: a stock-trading preview's runner is started for that world. */
+  world?: PreviewWorld;
   /** Make the token as soon as this shows (previews: it costs no signature). */
   autoCreate?: boolean;
   /** Off where the runner's state already shows nearby. */
@@ -255,10 +264,15 @@ export function ConnectRunner({
     gatewayUrl,
     token: token.value,
     mode: status.mode,
+    world,
     teeUrl: teeUrl ?? null,
   };
   const connected = isConnected(status, "runner");
-  const initIsPrimary = initLeads(framework) && !input?.teeUrl;
+  // `runner init` and `runner service` write a crypto-trading (vault) set-up: for a stock-trading
+  // preview the runner command itself is the way, with --world brokerage.
+  const brokerage = world === "brokerage";
+  const initLeadsHere = initLeads(framework) && !brokerage;
+  const initIsPrimary = initLeadsHere && !input?.teeUrl;
   return (
     <div className="flex flex-col gap-4 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -274,7 +288,7 @@ export function ConnectRunner({
       </div>
       {input ? (
         <>
-          {initLeads(framework) && (
+          {initLeadsHere && (
             <InitCommand
               framework={framework}
               connection="runner"
@@ -295,7 +309,7 @@ export function ConnectRunner({
                   : "Start the runner with your agent's command"
               }
               text={runnerCommand(input)}
-              note={<CommandNote example={!initLeads(framework)} />}
+              note={<CommandNote example={!initLeadsHere} />}
             />
           )}
           <Collapsible
@@ -358,8 +372,9 @@ export function ConnectRunner({
         mode={status.mode}
         gatewayUrl={token?.gatewayUrl ?? status.gatewayUrl}
         framework={framework}
+        world={world}
       />
-      <KeepRunning gatewayUrl={token?.gatewayUrl ?? status.gatewayUrl} />
+      {!brokerage && <KeepRunning gatewayUrl={token?.gatewayUrl ?? status.gatewayUrl} />}
     </div>
   );
 }
@@ -376,6 +391,7 @@ export function ConnectUrl({
   onChanged,
   initialUrl,
   framework,
+  world = "vault",
 }: {
   subject: Subject;
   auth: Auth;
@@ -383,6 +399,8 @@ export function ConnectUrl({
   onChanged: () => unknown;
   initialUrl?: string;
   framework?: Framework | undefined;
+  /** What the agent is tested on: a stock-trading preview's handler needs `onBrokerageEpisode`. */
+  world?: PreviewWorld;
 }) {
   const [url, setUrl] = useState(status.agentUrl?.url ?? initialUrl ?? "");
   const [touched, setTouched] = useState(false);
@@ -582,8 +600,10 @@ export function ConnectUrl({
       ) : (
         <ErrorText error={error} />
       )}
-      {!isVerified && <InitCommand framework={framework} connection="url" mode={status.mode} />}
-      <Snippets connection="url" mode={status.mode} framework={framework} />
+      {!isVerified && world !== "brokerage" && (
+        <InitCommand framework={framework} connection="url" mode={status.mode} />
+      )}
+      <Snippets connection="url" mode={status.mode} framework={framework} world={world} />
     </div>
   );
 }
@@ -631,14 +651,17 @@ export function Snippets({
   mode,
   gatewayUrl,
   framework,
+  world = "vault",
 }: {
   connection: Connection;
   mode: RemoteMode;
   gatewayUrl?: string | null;
   /** The owner's framework: its tab is the one shown first. */
   framework?: Framework | undefined;
+  /** What the agent is tested on: a stock-trading preview gets the brokerage snippets. */
+  world?: PreviewWorld;
 }) {
-  const list = snippets(connection, mode, gatewayUrl);
+  const list = snippets(connection, mode, gatewayUrl, world);
   const preferred = framework ? snippetIdFor(framework, connection) : undefined;
   const [picked, setSelected] = useState<string>();
   const selected = picked ?? (list.some((s) => s.id === preferred) ? preferred! : list[0]!.id);
@@ -695,6 +718,8 @@ export function ConnectStep(props: {
   /** A URL to start the form with (e.g. carried over from a preview). */
   initialUrl?: string;
   framework?: Framework | undefined;
+  /** What the agent is tested on (default vault): the commands and code shown are for that world. */
+  world?: PreviewWorld;
 }) {
   // Keyed by what it connects, so a token or secret made for one agent never shows on another.
   const k =
@@ -709,6 +734,7 @@ export function ConnectStep(props: {
       status={props.status}
       onChanged={props.onChanged}
       framework={props.framework}
+      {...(props.world ? { world: props.world } : {})}
       {...(props.initialUrl ? { initialUrl: props.initialUrl } : {})}
     />
   ) : (
@@ -719,6 +745,7 @@ export function ConnectStep(props: {
       status={props.status}
       onChanged={props.onChanged}
       framework={props.framework}
+      {...(props.world ? { world: props.world } : {})}
       {...(props.teeUrl !== undefined ? { teeUrl: props.teeUrl } : {})}
       {...(props.autoCreate !== undefined ? { autoCreate: props.autoCreate } : {})}
       {...(props.showBadge !== undefined ? { showBadge: props.showBadge } : {})}

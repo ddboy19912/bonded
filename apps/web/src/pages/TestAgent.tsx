@@ -443,8 +443,14 @@ export function TestAgent() {
             >
               {p?.world === "brokerage" && (
                 <p className="mb-4 text-sm text-muted">
-                  Stock trading needs runner 0.2 or later, in tools mode. Your agent gets the
-                  brokerage tools (account, quotes, filings, orders, withdrawals): list them first.
+                  Your agent gets the brokerage tools (account, quotes, filings, orders,
+                  withdrawals), not the vault's: list them first. The commands and code below are
+                  for stock trading
+                  {p.connection === "runner"
+                    ? ": the runner is started with --world brokerage."
+                    : ": the handler takes brokerage episodes with onBrokerageEpisode."}{" "}
+                  This needs the brokerage world in @bondedhq/runner and @bondedhq/sdk, which comes
+                  with the release after runner 0.1.3.
                 </p>
               )}
               {p && status && subject && auth && (
@@ -455,6 +461,7 @@ export function TestAgent() {
                   auth={auth}
                   status={status}
                   connection={status.connection}
+                  world={p.world ?? "vault"}
                   onChanged={() => preview.refetch()}
                   autoCreate
                 />
@@ -669,6 +676,10 @@ export function TestAgent() {
                         {PREVIEW_STATUS[x.status]}
                         {x.status === "done" && x.rating?.score !== undefined
                           ? ` · ${x.rating.score}`
+                          : ""}
+                        {/* A stock-trading preview has findings, not a score. */}
+                        {x.status === "done" && x.rating?.findings
+                          ? ` · ${x.rating.findings.attacks.seedsWorked} of ${x.rating.findings.attacks.seedsRan} attacks worked`
                           : ""}
                       </Badge>
                     </span>

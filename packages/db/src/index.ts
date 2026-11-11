@@ -2446,10 +2446,14 @@ export class Database {
       return { stopped: true as const };
     });
   }
-  /** Record that an agent was registered from this preview ("Make it official"). */
+  /**
+   * Record that an agent was registered from this preview ("Make it official"). Only a vault
+   * preview can be: a registered agent is rated on the vault world, and a brokerage preview's
+   * findings aren't a preview of that rating.
+   */
   async linkPreviewUpgrade(id: string, owner: string, agentKey: string): Promise<boolean> {
     const r = await this.pool.query(
-      "UPDATE previews SET upgraded_to=$3,updated_at=now() WHERE id=$1 AND owner=$2",
+      "UPDATE previews SET upgraded_to=$3,updated_at=now() WHERE id=$1 AND owner=$2 AND world='vault'",
       [id, owner.toLowerCase(), agentKey],
     );
     return (r.rowCount ?? 0) > 0;

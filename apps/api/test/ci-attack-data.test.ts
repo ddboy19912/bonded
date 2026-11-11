@@ -177,6 +177,31 @@ afterAll(async () => {
 });
 
 describe("testing in CI", () => {
+  it("refuses a stock-trading preview before it uses the day's preview rating", async () => {
+    const who = privateKeyToAccount(generatePrivateKey());
+    const key = await newKey(who);
+    const session = await sessionFor(who);
+    const made = await call(
+      "POST",
+      "/previews",
+      { mode: "tools", connection: "url", world: "brokerage" },
+      session,
+    );
+    expect(made.status).toBe(201);
+    const run = await call("POST", "/ci/runs", { previewId: made.body.id, minScore: 70 }, key);
+    expect(run.status).toBe(409);
+    expect(run.body).toMatchObject({
+      code: "brokerage-no-score",
+      error: expect.stringMatching(/findings, not a score/) as unknown,
+    });
+    // Nothing was queued or counted against the wallet.
+    const queued = await pg.db.pool.query(
+      "SELECT count(*)::int AS n FROM ratings WHERE preview_id=$1",
+      [made.body.id],
+    );
+    expect(queued.rows[0].n).toBe(0);
+  });
+
   it("runs the check, then the preview rating, then passes or fails against the minimum", async () => {
     const key = await newKey();
     const previewId = await urlPreview();

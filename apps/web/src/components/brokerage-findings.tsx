@@ -39,7 +39,15 @@ export function BrokerageFindingsReport({
           {ratingFailure(run)}
         </Note>
       )}
-      {f && <FindingsBody f={f} />}
+      {/* Too little ran to say anything: no badge, no headline, nothing that reads as a pass. */}
+      {f?.inconclusive && (
+        <p className="text-warn">
+          Your agent finished {of(f.episodes.ran, f.episodes.total)} episodes, too few to say
+          anything about it. The rest didn't count: it couldn't be reached, it failed, or it ran out
+          of time.
+        </p>
+      )}
+      {f && !f.inconclusive && <FindingsBody f={f} />}
       {onRateAgain && (
         <div className="flex flex-col gap-2 border-t border-line pt-5">
           <p className="font-semibold">Fixed something?</p>
@@ -78,7 +86,8 @@ function FindingsBody({ f }: { f: BrokerageFindings }) {
         {f.attacks.approvedThenWorked > 0 && (
           <p className="text-soft">
             In {of(f.attacks.approvedThenWorked, f.attacks.worked)} of those, it asked for approval
-            first. Approval didn't stop it.
+            first. In this test the account holder approves every order the agent asks about, so
+            asking didn't stop it.
           </p>
         )}
         <p className="text-soft">
@@ -86,8 +95,8 @@ function FindingsBody({ f }: { f: BrokerageFindings }) {
         </p>
         {f.episodes.notRun > 0 && (
           <p className="text-warn">
-            {of(f.episodes.notRun, f.episodes.total)} episodes didn't run (your agent didn't take
-            part), so they count for nothing either way.
+            {of(f.episodes.notRun, f.episodes.total)} episodes didn't finish (your agent couldn't be
+            reached, failed or ran out of time), so they count for nothing either way.
           </p>
         )}
         <p className="max-w-prose text-muted">
@@ -115,7 +124,7 @@ function FindingsBody({ f }: { f: BrokerageFindings }) {
                 <td
                   className={`py-2.5 text-right font-mono text-xs ${a.worked > 0 ? "text-breach" : a.ran === 0 ? "text-warn" : "text-muted"}`}
                 >
-                  {a.ran === 0 ? "didn't run" : of(a.worked, a.ran)}
+                  {a.ran === 0 ? "didn't finish" : of(a.worked, a.ran)}
                 </td>
                 <td className="py-2.5 pl-4 text-right font-mono text-xs text-muted">
                   {a.worked > 0 ? usd(a.steeredUsd) : "–"}
@@ -157,6 +166,19 @@ function FindingsBody({ f }: { f: BrokerageFindings }) {
                   </p>
                 ))}
               </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {f.assumptions && f.assumptions.length > 0 && (
+        <section aria-labelledby="findings-assumptions" className="border-t border-line pt-5">
+          <h3 id="findings-assumptions" className="font-semibold">
+            What these numbers assume
+          </h3>
+          <ul className="mt-3 flex list-disc flex-col gap-1.5 pl-5 text-muted">
+            {f.assumptions.map((line) => (
+              <li key={line}>{line}</li>
             ))}
           </ul>
         </section>

@@ -249,7 +249,10 @@ export interface BrokerageFindings {
     done: number;
     missed: string[];
   }[];
+  /** Fewer than half of the episodes count: the findings say nothing. */
   inconclusive: boolean;
+  /** What the numbers assume, in plain sentences, shown next to them. */
+  assumptions?: string[];
 }
 
 /** What a brokerage preview's run stores as its report. */
@@ -291,7 +294,14 @@ export interface PreviewRecord {
   /** Why it was refused or stopped, in a sentence. */
   reason?: string | null;
   /** Its rating's status, and its score once it is over. */
-  rating?: { runId: string; status: string; score?: number; tier?: string } | null;
+  rating?: {
+    runId: string;
+    status: string;
+    score?: number;
+    tier?: string;
+    /** A stock-trading preview's headline, in place of a score. */
+    findings?: Pick<BrokerageFindings, "attacks" | "job" | "episodes">;
+  } | null;
   /** What "Make it official" fills in. Null for a brokerage preview, which has no official rating yet. */
   upgrade?: null | {
     mode: RemoteMode;

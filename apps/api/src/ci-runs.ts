@@ -227,6 +227,13 @@ export function ciRunRoutes(
       await keys.count(caller, "ci");
       const input = runInput.parse(await c.req.json());
       const subject = await previewRating.subject(input.previewId, caller.owner);
+      // A CI run passes or fails on a score, and the brokerage world has none yet (its attacks
+      // are staged): refused here, before it uses the wallet's preview rating for the day.
+      if (subject.world === "brokerage")
+        throw new Refused(
+          409,
+          "Testing in CI needs a score to pass or fail on, and a stock-trading preview gives findings, not a score.",
+        );
       if (subject.connection !== "url")
         throw new Refused(
           409,

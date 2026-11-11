@@ -881,7 +881,7 @@ Everything the pages do is plain HTTP, for scripts. The hosted API is `https://a
 | Endpoint | What it does |
 |---|---|
 | `GET /previews/allowance?wallet=` | Whether the wallet may start a preview rating now, and if not, why and when (no sign-in) |
-| `POST /previews` | Start a preview: `{ mode, connection?, codeHash?, world? }` (session). `world` is `vault` (default) or `brokerage` (tools mode only; findings, not a score) |
+| `POST /previews` | Start a preview: `{ mode, connection?, codeHash?, world? }` (session). `world` is `vault` (default) or `brokerage` (tools mode only; findings, not a score; its runner is started with `--world brokerage`) |
 | `GET /previews`, `GET /previews/:id` | Your previews, and one with its connection, last check, rating, progress and what "Make it official" fills in |
 | `POST /previews/:id/stop` | Stop a preview |
 | `POST`/`DELETE /previews/:id/runner-token` | A preview's runner token, shown once; or revoke it |

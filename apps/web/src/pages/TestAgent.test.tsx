@@ -234,7 +234,17 @@ describe("Test your agent", () => {
         world: "brokerage",
       }),
     );
-    expect(await screen.findByText(/Stock trading needs runner 0.2 or later/)).toBeTruthy();
+    expect(await screen.findByText(/the runner is started with --world brokerage/)).toBeTruthy();
+    // The command is for the brokerage world, and nothing offers the vault set-up.
+    expect(
+      await findCodeBlock(
+        "BONDED_RUNNER_TOKEN=bonded_rt_preview npx @bondedhq/runner --gateway https://gw.example --mode tools --world brokerage -- <your agent command>",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText("Keep it running")).toBeNull();
+    fireEvent.click(screen.getByText("Code for your agent, by framework"));
+    expect(screen.getByRole("tab", { name: "Any agent (HTTP or MCP)" })).toBeTruthy();
+    expect(screen.queryByRole("tab", { name: "Any MCP agent" })).toBeNull();
   });
 
   it.each([

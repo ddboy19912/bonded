@@ -11,7 +11,7 @@ import {
   type PreviewWorld,
   type RatedCode,
 } from "@bonded/db";
-import { brokeragePreviewScenarios } from "@bonded/arena";
+import { brokeragePreviewSize } from "@bonded/arena";
 import {
   REMOTE_KIND,
   SELF_SERVE_MAX_AGE_SECONDS,
@@ -351,7 +351,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
    */
   const previewPlan = (world: PreviewWorld = "vault") => {
     if (world === "brokerage") {
-      const episodes = brokeragePreviewScenarios("plain").length;
+      const episodes = brokeragePreviewSize("plain");
       const budgetMs = Math.min(policy.previewBudgetCeilingMs, episodes * policy.episodeBudgetMs);
       return { episodes, budgetSeconds: Math.round(budgetMs / 1000) };
     }

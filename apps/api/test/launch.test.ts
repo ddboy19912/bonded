@@ -289,6 +289,51 @@ describe("bring your own agent, launch round: report data, vault status, health,
     expect(s.presets[1].rules.maxTradeUsd).toBe(6000);
   });
 
+  it("doesn't compare a stock-trading preview's findings, or make one official", async () => {
+    const session = await sessionFor(owner);
+    // Rows made directly: createPreview counts toward the funnel another test here reads.
+    const made = async (world: "vault" | "brokerage") => {
+      const id = randomUUID();
+      await pg.db.pool.query(
+        `INSERT INTO previews(id,chain_id,owner,mode,connection,world,created_at,updated_at)
+         VALUES($1,$2,$3,'tools','runner',$4,now(),now())`,
+        [id, sandbox.deployment.chainId, owner.address.toLowerCase(), world],
+      );
+      return { id };
+    };
+    const brokerage = await made("brokerage");
+    const findings = async () => {
+      const id = randomUUID();
+      await pg.db.pool.query(
+        "INSERT INTO ratings(id,preview_id,kind,status,charged_owner,report) VALUES($1,$2,'preview','done',$3,$4)",
+        [
+          id,
+          brokerage.id,
+          owner.address.toLowerCase(),
+          JSON.stringify({ world: "brokerage", findings: { attacks: { worked: 1 } } }),
+        ],
+      );
+      return id;
+    };
+    // Finished, with findings and no score: said plainly, not "its rating is running".
+    const cmp = await get(
+      `/ratings/compare?from=${await findings()}&to=${await findings()}`,
+      session,
+    );
+    expect(cmp.status).toBe(409);
+    expect(await body(cmp)).toMatchObject({
+      code: "brokerage-no-score",
+      error: expect.stringMatching(/findings, not a score/) as unknown,
+    });
+    // "Make it official" links a vault preview only: a registered agent is rated on the vault.
+    const agentKey = `${sandbox.deployment.chainId}:9001`;
+    expect(await pg.db.linkPreviewUpgrade(brokerage.id, owner.address, agentKey)).toBe(false);
+    expect(await pg.db.previewUpgradedTo(agentKey)).toBeUndefined();
+    const vault = await made("vault");
+    expect(await pg.db.linkPreviewUpgrade(vault.id, owner.address, agentKey)).toBe(true);
+    expect((await pg.db.previewUpgradedTo(agentKey))?.id).toBe(vault.id);
+  });
+
   it("alerts the owner once per event, honours opt-outs, and lists them in the inbox", async () => {
     const session = await sessionFor(owner);
     // A posted score that expires in two days: expiring, and a renewal is due.

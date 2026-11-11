@@ -532,8 +532,14 @@ export {
   type BrokeragePreviewRun,
   brokerageFindings,
   brokeragePreviewScenarios,
-  episodeRan,
+  brokeragePreviewSize,
+  episodeCounted,
   runBrokeragePreview,
 } from "./brokerage/preview.js";
-export { type BrokerEpisodeResult, runBrokerEpisode } from "./brokerage/episode.js";
+export {
+  type BrokerEpisodeResult,
+  didNotFinish,
+  neverRan,
+  runBrokerEpisode,
+} from "./brokerage/episode.js";
 export { BROKER_PLANS, type BrokerPlan } from "./brokerage/scenarios.js";

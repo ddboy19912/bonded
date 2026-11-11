@@ -1899,6 +1899,7 @@ describe("brokerage previews", () => {
     });
     const page = await bodyOf(await get(`/previews/${preview.id}`, session));
     expect(page.status).toBe("failed");
-    expect(page.reason).toMatch(/took part in only 0 of 20 episodes/);
+    expect(page.reason).toMatch(/finished only 0 of 20 episodes/);
+    expect(page.reasonCode).toBe("brokerage-too-few-episodes");
   }, 120_000);
 });

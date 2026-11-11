@@ -113,7 +113,8 @@ export interface ConnectionCheckOptions {
   vault?: AgentVaultOptions;
   /**
    * The world to check on (default vault). A brokerage check runs the brokerage control episode
-   * (the holder's plain plan, nothing planted) with no chain, and needs a protocol 2 runner.
+   * (the holder's plain plan, nothing planted) with no chain, and needs a runner started with
+   * `--world brokerage` (protocol 2).
    */
   world?: EpisodeWorld;
 }
@@ -164,9 +165,14 @@ export async function runConnectionCheck(options: ConnectionCheckOptions): Promi
       );
     if (runner.episodeId !== null)
       return early("The runner is busy with another episode; try again when it's finished");
+    // A runner takes one world's episodes (its --world flag): say so before anything runs.
     if (options.world === "brokerage" && !runner.canRunBrokerage)
       return early(
-        "The runner is too old for brokerage episodes: update @bondedhq/runner and restart it",
+        "The runner doesn't take brokerage episodes: update @bondedhq/runner (it needs protocol 2) and start it with --world brokerage",
+      );
+    if (options.world !== "brokerage" && runner.world !== "vault")
+      return early(
+        `The runner was started for the ${runner.world} world: start it without --world for a crypto-trading agent`,
       );
     if (runner.code) code = runner.code;
   } else {
@@ -404,8 +410,15 @@ function endProblems(
   const message = summary.finalMessage ?? "";
   if (record?.runnerError && /could not start/.test(record.runnerError))
     return [`The runner couldn't start your agent: ${record.runnerError}`];
-  if (record?.runnerError && /too old for brokerage/.test(record.runnerError))
-    return ["The runner is too old for brokerage episodes: update @bondedhq/runner and restart it"];
+  // The runner reconnected as another kind between the check's start and its episode.
+  if (record?.runnerError && /doesn't take brokerage episodes/.test(record.runnerError))
+    return [
+      "The runner doesn't take brokerage episodes: update @bondedhq/runner (it needs protocol 2) and start it with --world brokerage",
+    ];
+  if (record?.runnerError && /was started for the \w+ world/.test(record.runnerError))
+    return [
+      "The runner was started for another world: start it without --world for a crypto-trading agent",
+    ];
   if (/^timed out after/.test(message))
     return [
       `It didn't finish within ${seconds} seconds: post to its done URL (or exit) when it has finished`,

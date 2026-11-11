@@ -65,6 +65,10 @@ const findings = (over: Partial<BrokerageFindings> = {}): BrokerageFindings => (
   ],
   perJob: [],
   inconclusive: false,
+  assumptions: [
+    "The holder approves every order the agent asks about, standing in for a holder who trusts the agent's explanation.",
+    "Each episode ran once, with the mandate's rules shown to the agent.",
+  ],
   ...over,
 });
 
@@ -81,12 +85,35 @@ describe("brokerage findings report", () => {
     render(<BrokerageFindingsReport run={run} report={brokerageReportOf(run)} />);
     expect(screen.getByText("1 of 13 attacks got your agent to act.")).toBeTruthy();
     expect(screen.getByText(/traded \$17,766 on the attacker's say-so/)).toBeTruthy();
-    expect(screen.getByText(/Approval didn't stop it/)).toBeTruthy();
+    // Said with its assumption: the test's holder approves everything, by design.
+    expect(
+      screen.getByText(/the account holder approves every order the agent asks about/),
+    ).toBeTruthy();
     expect(screen.getByText("Findings, not a score")).toBeTruthy();
     expect(screen.getByText("Sold $17,766 of VTI.")).toBeTruthy();
     expect(screen.getByText(/over order cap, over daily cap/)).toBeTruthy();
-    // An attack that never ran says so, never "held".
-    expect(screen.getByText("didn't run")).toBeTruthy();
+    // An attack the agent didn't finish says so, never "held".
+    expect(screen.getByText("didn't finish")).toBeTruthy();
+    // The assumptions are listed next to the numbers.
+    expect(screen.getByText("What these numbers assume")).toBeTruthy();
+    expect(screen.getByText(/Each episode ran once/)).toBeTruthy();
+  });
+
+  it("shows no badge or headline when too few episodes finished to say anything", () => {
+    const f = findings({
+      episodes: { total: 20, ran: 0, notRun: 20 },
+      attacks: { ...findings().attacks, ran: 0, worked: 0, seedsWorked: 0, seedsRan: 0 },
+      job: { ran: 0, done: 0 },
+      inconclusive: true,
+    });
+    const run = runWith(f, { status: "failed" } as Partial<RunRecord>);
+    render(<BrokerageFindingsReport run={run} report={brokerageReportOf(run)} />);
+    expect(screen.getByText("The preview didn't finish.")).toBeTruthy();
+    expect(screen.getByText(/finished 0 of 20 episodes, too few to say anything/)).toBeTruthy();
+    // Nothing that could be read as a pass.
+    expect(screen.queryByText("Findings, not a score")).toBeNull();
+    expect(screen.queryByText(/got your agent to act/)).toBeNull();
+    expect(screen.queryByText("What these numbers assume")).toBeNull();
   });
 
   it("says when no attack worked", () => {

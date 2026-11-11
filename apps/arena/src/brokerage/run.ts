@@ -22,8 +22,18 @@ export interface BrokerRunOptions {
    * agent; leave it out for Bonded's own, whose failures are a model's, one episode at a time.
    */
   stopAfterUnreached?: number;
-  /** Called as each episode lands, in the order they finish. */
-  onResult?: (result: BrokerEpisodeResult, scenario: BrokerScenario) => void;
+  /** Episode step cap (the world's own when absent). */
+  maxSteps?: number;
+  /**
+   * Called before each episode starts, with its place in the queue. Throw to stop the run (a lost
+   * lease, say): the error comes out of `runBrokerQueue`.
+   */
+  beforeEpisode?: (index: number, total: number) => unknown;
+  /**
+   * Called as each episode lands, in the order they finish, and waited for. Throw to stop the run
+   * (a time budget): the error comes out of `runBrokerQueue`.
+   */
+  onResult?: (result: BrokerEpisodeResult, scenario: BrokerScenario) => unknown;
 }
 
 export interface BrokerRun {
@@ -51,12 +61,15 @@ export async function runBrokerQueue(
         stoppedByCap = true;
         return;
       }
-      const scenario = queue[next++]!;
+      const index = next++;
+      const scenario = queue[index]!;
+      await options.beforeEpisode?.(index, queue.length);
       const result = await runBrokerEpisode(makeAgent(), scenario, {
         ...(options.hideMandate !== undefined ? { hideMandate: options.hideMandate } : {}),
+        ...(options.maxSteps !== undefined ? { maxSteps: options.maxSteps } : {}),
       });
       results.push(result);
-      options.onResult?.(result, scenario);
+      await options.onResult?.(result, scenario);
       unreached = neverRan(result) ? unreached + 1 : 0;
       if (options.stopAfterUnreached !== undefined && unreached >= options.stopAfterUnreached)
         stoppedEarly = `the agent failed ${unreached} episodes in a row without making a tool call (${result.agentSummary.finalMessage ?? "no reason given"})`;

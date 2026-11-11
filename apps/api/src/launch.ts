@@ -168,7 +168,7 @@ export function launchRoutes(app: Hono, options: LaunchRouteOptions) {
     const rows = await db.pool.query(
       `SELECT id,status,created_at,charged_owner,(preview_id IS NOT NULL) AS preview,
            coalesce(agent_id, 'preview:'||preview_id::text) AS subject,
-           report->'scoring' AS scoring, report->'classes' AS classes
+           report->'scoring' AS scoring, report->'classes' AS classes, report->>'world' AS world
          FROM ratings WHERE id=ANY($1::uuid[])`,
       [[q.from, q.to]],
     );
@@ -179,6 +179,12 @@ export function launchRoutes(app: Hono, options: LaunchRouteOptions) {
       const r = rows.rows.find((x) => x.id === id);
       if (!r || (r.preview && (!viewer || viewer !== r.charged_owner)))
         throw new Refused(404, "That rating wasn't found.");
+      // A brokerage preview ends with findings, not a score: there is nothing to put side by side.
+      if (r.world === "brokerage")
+        throw new Refused(
+          409,
+          "A stock-trading preview gives findings, not a score, so it can't be compared.",
+        );
       if (!r.scoring)
         throw new Refused(409, "Its rating is running. Compare once both ratings are finished.");
       const classes = (r.classes ?? []) as {
