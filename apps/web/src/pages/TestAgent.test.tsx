@@ -212,6 +212,30 @@ describe("Test your agent", () => {
     ).toBeTruthy();
   });
 
+  it("asks for the daily preview of the world being chosen", async () => {
+    signedIn();
+    vi.mocked(byoaApi.previewAllowance).mockImplementation((_wallet, world) =>
+      Promise.resolve(
+        world === "brokerage"
+          ? { allowed: true, queued: 0, plan: null }
+          : {
+              allowed: false,
+              reason: "You can run at most 1 preview rating a day.",
+              retryAt: new Date(Date.now() + 3_600_000).toISOString(),
+              queued: 0,
+              plan: null,
+            },
+      ),
+    );
+    show();
+    expect(await screen.findByText(/You've used today's preview/)).toBeTruthy();
+    fireEvent.click(await screen.findByRole("radio", { name: /^Stock trading/ }));
+    await waitFor(() =>
+      expect(byoaApi.previewAllowance).toHaveBeenCalledWith(expect.any(String), "brokerage"),
+    );
+    await waitFor(() => expect(screen.queryByText(/You've used today's preview/)).toBeNull());
+  });
+
   it("creates a stock-trading preview in tools mode, with no mode to pick", async () => {
     signedIn();
     const created = preview({ id: "p8", connection: "runner", mode: "tools", world: "brokerage" });

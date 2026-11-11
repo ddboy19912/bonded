@@ -470,9 +470,14 @@ export const byoaApi = {
       body: JSON.stringify({ chainId: deployment.chainId, wallet, timestamp, signature }),
     });
   },
-  /** GET /previews/allowance?wallet=: can this wallet start a preview now. No sign-in needed. */
-  previewAllowance: (wallet: string) =>
-    request<PreviewAllowance>(`/previews/allowance?wallet=${encodeURIComponent(wallet)}`),
+  /**
+   * GET /previews/allowance?wallet=&world=: can this wallet start a preview in this world now.
+   * Each world has its own daily preview. No sign-in needed.
+   */
+  previewAllowance: (wallet: string, world: PreviewWorld = "vault") =>
+    request<PreviewAllowance>(
+      `/previews/allowance?wallet=${encodeURIComponent(wallet)}&world=${world}`,
+    ),
   /** GET /previews: the signed-in wallet's previews, newest first. */
   listPreviews: (session: string): Promise<{ items: PreviewRecord[] }> =>
     request<{ items: PreviewRecord[] }>("/previews", bearer(session)).then((r) => ({

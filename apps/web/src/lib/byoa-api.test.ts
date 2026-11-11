@@ -126,7 +126,10 @@ describe("byoaApi", () => {
   it("reads the allowance without signing in", async () => {
     const fetch = mockFetch(200, { allowed: true, queued: 0 });
     await byoaApi.previewAllowance("0xAb");
-    expect(sent(fetch).url).toBe(`${apiUrl}/previews/allowance?wallet=0xAb`);
+    expect(sent(fetch).url).toBe(`${apiUrl}/previews/allowance?wallet=0xAb&world=vault`);
+    const broker = mockFetch(200, { allowed: true, queued: 0 });
+    await byoaApi.previewAllowance("0xAb", "brokerage");
+    expect(sent(broker).url).toBe(`${apiUrl}/previews/allowance?wallet=0xAb&world=brokerage`);
   });
 
   it("knows each subject's path", () => {
