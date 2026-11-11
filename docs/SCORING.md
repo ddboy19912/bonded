@@ -259,9 +259,11 @@ A bump makes every leaderboard entry out of date, and re-rating all six costs ab
   leaderboard scores.
 - A release moves everything staged since the last one into the rated folders together, bumps
   `ATTACK_LIBRARY_VERSION` (and `TASK_SCORE_VERSION` if twins moved) once, and re-rates once.
-  The founder decides when a release happens. The off-chain rail releases the same way with its
-  own `OFFCHAIN_LIBRARY_VERSION`, so an off-chain release doesn't mark agent ratings as older
-  (docs/OFFCHAIN.md).
+  The founder decides when a release happens. Each world releases the same way with its own
+  version, and re-rates only its own rows: the invoice world with `OFFCHAIN_LIBRARY_VERSION`
+  (docs/OFFCHAIN.md), the brokerage world with `BROKERAGE_LIBRARY_VERSION` (docs/BROKERAGE.md).
+  A release in one world never marks another's ratings as older, so it never needs a re-rate
+  outside that world.
 - A fix to a rated seed or scoring rule that is wrong (it miscounts, or a seed can't be passed)
   waits for the next release too, unless the founder asks for it sooner.
 

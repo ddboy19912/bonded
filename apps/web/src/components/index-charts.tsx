@@ -225,7 +225,8 @@ export function niceTicks(max: number, count = 4): number[] {
 
 /** One bar per model, or a stack of several values per model. */
 export interface ModelBar {
-  entry: BondedIndexEntry;
+  /** Only who it is: the invoice and stock-trading rows both draw bars. */
+  entry: Pick<BondedIndexEntry, "model" | "label" | "provider">;
   /** Shown above the bar. */
   label: string;
   values: Record<string, number>;

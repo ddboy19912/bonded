@@ -5,6 +5,7 @@ import {
   type BondedIndex as BondedIndexData,
   type BondedIndexEntry,
   type BondedIndexRow,
+  type BrokerageIndex as BrokerageIndexData,
   OFFCHAIN_LIBRARY_VERSION,
 } from "@bondedhq/shared";
 import { loadBondedIndex } from "../lib/bonded-index";
@@ -374,5 +375,185 @@ describe("Bonded Index", () => {
   it("says so when no model has been rated", () => {
     view({ ...index, entries: [] });
     expect(screen.getByText("No models have been rated yet.")).toBeTruthy();
+  });
+});
+
+describe("the stock-trading rows", () => {
+  const part = (done: number, total: number) => ({ done, total });
+  const row = (mandate: "shown" | "hidden", fell: number) => ({
+    mandate,
+    attackEpisodes: 39,
+    fell,
+    manipulationRate: fell / 39,
+    interval: [0, 0.2] as [number, number],
+    notMet: 0,
+    notFinished: 0,
+    steeredUsd: fell * 17766,
+    atRiskUsd: 0,
+    taskParts: { controls: part(3, 3), underAttack: part(36, 36), twins: part(18, 18) },
+    byClass: { T1: { episodes: 6, fell } },
+  });
+  const brokerage: BrokerageIndexData = {
+    version: 1,
+    updatedAt: "2026-11-11T00:00:00.000Z",
+    method: "docs/BROKERAGE.md#on-the-index",
+    entries: [
+      {
+        model: "deepseek/deepseek-v4.1-flash",
+        label: "DeepSeek V4.1 Flash",
+        provider: "DeepSeek",
+        family: "DeepSeek V4",
+        version: "4.1 Flash",
+        rail: "brokerage",
+        agent: "broker-agent",
+        plan: "plain",
+        libraryVersion: 1,
+        attacks: { seeds: 13, twins: 6, hash: "0123456789abcdef" },
+        runsPerScenario: 3,
+        ranAt: "2026-11-11T00:00:00.000Z",
+        rows: [row("shown", 1), row("hidden", 3)],
+        score: 50,
+        scoreInterval: [19, 81],
+        worstClass: { mandate: "hidden", class: "T1", episodes: 6, fell: 3 },
+        attacksTested: 78,
+        riskCeiling: 0.2,
+        task: { score: 100, part: "controls" },
+        cost: { spentUsd: 0.61, estimated: false, episodes: 120 },
+        incomplete: true,
+      },
+    ],
+  };
+
+  it("show beside the invoice rows: charts first, the table behind them", () => {
+    render(
+      <MemoryRouter>
+        <BondedIndexView index={index} brokerage={brokerage} />
+      </MemoryRouter>,
+    );
+    const stock = section("Stock trading");
+    expect(within(stock).getByText(/how hard it is to trick into a bad trade/)).toBeTruthy();
+    // Where models break: the class grid, both briefings together.
+    fireEvent.click(within(stock).getByRole("tab", { name: "Where models break" }));
+    expect(within(stock).getByText("Fake news or notice")).toBeTruthy();
+    expect(within(stock).getByText("4/12")).toBeTruthy();
+    showTable(stock);
+    const cells = within(stock).getAllByRole("row")[1]!.querySelectorAll("td");
+    expect(cells[0]!.textContent).toContain("DeepSeek V4.1 Flash");
+    expect(cells[0]!.textContent).toContain("Incomplete");
+    expect(cells[1]!.textContent).toBe("50 (19–81)");
+    expect(cells[2]!.textContent).toBe("100");
+    expect(cells[3]!.textContent).toBe("4 of 78");
+    expect(cells[4]!.textContent).toBe("0");
+    expect(cells[5]!.textContent).toBe("0");
+    expect(cells[6]!.textContent).toBe("$71,064");
+    expect(screen.getByText(/Brokerage library version 1/)).toBeTruthy();
+  });
+
+  it("says Security is unmeasured when no attack counted, never 100", () => {
+    const never = {
+      ...brokerage.entries[0]!,
+      model: "qwen/qwen3.7-flash",
+      label: "Qwen3.7 Flash",
+      provider: "Qwen",
+      score: null,
+      worstClass: null,
+      attacksTested: 0,
+      rows: brokerage.entries[0]!.rows.map((r) => ({
+        ...r,
+        attackEpisodes: 0,
+        fell: 0,
+        notMet: 39,
+        byClass: {},
+      })),
+    };
+    render(
+      <MemoryRouter>
+        <BondedIndexView
+          index={index}
+          brokerage={{ ...brokerage, entries: [...brokerage.entries, never] }}
+        />
+      </MemoryRouter>,
+    );
+    const stock = section("Stock trading");
+    showTable(stock);
+    const row = within(stock)
+      .getAllByRole("row")
+      .find((r) => r.textContent?.includes("Qwen3.7 Flash"))!;
+    expect(row.querySelectorAll("td")[1]!.textContent).toBe("not measured");
+  });
+
+  it("marks rows rated on an older library and keeps them out of the charts", () => {
+    const old = {
+      ...brokerage.entries[0]!,
+      model: "z-ai/glm-5.3-flash",
+      label: "GLM-5.3 Flash",
+      provider: "Z.ai",
+      // Below the current version (1); real rows will be older once version 2 ships.
+      libraryVersion: 0,
+    };
+    render(
+      <MemoryRouter>
+        <BondedIndexView
+          index={index}
+          brokerage={{ ...brokerage, entries: [...brokerage.entries, old] }}
+        />
+      </MemoryRouter>,
+    );
+    const stock = section("Stock trading");
+    fireEvent.click(within(stock).getByRole("tab", { name: "Where models break" }));
+    expect(within(stock).queryByText("GLM-5.3 Flash")).toBeNull();
+    showTable(stock);
+    expect(within(stock).getByText(/Older library \(version 0\)/)).toBeTruthy();
+  });
+
+  it("charts one older version when every row is older, and lists each row once", () => {
+    const at = (v: number, model: string, label: string) => ({
+      ...brokerage.entries[0]!,
+      model,
+      label,
+      libraryVersion: v,
+    });
+    render(
+      <MemoryRouter>
+        <BondedIndexView
+          index={index}
+          brokerage={{
+            ...brokerage,
+            // Both below the current version (1): stand-ins for rows left on old libraries.
+            entries: [
+              at(0, "z-ai/glm-5.3-flash", "GLM-5.3 Flash"),
+              at(-1, "qwen/qwen3.7-flash", "Qwen3.7 Flash"),
+            ],
+          }}
+        />
+      </MemoryRouter>,
+    );
+    const stock = section("Stock trading");
+    fireEvent.click(within(stock).getByRole("tab", { name: "Where models break" }));
+    expect(within(stock).getByText("GLM-5.3 Flash")).toBeTruthy();
+    expect(within(stock).queryByText("Qwen3.7 Flash")).toBeNull();
+    showTable(stock);
+    expect(within(stock).getAllByText("GLM-5.3 Flash")).toHaveLength(1);
+    expect(within(stock).getAllByText("Qwen3.7 Flash")).toHaveLength(1);
+    expect(within(stock).getByText(/Older library \(version -1\): not in the charts/)).toBeTruthy();
+  });
+
+  it("still shows when there are no invoice rows", () => {
+    render(
+      <MemoryRouter>
+        <BondedIndexView index={{ ...index, entries: [] }} brokerage={brokerage} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("heading", { name: "Stock trading" })).toBeTruthy();
+    expect(screen.queryByText("No models have been rated yet.")).toBeNull();
+  });
+
+  it("is left out when no model has been rated on it", () => {
+    render(
+      <MemoryRouter>
+        <BondedIndexView index={index} brokerage={{ ...brokerage, entries: [] }} />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByRole("heading", { name: "Stock trading" })).toBeNull();
   });
 });

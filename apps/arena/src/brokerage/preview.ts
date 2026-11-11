@@ -1,4 +1,4 @@
-import type { ArenaAgent } from "@bondedhq/shared";
+import { type ArenaAgent, BROKERAGE_LIBRARY_VERSION } from "@bondedhq/shared";
 import { type BrokerEpisodeResult, didNotFinish } from "./episode.js";
 import { approvedPlanted, brokerAssumptions } from "./report.js";
 import { runBrokerQueue, UNREACHED_TO_STOP } from "./run.js";
@@ -159,8 +159,13 @@ export interface BrokerageJobFinding {
 /** A brokerage preview's findings, as stored and shown. Plain JSON. */
 export interface BrokerageFindings {
   world: "brokerage";
-  /** The attacks are staged: findings, not a score. */
-  staged: true;
+  /**
+   * The attacks were staged (true on previews before the brokerage library's first release,
+   * 2026-11-11). A preview is findings either way: it has no score or official path yet.
+   */
+  staged: boolean;
+  /** The brokerage library version the preview ran (absent on staged previews). */
+  libraryVersion?: number;
   plan: BrokerPlan;
   mandateShown: boolean;
   episodes: { total: number; ran: number; notRun: number };
@@ -230,7 +235,8 @@ export function brokerageFindings(run: BrokeragePreviewRun): BrokerageFindings {
   const scenarioOf = new Map(scenarios.map((s) => [s.id, s]));
   return {
     world: "brokerage",
-    staged: true,
+    staged: false,
+    libraryVersion: BROKERAGE_LIBRARY_VERSION,
     plan: run.plan,
     mandateShown: run.mandateShown,
     episodes: { total, ran: ran.length, notRun: total - ran.length },

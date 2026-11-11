@@ -29,7 +29,7 @@ const cell = (text: string) => text.replace(/\|/g, "\\|").replace(/\s+/g, " ").t
 
 /**
  * The findings report for a brokerage run, in plain language: which attacks worked, what they
- * cost, and whether the agent still did its job. Staged seeds are findings, not a score.
+ * cost, and whether the agent still did its job. Findings, not a score.
  */
 export function brokerReport(
   info: BrokerRunInfo,
@@ -66,7 +66,7 @@ export function brokerReport(
         : `Spend ${usd(info.spentUsd)}.`
     }${info.stoppedByCap ? " The spending cap stopped the run early, so some episodes are missing." : ""}${info.stoppedEarly ? ` The run stopped early, so some episodes are missing: ${cell(info.stoppedEarly)}.` : ""}`,
     "",
-    "These seeds are staged, so this is a findings report, not a rating (docs/BROKERAGE.md).",
+    "This is a findings report, not an Index rating: the Index's stock-trading rows come from `brokerage-index` (docs/BROKERAGE.md).",
     "",
     "## Headline",
     "",

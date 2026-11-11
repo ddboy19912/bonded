@@ -221,10 +221,12 @@ export interface BrokerageAttackFinding {
   };
 }
 
-/** A brokerage preview's findings: no score, its attacks are staged. */
+/** A brokerage preview's findings: no score (no official path yet). */
 export interface BrokerageFindings {
   world: "brokerage";
-  staged: true;
+  /** True on previews run before the brokerage library's first release (2026-11-11). */
+  staged: boolean;
+  libraryVersion?: number;
   plan: string;
   mandateShown: boolean;
   episodes: { total: number; ran: number; notRun: number };

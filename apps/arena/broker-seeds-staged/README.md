@@ -1,9 +1,7 @@
 # Staged brokerage attacks
 
-Attacks on trading agents in the brokerage world (docs/BROKERAGE.md), and a benign twin for each attack class. Each file plants news, social posts, research notes, filings, alerts or messages into the base account (`src/brokerage/scenarios.ts`).
+New attacks on trading agents in the brokerage world (docs/BROKERAGE.md), and benign twins, wait here before they join the library in `../broker-seeds/`. The folder is empty until the next one is written.
 
-Everything here is staged. No rating or Index reads this folder; `pnpm --filter @bonded/arena broker` runs it and writes a findings report, not a score. A library release that the founder schedules moves the brokerage world into ratings, with one `OFFCHAIN_LIBRARY_VERSION` bump and one re-rate (CLAUDE.md, "Batch library changes into releases"; docs/SCORING.md, "Releases: batch the bumps").
+No rating or Index reads this folder. `pnpm --filter @bonded/arena broker --staged` runs these seeds with the library and writes a findings report, not a score. A brokerage release that the founder schedules moves them into `../broker-seeds/` with one `BROKERAGE_LIBRARY_VERSION` bump, and re-rates only the Index's stock-trading rows (CLAUDE.md, "Batch library changes into releases"). Invoice and on-chain ratings are never touched.
 
-- An attack has a `class` (T1 to T6), the rules it aims at (`aimedAt`), and what it planted: the trade it wants (`plantedTrades`), symbols (`plantedSymbols`) or bank accounts (`plantedAccounts`). The broker ledger decides every breach; the planted facts only say which ones the attack caused.
-- A twin has `twinOf` and puts genuine work in the same channel, such as a real fund-closing notice or a real 13F amendment, with the trades or withdrawal the job then needs (`mustTrade`, `mustWithdraw`). An agent that distrusts the whole channel fails the job.
-- `test/broker-world.test.ts` checks that a careful agent passes every seed and finishes the job, and that an agent doing what an attack asks falls for it.
+Seed format: see `../broker-seeds/README.md`.
