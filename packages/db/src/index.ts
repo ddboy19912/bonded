@@ -479,7 +479,11 @@ export interface InboxItem {
   readAt: Date | null;
 }
 
-/** Limits on preview ratings, counted over the last 24 hours. */
+/**
+ * Limits on preview ratings, counted over the last 24 hours. `perWalletDaily` counts each world
+ * on its own (a wallet's crypto-trading preview doesn't use up its stock-trading one); `daily` is
+ * the chain's cap across both, since every preview runs on the same lane.
+ */
 export interface PreviewQuota {
   nowMs: number;
   perWalletDaily: number;
@@ -2118,23 +2122,25 @@ export class Database {
     return (r.rowCount ?? 0) > 0;
   }
   /**
-   * Whether `owner` may queue a preview rating now, by the same counts `enqueuePreviewRating`
-   * applies, and how many remote ratings and previews are waiting or running on the chain.
+   * Whether `owner` may queue a preview rating of a `world` preview now, by the same counts
+   * `enqueuePreviewRating` applies, and how many remote ratings and previews are waiting or
+   * running on the chain.
    */
   async previewAllowance(
     owner: string,
     chainId: number,
     quota: PreviewQuota,
+    world: PreviewWorld = "vault",
   ): Promise<{ refusal?: PreviewRefusal; queued: number }> {
     const since = new Date(quota.nowMs - 86_400_000);
     const counts = (
       await this.pool.query(
-        `SELECT count(*) FILTER (WHERE r.charged_owner=$2)::int AS wallet,
-           min(r.created_at) FILTER (WHERE r.charged_owner=$2) AS wallet_first,
+        `SELECT count(*) FILTER (WHERE r.charged_owner=$2 AND v.world=$4)::int AS wallet,
+           min(r.created_at) FILTER (WHERE r.charged_owner=$2 AND v.world=$4) AS wallet_first,
            count(*)::int AS lane, min(r.created_at) AS lane_first
          FROM ratings r JOIN previews v ON v.id=r.preview_id
          WHERE v.chain_id=$1 AND r.kind='preview' AND r.created_at>=$3`,
-        [chainId, owner.toLowerCase(), since],
+        [chainId, owner.toLowerCase(), since, world],
       )
     ).rows[0];
     const queued = await this.remoteQueue(chainId);
@@ -2468,8 +2474,9 @@ export class Database {
   }
 
   /**
-   * Queue a preview's rating, within the preview caps: `perWalletDaily` per wallet and `daily` on
-   * the chain, over the last 24 hours (`nextAt` is when one is free again). Refused while the
+   * Queue a preview's rating, within the preview caps: `perWalletDaily` per wallet in the
+   * preview's world and `daily` on the chain, over the last 24 hours (`nextAt` is when one is free
+   * again). Refused while the
    * preview already has one queued or running. The rating is not published to the public feed.
    */
   async enqueuePreviewRating(
@@ -2491,12 +2498,12 @@ export class Database {
       const since = new Date(quota.nowMs - 86_400_000);
       const counts = (
         await c.query(
-          `SELECT count(*) FILTER (WHERE r.charged_owner=$2)::int AS wallet,
-             min(r.created_at) FILTER (WHERE r.charged_owner=$2) AS wallet_first,
+          `SELECT count(*) FILTER (WHERE r.charged_owner=$2 AND v.world=$4)::int AS wallet,
+             min(r.created_at) FILTER (WHERE r.charged_owner=$2 AND v.world=$4) AS wallet_first,
              count(*)::int AS lane, min(r.created_at) AS lane_first
            FROM ratings r JOIN previews v ON v.id=r.preview_id
            WHERE v.chain_id=$1 AND r.kind='preview' AND r.created_at>=$3`,
-          [preview.chain_id, preview.owner, since],
+          [preview.chain_id, preview.owner, since, preview.world],
         )
       ).rows[0];
       if (counts.wallet >= quota.perWalletDaily)

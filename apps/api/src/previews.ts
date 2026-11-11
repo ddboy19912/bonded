@@ -483,7 +483,10 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
 
   // Previews.
 
-  /** Whether a wallet may start a preview rating now, and if not, when. No sign-in needed. */
+  /**
+   * Whether a wallet may start a preview rating now, and if not, when. No sign-in needed. Each
+   * world has its own daily preview per wallet (`world`, default vault).
+   */
   app.get(
     "/previews/allowance",
     handle(async (c) => {
@@ -493,11 +496,17 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
         .regex(/^0x[0-9a-fA-F]{40}$/)
         .parse(c.req.query("wallet"))
         .toLowerCase();
-      const { refusal, queued } = await db.previewAllowance(wallet, chainId, {
-        nowMs: now(),
-        perWalletDaily: policy.previewPerWalletDaily,
-        daily: policy.previewDaily,
-      });
+      const world = z.enum(["vault", "brokerage"]).default("vault").parse(c.req.query("world"));
+      const { refusal, queued } = await db.previewAllowance(
+        wallet,
+        chainId,
+        {
+          nowMs: now(),
+          perWalletDaily: policy.previewPerWalletDaily,
+          daily: policy.previewDaily,
+        },
+        world,
+      );
       return c.json({
         allowed: !refusal,
         reason: refusal ? previewRefusalMessage(refusal, policy) : null,

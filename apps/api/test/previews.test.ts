@@ -1777,14 +1777,14 @@ describe("brokerage previews", () => {
   });
 
   /** A stock-trading preview, connected by runner, with a passing brokerage check. */
-  async function readyBrokerage(session: string, code: string) {
-    const preview = await newPreview(session, { mode: "tools", world: "brokerage" });
+  async function readyBrokerage(session: string, code: string, a = app) {
+    const preview = await newPreview(session, { mode: "tools", world: "brokerage" }, a);
     const made = await bodyOf(
-      await send("POST", `/previews/${preview.id}/runner-token`, {}, session),
+      await send("POST", `/previews/${preview.id}/runner-token`, {}, session, a),
     );
     await connect(made.token as string, "tools", code);
     const worlds: unknown[] = [];
-    await send("POST", `/previews/${preview.id}/checks`, {}, session);
+    await send("POST", `/previews/${preview.id}/checks`, {}, session, a);
     expect(
       await workCheckOne(pg.db, chainId, {
         runCheck: (request) => {
@@ -1826,6 +1826,43 @@ describe("brokerage previews", () => {
     >;
     expect(made).toMatchObject({ world: "brokerage", upgrade: null });
     expect((made.expectedRating as { episodes: number }).episodes).toBe(20);
+  });
+
+  it("has its own daily preview per wallet: a crypto-trading one doesn't use it up", async () => {
+    const capped = api({ previewPerWalletDaily: 1 });
+    const wallet = privateKeyToAccount(generatePrivateKey());
+    const session = await sessionFor(wallet, capped);
+    const allowance = async (world?: string) =>
+      bodyOf(
+        await get(
+          `/previews/allowance?wallet=${wallet.address}${world ? `&world=${world}` : ""}`,
+          undefined,
+          capped,
+        ),
+      );
+    const runs: string[] = [];
+    // The crypto-trading preview uses the wallet's vault preview for the day...
+    const { preview: vault } = await readyPreview(session, hash(0x7010), capped);
+    const v = await send("POST", `/previews/${vault.id}/rate`, {}, session, capped);
+    expect(v.status).toBe(202);
+    runs.push((await bodyOf(v)).runId as string);
+    expect(await allowance()).toMatchObject({ allowed: false });
+    // ...and leaves its stock-trading one.
+    expect(await allowance("brokerage")).toMatchObject({ allowed: true, reason: null });
+    const broker = await readyBrokerage(session, hash(0x7011), capped);
+    const b = await send("POST", `/previews/${broker.id}/rate`, {}, session, capped);
+    expect(b.status).toBe(202);
+    runs.push((await bodyOf(b)).runId as string);
+    expect(await allowance("brokerage")).toMatchObject({ allowed: false });
+    // A second stock-trading rating the same day is refused.
+    const again = await readyBrokerage(session, hash(0x7012), capped);
+    const refused = await send("POST", `/previews/${again.id}/rate`, {}, session, capped);
+    expect(refused.status).toBe(429);
+    expect(
+      (await get(`/previews/allowance?wallet=${wallet.address}&world=nope`, undefined, capped))
+        .status,
+    ).toBe(400);
+    await pg.db.pool.query("UPDATE jobs SET status='failed' WHERE id = ANY($1::uuid[])", [runs]);
   });
 
   it("needs a check on the brokerage world: a vault check of the same connection doesn't count", async () => {
