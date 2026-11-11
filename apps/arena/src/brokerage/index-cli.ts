@@ -132,7 +132,9 @@ async function main(): Promise<void> {
     }
   }
   console.log(
-    values["dry-run"] ? `dry run: wrote ${out} only` : `wrote ${BROKERAGE_INDEX_FILE} and ${out}`,
+    values["dry-run"]
+      ? `dry run: wrote ${out} only`
+      : `wrote ${BROKERAGE_INDEX_FILE} and ${out}. Run npx prettier --write config/brokerage-index.json so the file passes the format check.`,
   );
 }
 
