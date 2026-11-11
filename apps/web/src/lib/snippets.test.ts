@@ -91,9 +91,9 @@ describe("stock-trading (brokerage) snippets", () => {
     expect(code(runner)).not.toMatch(/bonded(LangChain|AiSdk)Tools\(\)/);
   });
 
-  it("says the packages it needs aren't published yet", () => {
+  it("names the package versions it needs", () => {
     for (const s of [...runner, ...url.slice(0, 2)])
-      expect(s.note).toMatch(/release after runner 0\.1\.3/);
+      expect(s.note).toMatch(/runner` 0\.1\.4 or `@bondedhq\/sdk` 0\.1\.7, or later/);
   });
 
   it("leaves the crypto-trading snippets as they were", () => {

@@ -157,9 +157,9 @@ ${lead}const kit = await AgentKit.from({
   ];
 }
 
-/** Told under every brokerage snippet: the packages that have this world aren't published yet. */
+/** Told under every brokerage snippet: the package versions that have this world. */
 export const BROKERAGE_RELEASE_NOTE =
-  "Stock trading needs the brokerage world in `@bondedhq/sdk` and `@bondedhq/runner`, which comes with the release after runner 0.1.3. Until it is published, use the builds in the Bonded repository.";
+  "Stock trading needs `@bondedhq/runner` 0.1.4 or `@bondedhq/sdk` 0.1.7, or later.";
 
 /**
  * Snippets for a stock-trading (brokerage) preview. The episode has no vault or chain: its tools

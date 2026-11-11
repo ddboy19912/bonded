@@ -31,6 +31,11 @@ for (const name of ["BondedVault", "buildMandate", "fromBondedEnv", "isBondedEpi
 for (const name of ["connectEpisodeTools", "mcpConfig", "finishEpisode", "isBondedEpisode"])
   assert.equal(typeof mcp[name], "function", "@bondedhq/sdk/mcp exports " + name);
 assert.equal(typeof shared.parseEpisodeEnv, "function");
+// The brokerage world (runner protocol 2).
+for (const name of ["fromBondedBrokerageEnv", "bondedEpisodeWorld"])
+  assert.equal(typeof sdk[name], "function", "@bondedhq/sdk exports " + name);
+assert.equal(typeof shared.parseBrokerageEpisodeEnv, "function");
+assert.equal(shared.BROKERAGE_PROTOCOL_VERSION, 2);
 assert.equal(typeof sharedAgentUrl.verifyAgentUrlRequest, "function");
 assert.ok(solana.PROGRAM_IDS.vault, "@bondedhq/solana loads its IDLs");
 for (const name of ["x402Guard", "x402Price", "remoteX402Signer"])

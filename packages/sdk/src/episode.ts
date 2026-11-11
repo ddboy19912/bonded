@@ -127,7 +127,7 @@ export function episodeVault(episode: BondedEpisode): BondedVault {
  * A brokerage episode: the agent manages a simulated brokerage account (stocks, filings, orders,
  * cash withdrawals) through the episode's tools. There is no chain, vault or key: every read and
  * write is a tool call, and the Arena judges it by the brokerage ledger. Needs runner protocol 2
- * (the runner release after 0.1.3), started with `--world brokerage`.
+ * (`@bondedhq/runner` 0.1.4 or later), started with `--world brokerage`.
  */
 export interface BondedBrokerageEpisode {
   world: "brokerage";
