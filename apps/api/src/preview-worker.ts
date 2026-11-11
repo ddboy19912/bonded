@@ -1,10 +1,14 @@
 import {
   REMOTE_CONTROLS,
   Sandbox,
+  brokerageFindings,
+  brokeragePreviewSize,
+  didNotFinish,
   episodeOutcome,
   freshHeldOut,
   loadBenignSeeds,
   rateAgent,
+  runBrokeragePreview,
 } from "@bonded/arena";
 import { json, previewKey, type Database, type PreviewOutcome } from "@bonded/db";
 import type { AgentMode, AttackSpec, ChatClient } from "@bondedhq/shared";
@@ -37,6 +41,10 @@ import { PREVIEW_LABEL } from "./previews.js";
  * such; 90-second episodes, 40 s an episode up to 45 minutes) but it is never attested or posted
  * and can't be used for a quote. Previews take turns with official remote ratings under the same
  * lock, only when none of those is waiting, and one at a time.
+ *
+ * A brokerage preview (docs/BROKERAGE.md) runs the brokerage world instead: no sandbox or chain,
+ * the control, every staged attack and every benign twin once, through the same gateway. Its
+ * attacks are staged, so it ends with findings, not a score.
  */
 
 export interface PreviewWorkerOptions {
@@ -101,7 +109,7 @@ async function runPreview(
   };
   const row = (
     await db.pool.query(
-      `SELECT r.code_hash,r.code_source,v.id AS preview_id,v.owner,v.mode,v.connection
+      `SELECT r.code_hash,r.code_source,v.id AS preview_id,v.owner,v.mode,v.connection,v.world
        FROM ratings r JOIN previews v ON v.id=r.preview_id WHERE r.id=$1`,
       [job.id],
     )
@@ -112,8 +120,101 @@ async function runPreview(
     owner: string;
     mode: AgentMode;
     connection: "runner" | "url";
+    world: "vault" | "brokerage";
   };
   const key = previewKey(row.preview_id);
+
+  /**
+   * A brokerage preview: the brokerage world through the gateway, no sandbox. Episodes the agent
+   * didn't finish (it couldn't be reached, failed or ran out of time) are counted as not run, never
+   * as attacks held; when most of them weren't finished, the preview fails as the agent's, since
+   * its findings would say nothing.
+   */
+  const runBrokerageJob = async (reach: AgentConnection): Promise<PreviewOutcome> => {
+    const agent = remoteAgentFor(
+      options.remote,
+      {
+        agentKey: key,
+        chainId: chain.deployment.chainId,
+        agentId: key,
+        mode: "tools",
+        world: "brokerage",
+        codeHash: (row.code_hash ?? `0x${"0".repeat(64)}`) as Hex,
+        connection: reach,
+      },
+      undefined,
+    );
+    await check();
+    await db.markRunning(job);
+    const started = Date.now();
+    const budget =
+      options.budgetMs ??
+      Math.min(
+        policy.previewBudgetCeilingMs,
+        brokeragePreviewSize("plain") * policy.episodeBudgetMs,
+      );
+    let agentMs = 0;
+    const run = await runBrokeragePreview(agent, {
+      plan: "plain",
+      mandateShown: true,
+      beforeEpisode: async (index, total) => {
+        if (index === 0)
+          await db.setRatingProgress(job, { done: 0, total, startedAt: new Date(started) });
+      },
+      afterEpisode: async (episode, done, total) => {
+        await check();
+        await db.setRatingProgress(job, { done, total, startedAt: new Date(started) });
+        agentMs +=
+          (episode.agentSummary as { remote?: { durationMs?: number } }).remote?.durationMs ?? 0;
+        if (bondedUrlFailure(episode))
+          throw new RatingRefused(
+            `stopped: Bonded couldn't reach the agent's URL in episode ${done} of ${total}, not because of the agent; it will be retried`,
+            false,
+          );
+        const elapsed = Date.now() - started;
+        if (elapsed > budget)
+          throw agentMs > elapsed / 2
+            ? new RatingRefused(
+                `stopped: the preview ran past its ${Math.round(budget / 60_000)}-minute budget after ${done} of ${total} episodes; the agent took ${Math.round((100 * agentMs) / elapsed)}% of the time`,
+                true,
+                { caused: true },
+              )
+            : new RatingRefused(
+                `stopped: the preview ran past its time budget after ${done} of ${total} episodes, not because of the agent; it will be retried`,
+                false,
+              );
+      },
+    });
+    const findings = brokerageFindings(run);
+    // Never attested or posted: the findings are kept, labelled, for the owner alone.
+    const report = {
+      world: "brokerage",
+      findings,
+      preview: {
+        label: PREVIEW_LABEL,
+        attested: false,
+        insurable: false,
+        codeHash: row.code_hash,
+        codeSource: row.code_source,
+      },
+    };
+    await db.withLease(job, (c) =>
+      c.query("UPDATE ratings SET report=$2,report_json=$3 WHERE id=$1", [
+        job.id,
+        json(report),
+        `${JSON.stringify(report, null, 2)}\n`,
+      ]),
+    );
+    if (findings.inconclusive) {
+      const said = run.results.find(didNotFinish)?.agentSummary.finalMessage;
+      throw new RatingRefused(
+        `stopped: the agent finished only ${findings.episodes.ran} of ${findings.episodes.total} episodes, too few to say anything`,
+        true,
+        said ? { caused: true, report: said.slice(0, 500) } : { caused: true },
+      );
+    }
+    return { status: "done" };
+  };
   let budgetSpentIn: string | undefined;
   let outcome: PreviewOutcome;
   let score: { score: number; securityScore?: number; tier: string } | undefined;
@@ -129,139 +230,148 @@ async function runPreview(
           true,
         );
     }
-    const library = await ratingLibrary(db, chain.deployment.chainId);
-    // Like any operator-run agent: the published library and a held-out set made for it alone.
-    const selected = options.selectAttacks?.(library.attacks) ?? library.attacks;
-    const attacks = selected.filter((a) => !library.unpublished.has(a.id));
-    const sandbox = await Sandbox.start({ forkUrl: rpcUrl, forkDeployment: chain.deployment });
-    try {
-      const agent = remoteAgentFor(
-        options.remote,
-        {
-          agentKey: key,
-          chainId: chain.deployment.chainId,
-          agentId: key,
-          mode: row.mode,
-          codeHash: (row.code_hash ?? `0x${"0".repeat(64)}`) as Hex,
-          connection: reach,
-        },
-        sandbox,
-      );
-      const perClass = options.heldOut?.perClass ?? policy.heldOutPerClass;
-      const fresh =
-        perClass > 0
-          ? await freshHeldOut({
-              library: attacks,
-              perClass,
-              sandbox,
-              ledger: new DbHeldOutLedger(db),
-              ...(options.heldOut?.llm ? { llm: options.heldOut.llm } : {}),
-            })
-          : undefined;
-      await check();
-      await db.markRunning(job);
-      const started = Date.now();
-      const budget =
-        options.budgetMs ??
-        previewRatingPlan(policy, {
-          publishedAttacks: attacks.length,
-          heldOut: fresh?.attacks.length ?? 0,
-        }).budgetMs;
-      let agentMs = 0;
-      const result = await rateAgent(sandbox, {
-        agent,
-        attacks: [...attacks, ...(fresh?.attacks ?? [])],
-        unpublished: new Set((fresh?.attacks ?? []).map((a) => a.id)),
-        ...(fresh ? { heldOut: fresh.heldOut } : {}),
-        // Its held-out set is its own (each payload used once): the owner's report shows the text.
-        revealUnpublished: true,
-        ...(row.code_hash ? { codeHash: row.code_hash as Hex } : {}),
-        repeats: 1,
-        controls: REMOTE_CONTROLS,
-        exercise: "exposed",
-        attackLiveness: "refuse",
-        // Benign twins for the Task score (previewRatingPlan counts them).
-        benign: { seeds: loadBenignSeeds() },
-        // Before the first episode: the total, so progress shows 0 of N at once.
-        onProgress: async (p) => {
-          if (p.done === 0)
+    if (row.world === "brokerage") {
+      outcome = await runBrokerageJob(reach);
+    } else {
+      const library = await ratingLibrary(db, chain.deployment.chainId);
+      // Like any operator-run agent: the published library and a held-out set made for it alone.
+      const selected = options.selectAttacks?.(library.attacks) ?? library.attacks;
+      const attacks = selected.filter((a) => !library.unpublished.has(a.id));
+      const sandbox = await Sandbox.start({ forkUrl: rpcUrl, forkDeployment: chain.deployment });
+      try {
+        const agent = remoteAgentFor(
+          options.remote,
+          {
+            agentKey: key,
+            chainId: chain.deployment.chainId,
+            agentId: key,
+            mode: row.mode,
+            codeHash: (row.code_hash ?? `0x${"0".repeat(64)}`) as Hex,
+            connection: reach,
+          },
+          sandbox,
+        );
+        const perClass = options.heldOut?.perClass ?? policy.heldOutPerClass;
+        const fresh =
+          perClass > 0
+            ? await freshHeldOut({
+                library: attacks,
+                perClass,
+                sandbox,
+                ledger: new DbHeldOutLedger(db),
+                ...(options.heldOut?.llm ? { llm: options.heldOut.llm } : {}),
+              })
+            : undefined;
+        await check();
+        await db.markRunning(job);
+        const started = Date.now();
+        const budget =
+          options.budgetMs ??
+          previewRatingPlan(policy, {
+            publishedAttacks: attacks.length,
+            heldOut: fresh?.attacks.length ?? 0,
+          }).budgetMs;
+        let agentMs = 0;
+        const result = await rateAgent(sandbox, {
+          agent,
+          attacks: [...attacks, ...(fresh?.attacks ?? [])],
+          unpublished: new Set((fresh?.attacks ?? []).map((a) => a.id)),
+          ...(fresh ? { heldOut: fresh.heldOut } : {}),
+          // Its held-out set is its own (each payload used once): the owner's report shows the text.
+          revealUnpublished: true,
+          ...(row.code_hash ? { codeHash: row.code_hash as Hex } : {}),
+          repeats: 1,
+          controls: REMOTE_CONTROLS,
+          exercise: "exposed",
+          attackLiveness: "refuse",
+          // Benign twins for the Task score (previewRatingPlan counts them).
+          benign: { seeds: loadBenignSeeds() },
+          // Before the first episode: the total, so progress shows 0 of N at once.
+          onProgress: async (p) => {
+            if (p.done === 0)
+              await db.setRatingProgress(job, {
+                done: 0,
+                total: p.total,
+                startedAt: new Date(started),
+              });
+          },
+          onEpisode: async (episode, index, total) => {
+            await check();
             await db.setRatingProgress(job, {
-              done: 0,
-              total: p.total,
+              done: index + 1,
+              total,
               startedAt: new Date(started),
             });
-        },
-        onEpisode: async (episode, index, total) => {
-          await check();
-          await db.setRatingProgress(job, { done: index + 1, total, startedAt: new Date(started) });
-          agentMs +=
-            (episode.agentSummary as { remote?: { durationMs?: number } }).remote?.durationMs ?? 0;
-          const elapsed = Date.now() - started;
-          // The same stops as an official rating: the first failed episode, the time budget.
-          if (forkBudgetExhausted(episode)) {
-            budgetSpentIn = `episode ${index + 1} of ${total}`;
-            throw new RatingRefused(
-              `stopped: the agent used up its share of fork requests in ${budgetSpentIn}`,
-              true,
-              { caused: true },
-            );
-          }
-          if (bondedUrlFailure(episode))
-            throw new RatingRefused(
-              `stopped: Bonded couldn't reach the agent's URL in episode ${index + 1} of ${total}, not because of the agent; it will be retried`,
-              false,
-            );
-          if (episodeOutcome(episode) === "agent_error") {
-            const report = (episode.agentSummary.finalMessage ?? "").slice(0, 500);
-            throw new RatingRefused(
-              `stopped: the agent failed in episode ${index + 1} of ${total}`,
-              true,
-              report ? { caused: true, report } : { caused: true },
-            );
-          }
-          if (elapsed > budget)
-            throw agentMs > elapsed / 2
-              ? new RatingRefused(
-                  `stopped: the preview ran past its ${Math.round(budget / 60_000)}-minute budget after ${index + 1} of ${total} episodes; the agent took ${Math.round((100 * agentMs) / elapsed)}% of the time`,
-                  true,
-                  { caused: true },
-                )
-              : new RatingRefused(
-                  `stopped: the preview ran past its time budget after ${index + 1} of ${total} episodes, not because of the agent; it will be retried`,
-                  false,
-                );
-        },
-      });
-      // Never attested or posted: the report is kept, labelled, for its owner alone.
-      const report = {
-        ...result.report,
-        preview: {
-          label: PREVIEW_LABEL,
-          attested: false,
-          insurable: false,
-          codeHash: row.code_hash,
-          codeSource: row.code_source,
-        },
-      };
-      await db.withLease(job, (c) =>
-        c.query("UPDATE ratings SET report=$2,report_json=$3 WHERE id=$1", [
-          job.id,
-          json(report),
-          `${JSON.stringify(report, null, 2)}\n`,
-        ]),
-      );
-      score = {
-        score: result.report.scoring.score,
-        securityScore: result.report.susceptibility?.grade,
-        tier: String(result.report.scoring.tier),
-      };
-      if (result.report.stoppedEarly || result.report.episodes.agentErrors)
-        throw new RatingRefused("stopped: the agent failed an episode", true, { caused: true });
-      outcome = result.refused
-        ? { status: "refused", error: `not attested: ${result.refused}` }
-        : { status: "done" };
-    } finally {
-      await sandbox.stop();
+            agentMs +=
+              (episode.agentSummary as { remote?: { durationMs?: number } }).remote?.durationMs ??
+              0;
+            const elapsed = Date.now() - started;
+            // The same stops as an official rating: the first failed episode, the time budget.
+            if (forkBudgetExhausted(episode)) {
+              budgetSpentIn = `episode ${index + 1} of ${total}`;
+              throw new RatingRefused(
+                `stopped: the agent used up its share of fork requests in ${budgetSpentIn}`,
+                true,
+                { caused: true },
+              );
+            }
+            if (bondedUrlFailure(episode))
+              throw new RatingRefused(
+                `stopped: Bonded couldn't reach the agent's URL in episode ${index + 1} of ${total}, not because of the agent; it will be retried`,
+                false,
+              );
+            if (episodeOutcome(episode) === "agent_error") {
+              const report = (episode.agentSummary.finalMessage ?? "").slice(0, 500);
+              throw new RatingRefused(
+                `stopped: the agent failed in episode ${index + 1} of ${total}`,
+                true,
+                report ? { caused: true, report } : { caused: true },
+              );
+            }
+            if (elapsed > budget)
+              throw agentMs > elapsed / 2
+                ? new RatingRefused(
+                    `stopped: the preview ran past its ${Math.round(budget / 60_000)}-minute budget after ${index + 1} of ${total} episodes; the agent took ${Math.round((100 * agentMs) / elapsed)}% of the time`,
+                    true,
+                    { caused: true },
+                  )
+                : new RatingRefused(
+                    `stopped: the preview ran past its time budget after ${index + 1} of ${total} episodes, not because of the agent; it will be retried`,
+                    false,
+                  );
+          },
+        });
+        // Never attested or posted: the report is kept, labelled, for its owner alone.
+        const report = {
+          ...result.report,
+          preview: {
+            label: PREVIEW_LABEL,
+            attested: false,
+            insurable: false,
+            codeHash: row.code_hash,
+            codeSource: row.code_source,
+          },
+        };
+        await db.withLease(job, (c) =>
+          c.query("UPDATE ratings SET report=$2,report_json=$3 WHERE id=$1", [
+            job.id,
+            json(report),
+            `${JSON.stringify(report, null, 2)}\n`,
+          ]),
+        );
+        score = {
+          score: result.report.scoring.score,
+          securityScore: result.report.susceptibility?.grade,
+          tier: String(result.report.scoring.tier),
+        };
+        if (result.report.stoppedEarly || result.report.episodes.agentErrors)
+          throw new RatingRefused("stopped: the agent failed an episode", true, { caused: true });
+        outcome = result.refused
+          ? { status: "refused", error: `not attested: ${result.refused}` }
+          : { status: "done" };
+      } finally {
+        await sandbox.stop();
+      }
     }
   } catch (error) {
     options.onError?.(error);

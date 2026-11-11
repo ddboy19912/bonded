@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { didNotFinish, neverRan, runBrokerEpisode } from "../src/brokerage/episode.js";
 import { brokerReport } from "../src/brokerage/report.js";
 import { runBrokerQueue, UNREACHED_TO_STOP } from "../src/brokerage/run.js";
+import { runConnectionCheck } from "../src/check.js";
 import { type BrokerScenario, controlScenario } from "../src/brokerage/scenarios.js";
 import { loadBrokerSeeds, scenarioFor } from "../src/brokerage/seeds.js";
 import {
@@ -268,6 +269,108 @@ describe("brokerage episodes through the gateway", () => {
     expect(() => new RemoteAgent({ gateway, runner: "local", mode: "tools" })).toThrow(
       /needs a sandbox/,
     );
+  });
+});
+
+describe("the brokerage connection check", () => {
+  it("passes an agent that does the job, with no chain", async () => {
+    const { gateway, base, token } = await gatewayWithRunner();
+    const scenario = controlScenario("plain");
+    const runner = await fakeRunner({
+      gateway: base,
+      token,
+      mode: "tools",
+      world: "brokerage",
+      onBrokerage: async (episode) => {
+        await doTheJob(scenario, httpToolbox(episode.endpoints.tools));
+        await postDone(episode.endpoints.done, "did the run");
+      },
+    });
+    cleanups.push(() => runner.close());
+    await eventually(() => gateway.runner("local") !== undefined);
+    const result = await runConnectionCheck({
+      gateway,
+      transport: { kind: "runner", key: "local" },
+      mode: "tools",
+      world: "brokerage",
+    });
+    expect(result.problems).toEqual([]);
+    expect(result).toMatchObject({ passed: true, taskCompleted: true });
+    expect(result.toolsCalled).toBeGreaterThan(0);
+  });
+
+  it("tells an agent built for the vault world which tools to use", async () => {
+    const { gateway, base, token } = await gatewayWithRunner();
+    const runner = await fakeRunner({
+      gateway: base,
+      token,
+      mode: "tools",
+      world: "brokerage",
+      onBrokerage: async (episode) => {
+        await httpToolbox(episode.endpoints.tools).call("swap", { amountIn: 10 });
+        await postDone(episode.endpoints.done, "swapped");
+      },
+    });
+    cleanups.push(() => runner.close());
+    await eventually(() => gateway.runner("local") !== undefined);
+    const result = await runConnectionCheck({
+      gateway,
+      transport: { kind: "runner", key: "local" },
+      mode: "tools",
+      world: "brokerage",
+    });
+    expect(result.passed).toBe(false);
+    expect(result.problems.join(" ")).toMatch(/swap, which the brokerage world doesn't have/);
+  });
+
+  it.each([
+    ["a protocol 1 runner", { protocol: 1 }],
+    // The command a vault preview shows: protocol 2 or not, it was started for the vault world.
+    ["a runner started without --world brokerage", { protocol: 2 }],
+  ] as const)("tells %s what to do before anything runs", async (_, hello) => {
+    const { gateway, base, token } = await gatewayWithRunner();
+    let received = 0;
+    const runner = await fakeRunner({
+      gateway: base,
+      token,
+      mode: "tools",
+      ...hello,
+      onBrokerage: () => {
+        received++;
+      },
+    });
+    cleanups.push(() => runner.close());
+    await eventually(() => gateway.runner("local") !== undefined);
+    const result = await runConnectionCheck({
+      gateway,
+      transport: { kind: "runner", key: "local" },
+      mode: "tools",
+      world: "brokerage",
+    });
+    expect(result).toMatchObject({ passed: false, toolsCalled: 0 });
+    expect(result.problems).toEqual([
+      "The runner doesn't take brokerage episodes: update @bondedhq/runner (it needs protocol 2) and start it with --world brokerage",
+    ]);
+    expect(result.issues?.[0]?.code).toBe("brokerage-runner-needed");
+    expect(received).toBe(0);
+  });
+
+  it("tells a runner started for the brokerage world that a vault check isn't for it", async () => {
+    const { gateway, base, token } = await gatewayWithRunner();
+    const runner = await fakeRunner({ gateway: base, token, mode: "tools", world: "brokerage" });
+    cleanups.push(() => runner.close());
+    await eventually(() => gateway.runner("local") !== undefined);
+    // Refused before the vault check's sandbox is started.
+    const result = await runConnectionCheck({
+      gateway,
+      transport: { kind: "runner", key: "local" },
+      mode: "tools",
+    });
+    expect(result).toMatchObject({ passed: false, toolsCalled: 0 });
+    expect(result.problems).toEqual([
+      "The runner was started for the brokerage world: start it without --world for a crypto-trading agent",
+    ]);
+    expect(result.issues?.[0]?.code).toBe("runner-other-world");
   });
 });
 

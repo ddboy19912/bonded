@@ -1,5 +1,5 @@
 import type { RemoteMode } from "@bondedhq/shared";
-import type { Connection } from "./byoa-api";
+import type { Connection, PreviewWorld } from "./byoa-api";
 
 /**
  * Copy-paste code that connects an agent to an episode's tools, per framework, as `@bondedhq/sdk`
@@ -157,12 +157,147 @@ ${lead}const kit = await AgentKit.from({
   ];
 }
 
+/** Told under every brokerage snippet: the packages that have this world aren't published yet. */
+export const BROKERAGE_RELEASE_NOTE =
+  "Stock trading needs the brokerage world in `@bondedhq/sdk` and `@bondedhq/runner`, which comes with the release after runner 0.1.3. Until it is published, use the builds in the Bonded repository.";
+
+/**
+ * Snippets for a stock-trading (brokerage) preview. The episode has no vault or chain: its tools
+ * are the brokerage ones, and the framework helpers take the episode itself. The vault snippets
+ * would not work here: a handler with only `onEpisode` answers 422 to a brokerage episode, and
+ * the helpers called with no argument read a vault episode.
+ */
+function brokerageSnippets(connection: Connection): Snippet[] {
+  if (connection === "runner")
+    return [
+      {
+        id: "langchain",
+        label: "LangChain",
+        language: "ts",
+        install: "npm i @bondedhq/sdk @langchain/core",
+        code: `import { bondedEpisodeWorld, fromBondedBrokerageEnv } from "@bondedhq/sdk";
+import { bondedLangChainTools } from "@bondedhq/sdk/langchain";
+
+// The runner (started with --world brokerage) puts the episode in BONDED_* variables.
+const tools =
+  bondedEpisodeWorld() === "brokerage"
+    ? await bondedLangChainTools(fromBondedBrokerageEnv())
+    : productionTools;
+const agent = createReactAgent({ llm, tools });`,
+        note: BROKERAGE_RELEASE_NOTE,
+        imports: [
+          { from: "@bondedhq/sdk", names: ["bondedEpisodeWorld", "fromBondedBrokerageEnv"] },
+          { from: "@bondedhq/sdk/langchain", names: ["bondedLangChainTools"] },
+        ],
+      },
+      {
+        id: "ai-sdk",
+        label: "Vercel AI SDK",
+        language: "ts",
+        install: "npm i @bondedhq/sdk ai",
+        code: `import { bondedEpisodeWorld, fromBondedBrokerageEnv } from "@bondedhq/sdk";
+import { bondedAiSdkTools } from "@bondedhq/sdk/ai-sdk";
+
+const tools =
+  bondedEpisodeWorld() === "brokerage"
+    ? await bondedAiSdkTools(fromBondedBrokerageEnv())
+    : productionTools;`,
+        note: BROKERAGE_RELEASE_NOTE,
+        imports: [
+          { from: "@bondedhq/sdk", names: ["bondedEpisodeWorld", "fromBondedBrokerageEnv"] },
+          { from: "@bondedhq/sdk/ai-sdk", names: ["bondedAiSdkTools"] },
+        ],
+      },
+      {
+        id: "http",
+        label: "Any agent (HTTP or MCP)",
+        language: "sh",
+        code: `# In each episode the runner starts your agent with:
+#   BONDED_WORLD=brokerage
+#   BONDED_TASK       the job, as JSON (goal, mandate, maxSteps, tools)
+#   BONDED_MCP_URL    the brokerage tools over MCP (streamable HTTP)
+#   BONDED_TOOLS_URL  the same tools over plain HTTP
+#   BONDED_DONE_URL   POST here when finished
+curl -s "$BONDED_TOOLS_URL"                                # list the tools
+curl -s -X POST "$BONDED_TOOLS_URL/get_instructions" -d '{}'   # call one
+curl -s -X POST "$BONDED_DONE_URL" -H 'content-type: application/json' -d '{"finalMessage":"done"}'`,
+        note: `There is no vault or chain: every read, order and withdrawal is a tool call. ${BROKERAGE_RELEASE_NOTE}`,
+        imports: [],
+      },
+    ];
+  return [
+    {
+      id: "handler",
+      label: "Agent URL handler",
+      language: "ts",
+      install: "npm i @bondedhq/sdk ai",
+      code: `// app/api/bonded/route.ts (Next.js)
+import { createBondedHandler } from "@bondedhq/sdk/agent-url";
+import { bondedAiSdkTools } from "@bondedhq/sdk/ai-sdk";
+import { generateText, stepCountIs } from "ai";
+
+export const POST = createBondedHandler({
+  secret: process.env.BONDED_AGENT_SECRET!,
+  version: process.env.GIT_SHA,
+  // A stock-trading preview sends brokerage episodes. Without this the handler answers 422.
+  async onBrokerageEpisode(episode, { signal }) {
+    const tools = await bondedAiSdkTools(episode);
+    const { text, totalUsage } = await generateText({
+      model, tools, stopWhen: stepCountIs(20), prompt: episode.task.goal, abortSignal: signal,
+    });
+    return {
+      finalMessage: text,
+      usage: { inputTokens: totalUsage.inputTokens ?? 0, outputTokens: totalUsage.outputTokens ?? 0 },
+    };
+  },
+  // Crypto-trading episodes: not this agent's world.
+  onEpisode: () => ({ finalMessage: "this agent trades stocks, not tokens" }),
+});`,
+      note: `It checks the signature, answers the ownership check, replies at once and posts done with what \`onBrokerageEpisode\` returns. ${BROKERAGE_RELEASE_NOTE}`,
+      imports: [
+        { from: "@bondedhq/sdk/agent-url", names: ["createBondedHandler"] },
+        { from: "@bondedhq/sdk/ai-sdk", names: ["bondedAiSdkTools"] },
+      ],
+    },
+    {
+      id: "langchain",
+      label: "LangChain",
+      language: "ts",
+      install: "npm i @bondedhq/sdk @langchain/core",
+      code: `import { bondedLangChainTools } from "@bondedhq/sdk/langchain";
+
+// Inside onBrokerageEpisode(episode) in your handler (the first tab).
+const tools = await bondedLangChainTools(episode);
+const agent = createReactAgent({ llm, tools });`,
+      note: BROKERAGE_RELEASE_NOTE,
+      imports: [{ from: "@bondedhq/sdk/langchain", names: ["bondedLangChainTools"] }],
+    },
+    {
+      id: "http",
+      label: "Any language",
+      language: "sh",
+      code: `# Bonded POSTs each episode to your URL, signed as for any Agent URL:
+#   { "type": "episode", "world": "brokerage", "episodeId": "...", "task": {...},
+#     "mode": "tools", "endpoints": { "mcp", "tools", "openapi", "done" }, "deadlineMs": 40000 }
+# Answer 2xx at once, then work in the background:
+curl -s "$TOOLS_URL"                                       # list the brokerage tools
+curl -s -X POST "$TOOLS_URL/get_instructions" -d '{}'      # call one
+curl -s -X POST "$DONE_URL" -H 'content-type: application/json' -d '{"finalMessage":"done"}'`,
+      note: "The signature and the ownership check are the same as for a crypto-trading agent (see the guide). An endpoint that doesn't know brokerage episodes should answer 422.",
+      imports: [],
+    },
+  ];
+}
+
 export function snippets(
   connection: Connection,
   mode: RemoteMode,
   /** The Arena Gateway's address, for the runner line; a placeholder until the API gives it. */
   gatewayUrl?: string | null,
+  /** What the preview tests the agent on (default vault). */
+  world: PreviewWorld = "vault",
 ): Snippet[] {
+  if (world === "brokerage") return brokerageSnippets(connection);
   const chain = (s: Snippet): Snippet =>
     mode === "chain" ? { ...s, note: [s.note, CHAIN_NOTE].filter(Boolean).join(" ") } : s;
   if (connection === "runner")

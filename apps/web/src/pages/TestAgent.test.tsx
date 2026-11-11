@@ -174,7 +174,11 @@ describe("Test your agent", () => {
     fireEvent.click(screen.getByRole("radio", { name: /^Chain/ }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     await waitFor(() =>
-      expect(create).toHaveBeenCalledWith("sess", { mode: "chain", connection: "runner" }),
+      expect(create).toHaveBeenCalledWith("sess", {
+        mode: "chain",
+        connection: "runner",
+        world: "vault",
+      }),
     );
     await waitFor(() => expect(screen.getByTestId("search").textContent).toBe("?preview=p7"));
     // The runner's token comes with no signature, straight into the commands.
@@ -206,6 +210,41 @@ describe("Test your agent", () => {
         "npx @bondedhq/runner service --print systemd --gateway https://gw.example -- <your agent command>",
       ),
     ).toBeTruthy();
+  });
+
+  it("creates a stock-trading preview in tools mode, with no mode to pick", async () => {
+    signedIn();
+    const created = preview({ id: "p8", connection: "runner", mode: "tools", world: "brokerage" });
+    const create = vi.spyOn(byoaApi, "createPreview").mockResolvedValue(created);
+    vi.spyOn(byoaApi, "preview").mockResolvedValue(created);
+    vi.spyOn(byoaApi, "createRunnerToken").mockResolvedValue({
+      token: "bonded_rt_preview",
+      gatewayUrl: "https://gw.example",
+    });
+    show();
+    fireEvent.click(await screen.findByRole("radio", { name: /^Stock trading/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /^Python/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /On my computer or server/ }));
+    expect(screen.queryByRole("radio", { name: /^Chain/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await waitFor(() =>
+      expect(create).toHaveBeenCalledWith("sess", {
+        mode: "tools",
+        connection: "runner",
+        world: "brokerage",
+      }),
+    );
+    expect(await screen.findByText(/the runner is started with --world brokerage/)).toBeTruthy();
+    // The command is for the brokerage world, and nothing offers the vault set-up.
+    expect(
+      await findCodeBlock(
+        "BONDED_RUNNER_TOKEN=bonded_rt_preview npx @bondedhq/runner --gateway https://gw.example --mode tools --world brokerage -- <your agent command>",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText("Keep it running")).toBeNull();
+    fireEvent.click(screen.getByText("Code for your agent, by framework"));
+    expect(screen.getByRole("tab", { name: "Any agent (HTTP or MCP)" })).toBeTruthy();
+    expect(screen.queryByRole("tab", { name: "Any MCP agent" })).toBeNull();
   });
 
   it.each([

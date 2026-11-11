@@ -29,6 +29,11 @@ export interface RemoteAgentRequest {
   /** The on-chain agent id. */
   agentId: string;
   mode: RemoteMode;
+  /**
+   * The world the agent is tested on (default vault). A brokerage preview has no chain, so it
+   * gets no sandbox and runs in tools mode only.
+   */
+  world?: "vault" | "brokerage";
   /** The code hash the rating is about: declared, or what the runner or URL reported. */
   codeHash: Hex;
   /**
@@ -58,7 +63,11 @@ export interface RemoteAgentRequest {
 export const REMOTE_EPISODE_TIMEOUT_MS = HOSTED_REMOTE_PROFILE.episodeTimeoutMs;
 
 /** Builds the remote agent for one rating, in the rating's sandbox (the gateway's `RemoteAgent`). */
-export type RemoteAgentFactory = (request: RemoteAgentRequest, sandbox: Sandbox) => ArenaAgent;
+export type RemoteAgentFactory = (
+  request: RemoteAgentRequest,
+  /** The rating's sandbox: absent for the brokerage world, which has no chain. */
+  sandbox: Sandbox | undefined,
+) => ArenaAgent;
 
 /**
  * The Arena Gateway's `RemoteAgent` for a rating: the agent's runner is the one its token maps to
@@ -74,9 +83,13 @@ export function gatewayAgents(
     if (request.connection?.kind === "url" && request.tee)
       throw new RatingRefused("a TEE-bound agent is rated through its runner", true);
     // No `onEvent` here: per-episode activity would show the operator which episodes are attacks.
+    const world = request.world ?? "vault";
+    if (world !== "vault" && request.tee)
+      throw new RatingRefused(`a TEE-bound agent is rated on the vault world only`, true);
     return new RemoteAgent({
       gateway,
-      sandbox,
+      ...(sandbox ? { sandbox } : {}),
+      world,
       transport: request.connection ?? { kind: "runner", key: request.agentKey },
       mode: request.mode,
       name: `remote/agent-${request.agentId}`,
@@ -121,7 +134,7 @@ export const GATEWAY_UNAVAILABLE =
 export function remoteAgentFor(
   factory: RemoteAgentFactory | undefined,
   request: RemoteAgentRequest,
-  sandbox: Sandbox,
+  sandbox: Sandbox | undefined,
 ): ArenaAgent {
   if (!factory) throw new RatingRefused(GATEWAY_UNAVAILABLE, true);
   return factory(request, sandbox);

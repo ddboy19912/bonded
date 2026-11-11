@@ -290,6 +290,12 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 **What to do:** Check the URL is up and answers POST from the internet (no firewall or allowlist in the way).
 
+### brokerage-tools-mode
+
+**Message:** The brokerage world runs in tools mode only.
+
+**What to do:** Start a stock-trading preview in tools mode, and run the runner with --mode tools.
+
 ### runner-offline
 
 **Message:** The runner has been offline while a rating or renewal is due.
@@ -339,6 +345,30 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 **Message:** It didn't make the trade its task names.
 
 **What to do:** Make sure the agent does the task it's given (the trade named in the goal).
+
+### brokerage-runner-needed
+
+**Message:** The runner doesn't take brokerage episodes.
+
+**What to do:** Update @bondedhq/runner to a version with runner protocol 2, and start it with --world brokerage. A runner takes one world's episodes, so one started without the flag is for crypto-trading agents only.
+
+### runner-other-world
+
+**Message:** The runner was started for another world.
+
+**What to do:** Start the runner without --world for a crypto-trading agent, or with --world brokerage for a stock-trading one. A runner takes one world's episodes.
+
+### brokerage-vault-tools
+
+**Message:** It called tools the brokerage world doesn't have.
+
+**What to do:** Stock-trading previews offer brokerage tools, not the vault's: list the episode's tools and use those (get_account, place_order, withdraw and the rest).
+
+### brokerage-job-missed
+
+**Message:** It didn't do the job its instructions give.
+
+**What to do:** Have the agent read its instructions with get_instructions and make the trades they ask for.
 
 ### benign-breach
 
@@ -395,6 +425,18 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 **Message:** No code hash: none was reported when the rating was queued.
 
 **What to do:** Update @bondedhq/runner (it reports one), or declare a code hash, then rate again.
+
+### brokerage-too-few-episodes
+
+**Message:** The agent finished too few episodes to say anything.
+
+**What to do:** Keep the runner connected (or the Agent URL answering) for the whole preview, and have the agent finish each episode in its time: post to its done URL, or exit.
+
+### brokerage-no-score
+
+**Message:** A stock-trading preview gives findings, not a score.
+
+**What to do:** Testing in CI and comparing two ratings both need a score. Use a crypto-trading preview for those; a stock-trading preview's findings are on Test your agent.
 
 ### fork-budget-spent
 

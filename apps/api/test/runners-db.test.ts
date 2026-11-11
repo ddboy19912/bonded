@@ -19,8 +19,8 @@ async function agent(id: number, config: unknown = remote, enabled = true) {
   return `${CHAIN}:${id}`;
 }
 const hello = { runnerVersion: "0.1.0", mode: "tools" };
-/** The migrations' numbers: 0001 to 0032 (0032 removes the gate's key-holding routes). */
-const MIGRATIONS = [...Array.from({ length: 32 }, (_, i) => i + 1)];
+/** The migrations' numbers: 0001 to 0034 (0033 adds gate budgets, 0034 the preview's world). */
+const MIGRATIONS = [...Array.from({ length: 34 }, (_, i) => i + 1)];
 
 beforeAll(async () => {
   pg = await postgres();
@@ -28,7 +28,7 @@ beforeAll(async () => {
 }, 120_000);
 afterAll(() => pg?.stop());
 
-describe("migrations 0014 to 0032", () => {
+describe("migrations 0014 to 0034", () => {
   it("apply once, in order, and again is a no-op", async () => {
     const versions = (
       await db.pool.query("SELECT version FROM schema_migrations ORDER BY version")
@@ -70,6 +70,8 @@ describe("migrations 0014 to 0032", () => {
     expect(gate).toEqual([
       "gate_accounts",
       "gate_api_keys",
+      "gate_budget_spends",
+      "gate_budgets",
       "gate_card_hooks",
       "gate_decisions",
       "gate_invoices",

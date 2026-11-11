@@ -10,7 +10,12 @@ import { snippets } from "./snippets";
  * (Track S, branch ux-sdk at 3574a88).
  */
 const SDK_EXPORTS_AT_UX_SDK: Record<string, string[]> = {
-  "@bondedhq/sdk": ["isBondedEpisode", "fromBondedEnv"],
+  "@bondedhq/sdk": [
+    "isBondedEpisode",
+    "fromBondedEnv",
+    "bondedEpisodeWorld",
+    "fromBondedBrokerageEnv",
+  ],
   "@bondedhq/sdk/mcp": ["connectEpisodeTools", "mcpConfig", "mcpConfigJson", "finishEpisode"],
   "@bondedhq/sdk/agent-url": ["createBondedHandler", "toNodeHandler"],
   "@bondedhq/sdk/langchain": ["bondedLangChainTools"],
@@ -45,9 +50,10 @@ function realExports(): Record<string, (name: string) => boolean> | undefined {
 
 describe("snippet imports", () => {
   const real = realExports();
-  const all = (["url", "runner"] as const).flatMap((c) =>
-    (["tools", "chain"] as const).flatMap((m) => snippets(c, m)),
-  );
+  const all = (["url", "runner"] as const).flatMap((c) => [
+    ...(["tools", "chain"] as const).flatMap((m) => snippets(c, m)),
+    ...snippets(c, "tools", null, "brokerage"),
+  ]);
   it.each(all.flatMap((s) => s.imports.flatMap((i) => i.names.map((n) => [s.label, i.from, n]))))(
     "%s: %s exports %s",
     (_label, from, name) => {
@@ -61,5 +67,37 @@ describe("snippet imports", () => {
     // Fails loudly if the SDK changed shape so the reader found nothing.
     if (real) expect(Object.keys(real)).toContain("@bondedhq/sdk/agent-url");
     else expect(existsSync(`${sdkDir}package.json`)).toBe(true);
+  });
+});
+
+describe("stock-trading (brokerage) snippets", () => {
+  const url = snippets("url", "tools", null, "brokerage");
+  const runner = snippets("runner", "tools", "https://gw.example", "brokerage");
+  const code = (list: typeof url) => list.map((s) => s.code).join("\n");
+
+  it("gives an Agent URL handler that takes brokerage episodes", () => {
+    // A handler with only onEpisode answers 422 to every brokerage episode.
+    expect(url[0]).toMatchObject({ id: "handler" });
+    expect(url[0]!.code).toContain("async onBrokerageEpisode(episode");
+    expect(code(url)).toContain('"world": "brokerage"');
+  });
+
+  it("reads the brokerage episode under the runner, never the vault one", () => {
+    expect(code(runner)).toContain("fromBondedBrokerageEnv()");
+    expect(code(runner)).toContain("BONDED_WORLD=brokerage");
+    // These read a vault episode and throw in a brokerage one.
+    for (const vaultOnly of ["fromBondedEnv()", "bonded-mcp-config", "isBondedEpisode()"])
+      expect(code([...runner, ...url])).not.toContain(vaultOnly);
+    expect(code(runner)).not.toMatch(/bonded(LangChain|AiSdk)Tools\(\)/);
+  });
+
+  it("says the packages it needs aren't published yet", () => {
+    for (const s of [...runner, ...url.slice(0, 2)])
+      expect(s.note).toMatch(/release after runner 0\.1\.3/);
+  });
+
+  it("leaves the crypto-trading snippets as they were", () => {
+    expect(snippets("url", "tools")).toEqual(snippets("url", "tools", null, "vault"));
+    expect(snippets("url", "tools")[0]!.code).toContain("async onEpisode(episode");
   });
 });

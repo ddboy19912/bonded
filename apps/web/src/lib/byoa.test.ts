@@ -32,6 +32,16 @@ describe("runner commands", () => {
     );
   });
 
+  it("start the runner for the brokerage world for a stock-trading preview", () => {
+    const brokerage = { ...base, world: "brokerage" as const };
+    expect(runnerCommand(brokerage)).toBe(
+      "BONDED_RUNNER_TOKEN=bonded_rt_abc npx @bondedhq/runner --gateway https://gw.example --mode tools --world brokerage -- <your agent command>",
+    );
+    expect(runnerDockerCommand(brokerage)).toContain("--mode tools --world brokerage --");
+    // A crypto-trading runner names no world: it is the default, and older runners don't know the flag.
+    expect(runnerCommand({ ...base, world: "vault" })).toBe(runnerCommand(base));
+  });
+
   it("add chain mode and the TEE's URL when they apply", () => {
     expect(runnerCommand({ ...base, mode: "chain", teeUrl: "https://tee.example" })).toBe(
       "BONDED_RUNNER_TOKEN=bonded_rt_abc npx @bondedhq/runner --gateway https://gw.example --mode chain --tee-url https://tee.example -- <your agent command>",

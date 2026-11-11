@@ -197,11 +197,78 @@ export type PreviewStatus =
   | "refused"
   | "stopped";
 
+/** The world a preview tests the agent on: the on-chain vault, or a simulated brokerage account. */
+export type PreviewWorld = "vault" | "brokerage";
+
+/** One attack in a brokerage preview's findings (`brokerageFindings` in @bonded/arena). */
+export interface BrokerageAttackFinding {
+  id: string;
+  attackClass: string;
+  className: string;
+  title: string;
+  ran: number;
+  notRun: number;
+  met: number;
+  worked: number;
+  steeredUsd: number;
+  atRiskUsd: number;
+  example?: {
+    orders: { side: string; symbol: string; amountUsd: number; priceUsd: number }[];
+    withdrawals: { account: string; amountUsd: number; linked: boolean }[];
+    breaches: string[][];
+    approvals: { side: string; symbol: string; amountUsd: number; reason: string }[];
+    finalMessage?: string;
+  };
+}
+
+/** A brokerage preview's findings: no score, its attacks are staged. */
+export interface BrokerageFindings {
+  world: "brokerage";
+  staged: true;
+  plan: string;
+  mandateShown: boolean;
+  episodes: { total: number; ran: number; notRun: number };
+  attacks: {
+    ran: number;
+    worked: number;
+    seedsWorked: number;
+    seedsRan: number;
+    seedsTotal: number;
+    steeredUsd: number;
+    atRiskUsd: number;
+    approvedThenWorked: number;
+  };
+  job: { ran: number; done: number };
+  perAttack: BrokerageAttackFinding[];
+  perJob: {
+    id: string;
+    kind: string;
+    title: string;
+    ran: number;
+    notRun: number;
+    done: number;
+    missed: string[];
+  }[];
+  /** Fewer than half of the episodes count: the findings say nothing. */
+  inconclusive: boolean;
+  /** What the numbers assume, in plain sentences, shown next to them. */
+  assumptions?: string[];
+}
+
+/** What a brokerage preview's run stores as its report. */
+export interface BrokerageReport {
+  world: "brokerage";
+  findings: BrokerageFindings;
+  preview?: { label: string; attested: false; insurable: false };
+}
+
 export interface PreviewRecord {
   id: string;
   chainId: number;
   owner: string;
   mode: RemoteMode;
+  /** Vault when absent (previews made before the brokerage world). */
+  world?: PreviewWorld;
   connection: Connection;
   status: PreviewStatus;
   createdAt: string;
@@ -227,9 +294,16 @@ export interface PreviewRecord {
   /** Why it was refused or stopped, in a sentence. */
   reason?: string | null;
   /** Its rating's status, and its score once it is over. */
-  rating?: { runId: string; status: string; score?: number; tier?: string } | null;
-  /** What "Make it official" fills in. */
-  upgrade?: {
+  rating?: {
+    runId: string;
+    status: string;
+    score?: number;
+    tier?: string;
+    /** A stock-trading preview's headline, in place of a score. */
+    findings?: Pick<BrokerageFindings, "attacks" | "job" | "episodes">;
+  } | null;
+  /** What "Make it official" fills in. Null for a brokerage preview, which has no official rating yet. */
+  upgrade?: null | {
     mode: RemoteMode;
     connection: Connection;
     agentUrl: string | null;
@@ -404,7 +478,10 @@ export const byoaApi = {
       items: r.items.map(codedPreview),
     })),
   /** POST /previews: a new preview with its mode and connection. Nothing is made on chain. */
-  createPreview: (session: string, input: { mode: RemoteMode; connection: Connection }) =>
+  createPreview: (
+    session: string,
+    input: { mode: RemoteMode; connection: Connection; world?: PreviewWorld },
+  ) =>
     request<PreviewRecord>("/previews", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...bearer(session).headers },

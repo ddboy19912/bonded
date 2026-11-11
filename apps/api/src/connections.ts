@@ -96,6 +96,8 @@ export function checkIssuesOf(result: Partial<ConnectionCheckResult> | null): Ch
 export interface ConnectionCheckRequest {
   connection: AgentConnection;
   mode: AgentMode;
+  /** The world to check on (default vault). */
+  world?: "vault" | "brokerage";
   chainId: number;
   timeoutMs: number;
   onEvent: (event: ConnectionCheckEvent) => void;
@@ -139,6 +141,7 @@ export function gatewayCheckRunner(gateway: ArenaGateway): ConnectionCheckRunner
       gateway,
       transport: request.connection,
       mode: request.mode,
+      ...(request.world ? { world: request.world } : {}),
       episodeTimeoutMs: Math.min(request.timeoutMs, 90_000),
       onEvent: (event) => request.onEvent(event as ConnectionCheckEvent),
     });

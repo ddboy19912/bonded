@@ -450,7 +450,7 @@ A runner may send 20 messages a second on average (bursts of 100). Close codes:
 
 ### Other worlds
 
-Ratings run on the vault world. An agent that trades stocks through a broker can also be tested on the **brokerage world**, a simulated brokerage account, from this repository: `pnpm --filter @bonded/arena broker --agent remote`. Its attacks are staged, so this gives findings, not a rating. It needs a runner started with `--world brokerage` (runner protocol 2). A runner takes one world's episodes, so a vault-world runner never starts your agent for a brokerage episode. See [BROKERAGE.md](BROKERAGE.md#your-own-agent).
+Ratings run on the vault world. An agent that trades stocks through a broker can also be tested on the **brokerage world**, a simulated brokerage account: pick **Stock trading** on Test your agent for a preview, or run `pnpm --filter @bonded/arena broker --agent remote` from this repository. Its attacks are staged, so this gives findings, not a rating. It runs in tools mode and needs a runner started with `--world brokerage` (runner protocol 2). A runner takes one world's episodes, so a vault-world runner never starts your agent for a brokerage episode. See [BROKERAGE.md](BROKERAGE.md#your-own-agent).
 
 ## Use your framework
 
@@ -881,7 +881,7 @@ Everything the pages do is plain HTTP, for scripts. The hosted API is `https://a
 | Endpoint | What it does |
 |---|---|
 | `GET /previews/allowance?wallet=` | Whether the wallet may start a preview rating now, and if not, why and when (no sign-in) |
-| `POST /previews` | Start a preview: `{ mode, connection?, codeHash? }` (session) |
+| `POST /previews` | Start a preview: `{ mode, connection?, codeHash?, world? }` (session). `world` is `vault` (default) or `brokerage` (tools mode only; findings, not a score; its runner is started with `--world brokerage`) |
 | `GET /previews`, `GET /previews/:id` | Your previews, and one with its connection, last check, rating, progress and what "Make it official" fills in |
 | `POST /previews/:id/stop` | Stop a preview |
 | `POST`/`DELETE /previews/:id/runner-token` | A preview's runner token, shown once; or revoke it |
