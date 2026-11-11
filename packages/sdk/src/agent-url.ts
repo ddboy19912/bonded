@@ -155,13 +155,25 @@ export function createBondedHandler(options: BondedHandlerOptions): BondedHandle
       () => controller.abort(new Error("the episode's deadline passed")),
       episode.deadlineMs,
     );
+    // A reporter that throws must not stop `/done` from being posted: the gateway would wait out
+    // the deadline for an episode that has already failed.
+    const report = (error: unknown) => {
+      try {
+        reportError(error, episode);
+      } catch (reporterError) {
+        console.error(
+          `Bonded episode ${episode.episodeId}: the error reporter threw:`,
+          reporterError,
+        );
+      }
+    };
     let outcome: EpisodeOutcome | void;
     let failed = false;
     try {
       outcome = await work(episode, { signal: controller.signal });
     } catch (error) {
       failed = true;
-      if (!controller.signal.aborted) reportError(error, episode);
+      if (!controller.signal.aborted) report(error);
       outcome = {
         finalMessage:
           `the agent failed: ${error instanceof Error ? error.message : String(error)}`.slice(
@@ -187,7 +199,7 @@ export function createBondedHandler(options: BondedHandlerOptions): BondedHandle
         options.fetch ? { fetch: options.fetch } : {},
       );
     } catch (error) {
-      if (!failed) reportError(error, episode);
+      if (!failed) report(error);
     }
   };
 

@@ -7,7 +7,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import type { AgentMode, EpisodeWorld, ToolResult } from "@bondedhq/shared";
-import { toolList, worldIntro } from "./tools.js";
+import { toolList, WORLDS } from "./tools.js";
 
 /**
  * MCP over streamable HTTP for one episode (`POST /e/{t}/mcp`), with the official SDK. Stateless:
@@ -33,7 +33,7 @@ export async function serveMcp(
     { name: "trading-tools", version: "1.0.0" },
     {
       capabilities: { tools: {} },
-      instructions: worldIntro(episode.world).instructions,
+      instructions: WORLDS[episode.world].instructions,
     },
   );
   server.setRequestHandler(ListToolsRequestSchema, async () => ({

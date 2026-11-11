@@ -447,4 +447,31 @@ describe("brokerage episodes", () => {
       { url: "https://gw.example/e/tok/done", body: { finalMessage: "sold 10 AAPL" } },
     ]);
   });
+
+  it("still posts /done when the agent fails and its error reporter throws too", async () => {
+    const logged: unknown[][] = [];
+    const error = console.error;
+    console.error = (...args: unknown[]) => void logged.push(args);
+    try {
+      const { handler, done, settled } = setup({
+        onBrokerageEpisode: () => {
+          throw new Error("the broker API is down");
+        },
+        onBrokerageError: () => {
+          throw new Error("the reporter is down too");
+        },
+      });
+      expect((await handler(await signed(brokerageMessage("ep-b2")))).status).toBe(202);
+      await settled();
+      expect(done).toEqual([
+        {
+          url: "https://gw.example/e/tok/done",
+          body: { finalMessage: "the agent failed: the broker API is down" },
+        },
+      ]);
+      expect(String(logged[0]?.[0])).toMatch(/error reporter threw/);
+    } finally {
+      console.error = error;
+    }
+  });
 });

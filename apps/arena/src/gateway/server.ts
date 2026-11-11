@@ -23,11 +23,10 @@ import {
   RunnerToServer,
   type ServerToRunner,
   type ToolResult,
-  toolSurface,
 } from "@bondedhq/shared";
 import { type WebSocket, WebSocketServer } from "ws";
 import { publicAddress } from "../safe-fetch.js";
-import type { ArenaToolbox } from "../toolbox.js";
+import { ArenaToolbox } from "../toolbox.js";
 import { addressGroup } from "./address.js";
 import { AgentUrlClient, type AgentUrlClientOptions } from "./agent-url.js";
 
@@ -40,7 +39,7 @@ import {
   type RunnerIdentity,
   type RunnerTokenValidator,
 } from "./tokens.js";
-import { CHAIN_MODE_WRITE, openApiDocument, toolList } from "./tools.js";
+import { CHAIN_MODE_WRITE, openApiDocument, toolList, WORLDS } from "./tools.js";
 
 /**
  * The Arena Gateway: serves one definition of the world (the agent tools, the world simulator
@@ -250,9 +249,17 @@ export class RunnerSession {
     return this.closedReason;
   }
 
-  /** Whether the runner speaks a protocol that has brokerage episodes (protocol 2 and later). */
+  /** The world the runner was started for (`--world`; vault when it didn't say). */
+  get world(): EpisodeWorld {
+    return this.hello?.world ?? "vault";
+  }
+
+  /**
+   * Whether the runner takes brokerage episodes: it speaks a protocol that has them (2 or later)
+   * and was started for the brokerage world.
+   */
   get canRunBrokerage(): boolean {
-    return (this.hello?.protocol ?? 0) >= BROKERAGE_PROTOCOL_VERSION;
+    return (this.hello?.protocol ?? 0) >= BROKERAGE_PROTOCOL_VERSION && this.world === "brokerage";
   }
 
   /** The code hash the runner worked out and its source, when it reported one in hello. */
@@ -455,7 +462,7 @@ export class GatewayEpisode {
   async callTool(name: string, args: unknown): Promise<ToolResult> {
     if (this.closed || this.finished) return { ok: false, error: "the episode is over" };
     // Attack surfaces are the vault world's; another world's reads are logged without one.
-    const surface = this.world === "vault" ? (toolSurface(name) ?? null) : null;
+    const surface = WORLDS[this.world].surface(name) ?? null;
     if (this.mode === "chain" && isAgentToolName(name) && AGENT_TOOLS[name].writes) {
       this.emitActivity({ type: "tool", name, surface, ok: false, error: CHAIN_MODE_WRITE });
       return { ok: false, error: CHAIN_MODE_WRITE };
@@ -609,8 +616,11 @@ export class ArenaGateway {
   /** Serves an episode behind a fresh capability token. Close it when the episode ends. */
   openEpisode(spec: EpisodeSpec): GatewayEpisode {
     if (spec.mode === "chain" && !spec.chain) throw new Error("a chain-mode episode needs a chain");
-    if ((spec.world ?? "vault") !== "vault" && (spec.mode === "chain" || spec.chain))
-      throw new Error("only the vault world has chain mode");
+    const world = spec.world ?? "vault";
+    if (!WORLDS[world].chain && (spec.mode === "chain" || spec.chain))
+      throw new Error(`the ${world} world has no chain mode`);
+    if (world !== "vault" && spec.toolbox instanceof ArenaToolbox)
+      throw new Error(`the ${world} world can't be served from the vault world's toolbox`);
     const token = newCapabilityToken();
     const key = hashToken(token);
     const base = `${this.url}/e/${token}`;
@@ -689,7 +699,13 @@ export class ArenaGateway {
       const args = await readJson(req, this.limits.bodyBytes, {});
       return reply(res, 200, await episode.callTool(tool[1]!, args));
     }
-    if (route === "rpc" && method === "POST" && episode.spec.chain && episode.world === "vault") {
+    const vaultTools = episode.spec.toolbox;
+    if (
+      route === "rpc" &&
+      method === "POST" &&
+      episode.spec.chain &&
+      vaultTools instanceof ArenaToolbox
+    ) {
       const body = await readJson(req, this.limits.rpcBodyBytes);
       if (episode.finished || episode.isClosed)
         return reply(res, 200, {
@@ -701,8 +717,7 @@ export class ArenaGateway {
         body,
         {
           ...episode.spec.chain,
-          // openEpisode allows a chain binding only for the vault world, whose toolbox this is.
-          toolbox: episode.spec.toolbox as ArenaToolbox,
+          toolbox: vaultTools,
           budget: episode.rpcBudget(this.limits),
           gas: episode.gasBudget(this.limits),
           signal: episode.signal,

@@ -35,6 +35,7 @@ import { type CheckEvent, runConnectionCheck } from "./check.js";
 import { runControls } from "./controls.js";
 import { loadDotEnv, usesLanguageModel } from "./env.js";
 import { type EpisodeResult, runEpisode, saveEpisode } from "./episode.js";
+import { positiveInt } from "./flags.js";
 import { type AgentTransport, ArenaGateway } from "./gateway/index.js";
 import { FileHeldOutLedger, freshHeldOut } from "./held-out-fresh.js";
 import { startRemote } from "./remote-start.js";
@@ -667,13 +668,6 @@ function sentinelModel(spec: string, fallback?: string, questions?: string, poli
         new DecisionModelSentinel(new LlmDecisionModel({ model: fallback })),
       )
     : laya;
-}
-
-function positiveInt(text: string | undefined, flag: string, allowZero = false): number {
-  const n = Number(text);
-  if (!Number.isInteger(n) || n < (allowZero ? 0 : 1))
-    throw new Error(`${flag} must be a whole number`);
-  return n;
 }
 
 function hex32(text: string | undefined, flag: string): `0x${string}` | undefined {

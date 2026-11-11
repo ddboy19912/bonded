@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { createRequire } from "node:module";
 import { parseArgs } from "node:util";
-import { AgentMode } from "@bondedhq/shared";
+import { AgentMode, EpisodeWorld } from "@bondedhq/shared";
 import { codeIdentity } from "./code-hash.js";
 import { initCommand, terminalConfirm } from "./init/command.js";
 import { serviceCommand } from "./service.js";
@@ -23,6 +23,10 @@ Arena sends, the runner starts your agent command with the episode in its enviro
   --mode <mode>       tools (default): reads and trades are tool calls over MCP or HTTP
                       chain: reads are tool calls; trades are transactions your agent signs and
                       sends to its vault through BONDED_RPC_URL
+  --world <world>     vault (default): your agent trades on chain from a Mandate Vault
+                      brokerage: your agent manages a simulated brokerage account, in tools mode
+                      (BONDED_WORLD=brokerage, no vault variables). The runner takes episodes of
+                      this world only, so your agent is never started for the other one
   --tee-url <url>     your agent's TEE endpoint; the runner fetches its evidence for each episode
   --code-hash <0x..>  the code version you are rating (or BONDED_CODE_HASH). Without it the runner
                       works one out: BONDED_IMAGE_DIGEST, else the git commit of your agent's
@@ -57,6 +61,7 @@ async function main(): Promise<number> {
       gateway: { type: "string" },
       token: { type: "string" },
       mode: { type: "string", default: "tools" },
+      world: { type: "string", default: "vault" },
       "tee-url": { type: "string" },
       "code-hash": { type: "string" },
       quiet: { type: "boolean", default: false },
@@ -73,13 +78,25 @@ async function main(): Promise<number> {
   const gateway = values.gateway ?? process.env.BONDED_GATEWAY_URL;
   const token = values.token ?? process.env.BONDED_RUNNER_TOKEN;
   const mode = AgentMode.safeParse(values.mode);
-  if (values.help || !gateway || !token || !mode.success || positionals.length === 0) {
+  const world = EpisodeWorld.safeParse(values.world);
+  const worldFitsMode = !world.success || world.data === "vault" || values.mode === "tools";
+  if (
+    values.help ||
+    !gateway ||
+    !token ||
+    !mode.success ||
+    !world.success ||
+    !worldFitsMode ||
+    positionals.length === 0
+  ) {
     console.log(USAGE);
     if (!values.help) {
       const missing = [
         !gateway && "--gateway",
         !token && "--token",
         !mode.success && "--mode tools|chain",
+        !world.success && "--world vault|brokerage",
+        !worldFitsMode && "--mode tools (the brokerage world has no chain mode)",
         positionals.length === 0 && "an agent command after --",
       ].filter(Boolean);
       console.error(`\nMissing or invalid: ${missing.join(", ")}`);
@@ -103,6 +120,7 @@ async function main(): Promise<number> {
     gateway,
     token,
     mode: mode.data,
+    world: world.data,
     command: positionals,
     echo: !values.quiet,
     version,

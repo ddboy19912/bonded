@@ -4,9 +4,11 @@ import {
   type BrokerageEpisodeMessage,
   episodeEnv,
   episodeWorld,
+  HelloMessage,
   parseBrokerageEpisodeEnv,
   parseEpisodeEnv,
   parseRunnerMessage,
+  runnerProtocolFor,
   ServerToRunner,
 } from "../src/index.js";
 
@@ -68,6 +70,41 @@ describe("brokerage episodes (runner protocol 2)", () => {
         deadlineMs: 60_000,
       },
     });
+  });
+
+  it("keeps the task's tool list through the runner, an agent URL and the environment", () => {
+    const withTools: BrokerageEpisodeMessage = {
+      ...brokerage,
+      task: { ...brokerage.task, tools: ["get_account", "place_order"] },
+    };
+    const tools = ["get_account", "place_order"];
+    expect(parseRunnerMessage(ServerToRunner, JSON.stringify(withTools))).toMatchObject({
+      task: { tools },
+    });
+    expect(AgentUrlMessage.parse(withTools)).toMatchObject({ task: { tools } });
+    const read = parseBrokerageEpisodeEnv(episodeEnv(withTools));
+    expect(read.ok && read.episode.task.tools).toEqual(tools);
+    // A vault episode's task keeps it too.
+    const vault = {
+      ...withTools,
+      world: undefined,
+      chainId: 46630,
+      vault: "0x00000000000000000000000000000000000000aa",
+      contracts: { exchange: "0x4444444444444444444444444444444444444444", tokens: [] },
+    };
+    expect(parseRunnerMessage(ServerToRunner, JSON.stringify(vault))).toMatchObject({
+      task: { tools },
+    });
+  });
+
+  it("has a runner say the oldest protocol its world needs, and name a world that isn't vault", () => {
+    expect(runnerProtocolFor("vault")).toBe(1);
+    expect(runnerProtocolFor("brokerage")).toBe(2);
+    const hello = { type: "hello", runnerVersion: "0.2.0", protocol: 2, mode: "tools" };
+    expect(HelloMessage.parse({ ...hello, world: "brokerage" }).world).toBe("brokerage");
+    // A protocol 1 runner names no world: it is a vault-world runner.
+    expect(HelloMessage.parse({ ...hello, protocol: 1 }).world).toBeUndefined();
+    expect(HelloMessage.safeParse({ ...hello, world: "casino" }).success).toBe(false);
   });
 
   it("isn't mistaken for a vault episode", () => {

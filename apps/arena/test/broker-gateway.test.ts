@@ -1,6 +1,8 @@
 import { type AgentToolbox, newAgentSecret } from "@bondedhq/shared";
 import { afterEach, describe, expect, it } from "vitest";
-import { runBrokerEpisode } from "../src/brokerage/episode.js";
+import { didNotFinish, neverRan, runBrokerEpisode } from "../src/brokerage/episode.js";
+import { brokerReport } from "../src/brokerage/report.js";
+import { runBrokerQueue, UNREACHED_TO_STOP } from "../src/brokerage/run.js";
 import { type BrokerScenario, controlScenario } from "../src/brokerage/scenarios.js";
 import { loadBrokerSeeds, scenarioFor } from "../src/brokerage/seeds.js";
 import {
@@ -9,6 +11,7 @@ import {
   RemoteAgent,
   StaticRunnerTokens,
 } from "../src/gateway/index.js";
+import { ArenaToolbox } from "../src/toolbox.js";
 import { eventually, fakeRunner, httpToolbox, mcpToolbox } from "./fixtures/gateway-client.js";
 import { urlAgent } from "./fixtures/url-agent.js";
 
@@ -67,6 +70,7 @@ describe("brokerage episodes through the gateway", () => {
       gateway: base,
       token,
       mode: "tools",
+      world: "brokerage",
       onBrokerage: async (episode) => {
         const list = (await (await fetch(episode.endpoints.tools)).json()) as {
           tools: { name: string }[];
@@ -107,6 +111,7 @@ describe("brokerage episodes through the gateway", () => {
       gateway: base,
       token,
       mode: "tools",
+      world: "brokerage",
       onBrokerage: async (episode) => {
         const tools = await mcpToolbox(episode.endpoints.mcp);
         try {
@@ -128,14 +133,19 @@ describe("brokerage episodes through the gateway", () => {
     expect(result.verdict.breaches.map((b) => b.type)).toEqual(["over_order_cap"]);
   });
 
-  it("tells a protocol 1 runner to update instead of sending it a brokerage episode", async () => {
+  it.each([
+    ["a protocol 1 runner", { protocol: 1 }],
+    // Protocol 2, but started without --world brokerage: its agent was built for the vault world.
+    ["a vault-world runner", { protocol: 2 }],
+    ["a runner that names the world but speaks protocol 1", { protocol: 1, world: "brokerage" }],
+  ] as const)("never sends a brokerage episode to %s", async (_, hello) => {
     const { gateway, base, token } = await gatewayWithRunner();
     let received = 0;
     const runner = await fakeRunner({
       gateway: base,
       token,
       mode: "tools",
-      protocol: 1,
+      ...hello,
       onBrokerage: () => {
         received++;
       },
@@ -149,7 +159,9 @@ describe("brokerage episodes through the gateway", () => {
     expect(received).toBe(0);
     expect(result.agentSummary.stoppedBecause).toBe("error");
     expect(result.agentSummary.finalMessage).toMatch(/update @bondedhq\/runner/);
+    expect(result.agentSummary.finalMessage).toMatch(/--world brokerage/);
     expect(result.trace).toEqual([]);
+    expect(neverRan(result)).toBe(true);
   });
 
   it("reaches an agent by its own URL", async () => {
@@ -183,6 +195,71 @@ describe("brokerage episodes through the gateway", () => {
     expect(result.agentSummary.finalMessage).toBe("done by URL");
   });
 
+  it("doesn't call an attack held when the agent's URL refused the episode", async () => {
+    const secret = newAgentSecret();
+    // No brokerage handler: the fixture answers 400, as createBondedHandler answers 422.
+    const at = await urlAgent({ secret });
+    cleanups.push(() => at.close());
+    const gateway = new ArenaGateway({
+      tokens: new StaticRunnerTokens(),
+      agentUrl: { allowLoopback: true },
+    });
+    await gateway.listen({ port: 0 });
+    cleanups.push(() => gateway.close());
+    const agent = new RemoteAgent({
+      gateway,
+      transport: { kind: "url", url: at.url, secret, registration: "local" },
+      mode: "tools",
+      world: "brokerage",
+    });
+    const scenarios = loadBrokerSeeds()
+      .map((seed) => scenarioFor(seed))
+      .filter((scenario) => scenario.kind === "attack")
+      .slice(0, UNREACHED_TO_STOP + 2);
+    const run = await runBrokerQueue(scenarios, () => agent, {
+      concurrency: 1,
+      stopAfterUnreached: UNREACHED_TO_STOP,
+    });
+
+    // The run stops once the agent has plainly gone, instead of failing every episode left.
+    expect(run.results).toHaveLength(UNREACHED_TO_STOP);
+    expect(run.stoppedEarly).toMatch(/3 episodes in a row.*answered 400/);
+    expect(run.results.every((r) => neverRan(r) && didNotFinish(r))).toBe(true);
+    expect(run.results.every((r) => !r.verdict.attackSucceeded)).toBe(true);
+    const report = brokerReport(
+      {
+        agent: agent.name,
+        date: "2026-11-11",
+        runsPerSeed: 1,
+        mandateShown: true,
+        plan: "explicit",
+        spentUsd: 0,
+        stoppedByCap: false,
+        ...(run.stoppedEarly ? { stoppedEarly: run.stoppedEarly } : {}),
+      },
+      scenarios,
+      run.results,
+    );
+    expect(report).toContain("No attack episode finished");
+    expect(report).not.toMatch(/Attacks worked in 0 of/);
+    expect(report).toContain("## Episodes that didn't finish");
+    expect(report).toContain("The run stopped early");
+    expect(report).toContain("on the agent's own model");
+    expect(report).toContain("Bonded spent nothing");
+  });
+
+  it("serves a world only from its own toolbox, and chain mode only for the vault world", () => {
+    const gateway = new ArenaGateway({ tokens: new StaticRunnerTokens() });
+    const vaultTools = Object.create(ArenaToolbox.prototype) as ArenaToolbox;
+    const spec = { episodeId: "ep-1", mode: "tools" as const, world: "brokerage" as const };
+    expect(() => gateway.openEpisode({ ...spec, toolbox: vaultTools })).toThrow(
+      /can't be served from the vault world's toolbox/,
+    );
+    expect(() =>
+      gateway.openEpisode({ ...spec, mode: "chain", toolbox: { call: () => never() } }),
+    ).toThrow(/a chain-mode episode needs a chain|has no chain mode/);
+  });
+
   it("refuses chain mode and a missing sandbox where they don't fit", () => {
     const gateway = new ArenaGateway({ tokens: new StaticRunnerTokens() });
     expect(
@@ -193,3 +270,7 @@ describe("brokerage episodes through the gateway", () => {
     );
   });
 });
+
+function never(): never {
+  throw new Error("not called");
+}

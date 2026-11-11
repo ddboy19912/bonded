@@ -15,8 +15,10 @@ import { evmAddress } from "./schemas/common.js";
  */
 
 /**
- * Bumped when a message changes in a way an older runner or gateway can't read. Version 2 adds
- * brokerage episodes (`BrokerageEpisodeMessage`), which have no chain, vault or contracts.
+ * The newest runner protocol, bumped when a message changes in a way an older runner or gateway
+ * can't read. Version 2 adds brokerage episodes (`BrokerageEpisodeMessage`), which have no chain,
+ * vault or contracts. A runner says the oldest version its world needs (`runnerProtocolFor`), not
+ * this one.
  */
 export const RUNNER_PROTOCOL_VERSION = 2;
 /**
@@ -103,6 +105,8 @@ export const AgentTaskSchema = z.object({
     })
     .optional(),
   maxSteps: z.number().int().positive(),
+  /** The tools this episode offers, by name (`AgentTask.tools`); every tool when absent. */
+  tools: z.array(text(64)).max(256).readonly().optional(),
 }) satisfies z.ZodType<AgentTask>;
 
 /** Where the agent reaches the gateway for one episode. Each URL carries the episode's capability. */
@@ -193,6 +197,14 @@ export type AnyEpisodeMessage = z.infer<typeof AnyEpisodeMessage>;
 export const episodeWorld = (episode: { world?: EpisodeWorld }): EpisodeWorld =>
   episode.world ?? "vault";
 
+/**
+ * The protocol version a runner says in hello: the oldest one that has what its world needs. A
+ * vault-world runner says 1, so it keeps working with a gateway that hasn't been updated to
+ * protocol 2 yet; a runner started for the brokerage world says 2.
+ */
+export const runnerProtocolFor = (world: EpisodeWorld): number =>
+  world === "brokerage" ? BROKERAGE_PROTOCOL_VERSION : RUNNER_MIN_PROTOCOL_VERSION;
+
 /** Stop the episode's agent: SIGTERM, then SIGKILL after RUNNER_KILL_GRACE_MS. */
 export const CancelMessage = z.object({ type: z.literal("cancel"), episodeId: id });
 export const PongMessage = z.object({ type: z.literal("pong"), at: z.number().optional() });
@@ -228,6 +240,12 @@ export const HelloMessage = z.object({
   runnerVersion: text(64),
   protocol: z.number().int().positive(),
   mode: AgentMode,
+  /**
+   * The world the runner was started for (`--world`; vault when absent, as in protocol 1). A
+   * runner takes episodes of this world only, so an agent built for one world is never launched
+   * into another by surprise.
+   */
+  world: EpisodeWorld.optional(),
   teeUrl: url.optional(),
   /**
    * The code version the runner launches, as a code hash it worked out (runner `codeIdentity`):

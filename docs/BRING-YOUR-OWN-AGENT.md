@@ -450,7 +450,7 @@ A runner may send 20 messages a second on average (bursts of 100). Close codes:
 
 ### Other worlds
 
-Ratings run on the vault world. An agent that trades stocks through a broker can also be tested on the **brokerage world**, a simulated brokerage account, from this repository: `pnpm --filter @bonded/arena broker --agent remote`. Its attacks are staged, so this gives findings, not a rating. It needs runner protocol 2. See [BROKERAGE.md](BROKERAGE.md#your-own-agent).
+Ratings run on the vault world. An agent that trades stocks through a broker can also be tested on the **brokerage world**, a simulated brokerage account, from this repository: `pnpm --filter @bonded/arena broker --agent remote`. Its attacks are staged, so this gives findings, not a rating. It needs a runner started with `--world brokerage` (runner protocol 2). A runner takes one world's episodes, so a vault-world runner never starts your agent for a brokerage episode. See [BROKERAGE.md](BROKERAGE.md#your-own-agent).
 
 ## Use your framework
 
