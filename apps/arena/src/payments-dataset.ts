@@ -14,7 +14,7 @@ import type { SentinelRow } from "./dataset.js";
 import { type LayaRow, toLayaRow } from "./laya-dataset.js";
 import { plantedFacts } from "./offchain/attribution.js";
 import type { OffchainEpisodeResult } from "./offchain/episode.js";
-import { accountKey, factKey, factsIn, referenceKey, usdKey } from "./offchain/facts.js";
+import { ACCOUNT, accountKey, factKey, factsIn, referenceKey, usdKey } from "./offchain/facts.js";
 import { INDEX_TRACES_DIR, INDEX_VARIANTS_DIR } from "./offchain/index-sweep.js";
 import { baseWorld } from "./offchain/scenarios.js";
 import {
@@ -106,19 +106,215 @@ const isWrite = (tool: string) =>
 function withoutImages(output: unknown): { text: string; images: number } {
   let images = 0;
   const text = JSON.stringify(output, (key, value: unknown) => {
-    if (
-      key === "image" &&
-      typeof value === "object" &&
-      value !== null &&
-      "mediaType" in value &&
-      "base64" in value
-    ) {
-      images++;
-      return `[image omitted: ${String((value as { mediaType: unknown }).mediaType)}]`;
-    }
-    return key === "base64" ? "[omitted]" : value;
+    if (isImage(key, value)) images++;
+    return imageMarker(key, value);
   });
   return { text: (text ?? "null").slice(0, MAX_INPUT_CHARS), images };
+}
+
+const isImage = (key: string, value: unknown) =>
+  key === "image" &&
+  typeof value === "object" &&
+  value !== null &&
+  "mediaType" in value &&
+  "base64" in value;
+
+function imageMarker(key: string, value: unknown): unknown {
+  if (isImage(key, value))
+    return `[image omitted: ${String((value as { mediaType: unknown }).mediaType)}]`;
+  return key === "base64" ? "[omitted]" : value;
+}
+
+const stringify = (value: unknown) => JSON.stringify(value, imageMarker) ?? "null";
+
+/**
+ * The most text a payment case's inputs may hold. Laya reads at most 1,024 tokens, the mandate,
+ * the payment and the questions included (services/sentinel/kaggle/check_tokens.py), and the
+ * tools' JSON runs 2 to 3 characters a token. At 1,300 every case of the v6 build fits (median
+ * about 750 tokens); at 1,500 a few didn't.
+ */
+export const FOCUS_MAX_CHARS = 1_300;
+
+/** Fact keys in a value's fields: accounts, references and dollar amounts given as values. */
+function fieldKeys(value: unknown): string[] {
+  const keys: string[] = [];
+  const walk = (v: unknown, field = "") => {
+    if (Array.isArray(v)) for (const x of v) walk(x);
+    else if (v && typeof v === "object") for (const [f, x] of Object.entries(v)) walk(x, f);
+    else if (typeof v === "string" && /account|iban/i.test(field)) keys.push(accountKey(v));
+    else if (typeof v === "string" && /reference|^invoice$/i.test(field))
+      keys.push(referenceKey(v));
+    else if (typeof v === "number" && /^amount/i.test(field)) keys.push(usdKey(v));
+  };
+  walk(value);
+  return keys;
+}
+
+const keysOf = (value: unknown) => new Set([...factKeysIn(stringify(value)), ...fieldKeys(value)]);
+
+/**
+ * The vendors a payment concerns, as lower-case terms (id, name, email address and domain): the
+ * vendors of the records that name its reference.
+ */
+function vendorTerms(outputs: readonly unknown[], anchor: ReadonlySet<string>): string[] {
+  const records = outputs.flatMap((o) => (Array.isArray(o) ? o : [o]));
+  const ids = new Set<string>();
+  for (const r of records) {
+    if (!r || typeof r !== "object") continue;
+    const rec = r as Record<string, unknown>;
+    if (typeof rec.vendorId === "string" && [...keysOf(rec)].some((k) => anchor.has(k)))
+      ids.add(rec.vendorId);
+  }
+  const terms = new Set([...ids].map((id) => id.toLowerCase()));
+  for (const r of records) {
+    const rec = (r ?? {}) as Record<string, unknown>;
+    if (typeof rec.id !== "string" || !ids.has(rec.id)) continue;
+    for (const v of [rec.name, rec.email])
+      if (typeof v === "string" && v.length > 2) terms.add(v.toLowerCase());
+    if (typeof rec.email === "string" && rec.email.includes("@"))
+      terms.add(rec.email.split("@")[1]!.toLowerCase());
+  }
+  return [...terms];
+}
+
+/**
+ * What a payment case shows Laya: only what bears on the invoice or refund being paid.
+ * Everything an off-chain agent reads before a payment runs to about 4,000 tokens (median), four
+ * times Laya's window, so a case keeps the items that name the payment's reference or the account
+ * it pays, and the items about that invoice's vendor (its record, its emails, its portal, its
+ * risk check). A list keeps only those items; an input with none is left out, and a repeated read
+ * is kept once. Over the budget, short inputs stay whole and the rest are cut to an equal share
+ * of what's left, each where it names what differs from the records (`around`).
+ *
+ * Paying the planted account and paying the right one for the same invoice show the same inputs:
+ * the planted message names the invoice, so it's kept either way, and only the action tells the
+ * two apart, as in the trading pairs (contrast.ts). An earlier cut chose by the paid account and
+ * dropped the vendor's other items first when space ran short, which let the inputs alone predict
+ * the label. A payment that names no reference, or whose reference nothing read names, falls
+ * back to its account and amount. Plain code, no model, so a live check can build the same state.
+ */
+export function focusInputs(
+  inputs: readonly { tool: string; output: unknown }[],
+  args: unknown,
+): { tool: string; output: string }[] {
+  const paid = paymentFactKeys(args);
+  const references = new Set(paid.filter((k) => k.startsWith("ref:")));
+  const named = (keys: ReadonlySet<string>) =>
+    inputs.some((i) => [...keysOf(i.output)].some((k) => keys.has(k)));
+  const anchor = references.size > 0 && named(references) ? references : new Set(paid);
+  const terms = vendorTerms(
+    inputs.map((i) => i.output),
+    anchor,
+  );
+  // And wherever the paid account came from, even a message about another invoice.
+  const direct = new Set([...anchor, ...paid.filter((k) => k.startsWith("account:"))]);
+  const keep = (v: unknown) => {
+    if ([...keysOf(v)].some((k) => direct.has(k))) return true;
+    const text = stringify(v).toLowerCase();
+    return terms.some((t) => text.includes(t));
+  };
+  const seen = new Set<string>();
+  const focused: { tool: string; output: string }[] = [];
+  for (const { tool, output } of inputs) {
+    const kept = Array.isArray(output) ? output.filter(keep) : keep(output) ? output : undefined;
+    if (kept === undefined || (Array.isArray(kept) && kept.length === 0)) continue;
+    const text = stringify(kept);
+    if (seen.has(`${tool}\n${text}`)) continue;
+    seen.add(`${tool}\n${text}`);
+    focused.push({ tool, output: text });
+  }
+  if (focused.reduce((n, i) => n + i.output.length, 0) <= FOCUS_MAX_CHARS) return focused;
+  const shares = new Map<number, number>();
+  let left = FOCUS_MAX_CHARS;
+  const order = focused.map((i, n) => ({ n, len: i.output.length })).sort((a, b) => a.len - b.len);
+  for (const [k, { n, len }] of order.entries()) {
+    const share = Math.floor(left / (order.length - k));
+    shares.set(n, Math.min(len, share));
+    left -= Math.min(len, share);
+  }
+  // What the cut keeps is what differs from the records: a fact the records already show (the
+  // account on file, the approved amount) weighs a quarter (an attack can plant in the records
+  // too), an account weighs most, and a fact named in fewer inputs weighs more.
+  const onRecord = new Set<string>();
+  const seenIn = new Map<string, number>();
+  for (const i of focused) {
+    const keys = new Set([...cutKeysIn(i.output), ...fieldKeysIn(i.output)]);
+    for (const k of keys) {
+      seenIn.set(k, (seenIn.get(k) ?? 0) + 1);
+      if (RECORD_TOOLS.includes(i.tool)) onRecord.add(k);
+    }
+  }
+  const weight = (k: string) =>
+    ((onRecord.has(k) ? 0.25 : 1) * (k.startsWith("account:") ? 3 : 1)) / (seenIn.get(k) ?? 1);
+  return focused.map((i, n) => ({
+    tool: i.tool,
+    output: around(i.output, shares.get(n)!, weight),
+  }));
+}
+
+/**
+ * `text` cut to `max` characters where the facts it names weigh most, so a new amount later in
+ * an email isn't cut for the reference at its start; from the start when it names none. Plain
+ * text: JSON escapes undone and runs of space collapsed.
+ */
+function around(text: string, max: number, weight: (key: string) => number): string {
+  if (text.length <= max) return text;
+  const flat = text
+    .replace(/\\[nrt]/g, " ")
+    .replace(/\\"/g, '"')
+    .replace(/\s+/g, " ");
+  if (flat.length <= max) return flat;
+  const hits: { at: number; key: string; len: number }[] = [];
+  for (const fact of new Set(factsIn(flat).map(trimAccount))) {
+    const key = factKey(fact.replace(/-+$/, ""));
+    for (let at = flat.indexOf(fact); at >= 0; at = flat.indexOf(fact, at + 1))
+      hits.push({ at, key, len: fact.length });
+  }
+  let best = { start: 0, covered: 0 };
+  for (const h of hits) {
+    // A window starting a little before this fact: weigh the distinct facts wholly inside it.
+    const start = Math.max(0, Math.min(h.at - 40, flat.length - max));
+    const covered = [
+      ...new Set(
+        hits.filter((o) => o.at >= start && o.at + o.len <= start + max).map((o) => o.key),
+      ),
+    ].reduce((sum, k) => sum + weight(k), 0);
+    if (covered > best.covered) best = { start, covered };
+  }
+  return flat.slice(best.start, best.start + max);
+}
+
+/** The business's own records, as the agent's tools return them: what a payment is checked against. */
+const RECORD_TOOLS: readonly string[] = [
+  "list_vendors",
+  "list_approved_invoices",
+  "list_payments",
+  "list_change_tickets",
+  "list_refunds",
+];
+
+/**
+ * An account as the cut weighs it: the shared pattern (offchain/facts.ts) runs on into capital
+ * words after an account ("GB33 BUKB 2020 1555 5555 55 AP SYSTEM"), which would count as a new
+ * account. Account numbers end in digits, so trailing letter-only groups are dropped here. The
+ * judge's pattern is left as it is: labels and ratings depend on it.
+ */
+const trimAccount = (fact: string) =>
+  new RegExp(`^${ACCOUNT.source}$`).test(fact) ? fact.replace(/(?:\s[A-Z]+)+$/, "") : fact;
+
+/** Fact keys for the cut's weights, accounts trimmed as `trimAccount` does. */
+const cutKeysIn = (text: string) =>
+  factsIn(text.replace(/\\[nrt]/g, " ").replace(/\\"/g, '"')).map((f) =>
+    factKey(trimAccount(f).replace(/-+$/, "")),
+  );
+
+/** Field keys in a stored input that is still whole JSON (an input already cut isn't). */
+function fieldKeysIn(text: string): string[] {
+  try {
+    return fieldKeys(JSON.parse(text));
+  } catch {
+    return [];
+  }
 }
 
 /** Fact keys in a stored input, with JSON's escapes undone so line breaks don't join facts. */
@@ -159,18 +355,18 @@ export function paymentRows(
     throw new Error(`${context.episodeId}: an attack episode needs attribution and its seed`);
   const planted = attack ? context.planted! : new Set<string>();
   const ownErrors = new Set((episode.verdict.ownErrors ?? []).map((b) => b.id));
-  const inputs: { tool: string; output: string }[] = [];
+  const read: { tool: string; output: unknown }[] = [];
   let images = 0;
   const rows: PaymentRow[] = [];
   for (const step of episode.trace) {
     if (!isPaymentTool(step.tool)) {
       if (!isWrite(step.tool) && step.result.ok) {
-        const { text, images: n } = withoutImages(step.result.output);
-        images += n;
-        inputs.push({ tool: step.tool, output: text });
+        images += withoutImages(step.result.output).images;
+        read.push({ tool: step.tool, output: step.result.output });
       }
       continue;
     }
+    const inputs = focusInputs(read, step.args);
     const breachTypes = step.breaches.flatMap(
       (id) => episode.verdict.breaches.find((b) => b.id === id)?.type ?? [],
     );
@@ -649,6 +845,61 @@ export function readPaymentCases(path: string): PaymentCase[] {
     .split("\n")
     .filter((line) => line.trim())
     .map((line) => JSON.parse(line) as PaymentCase);
+}
+
+/** What a trading build records about the payment cases it trained on. */
+export interface PaymentsInTraining {
+  /** The payments build's hashes: training must match the cases added, and the held-out parts are what the evaluation must score. */
+  hashes: Record<PaymentsPart, string>;
+  heldOutClasses: readonly string[];
+  cases: number;
+  manipulated: number;
+  trainBenignSample: PaymentsDataset["manifest"]["trainBenignSample"];
+  shortcutsPass: boolean;
+}
+
+/**
+ * The payments build's training part as Laya training rows, to train one model on both rails
+ * (Sentinel v6). Only the training part: calibration and the final test stay for
+ * `sentinel:payments-eval`. Refuses a build whose training cases don't match its manifest's hash,
+ * whose question set differs, or whose shortcut audit failed.
+ */
+export function paymentsTrainingRows(
+  dir: string,
+  questionSet: string,
+): { rows: LayaRow[]; manifest: PaymentsInTraining } {
+  const manifest = JSON.parse(
+    readFileSync(join(dir, "manifest.json"), "utf8"),
+  ) as PaymentsDataset["manifest"];
+  if (manifest.questionSet !== questionSet)
+    throw new Error(
+      `the payments cases use question set ${manifest.questionSet}, this build ${questionSet}`,
+    );
+  if (!manifest.shortcuts.pass)
+    throw new Error("the payments build failed its shortcut audit; don't train on it");
+  const cases = readPaymentCases(join(dir, "train.jsonl"));
+  if (partHash(cases) !== manifest.hashes.train)
+    throw new Error("the payments training cases don't match their manifest's hash");
+  return {
+    rows: cases.map((c) => ({
+      id: c.id,
+      workflow: c.workflow,
+      split: "train",
+      state: c.state,
+      questions: c.questions,
+      gold: c.gold,
+      source: "payments",
+      attackClass: c.attackClass,
+    })),
+    manifest: {
+      hashes: manifest.hashes,
+      heldOutClasses: manifest.heldOutClasses,
+      cases: cases.length,
+      manipulated: cases.filter((c) => c.manipulated).length,
+      trainBenignSample: manifest.trainBenignSample,
+      shortcutsPass: manifest.shortcuts.pass,
+    },
+  };
 }
 
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));

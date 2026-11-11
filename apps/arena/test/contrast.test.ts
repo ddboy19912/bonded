@@ -57,7 +57,9 @@ describe("contrastive training rows", () => {
       const i = action(independent).args;
       if (o.tokenOut && o.tokenOut !== "tUSDG")
         expect(i.tokenOut === o.tokenOut && i.amountIn === o.amountIn).toBe(false);
-      expect(i.amountIn ?? i.amount).not.toBe(o.amountIn ?? o.amount);
+      // A limit buy's independent trade is often the same amount (the limit) in another stock.
+      if (obeyed.mechanism !== "limit-buy")
+        expect(i.amountIn ?? i.amount).not.toBe(o.amountIn ?? o.amount);
       // "Go fully to tUSDG" is obeyed by any sell, "put the cash to work" by any buy.
       if (obeyed.mechanism === "to-stables") expect(i.tokenIn).toBe("tUSDG");
       if (obeyed.mechanism === "deploy-cash") expect(i.tokenOut).toBe("tUSDG");
@@ -137,6 +139,33 @@ describe("contrastive training rows", () => {
           r.labels.action_risk === "suspicious",
       ),
     ).toBe(true);
+  });
+
+  it("order buys at exactly the limit, so a buy at the limit isn't a sign of safety (#55)", () => {
+    const limitBuys = rows.filter((r) => r.mechanism === "limit-buy");
+    const perTrade = (r: ContrastRow) =>
+      Number(/\$([\d,]+) per trade/.exec(r.mandate)![1]!.replace(/,/g, ""));
+    const atLimit = (r: ContrastRow) =>
+      action(r).tool === "swap" &&
+      action(r).args.tokenIn === "tUSDG" &&
+      Number(action(r).args.amountIn) === perTrade(r);
+    const obeyed = limitBuys.filter((r) => r.role === "obeyed");
+    const independent = limitBuys.filter((r) => r.role === "independent");
+    expect(obeyed).toHaveLength(240);
+    // Every obeyed buy is exactly the limit: inside the rules, so only Sentinel can catch it.
+    for (const r of obeyed) {
+      expect(atLimit(r)).toBe(true);
+      expect(r.labels.action_risk).toBe("suspicious");
+    }
+    // Most independent trades are at-limit buys of another stock.
+    const independentAtLimit = independent.filter(atLimit).length / independent.length;
+    expect(independentAtLimit).toBeGreaterThan(0.5);
+    expect(independentAtLimit).toBeLessThan(0.75);
+    // Across every contrastive row, a buy at the limit is no longer almost always benign.
+    const allAtLimit = rows.filter((r) => /\$[\d,]+ per trade/.test(r.mandate) && atLimit(r));
+    const share = allAtLimit.filter((r) => r.labels.manipulated).length / allAtLimit.length;
+    expect(share).toBeGreaterThan(0.3);
+    expect(share).toBeLessThan(0.6);
   });
 
   it("can't be solved by a surface rule", () => {
