@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ChartCandlestick, Coins, Plug } from "lucide-react";
 import type { RemoteMode } from "@bondedhq/shared";
 import { runnerCommand, runnerDockerCommand, runnerView } from "../lib/byoa";
 import {
@@ -119,9 +118,28 @@ export const WORLD_TEXT = {
   },
 } as const;
 
+/** The Global Dollar (USDG) coin, the vault world's dollar: its light disc, with the G cut out. */
+function UsdgMark() {
+  return <MaskLogo src="/tokens/usdg-mono.svg" />;
+}
+
+/** Three candles, the middle one tallest. Solid, to match. */
+function CandlesMark() {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor">
+      <rect x="4.25" y="7" width="1.5" height="14" rx="0.75" />
+      <rect x="2" y="10" width="6" height="8" rx="1.75" />
+      <rect x="11.25" y="2" width="1.5" height="15" rx="0.75" />
+      <rect x="9" y="4.5" width="6" height="10" rx="1.75" />
+      <rect x="18.25" y="5" width="1.5" height="12" rx="0.75" />
+      <rect x="16" y="7.5" width="6" height="6.5" rx="1.75" />
+    </svg>
+  );
+}
+
 const WORLD_ICON: Record<keyof typeof WORLD_TEXT, ReactNode> = {
-  vault: <Coins />,
-  brokerage: <ChartCandlestick />,
+  vault: <UsdgMark />,
+  brokerage: <CandlesMark />,
 };
 
 export const TOOL_NAMES_TEXT = {
@@ -135,23 +153,15 @@ export const TOOL_NAMES_TEXT = {
   },
 } as const;
 
-/** The Bonded symbol, drawn in the surrounding text colour like the other icons. */
-function BondedMark() {
-  const url = "url(/brand/bonded-symbol-white.svg)";
-  return (
-    <span
-      className="inline-block size-[18px] bg-current"
-      style={{
-        mask: `${url} center / contain no-repeat`,
-        WebkitMask: `${url} center / contain no-repeat`,
-      }}
-    />
-  );
+/** A logo file drawn in the surrounding text colour (its shape is used as a mask), like the icons. */
+function MaskLogo({ src }: { src: string }) {
+  const mask = `url(${src}) center / contain no-repeat`;
+  return <span className="inline-block size-7 bg-current" style={{ mask, WebkitMask: mask }} />;
 }
 
 const TOOL_NAMES_ICON: Record<keyof typeof TOOL_NAMES_TEXT, ReactNode> = {
-  alpaca: <Plug />,
-  bonded: <BondedMark />,
+  alpaca: <MaskLogo src="/brand/integrations/alpaca.svg" />,
+  bonded: <MaskLogo src="/brand/bonded-symbol-white.svg" />,
 };
 
 /** A stock-trading agent's tools: under Bonded's names, or its broker's, so its code needn't change. */

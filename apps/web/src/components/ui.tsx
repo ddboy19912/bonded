@@ -391,7 +391,7 @@ export function Choice({
   title: ReactNode;
   children?: ReactNode;
   name?: string;
-  /** A small picture for the option, drawn in a tile beside the text. */
+  /** A logo or icon for the option: the card then stacks it on top, with the radio at its right. */
   icon?: ReactNode;
   type?: "radio" | "checkbox";
   /** Not available here; `children` should say why. */
@@ -399,6 +399,33 @@ export function Choice({
   /** A row in a plain list, for places where a box per option is too much. */
   flat?: boolean;
 }) {
+  if (icon && !flat) {
+    return (
+      <label
+        className={`flex flex-col gap-3 rounded-2xl border p-4 text-sm transition ${disabled ? "cursor-not-allowed border-line-strong opacity-60" : checked ? "cursor-pointer border-accent/60 bg-accent-soft" : "cursor-pointer border-line-strong hover:bg-white/[0.03]"}`}
+      >
+        <span className="flex items-start justify-between">
+          <span
+            aria-hidden
+            className={`flex size-7 items-center transition [&_svg]:size-7 ${checked ? "text-ink" : "text-muted"}`}
+          >
+            {icon}
+          </span>
+          <input
+            type={type}
+            name={name}
+            checked={checked}
+            onChange={onChange}
+            disabled={disabled}
+          />
+        </span>
+        <span>
+          <span className="font-semibold">{title}</span>
+          {children && <span className="mt-0.5 block text-muted">{children}</span>}
+        </span>
+      </label>
+    );
+  }
   return (
     <label
       className={`flex items-start gap-3 text-sm transition ${flat ? `py-3 ${disabled ? "cursor-not-allowed opacity-60" : checked ? "cursor-pointer" : "cursor-pointer text-muted hover:text-ink"}` : `rounded-2xl border p-4 ${disabled ? "cursor-not-allowed border-line-strong opacity-60" : checked ? "cursor-pointer border-accent/60 bg-accent-soft" : "cursor-pointer border-line-strong hover:bg-white/[0.03]"}`}`}
@@ -411,14 +438,6 @@ export function Choice({
         disabled={disabled}
         className={`mt-0.5 ${flat ? "accent-brand-bright" : ""}`}
       />
-      {icon && (
-        <span
-          aria-hidden
-          className={`grid size-9 shrink-0 place-items-center rounded-xl border transition [&_svg]:size-[18px] ${checked ? "border-accent/40 bg-accent/15 text-ink" : "border-line-strong bg-white/[0.03] text-muted"}`}
-        >
-          {icon}
-        </span>
-      )}
       <span>
         <span className={`font-semibold ${flat && checked ? "text-ink" : ""}`}>{title}</span>
         {children && <span className="mt-0.5 block text-muted">{children}</span>}
