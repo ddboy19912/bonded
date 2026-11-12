@@ -84,9 +84,11 @@ export function Collapsible({
       <div
         id={id}
         inert={!open}
-        className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none ${open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
+        className={`grid grid-cols-[minmax(0,1fr)] transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none ${open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
       >
-        <div className={`min-h-0 ${open && settled ? "overflow-visible" : "overflow-hidden"}`}>
+        <div
+          className={`min-h-0 min-w-0 ${open && settled ? "overflow-visible" : "overflow-hidden"}`}
+        >
           <div className={contentClassName}>{children}</div>
         </div>
       </div>

@@ -1,6 +1,16 @@
-import { Fragment, useId, type ReactNode } from "react";
+import {
+  Fragment,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ReactNode,
+  type Ref,
+  type RefObject,
+} from "react";
 import { Highlight, Prism, type PrismTheme } from "prism-react-renderer";
 import { CopyButton } from "./copy-button";
+import { ResponsiveModal } from "./responsive-modal";
 
 export type CodeLanguage = "bash" | "sh" | "ts" | "python" | "json" | "yaml";
 
@@ -76,6 +86,7 @@ const NIGHT_OWL: PrismTheme = {
  * Code to read and copy, framed as in the docs: a header bar (three dots, and the block's name),
  * the code in the docs' colours, and a small copy button in the corner. Code scrolls sideways
  * rather than breaking in the middle of a word; a shell command wraps, since it is one long line.
+ * When the code is wider than its box, an expand button opens it in a wide modal.
  */
 export function CodeBlock({
   code,
@@ -86,12 +97,62 @@ export function CodeBlock({
   language?: CodeLanguage;
   label: ReactNode;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const pre = useRef<HTMLPreElement>(null);
+  const overflowing = useOverflowing(pre);
+  return (
+    <>
+      <CodeFrame
+        code={code}
+        language={language}
+        label={label}
+        preRef={pre}
+        expand={overflowing ? () => setExpanded(true) : undefined}
+      />
+      {overflowing && (
+        <ResponsiveModal open={expanded} onOpenChange={setExpanded} title={label} wide="full">
+          <CodeFrame code={code} language={language} label={label} />
+        </ResponsiveModal>
+      )}
+    </>
+  );
+}
+
+/** Whether the element's content is wider than the element, kept current as either resizes. */
+function useOverflowing(ref: RefObject<HTMLElement | null>) {
+  const [overflowing, setOverflowing] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setOverflowing(el.scrollWidth > el.clientWidth + 1);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [ref]);
+  return overflowing;
+}
+
+function CodeFrame({
+  code,
+  language,
+  label,
+  preRef,
+  expand,
+}: {
+  code: string;
+  language: CodeLanguage;
+  label: ReactNode;
+  preRef?: Ref<HTMLPreElement>;
+  expand?: (() => void) | undefined;
+}) {
   const id = useId();
   const wrap = language === "bash" || language === "sh";
   return (
     <figure
       data-language={language}
-      className="overflow-hidden rounded-[0.9rem] border border-line bg-[#0a0e17] shadow-[inset_0_1px_0_rgb(255_255_255/0.04)]"
+      className="min-w-0 overflow-hidden rounded-[0.9rem] border border-line bg-[#0a0e17] shadow-[inset_0_1px_0_rgb(255_255_255/0.04)]"
     >
       <figcaption className="flex h-9 items-center gap-3 border-b border-line bg-black/30 px-4">
         <span className="flex shrink-0 gap-1.5" aria-hidden>
@@ -111,9 +172,10 @@ export function CodeBlock({
         >
           {({ tokens, getLineProps, getTokenProps }) => (
             <pre
+              ref={preRef}
               aria-labelledby={id}
               tabIndex={0}
-              className={`py-4 pr-14 pl-4 font-mono text-[13.5px] leading-[1.75] focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none focus-visible:ring-inset ${wrap ? "break-words whitespace-pre-wrap" : "overflow-x-auto whitespace-pre"}`}
+              className={`py-4 pl-4 font-mono text-[13.5px] leading-[1.75] focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none focus-visible:ring-inset ${expand ? "pr-24" : "pr-14"} ${wrap ? "break-words whitespace-pre-wrap" : "overflow-x-auto whitespace-pre"}`}
             >
               <code>
                 {tokens.map((line, i) => (
@@ -128,7 +190,29 @@ export function CodeBlock({
             </pre>
           )}
         </Highlight>
-        <div className="absolute top-2 right-2">
+        <div className="absolute top-2 right-2 flex gap-1.5">
+          {expand && (
+            <button
+              type="button"
+              onClick={expand}
+              title="Open wider"
+              className="flex size-8 items-center justify-center rounded-md border border-line-strong bg-[#0a0e17] text-muted transition hover:bg-white/[0.07] hover:text-ink focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                className="size-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+              </svg>
+              <span className="sr-only">Open the code wider</span>
+            </button>
+          )}
           <CopyButton text={code} variant="icon" />
         </div>
       </div>

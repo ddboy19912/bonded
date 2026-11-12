@@ -35,8 +35,8 @@ export function ResponsiveModal({
   title: ReactNode;
   description?: ReactNode;
   children: ReactNode;
-  /** Room for a table. */
-  wide?: boolean;
+  /** Room for a table; "full" for code, up to the width of the window. */
+  wide?: boolean | "full";
   locked?: boolean;
 }) {
   const desktop = useMediaQuery("(min-width: 768px)");
@@ -47,7 +47,11 @@ export function ResponsiveModal({
           showCloseButton={!locked}
           className={cn(
             "flex max-h-[85vh] flex-col gap-0 p-0",
-            wide ? "sm:max-w-2xl" : "sm:max-w-lg",
+            wide === "full"
+              ? "sm:max-w-[min(72rem,calc(100vw-4rem))]"
+              : wide
+                ? "sm:max-w-2xl"
+                : "sm:max-w-lg",
           )}
           {...(locked
             ? {

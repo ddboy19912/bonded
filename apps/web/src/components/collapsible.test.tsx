@@ -34,6 +34,18 @@ describe("Collapsible", () => {
     expect(screen.getByRole("button", { name: "More" }).getAttribute("aria-expanded")).toBe("true");
   });
 
+  it("keeps wide content inside its width, so long code scrolls instead of spilling out", () => {
+    const { container } = render(
+      <Collapsible summary="Code" defaultOpen>
+        <pre>{"x".repeat(400)}</pre>
+      </Collapsible>,
+    );
+    // A grid's default column grows to its widest line; a minmax(0, 1fr) column doesn't.
+    const grid = container.querySelector("[inert], [id]")!;
+    expect(grid.className).toContain("grid-cols-[minmax(0,1fr)]");
+    expect((grid.firstElementChild as HTMLElement).className).toContain("min-w-0");
+  });
+
   it("follows its parent when controlled, and says when it is toggled", () => {
     const seen = vi.fn();
     function Parent() {

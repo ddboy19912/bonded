@@ -1,8 +1,12 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { CodeBlock, Rich } from "./code-block";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe("Rich", () => {
   it("shows what is in backticks as inline code, and the rest as it is", () => {
@@ -100,5 +104,26 @@ describe("CodeBlock", () => {
     expect(screen.getByLabelText("x").className).toContain("whitespace-pre-wrap");
     rerender(<CodeBlock label="x" code="const a = 1;" language="ts" />);
     expect(screen.getByLabelText("x").className).toContain("overflow-x-auto");
+  });
+
+  it("offers to open the code wider only when it doesn't fit its box", () => {
+    const { unmount } = render(<CodeBlock label="Fits" language="ts" code="const a = 1;" />);
+    expect(screen.queryByRole("button", { name: /wider/ })).toBeNull();
+    unmount();
+
+    // jsdom lays nothing out: make every <pre> report content wider than itself.
+    vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(900);
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(400);
+    // A wide screen, so it opens as a modal (a phone gets a drawer).
+    vi.stubGlobal("matchMedia", () => ({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    render(<CodeBlock label="Handler" language="ts" code="const a = 1;" />);
+    fireEvent.click(screen.getByRole("button", { name: /wider/ }));
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.textContent).toContain("Handler");
+    expect(dialog.querySelector("pre")?.textContent).toContain("const a = 1;");
   });
 });
