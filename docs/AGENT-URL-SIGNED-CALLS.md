@@ -44,8 +44,8 @@ The signed text covers more than today's so a signature can't be reused elsewher
 v2.<key id>.<timestamp>.<owner wallet, lowercase>.<agent url>.<raw body>
 ```
 
-Header: `bonded-signature: v2=<key id>:<base64url signature>`. While an agent row also has an old
-secret, the gateway sends both `v1=` and `v2=` values (the header already allows several).
+Header: `bonded-signature: v2=<key id>:<base64url signature>`. This replaces `v1` (HMAC) for
+agent URLs outright (Section 5).
 
 ### 3.2 Ownership: the owner's wallet goes in the code, not in a secret
 
@@ -93,8 +93,9 @@ saving and verifying is one click.
 
 ## 4. Keys and rotation
 
-- **Where the key lives:** the gateway, the only thing that calls agents. Ideally in a KMS;
-  failing that, an env var on the gateway, like `AGENT_URL_SECRET_KEY` today.
+- **Where the key lives:** an env var on the gateway to start (`AGENT_URL_SIGNING_KEY`), the
+  only service that calls agents. The signer sits behind one small interface, so moving it into a
+  KMS later changes one file. Move it before the first design partner connects a real agent.
 - **Key ids:** every signature names its key id. The SDK ships the current and next public keys.
   It also fetches `https://api.<domain>/.well-known/bonded-agent-keys.json`, caches it for a day,
   and accepts only keys listed there or in the bundled ones.
@@ -105,42 +106,60 @@ saving and verifying is one click.
   a worse case than one leaked customer secret, because one key covers every agent. That is why it
   belongs in a KMS.
 
-## 5. Compatibility
+## 5. No fallback: the secret goes away
 
-- Existing secrets keep working: `createBondedHandler({ secret })` checks `v1` as it does now.
-  Rows with a secret get both headers.
-- `createBondedHandler({ owner })` is the new default in the snippets. Passing both is allowed
-  (useful while moving over).
-- New rows get no secret unless the owner asks for one ("Use a secret instead", for agents that
-  can't verify Ed25519).
-- Other languages need an Ed25519 check. Python has no Ed25519 in its standard library, so
-  `examples/python-agent-url` gains a dependency (`cryptography` or PyNaCl), or keeps the secret
-  path.
-- Webhooks and model-risk notifications (`notifications.ts`, `model-risk.ts`) use the same HMAC
-  scheme. They are out of scope; they could move later the same way.
+Decided 2026-11-12: there are no outside users yet, so agent URLs move to signed calls completely,
+in one release. No `v1` header, no secret option, no migration period.
+
+- **Removed:** the agent secret for agent URLs. That means `newAgentSecret`, the encrypted secret
+  column and its routes (`…/agent-url/secret`), `createBondedHandler({ secret })`, the HMAC verify
+  proof, `BONDED_AGENT_SECRET` in snippets, the runner's `init` and docs, and the "Lost the
+  secret?" flow in the web app.
+- **Existing rows:** our own test rows are reset. Their URLs show as not verified, and verifying
+  again with the new handler fixes them.
+- **SDK:** a breaking change for agent URLs, so the version gets a major bump (or a minor one
+  while it is still 0.x, with the change called out in the release notes).
+- **Python:** `examples/python-agent-url` checks Ed25519 with the `cryptography` package.
+- **Not in this change:** webhooks and model-risk notifications (`notifications.ts`,
+  `model-risk.ts`, `apps/api/DATA-API.md`) keep their HMAC secret. They are a different feature.
+  They could move to the same signed calls later, and should, so Bonded has one scheme.
+
+### 5.1 "Works perfectly" before the secret is deleted
+
+The secret code is deleted in the same release, so these must pass first, on the real gateway
+and the published SDK against a deployed test agent:
+
+1. A real episode is signed, checked and answered.
+2. A call with a bad signature, an old timestamp, a replayed body, an unknown key id or a
+   different URL is refused.
+3. Someone else's account saving the same URL can't verify it, and gets no episodes.
+4. A body-echo server fails verify.
+5. Rotating the key: a handler with only the bundled key, and one that fetches the keys file,
+   both keep working across the switch.
+6. The TypeScript handler (Node and edge runtimes) and the Python example both pass 1 to 4.
 
 ## 6. Work, in order
 
-Each item is its own PR, with its tests in the same commit.
+One branch per item, each with its tests in the same commit. Items 1 to 6 merge together as one
+release, since the secret is removed as the new path lands.
 
-1. **Shared:** `v2` signing payload, header format, verify and answer schemas, published-keys
-   format (`packages/shared/src/agent-url.ts`).
-2. **Gateway:** Ed25519 signer with key ids; send `v2` (and `v1` when the row has a secret);
-   pass the owner wallet and URL into the signature (`apps/arena/src/gateway/agent-url.ts`).
-3. **API:** save a URL without making a secret; verify checks the answered owner; serve the
-   published keys; keep the secret routes for rows that use one (`apps/api/src/previews.ts`,
-   `self-serve.ts`).
-4. **SDK:** `owner` option, `v2` check against bundled plus fetched keys, replay guard
-   unchanged; `npm` release. The version is a minor bump, since `secret` still works.
-5. **Web:** snippets fill in the signed-in wallet; the connect step drops the secret block
-   (secret flow behind "Use a secret instead"); the docs page is updated.
-6. **Python example and the runner's `init`:** Ed25519 check, or document the secret path.
-7. **Key setup:** generate the first key pair, store it, publish the keys file. The founder does
-   this step (it needs production access).
+1. **Shared:** `v2` signing payload, header format, verify and answer schemas, keys-file format.
+   Remove the agent-URL HMAC helpers (`packages/shared/src/agent-url.ts`).
+2. **Gateway:** Ed25519 signer with key ids, signing in the owner wallet and the URL
+   (`apps/arena/src/gateway/agent-url.ts`).
+3. **API:** save a URL without a secret; verify checks the answered owner; serve the keys file;
+   remove the secret column, routes and encryption context for agent URLs (`previews.ts`,
+   `self-serve.ts`, `secrets.ts`).
+4. **SDK:** `owner` option and the `v2` check against bundled plus fetched keys; remove
+   `secret`. Then the npm release.
+5. **Web, docs, runner `init`, Python example:** snippets fill in the signed-in wallet; the
+   connect step is "paste URL, verify"; every mention of `BONDED_AGENT_SECRET` goes.
+6. **End-to-end tests** from Section 5.1, run against the deployed test agent before merging.
+7. **Key setup (the founder):** generate the key pair, set `AGENT_URL_SIGNING_KEY` on the
+   gateway, publish the keys file. It needs production access.
 
-## 7. Open questions for the founder
+## 7. Decisions
 
-- KMS now, or a gateway env var first and KMS later?
-- Should a new row still offer a secret by default for languages without easy Ed25519, or only on
-  request?
-- Retire `v1` for agent URLs at some date, or keep it for good?
+- **Key storage:** gateway env var now, KMS before the first design partner.
+- **Secret for new URLs:** none. Signed calls only.
+- **Old scheme:** removed for agent URLs in the same release; webhooks keep HMAC for now.
