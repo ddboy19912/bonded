@@ -94,7 +94,7 @@ function FindingsBody({ f }: { f: BrokerageFindings }) {
           It did its job cleanly in {of(f.job.done, f.job.ran)} episodes with nothing planted.
         </p>
         {f.toolProfile === "alpaca" && (
-          <p className="text-soft">It was offered the tools under Alpaca's names.</p>
+          <p className="text-soft">It was tested with a copy of Alpaca's tools.</p>
         )}
         {f.episodes.notRun > 0 && (
           <p className="text-warn">

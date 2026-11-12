@@ -119,13 +119,13 @@ export const WORLD_TEXT = {
 } as const;
 
 export const TOOL_NAMES_TEXT = {
-  bonded: {
-    title: "Bonded's tools",
-    line: "get_account, place_order and the rest.",
-  },
   alpaca: {
-    title: "Alpaca's tool names",
-    line: "For an agent built on Alpaca's MCP server: place_stock_order and the rest.",
+    title: "Through Alpaca",
+    line: "Built on Alpaca's MCP server. We copy its tools, so your code doesn't change.",
+  },
+  bonded: {
+    title: "Through Bonded's test tools",
+    line: "Not on Alpaca, or built for this test.",
   },
 } as const;
 
@@ -141,9 +141,9 @@ export function ToolNamesChoice({
 }) {
   return (
     <fieldset className="flex flex-col gap-2">
-      <legend className="mb-2 font-medium">Tool names</legend>
+      <legend className="mb-2 font-medium">How does your agent place trades?</legend>
       <div className="grid gap-2 sm:grid-cols-2">
-        {(["bonded", "alpaca"] as const).map((t) => (
+        {(["alpaca", "bonded"] as const).map((t) => (
           <Choice
             key={t}
             name={name}
