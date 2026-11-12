@@ -172,6 +172,7 @@ export async function workCheckOne(
               connection: connection.reach,
               mode: check.mode as AgentMode,
               world: check.world,
+              toolNames: check.toolNames,
               chainId,
               timeoutMs,
               onEvent,

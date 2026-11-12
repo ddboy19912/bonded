@@ -5,9 +5,8 @@ import {
   type AgentToolName,
   agentToolJsonSchema,
   type AttackSurface,
-  BROKER_TOOL_NAMES,
-  BROKER_TOOLS,
-  type BrokerToolName,
+  type BrokerToolProfile,
+  brokerProfileTools,
   DoneRequest,
   type EpisodeWorld,
   toolSurface,
@@ -41,15 +40,16 @@ export interface ListedTool {
   writes: boolean;
 }
 
-/** The brokerage world's tools, as the brokerage episode's agent gets them (BROKER_TOOLS). */
-function brokerToolList(): ListedTool[] {
-  return BROKER_TOOL_NAMES.map((name: BrokerToolName) => ({
-    name,
-    description: BROKER_TOOLS[name].description,
-    inputSchema: withoutSchemaMarker(
-      z.toJSONSchema(BROKER_TOOLS[name].input) as Record<string, unknown>,
-    ),
-    writes: BROKER_TOOLS[name].writes,
+/**
+ * The brokerage world's tools, under the names the episode offers them: the world's own, or a
+ * broker's (BROKER_TOOL_PROFILES).
+ */
+function brokerToolList(_mode: AgentMode, profile: BrokerToolProfile = "bonded"): ListedTool[] {
+  return brokerProfileTools(profile).map((tool) => ({
+    name: tool.name,
+    description: tool.description,
+    inputSchema: withoutSchemaMarker(z.toJSONSchema(tool.input) as Record<string, unknown>),
+    writes: tool.writes,
   }));
 }
 
@@ -68,8 +68,8 @@ function vaultToolList(mode: AgentMode): ListedTool[] {
  * one more entry here, plus its episode message in the runner protocol.
  */
 export interface WorldCatalog {
-  /** The tools an episode offers in a mode. */
-  tools(mode: AgentMode): ListedTool[];
+  /** The tools an episode offers in a mode, under a tool profile (the brokerage world's only). */
+  tools(mode: AgentMode, profile?: BrokerToolProfile): ListedTool[];
   /** Whether the world has a chain: chain mode, the RPC endpoint and a sandbox. */
   chain: boolean;
   /** The attack surface a tool reads, for the coverage log. Only the vault world has surfaces. */
@@ -110,8 +110,12 @@ export const WORLDS: Record<EpisodeWorld, WorldCatalog> = {
 };
 
 /** The tools an episode offers: its world's, and in chain mode only the vault world's reads. */
-export function toolList(mode: AgentMode, world: EpisodeWorld = "vault"): ListedTool[] {
-  return WORLDS[world].tools(mode);
+export function toolList(
+  mode: AgentMode,
+  world: EpisodeWorld = "vault",
+  profile?: BrokerToolProfile,
+): ListedTool[] {
+  return WORLDS[world].tools(mode, profile);
 }
 
 /** Told to an agent that calls a write tool in chain mode. Not a step: nothing was attempted. */
@@ -139,6 +143,7 @@ export function openApiDocument(
   base: string,
   mode: AgentMode,
   world: EpisodeWorld = "vault",
+  profile?: BrokerToolProfile,
 ): Record<string, unknown> {
   const doneSchema = withoutSchemaMarker(z.toJSONSchema(DoneRequest) as Record<string, unknown>);
   const paths: Record<string, unknown> = {
@@ -161,7 +166,7 @@ export function openApiDocument(
       },
     },
   };
-  for (const tool of toolList(mode, world)) {
+  for (const tool of toolList(mode, world, profile)) {
     paths[`/tools/${tool.name}`] = {
       post: {
         operationId: tool.name,

@@ -2,7 +2,9 @@ import { randomBytes } from "node:crypto";
 import {
   type AgentMode,
   type AgentRunSummary,
+  ALPACA_BROKER_TOOLS,
   AttackSurface,
+  type BrokerToolProfile,
   type DoneRequest,
   type EpisodeWorld,
   problemCode,
@@ -117,6 +119,8 @@ export interface ConnectionCheckOptions {
    * `--world brokerage` (protocol 2).
    */
   world?: EpisodeWorld;
+  /** A brokerage check: whose tool names the agent is offered (default the world's own). */
+  toolProfile?: BrokerToolProfile;
 }
 
 const SURFACES = AttackSurface.options;
@@ -235,7 +239,8 @@ export async function runConnectionCheck(options: ConnectionCheckOptions): Promi
       runnerWaitMs: options.runnerWaitMs ?? CHECK_RUNNER_WAIT_MS,
       onEvent: forward,
     });
-    const episode = await runBrokerEpisode(agent, controlScenario("plain"));
+    const toolProfile = options.toolProfile ?? "bonded";
+    const episode = await runBrokerEpisode(agent, controlScenario("plain"), { toolProfile });
     const record = agent.episodes.at(-1);
     const notRun = record?.urlProblem ?? record?.bondedProblem;
     if (notRun)
@@ -258,9 +263,17 @@ export async function runConnectionCheck(options: ConnectionCheckOptions): Promi
     const vaultTools = [
       ...new Set(tally.failedTools.filter((t) => /^unknown tool/.test(t.error)).map((t) => t.name)),
     ];
-    if (vaultTools.length > 0)
+    // Alpaca's names on an episode offering Bonded's own: the agent was built on Alpaca's server.
+    // (Offered Alpaca's, those names are known, so this only happens the other way round.)
+    const alpacaNames = vaultTools.filter((name) => Object.hasOwn(ALPACA_BROKER_TOOLS, name));
+    const unknown = vaultTools.filter((name) => !alpacaNames.includes(name));
+    if (alpacaNames.length > 0)
       problems.push(
-        `It called ${vaultTools.join(", ")}, which the brokerage world doesn't have: list the episode's tools and use those (get_account, place_order, withdraw and the rest)`,
+        `It called ${alpacaNames.join(", ")}, Alpaca's tool names: choose Alpaca's tool names for this preview, or use the episode's own (get_account, place_order and the rest)`,
+      );
+    if (unknown.length > 0)
+      problems.push(
+        `It called ${unknown.join(", ")}, which the brokerage world doesn't have: list the episode's tools and use those (${toolProfile === "alpaca" ? "get_account_info, place_stock_order" : "get_account, place_order"}, withdraw and the rest)`,
       );
     if (!episode.taskCompleted && ranToEnd && tally.tools > 0)
       problems.push(

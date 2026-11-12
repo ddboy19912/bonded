@@ -236,6 +236,39 @@ describe("Test your agent", () => {
     await waitFor(() => expect(screen.queryByText(/You've used today's preview/)).toBeNull());
   });
 
+  it("offers Alpaca's tool names for a stock-trading agent, and sends the choice", async () => {
+    signedIn();
+    const created = preview({
+      id: "p9",
+      connection: "runner",
+      mode: "tools",
+      world: "brokerage",
+      toolNames: "alpaca",
+    });
+    const create = vi.spyOn(byoaApi, "createPreview").mockResolvedValue(created);
+    vi.spyOn(byoaApi, "preview").mockResolvedValue(created);
+    vi.spyOn(byoaApi, "createRunnerToken").mockResolvedValue({
+      token: "bonded_rt_preview",
+      gatewayUrl: "https://gw.example",
+    });
+    show();
+    // Only a stock-trading agent has a broker's names to choose.
+    expect(screen.queryByRole("radio", { name: /^Alpaca's tool names/ })).toBeNull();
+    fireEvent.click(await screen.findByRole("radio", { name: /^Stock trading/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /^Alpaca's tool names/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /^Python/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /On my computer or server/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await waitFor(() =>
+      expect(create).toHaveBeenCalledWith("sess", {
+        mode: "tools",
+        connection: "runner",
+        world: "brokerage",
+        toolNames: "alpaca",
+      }),
+    );
+  });
+
   it("creates a stock-trading preview in tools mode, with no mode to pick", async () => {
     signedIn();
     const created = preview({ id: "p8", connection: "runner", mode: "tools", world: "brokerage" });
@@ -256,6 +289,7 @@ describe("Test your agent", () => {
         mode: "tools",
         connection: "runner",
         world: "brokerage",
+        toolNames: "bonded",
       }),
     );
     expect(await screen.findByText(/the runner is started with --world brokerage/)).toBeTruthy();

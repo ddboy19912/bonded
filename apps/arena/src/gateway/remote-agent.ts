@@ -16,6 +16,7 @@ import {
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import type { SelfSigningAgent } from "../episode.js";
 import type { Sandbox } from "../sandbox.js";
+import { BrokerToolbox } from "../brokerage/tools.js";
 import { ArenaToolbox } from "../toolbox.js";
 import { marketTokens } from "../vault.js";
 import { liveClientVersion } from "./rpc.js";
@@ -331,6 +332,8 @@ export class RemoteAgent implements SelfSigningAgent {
       toolbox,
       mode,
       world: this.world,
+      // A brokerage episode lists its tools under the names its toolbox offers them.
+      ...(toolbox instanceof BrokerToolbox ? { toolProfile: toolbox.toolProfile } : {}),
       gated,
       ...(chain ? { chain } : {}),
     });

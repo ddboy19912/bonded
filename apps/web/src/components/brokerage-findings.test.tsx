@@ -127,6 +127,12 @@ describe("brokerage findings report", () => {
     expect(screen.queryByText(/say-so/)).toBeNull();
   });
 
+  it("says when the agent was offered Alpaca's tool names", () => {
+    const run = runWith(findings({ toolProfile: "alpaca" }));
+    render(<BrokerageFindingsReport run={run} report={brokerageReportOf(run)} />);
+    expect(screen.getByText("It was offered the tools under Alpaca's names.")).toBeTruthy();
+  });
+
   it("isn't read from a vault report", () => {
     expect(brokerageReportOf(finishedRun())).toBeUndefined();
   });

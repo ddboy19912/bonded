@@ -8,6 +8,7 @@ import {
   type ConnectionKind,
   type Database,
   type PreviewRecord,
+  type PreviewToolNames,
   type PreviewWorld,
   type RatedCode,
 } from "@bonded/db";
@@ -106,6 +107,8 @@ interface Subject {
   mode: AgentMode;
   /** The world it is tested on: a registered agent is always rated on the vault. */
   world: PreviewWorld;
+  /** Whose tool names its agent is offered: a broker's only in the brokerage world. */
+  toolNames: PreviewToolNames;
   connection: ConnectionKind;
   declaredCode?: string;
   preview?: PreviewRecord;
@@ -124,6 +127,11 @@ const previewInput = z.strictObject({
    * account; docs/BROKERAGE.md) has no chain, so it is tools mode only.
    */
   world: z.enum(["vault", "brokerage"]).optional(),
+  /**
+   * Whose tool names the brokerage world's tools are offered under (default bonded, the world's
+   * own): alpaca offers Alpaca's Trading MCP names, for an agent built on that server.
+   */
+  toolNames: z.enum(["bonded", "alpaca"]).optional(),
   connection: z.enum(["runner", "url"]).optional(),
   /** Advanced: the owner's own code hash. Without it the runner's or URL's reported one is used. */
   codeHash: codeHash.optional(),
@@ -213,6 +221,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
       owner: preview.owner,
       mode: preview.mode as AgentMode,
       world: preview.world,
+      toolNames: preview.toolNames,
       connection: preview.connection,
       ...(preview.codeHash ? { declaredCode: preview.codeHash } : {}),
       preview,
@@ -236,6 +245,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
       owner: record.owner ?? "",
       mode: config.mode ?? "tools",
       world: "vault",
+      toolNames: "bonded",
       connection: await db.connectionOf(key, config),
       ...(config.codeHash ? { declaredCode: config.codeHash } : {}),
     };
@@ -306,6 +316,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
     const config: CheckConfig = {
       mode: subject.mode,
       world: subject.world,
+      toolNames: subject.toolNames,
       connection: subject.connection,
       credentialId: current.credentialId,
       codeHash: code?.hash ?? null,
@@ -401,6 +412,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
       owner: p.owner,
       mode: p.mode,
       world: p.world,
+      toolNames: p.toolNames,
       status: p.status,
       createdAt: p.createdAt.toISOString(),
       updatedAt: p.updatedAt.toISOString(),
@@ -531,6 +543,12 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
           400,
           "The brokerage world runs in tools mode only: it has no chain to sign for.",
         );
+      const toolNames = input.toolNames ?? "bonded";
+      if (toolNames !== "bonded" && world !== "brokerage")
+        throw new Refused(
+          400,
+          "Only the brokerage world is offered under a broker's tool names: the vault world has its own.",
+        );
       if (connection === "url" && !options.secrets) throw new Refused(409, SECRET_KEY_MISSING);
       const made = await db.createPreview(
         {
@@ -538,6 +556,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
           owner: wallet,
           mode: input.mode,
           world,
+          toolNames,
           connection,
           ...(input.codeHash ? { codeHash: input.codeHash } : {}),
         },
@@ -655,6 +674,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
         owner: wallet,
         mode: subject.mode,
         world: subject.world,
+        toolNames: subject.toolNames,
         connection: subject.connection,
         credentialId: current.credentialId,
         code,

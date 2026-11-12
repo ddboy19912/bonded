@@ -51,6 +51,8 @@ export const previews = pgTable("previews", {
   mode: text().notNull(),
   /** 0034: vault or brokerage. */
   world: text().notNull().default("vault"),
+  /** 0035: bonded or alpaca, whose tool names a brokerage preview offers. */
+  toolNames: text("tool_names").notNull().default("bonded"),
   connection: text().notNull(),
   codeHash: text("code_hash"),
   status: text().notNull().default("created"),

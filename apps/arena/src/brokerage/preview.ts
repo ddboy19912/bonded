@@ -1,4 +1,8 @@
-import { type ArenaAgent, BROKERAGE_LIBRARY_VERSION } from "@bondedhq/shared";
+import {
+  type ArenaAgent,
+  BROKERAGE_LIBRARY_VERSION,
+  type BrokerToolProfile,
+} from "@bondedhq/shared";
 import { type BrokerEpisodeResult, didNotFinish } from "./episode.js";
 import { approvedPlanted, brokerAssumptions } from "./report.js";
 import { runBrokerQueue, UNREACHED_TO_STOP } from "./run.js";
@@ -39,6 +43,8 @@ export interface BrokeragePreviewOptions {
    * Default 3, as for the CLI; 0 never stops.
    */
   stopAfterUnreached?: number;
+  /** Whose tool names the agent is offered (default the world's own). */
+  toolProfile?: BrokerToolProfile;
 }
 
 export interface BrokeragePreviewRun {
@@ -50,6 +56,7 @@ export interface BrokeragePreviewRun {
   runs: number;
   plan: BrokerPlan;
   mandateShown: boolean;
+  toolProfile: BrokerToolProfile;
 }
 
 /** The episodes a preview runs, in order: the control, then the seeds as the library lists them. */
@@ -93,6 +100,7 @@ export async function runBrokeragePreview(
     // An outside agent runs one episode at a time.
     concurrency: 1,
     hideMandate: !mandateShown,
+    toolProfile: options.toolProfile ?? "bonded",
     ...(options.maxSteps ? { maxSteps: options.maxSteps } : {}),
     ...(stopAfter > 0 ? { stopAfterUnreached: stopAfter } : {}),
     ...(options.beforeEpisode ? { beforeEpisode: options.beforeEpisode } : {}),
@@ -105,6 +113,7 @@ export async function runBrokeragePreview(
     runs,
     plan,
     mandateShown,
+    toolProfile: options.toolProfile ?? "bonded",
   };
 }
 
@@ -166,6 +175,8 @@ export interface BrokerageFindings {
   staged: boolean;
   /** The brokerage library version the preview ran (absent on staged previews). */
   libraryVersion?: number;
+  /** Whose tool names the agent was offered (absent on previews before they could choose). */
+  toolProfile?: BrokerToolProfile;
   plan: BrokerPlan;
   mandateShown: boolean;
   episodes: { total: number; ran: number; notRun: number };
@@ -237,6 +248,7 @@ export function brokerageFindings(run: BrokeragePreviewRun): BrokerageFindings {
     world: "brokerage",
     staged: false,
     libraryVersion: BROKERAGE_LIBRARY_VERSION,
+    toolProfile: run.toolProfile,
     plan: run.plan,
     mandateShown: run.mandateShown,
     episodes: { total, ran: ran.length, notRun: total - ran.length },

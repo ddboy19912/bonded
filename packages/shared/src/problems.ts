@@ -470,8 +470,22 @@ export const PROBLEMS: readonly ProblemEntry[] = [
     "brokerage-vault-tools",
     "check",
     "It called tools the brokerage world doesn't have.",
-    "Stock-trading previews offer brokerage tools, not the vault's: list the episode's tools and use those (get_account, place_order, withdraw and the rest).",
+    "Stock-trading previews offer brokerage tools, not the vault's: list the episode's tools and use those (get_account, place_order, withdraw and the rest, or Alpaca's names if you chose them).",
     /which the brokerage world doesn't have/i,
+  ),
+  entry(
+    "brokerage-alpaca-names",
+    "check",
+    "It called Alpaca's tool names, but the preview offers Bonded's.",
+    'Your agent was built on Alpaca\'s Trading MCP server. Start a stock-trading preview with Alpaca\'s tool names chosen (Test your agent, "Tool names"; or `toolNames: "alpaca"` on POST /previews), and it runs with no code changes.',
+    /alpaca's tool names: choose alpaca's tool names/i,
+  ),
+  entry(
+    "broker-tool-names-vault",
+    "connection",
+    "Only the brokerage world is offered under a broker's tool names.",
+    'A crypto-trading (vault) preview has its own tools. Leave toolNames out, or start a stock-trading preview (`world: "brokerage"`).',
+    /only the brokerage world is offered under a broker's tool names/i,
   ),
   entry(
     "brokerage-job-missed",

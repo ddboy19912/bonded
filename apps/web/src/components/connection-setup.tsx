@@ -118,6 +118,47 @@ export const WORLD_TEXT = {
   },
 } as const;
 
+export const TOOL_NAMES_TEXT = {
+  bonded: {
+    title: "Bonded's tools",
+    line: "get_account, place_order and the rest.",
+  },
+  alpaca: {
+    title: "Alpaca's tool names",
+    line: "For an agent built on Alpaca's MCP server: place_stock_order and the rest.",
+  },
+} as const;
+
+/** A stock-trading agent's tools: under Bonded's names, or its broker's, so its code needn't change. */
+export function ToolNamesChoice({
+  toolNames,
+  onToolNames,
+  name = "tool-names",
+}: {
+  toolNames: "bonded" | "alpaca";
+  onToolNames: (t: "bonded" | "alpaca") => void;
+  name?: string;
+}) {
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="mb-2 font-medium">Tool names</legend>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {(["bonded", "alpaca"] as const).map((t) => (
+          <Choice
+            key={t}
+            name={name}
+            checked={toolNames === t}
+            onChange={() => onToolNames(t)}
+            title={TOOL_NAMES_TEXT[t].title}
+          >
+            {TOOL_NAMES_TEXT[t].line}
+          </Choice>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
 /** Vault or brokerage: which kind of agent this is. */
 export function WorldChoice({
   world,

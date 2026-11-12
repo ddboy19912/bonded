@@ -1777,23 +1777,35 @@ describe("brokerage previews", () => {
   });
 
   /** A stock-trading preview, connected by runner, with a passing brokerage check. */
-  async function readyBrokerage(session: string, code: string, a = app) {
-    const preview = await newPreview(session, { mode: "tools", world: "brokerage" }, a);
+  async function readyBrokerage(
+    session: string,
+    code: string,
+    a = app,
+    toolNames?: "bonded" | "alpaca",
+  ) {
+    const preview = await newPreview(
+      session,
+      { mode: "tools", world: "brokerage", ...(toolNames ? { toolNames } : {}) },
+      a,
+    );
     const made = await bodyOf(
       await send("POST", `/previews/${preview.id}/runner-token`, {}, session, a),
     );
     await connect(made.token as string, "tools", code);
     const worlds: unknown[] = [];
+    const names: unknown[] = [];
     await send("POST", `/previews/${preview.id}/checks`, {}, session, a);
     expect(
       await workCheckOne(pg.db, chainId, {
         runCheck: (request) => {
           worlds.push(request.world);
+          names.push(request.toolNames);
           return passing(request);
         },
       }),
     ).toBe(true);
     expect(worlds).toEqual(["brokerage"]);
+    expect(names).toEqual([toolNames ?? "bonded"]);
     return preview;
   }
 
@@ -1917,6 +1929,65 @@ describe("brokerage previews", () => {
       world: "brokerage",
       preview: { attested: false, insurable: false },
     });
+  }, 120_000);
+
+  it("offers a broker's tool names on the brokerage world only", async () => {
+    const session = await sessionFor(privateKeyToAccount(generatePrivateKey()));
+    const vault = await send("POST", "/previews", { mode: "tools", toolNames: "alpaca" }, session);
+    expect(vault.status).toBe(400);
+    expect((await bodyOf(vault)).error).toMatch(/Only the brokerage world/);
+    const made = (await newPreview(session, {
+      mode: "tools",
+      world: "brokerage",
+      toolNames: "alpaca",
+    })) as Record<string, unknown>;
+    expect(made).toMatchObject({ world: "brokerage", toolNames: "alpaca" });
+  });
+
+  it("checks and runs a preview under Alpaca's names, and a check under Bonded's doesn't count", async () => {
+    const session = await sessionFor(privateKeyToAccount(generatePrivateKey()));
+    const preview = await readyBrokerage(session, hash(0x7020), app, "alpaca");
+    const subject = `preview:${preview.id}`;
+    const credentialId = (await pg.db.currentConnection(subject, "runner")).credentialId;
+    const config = {
+      mode: "tools",
+      world: "brokerage" as const,
+      connection: "runner" as const,
+      credentialId,
+      codeHash: hash(0x7020),
+    };
+    expect(await pg.db.passingCheck(subject, { ...config, toolNames: "alpaca" })).toBeDefined();
+    expect(await pg.db.passingCheck(subject, { ...config, toolNames: "bonded" })).toBeUndefined();
+    expect((await send("POST", `/previews/${preview.id}/rate`, {}, session)).status).toBe(202);
+    // Built on Alpaca's server: it orders with place_stock_order, and falls for the notice.
+    const alpacaBroker = (): ArenaAgent => ({
+      name: "alpaca-broker",
+      async run(_task, tools) {
+        await tools.call("place_stock_order", { symbol: "VOO", side: "buy", notional: "2000" });
+        await tools.call("place_stock_order", { symbol: "JPM", side: "buy", notional: "3000" });
+        await tools.call("place_stock_order", { symbol: "AAPL", side: "sell", qty: "10" });
+        const notice = await tools.call("read_message", { messageId: "m-611" });
+        if (notice.ok) await tools.call("close_position", { symbol_or_asset_id: "VTI" });
+        return { steps: 0, stoppedBecause: "done" };
+      },
+    });
+    const errors: unknown[] = [];
+    expect(
+      await workPreviewOne(pg.db, chain, sandbox.rpcUrl, {
+        remote: () => alpacaBroker(),
+        onError: (e) => errors.push(e),
+      }),
+    ).toBe(true);
+    expect(errors).toEqual([]);
+    const report = await bodyOf(await get(`/previews/${preview.id}/report`, session));
+    const findings = (
+      report.report as {
+        findings: { toolProfile: string; attacks: { worked: number }; job: { done: number } };
+      }
+    ).findings;
+    expect(findings.toolProfile).toBe("alpaca");
+    expect(findings.attacks.worked).toBeGreaterThanOrEqual(1);
+    expect(findings.job.done).toBeGreaterThan(0);
   }, 120_000);
 
   it("fails as the agent's when it took part in too few episodes to say anything", async () => {
