@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ChartCandlestick, Coins, Plug } from "lucide-react";
 import type { RemoteMode } from "@bondedhq/shared";
 import { runnerCommand, runnerDockerCommand, runnerView } from "../lib/byoa";
 import {
@@ -118,6 +119,11 @@ export const WORLD_TEXT = {
   },
 } as const;
 
+const WORLD_ICON: Record<keyof typeof WORLD_TEXT, ReactNode> = {
+  vault: <Coins />,
+  brokerage: <ChartCandlestick />,
+};
+
 export const TOOL_NAMES_TEXT = {
   alpaca: {
     title: "Through Alpaca",
@@ -125,9 +131,28 @@ export const TOOL_NAMES_TEXT = {
   },
   bonded: {
     title: "Through Bonded's test tools",
-    line: "Not on Alpaca, or built for this test.",
+    line: "Our own broker tools. Pick this if your agent isn't built on Alpaca.",
   },
 } as const;
+
+/** The Bonded symbol, drawn in the surrounding text colour like the other icons. */
+function BondedMark() {
+  const url = "url(/brand/bonded-symbol-white.svg)";
+  return (
+    <span
+      className="inline-block size-[18px] bg-current"
+      style={{
+        mask: `${url} center / contain no-repeat`,
+        WebkitMask: `${url} center / contain no-repeat`,
+      }}
+    />
+  );
+}
+
+const TOOL_NAMES_ICON: Record<keyof typeof TOOL_NAMES_TEXT, ReactNode> = {
+  alpaca: <Plug />,
+  bonded: <BondedMark />,
+};
 
 /** A stock-trading agent's tools: under Bonded's names, or its broker's, so its code needn't change. */
 export function ToolNamesChoice({
@@ -150,6 +175,7 @@ export function ToolNamesChoice({
             checked={toolNames === t}
             onChange={() => onToolNames(t)}
             title={TOOL_NAMES_TEXT[t].title}
+            icon={TOOL_NAMES_ICON[t]}
           >
             {TOOL_NAMES_TEXT[t].line}
           </Choice>
@@ -180,6 +206,7 @@ export function WorldChoice({
             checked={world === w}
             onChange={() => onWorld(w)}
             title={WORLD_TEXT[w].title}
+            icon={WORLD_ICON[w]}
           >
             {WORLD_TEXT[w].line}
           </Choice>

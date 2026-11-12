@@ -384,12 +384,15 @@ export function Choice({
   type = "radio",
   disabled = false,
   flat = false,
+  icon,
 }: {
   checked: boolean;
   onChange: () => void;
   title: ReactNode;
   children?: ReactNode;
   name?: string;
+  /** A small picture for the option, drawn in a tile beside the text. */
+  icon?: ReactNode;
   type?: "radio" | "checkbox";
   /** Not available here; `children` should say why. */
   disabled?: boolean;
@@ -408,6 +411,14 @@ export function Choice({
         disabled={disabled}
         className={`mt-0.5 ${flat ? "accent-brand-bright" : ""}`}
       />
+      {icon && (
+        <span
+          aria-hidden
+          className={`grid size-9 shrink-0 place-items-center rounded-xl border transition [&_svg]:size-[18px] ${checked ? "border-accent/40 bg-accent/15 text-ink" : "border-line-strong bg-white/[0.03] text-muted"}`}
+        >
+          {icon}
+        </span>
+      )}
       <span>
         <span className={`font-semibold ${flat && checked ? "text-ink" : ""}`}>{title}</span>
         {children && <span className="mt-0.5 block text-muted">{children}</span>}
