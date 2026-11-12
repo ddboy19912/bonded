@@ -32,7 +32,8 @@ import { ApiError } from "../lib/api";
 import { Badge, Button, Choice, ErrorText, Input, linkClass } from "./ui";
 import { InlineCode } from "./code-block";
 import { Collapsible } from "./collapsible";
-import { CopyBlock, SecretOnce, Tabs } from "./copy";
+import { CopyButton } from "./copy-button";
+import { CopyBlock, Tabs } from "./copy";
 
 /** The one-line explanations of each choice, shared by every place that offers them. */
 export const CONNECTION_TEXT: Record<Connection, { title: string; line: string }> = {
@@ -621,46 +622,57 @@ export function ConnectUrl({
           <NewSecret busy={busy === "secret"} signing={signing} onConfirm={() => void renew()} />
         </div>
       ) : (
-        <div className="flex flex-col gap-3 border-l-2 border-warn/60 pl-4">
-          <p className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col gap-4 border-l-2 border-warn/60 pl-4">
+          <p className="flex min-w-0 flex-wrap items-center gap-2">
             <Badge tone="warn" dot>
-              Saved, not verified yet
+              Not verified yet
             </Badge>
-            {shownUrl && <span className="font-mono text-xs break-all">{shownUrl}</span>}
+            {shownUrl && (
+              <span className="min-w-0 font-mono text-xs break-all text-soft">{shownUrl}</span>
+            )}
           </p>
           {secret ? (
-            <>
-              <p className="font-semibold">1. Add this secret to your agent</p>
-              <SecretOnce label="Your agent secret" value={secret}>
-                Set it as <InlineCode>BONDED_AGENT_SECRET</InlineCode> where your agent runs (the
-                handler below reads it from there), then restart or redeploy it. It checks that each
-                call really comes from Bonded.
-              </SecretOnce>
-              <p className="font-semibold">2. Verify</p>
-            </>
+            <ol className="flex flex-col gap-4">
+              <li className="flex flex-col gap-2">
+                <p className="font-semibold">1. Add the secret to your agent</p>
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <code className="min-w-0 flex-1 rounded-lg bg-black/40 px-3 py-2 font-mono text-xs break-all text-soft">
+                    {secret}
+                  </code>
+                  <CopyButton text={secret} />
+                </div>
+                <p className="text-xs text-muted">
+                  Set it as <InlineCode>BONDED_AGENT_SECRET</InlineCode> where your agent runs, then
+                  redeploy. It's shown once.
+                </p>
+              </li>
+              <li className="flex flex-col gap-2">
+                <p className="font-semibold">2. Verify</p>
+                <VerifyButtons
+                  busy={busy === "verify"}
+                  signing={signing}
+                  onVerify={() => void verify()}
+                  onChange={() => setEditing(true)}
+                />
+              </li>
+            </ol>
           ) : (
-            <p className="text-xs text-soft">
-              Your agent needs the secret you were shown when you saved this URL. It isn't shown
-              again; if you no longer have it, get a new one below.
-            </p>
-          )}
-          <p className="text-xs text-soft">
-            Bonded sends <InlineCode>{'{ "type": "verify", "challenge": "…" }'}</InlineCode>, signed
-            with the secret; within 10 seconds your agent answers 200 with the challenge and its{" "}
-            <InlineCode>proof</InlineCode> (HMAC-SHA256 of{" "}
-            <InlineCode>"verify." + challenge</InlineCode>, keyed with the secret). The handler
-            below does both.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" loading={busy === "verify"} onClick={() => void verify()}>
-              {busy === "verify" && signing ? "Sign in your wallet…" : "Verify it now"}
-            </Button>
-            <Button size="sm" kind="ghost" onClick={() => setEditing(true)}>
-              Change the URL
-            </Button>
-          </div>
-          {!secret && (
-            <NewSecret busy={busy === "secret"} signing={signing} onConfirm={() => void renew()} />
+            <>
+              <p className="text-xs text-muted">
+                Your agent needs the secret shown when you saved this URL.
+              </p>
+              <VerifyButtons
+                busy={busy === "verify"}
+                signing={signing}
+                onVerify={() => void verify()}
+                onChange={() => setEditing(true)}
+              />
+              <NewSecret
+                busy={busy === "secret"}
+                signing={signing}
+                onConfirm={() => void renew()}
+              />
+            </>
           )}
         </div>
       )}
@@ -682,6 +694,29 @@ export function ConnectUrl({
         <InitCommand framework={framework} connection="url" mode={status.mode} />
       )}
       <Snippets connection="url" mode={status.mode} framework={framework} world={world} />
+    </div>
+  );
+}
+
+function VerifyButtons({
+  busy,
+  signing,
+  onVerify,
+  onChange,
+}: {
+  busy: boolean;
+  signing: boolean;
+  onVerify: () => void;
+  onChange: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button size="sm" loading={busy} onClick={onVerify}>
+        {busy && signing ? "Sign in your wallet…" : "Verify it now"}
+      </Button>
+      <Button size="sm" kind="ghost" onClick={onChange}>
+        Change the URL
+      </Button>
     </div>
   );
 }
