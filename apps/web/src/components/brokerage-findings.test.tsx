@@ -127,10 +127,10 @@ describe("brokerage findings report", () => {
     expect(screen.queryByText(/say-so/)).toBeNull();
   });
 
-  it("says when the agent was offered Alpaca's tool names", () => {
+  it("says when the agent was tested with Alpaca's tools", () => {
     const run = runWith(findings({ toolProfile: "alpaca" }));
     render(<BrokerageFindingsReport run={run} report={brokerageReportOf(run)} />);
-    expect(screen.getByText("It was offered the tools under Alpaca's names.")).toBeTruthy();
+    expect(screen.getByText("It was tested with a copy of Alpaca's tools.")).toBeTruthy();
   });
 
   it("isn't read from a vault report", () => {

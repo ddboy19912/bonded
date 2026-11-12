@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { RemoteMode } from "@bondedhq/shared";
 import { runnerCommand, runnerDockerCommand, runnerView } from "../lib/byoa";
 import {
@@ -118,16 +118,51 @@ export const WORLD_TEXT = {
   },
 } as const;
 
+/** The Global Dollar (USDG) coin, the vault world's dollar: its light disc, with the G cut out. */
+function UsdgMark() {
+  return <MaskLogo src="/tokens/usdg-mono.svg" />;
+}
+
+/** Three candles, the middle one tallest. Solid, to match. */
+function CandlesMark() {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor">
+      <rect x="4.25" y="7" width="1.5" height="14" rx="0.75" />
+      <rect x="2" y="10" width="6" height="8" rx="1.75" />
+      <rect x="11.25" y="2" width="1.5" height="15" rx="0.75" />
+      <rect x="9" y="4.5" width="6" height="10" rx="1.75" />
+      <rect x="18.25" y="5" width="1.5" height="12" rx="0.75" />
+      <rect x="16" y="7.5" width="6" height="6.5" rx="1.75" />
+    </svg>
+  );
+}
+
+const WORLD_ICON: Record<keyof typeof WORLD_TEXT, ReactNode> = {
+  vault: <UsdgMark />,
+  brokerage: <CandlesMark />,
+};
+
 export const TOOL_NAMES_TEXT = {
-  bonded: {
-    title: "Bonded's tools",
-    line: "get_account, place_order and the rest.",
-  },
   alpaca: {
-    title: "Alpaca's tool names",
-    line: "For an agent built on Alpaca's MCP server: place_stock_order and the rest.",
+    title: "Through Alpaca",
+    line: "Built on Alpaca's MCP server. We copy its tools, so your code doesn't change.",
+  },
+  bonded: {
+    title: "Through Bonded's test tools",
+    line: "Our own broker tools. Pick this if your agent isn't built on Alpaca.",
   },
 } as const;
+
+/** A logo file drawn in the surrounding text colour (its shape is used as a mask), like the icons. */
+function MaskLogo({ src }: { src: string }) {
+  const mask = `url(${src}) center / contain no-repeat`;
+  return <span className="inline-block size-7 bg-current" style={{ mask, WebkitMask: mask }} />;
+}
+
+const TOOL_NAMES_ICON: Record<keyof typeof TOOL_NAMES_TEXT, ReactNode> = {
+  alpaca: <MaskLogo src="/brand/integrations/alpaca.svg" />,
+  bonded: <MaskLogo src="/brand/bonded-symbol-white.svg" />,
+};
 
 /** A stock-trading agent's tools: under Bonded's names, or its broker's, so its code needn't change. */
 export function ToolNamesChoice({
@@ -141,15 +176,16 @@ export function ToolNamesChoice({
 }) {
   return (
     <fieldset className="flex flex-col gap-2">
-      <legend className="mb-2 font-medium">Tool names</legend>
+      <legend className="mb-2 font-medium">How does your agent place trades?</legend>
       <div className="grid gap-2 sm:grid-cols-2">
-        {(["bonded", "alpaca"] as const).map((t) => (
+        {(["alpaca", "bonded"] as const).map((t) => (
           <Choice
             key={t}
             name={name}
             checked={toolNames === t}
             onChange={() => onToolNames(t)}
             title={TOOL_NAMES_TEXT[t].title}
+            icon={TOOL_NAMES_ICON[t]}
           >
             {TOOL_NAMES_TEXT[t].line}
           </Choice>
@@ -180,6 +216,7 @@ export function WorldChoice({
             checked={world === w}
             onChange={() => onWorld(w)}
             title={WORLD_TEXT[w].title}
+            icon={WORLD_ICON[w]}
           >
             {WORLD_TEXT[w].line}
           </Choice>

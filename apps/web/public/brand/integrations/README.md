@@ -1,6 +1,6 @@
 # Integration logos
 
-Shown in the "works with" carousel on the landing page, in addition to the framework logos in
+Shown in the "works with" carousel on the landing page (and Alpaca in the stock-trading preview's broker choice), in addition to the framework logos in
 `../frameworks`. They are drawn single-colour (as a mask in the text colour), so only their shape
 matters. Logo only, no labels.
 
@@ -12,6 +12,7 @@ matters. Logo only, no labels.
 | `coinbase.svg` | Coinbase (the wordmark; for Coinbase AgentKit) | simple-icons 16.34.0, `coinbase`, with its viewBox cropped to the wordmark | CC0-1.0 |
 | `arbitrum.svg` | Arbitrum One | [Web3 Icons](https://github.com/0xa3k5/web3icons) via Iconify, `token:arbitrum-one` | MIT |
 | `safe.svg` | Safe | Web3 Icons via Iconify, `token:safe` | MIT |
+| `alpaca.svg` | Alpaca (the symbol, without the wordmark) | [theSVG](https://github.com/glincker/thesvg) via Iconify, `thesvg:alpaca`, cropped to the symbol | MIT |
 
 The licence covers the files. The marks are trademarks of their owners, shown only to say what
 Bonded works with. Phala has no mark here: none was available in a source with a clear licence.

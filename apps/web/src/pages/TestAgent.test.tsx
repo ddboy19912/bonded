@@ -236,7 +236,7 @@ describe("Test your agent", () => {
     await waitFor(() => expect(screen.queryByText(/You've used today's preview/)).toBeNull());
   });
 
-  it("offers Alpaca's tool names for a stock-trading agent, and sends the choice", async () => {
+  it("offers Alpaca's tools for a stock-trading agent, and sends the choice", async () => {
     signedIn();
     const created = preview({
       id: "p9",
@@ -252,10 +252,10 @@ describe("Test your agent", () => {
       gatewayUrl: "https://gw.example",
     });
     show();
-    // Only a stock-trading agent has a broker's names to choose.
-    expect(screen.queryByRole("radio", { name: /^Alpaca's tool names/ })).toBeNull();
+    // Only a stock-trading agent has a broker to choose.
+    expect(screen.queryByRole("radio", { name: /^Through Alpaca/ })).toBeNull();
     fireEvent.click(await screen.findByRole("radio", { name: /^Stock trading/ }));
-    fireEvent.click(screen.getByRole("radio", { name: /^Alpaca's tool names/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /^Through Alpaca/ }));
     fireEvent.click(screen.getByRole("radio", { name: /^Python/ }));
     fireEvent.click(screen.getByRole("radio", { name: /On my computer or server/ }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
