@@ -363,6 +363,12 @@ export type ConnectionKind = "runner" | "url";
 /** The world a preview tests its agent on (0034): the on-chain vault, or a brokerage account. */
 export type PreviewWorld = "vault" | "brokerage";
 
+/**
+ * Whose tool names a brokerage preview offers its agent (0035): Bonded's own, or a broker's
+ * (BROKER_TOOL_PROFILES in @bondedhq/shared). Always bonded for the vault world.
+ */
+export type PreviewToolNames = "bonded" | "alpaca";
+
 /** A preview (migration 0020). */
 export interface PreviewRecord {
   id: string;
@@ -371,6 +377,8 @@ export interface PreviewRecord {
   mode: string;
   /** 0034; vault for every preview made before it. */
   world: PreviewWorld;
+  /** 0035; bonded for every preview made before it. */
+  toolNames: PreviewToolNames;
   connection: ConnectionKind;
   codeHash: string | null;
   status: string;
@@ -399,6 +407,8 @@ export interface CheckConfig {
   mode: string;
   /** The world the check ran on (default vault): a check passes only previews of its world. */
   world?: PreviewWorld;
+  /** The tool names it offered (default bonded): a check passes only previews offering the same. */
+  toolNames?: PreviewToolNames;
   connection: ConnectionKind;
   /** The runner token or Agent URL in use. */
   credentialId: string | null;
@@ -414,6 +424,8 @@ export interface ConnectionCheckRecord {
   mode: string;
   /** 0034. */
   world: PreviewWorld;
+  /** 0035. */
+  toolNames: PreviewToolNames;
   connection: ConnectionKind;
   credentialId: string | null;
   codeHash: string | null;
@@ -512,6 +524,7 @@ const previewRow = (row: Record<string, unknown>): PreviewRecord => ({
   owner: row.owner as string,
   mode: row.mode as string,
   world: ((row.world as PreviewWorld | undefined) ?? "vault") as PreviewWorld,
+  toolNames: ((row.tool_names as PreviewToolNames | undefined) ?? "bonded") as PreviewToolNames,
   connection: row.connection as ConnectionKind,
   codeHash: (row.code_hash as string | null) ?? null,
   status: row.status as string,
@@ -528,6 +541,7 @@ const checkRow = (row: Record<string, unknown>): ConnectionCheckRecord => ({
   owner: row.owner as string,
   mode: row.mode as string,
   world: ((row.world as PreviewWorld | undefined) ?? "vault") as PreviewWorld,
+  toolNames: ((row.tool_names as PreviewToolNames | undefined) ?? "bonded") as PreviewToolNames,
   connection: row.connection as ConnectionKind,
   credentialId: (row.credential_id as string | null) ?? null,
   codeHash: (row.code_hash as string | null) ?? null,
@@ -625,6 +639,7 @@ export class Database {
       "0032_remove_key_routes.sql",
       "0033_gate_budgets.sql",
       "0034_preview_world.sql",
+      "0035_preview_tool_names.sql",
     ];
     await this.transaction(async (c) => {
       await c.query("SELECT pg_advisory_xact_lock(7001)");
@@ -2341,6 +2356,8 @@ export class Database {
       mode: string;
       /** Default vault. */
       world?: PreviewWorld;
+      /** Default bonded. */
+      toolNames?: PreviewToolNames;
       connection: ConnectionKind;
       codeHash?: string;
     },
@@ -2362,8 +2379,8 @@ export class Database {
           nextAt: new Date((made.first as Date).getTime() + 86_400_000),
         };
       const r = await c.query(
-        `INSERT INTO previews(id,chain_id,owner,mode,connection,code_hash,created_at,updated_at,world)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$7,$8) RETURNING *`,
+        `INSERT INTO previews(id,chain_id,owner,mode,connection,code_hash,created_at,updated_at,world,tool_names)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$7,$8,$9) RETURNING *`,
         [
           randomUUID(),
           p.chainId,
@@ -2373,6 +2390,7 @@ export class Database {
           p.codeHash?.toLowerCase() ?? null,
           new Date(quota.nowMs),
           p.world ?? "vault",
+          p.toolNames ?? "bonded",
         ],
       );
       await this.countFunnel("preview_started", c);
@@ -2532,6 +2550,7 @@ export class Database {
             mode: preview.mode,
             connection: preview.connection,
             world: preview.world,
+            toolNames: preview.tool_names ?? "bonded",
           }),
           rated?.hash.toLowerCase() ?? null,
           rated?.source ?? null,
@@ -2748,6 +2767,8 @@ export class Database {
       mode: string;
       /** Default vault. */
       world?: PreviewWorld;
+      /** Default bonded. */
+      toolNames?: PreviewToolNames;
       connection: ConnectionKind;
       credentialId: string | null;
       code?: RatedCode | undefined;
@@ -2793,8 +2814,8 @@ export class Database {
         };
       const r = await c.query(
         `INSERT INTO connection_checks(id,subject,chain_id,owner,mode,connection,credential_id,code_hash,
-                                       code_source,status,result,finished_at,world)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,CASE WHEN $10='failed' THEN now() END,$12) RETURNING *`,
+                                       code_source,status,result,finished_at,world,tool_names)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,CASE WHEN $10='failed' THEN now() END,$12,$13) RETURNING *`,
         [
           randomUUID(),
           input.subject,
@@ -2808,6 +2829,7 @@ export class Database {
           immediate === undefined ? "queued" : "failed",
           immediate === undefined ? null : json(immediate),
           input.world ?? "vault",
+          input.toolNames ?? "bonded",
         ],
       );
       if (immediate !== undefined)
@@ -2856,7 +2878,7 @@ export class Database {
     const r = await this.pool.query(
       `SELECT * FROM connection_checks WHERE subject=$1 AND status='passed' AND mode=$2 AND connection=$3
          AND credential_id IS NOT DISTINCT FROM $4::uuid AND code_hash IS NOT DISTINCT FROM $5
-         AND finished_at > now() - make_interval(secs => $6) AND world=$7
+         AND finished_at > now() - make_interval(secs => $6) AND world=$7 AND tool_names=$8
        ORDER BY finished_at DESC LIMIT 1`,
       [
         subject,
@@ -2866,6 +2888,7 @@ export class Database {
         config.codeHash?.toLowerCase() ?? null,
         withinMs / 1000,
         config.world ?? "vault",
+        config.toolNames ?? "bonded",
       ],
     );
     return r.rows[0] ? checkRow(r.rows[0]) : undefined;

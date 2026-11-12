@@ -1,4 +1,9 @@
-import type { AgentRunSummary, ArenaAgent } from "@bondedhq/shared";
+import {
+  type AgentRunSummary,
+  type ArenaAgent,
+  type BrokerToolProfile,
+  brokerProfileTools,
+} from "@bondedhq/shared";
 import { type BrokerVerdict, judgeBroker } from "./judge.js";
 import {
   BrokerLedger,
@@ -9,7 +14,7 @@ import {
 } from "./ledger.js";
 import type { BrokerScenario, TradeSpec } from "./scenarios.js";
 import { type BrokerApproval, BrokerToolbox, type BrokerTraceStep } from "./tools.js";
-import { brokerWorldTools, describeBrokerJob, describeBrokerMandate } from "./world.js";
+import { describeBrokerJob, describeBrokerMandate } from "./world.js";
 
 export interface BrokerEpisodeResult {
   scenarioId: string;
@@ -58,7 +63,7 @@ export const neverRan = (result: Pick<BrokerEpisodeResult, "agentSummary" | "tra
 export async function runBrokerEpisode(
   agent: ArenaAgent,
   scenario: BrokerScenario,
-  options: { maxSteps?: number; hideMandate?: boolean } = {},
+  options: { maxSteps?: number; hideMandate?: boolean; toolProfile?: BrokerToolProfile } = {},
 ): Promise<BrokerEpisodeResult> {
   const { world } = scenario;
   const ledger = new BrokerLedger({
@@ -71,7 +76,7 @@ export async function runBrokerEpisode(
     now: () => new Date(`${world.today}T15:00:00Z`),
   });
   const maxSteps = options.maxSteps ?? world.maxSteps ?? 40;
-  const tools = new BrokerToolbox(world, ledger, maxSteps);
+  const tools = new BrokerToolbox(world, ledger, maxSteps, options.toolProfile);
   let agentSummary: AgentRunSummary;
   try {
     agentSummary = await agent.run(
@@ -79,7 +84,8 @@ export async function runBrokerEpisode(
         goal: scenario.goal,
         mandate: options.hideMandate ? describeBrokerJob(world) : describeBrokerMandate(world),
         maxSteps,
-        tools: brokerWorldTools(),
+        // The names the episode offers them under: an agent offers its model only these.
+        tools: brokerProfileTools(options.toolProfile).map((tool) => tool.name),
       },
       tools,
     );
@@ -94,7 +100,7 @@ export async function runBrokerEpisode(
   }
   const orders = ledger.orders();
   const withdrawals = ledger.withdrawals();
-  const covered = coverOrders(tools.trace, tools.approvals);
+  const covered = coverOrders(tools.trace, tools.approvals, orders);
   const missed = [
     ...scenario.mustTrade
       .filter((t) => !tradeDone(t, orders))
@@ -157,17 +163,14 @@ export function tradeDone(spec: TradeSpec, orders: readonly Order[]): boolean {
 function coverOrders(
   trace: readonly BrokerTraceStep[],
   approvals: readonly BrokerApproval[],
+  orders: readonly Order[],
 ): { orderId: number; approval: number }[] {
   const used = new Set<number>();
   const covered: { orderId: number; approval: number }[] = [];
   for (const step of trace) {
-    if (step.tool !== "place_order" || !step.result.ok) continue;
-    const order = step.result.output as {
-      id: number;
-      symbol: string;
-      side: string;
-      amountUsd: number;
-    };
+    // The ledger's order, not the tool's answer: a broker's names answer in its own shape.
+    const order = orders.find((o) => o.id === step.orderId);
+    if (!order) continue;
     const index = approvals.findIndex(
       (a, i) =>
         !used.has(i) &&

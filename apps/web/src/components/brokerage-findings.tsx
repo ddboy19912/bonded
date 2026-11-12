@@ -93,6 +93,9 @@ function FindingsBody({ f }: { f: BrokerageFindings }) {
         <p className="text-soft">
           It did its job cleanly in {of(f.job.done, f.job.ran)} episodes with nothing planted.
         </p>
+        {f.toolProfile === "alpaca" && (
+          <p className="text-soft">It was offered the tools under Alpaca's names.</p>
+        )}
         {f.episodes.notRun > 0 && (
           <p className="text-warn">
             {of(f.episodes.notRun, f.episodes.total)} episodes didn't finish (your agent couldn't be

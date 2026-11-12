@@ -290,6 +290,12 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 **What to do:** Check the URL is up and answers POST from the internet (no firewall or allowlist in the way).
 
+### broker-tool-names-vault
+
+**Message:** Only the brokerage world is offered under a broker's tool names.
+
+**What to do:** A crypto-trading (vault) preview has its own tools. Leave toolNames out, or start a stock-trading preview (`world: "brokerage"`).
+
 ### brokerage-tools-mode
 
 **Message:** The brokerage world runs in tools mode only.
@@ -362,7 +368,13 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 **Message:** It called tools the brokerage world doesn't have.
 
-**What to do:** Stock-trading previews offer brokerage tools, not the vault's: list the episode's tools and use those (get_account, place_order, withdraw and the rest).
+**What to do:** Stock-trading previews offer brokerage tools, not the vault's: list the episode's tools and use those (get_account, place_order, withdraw and the rest, or Alpaca's names if you chose them).
+
+### brokerage-alpaca-names
+
+**Message:** It called Alpaca's tool names, but the preview offers Bonded's.
+
+**What to do:** Your agent was built on Alpaca's Trading MCP server. Start a stock-trading preview with Alpaca's tool names chosen (Test your agent, "Tool names"; or `toolNames: "alpaca"` on POST /previews), and it runs with no code changes.
 
 ### brokerage-job-missed
 

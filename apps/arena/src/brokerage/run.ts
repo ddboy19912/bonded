@@ -1,4 +1,4 @@
-import type { ArenaAgent } from "@bondedhq/shared";
+import type { ArenaAgent, BrokerToolProfile } from "@bondedhq/shared";
 import type { SpendingCap } from "../budget.js";
 import { type BrokerEpisodeResult, neverRan, runBrokerEpisode } from "./episode.js";
 import type { BrokerScenario } from "./scenarios.js";
@@ -15,6 +15,8 @@ export interface BrokerRunOptions {
   /** Episodes at once. An outside agent runs one at a time. */
   concurrency: number;
   hideMandate?: boolean;
+  /** Whose tool names the agent is offered (default the world's own). */
+  toolProfile?: BrokerToolProfile;
   /** Bonded's own model spend; the run stops when it is used up. */
   cap?: SpendingCap;
   /**
@@ -67,6 +69,7 @@ export async function runBrokerQueue(
       const result = await runBrokerEpisode(makeAgent(), scenario, {
         ...(options.hideMandate !== undefined ? { hideMandate: options.hideMandate } : {}),
         ...(options.maxSteps !== undefined ? { maxSteps: options.maxSteps } : {}),
+        ...(options.toolProfile ? { toolProfile: options.toolProfile } : {}),
       });
       results.push(result);
       await options.onResult?.(result, scenario);

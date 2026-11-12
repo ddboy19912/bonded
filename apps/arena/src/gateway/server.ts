@@ -9,6 +9,7 @@ import {
   type AgentToolbox,
   BROKERAGE_PROTOCOL_VERSION,
   type EpisodeEndpoints,
+  type BrokerToolProfile,
   type EpisodeWorld,
   type HelloMessage,
   isAgentToolName,
@@ -329,6 +330,8 @@ export interface EpisodeSpec {
   mode: AgentMode;
   /** The world whose tools the episode serves (default vault). Only the vault world has chain mode. */
   world?: EpisodeWorld;
+  /** Whose tool names a brokerage episode's tools are listed under (default the world's own). */
+  toolProfile?: BrokerToolProfile;
   /** Chain mode: where the RPC endpoint forwards, and whose transactions it accepts. */
   chain?: Omit<RpcBinding, "toolbox">;
   /** Hold every request until `open()` is called (a TEE-bound episode waits for its evidence). */
@@ -369,6 +372,10 @@ export class GatewayEpisode {
 
   get world(): EpisodeWorld {
     return this.spec.world ?? "vault";
+  }
+
+  get toolProfile(): BrokerToolProfile | undefined {
+    return this.spec.toolProfile;
   }
 
   get isClosed(): boolean {
@@ -621,6 +628,8 @@ export class ArenaGateway {
       throw new Error(`the ${world} world has no chain mode`);
     if (world !== "vault" && spec.toolbox instanceof ArenaToolbox)
       throw new Error(`the ${world} world can't be served from the vault world's toolbox`);
+    if (world !== "brokerage" && spec.toolProfile && spec.toolProfile !== "bonded")
+      throw new Error(`only the brokerage world is offered under a broker's tool names`);
     const token = newCapabilityToken();
     const key = hashToken(token);
     const base = `${this.url}/e/${token}`;
@@ -682,9 +691,13 @@ export class ArenaGateway {
     const method = req.method ?? "GET";
     const base = `${this.url}/e/${episode.token}`;
     if (route === "tools" && method === "GET")
-      return reply(res, 200, { tools: toolList(episode.mode, episode.world) });
+      return reply(res, 200, { tools: toolList(episode.mode, episode.world, episode.toolProfile) });
     if (route === "openapi.json" && method === "GET")
-      return reply(res, 200, openApiDocument(base, episode.mode, episode.world));
+      return reply(
+        res,
+        200,
+        openApiDocument(base, episode.mode, episode.world, episode.toolProfile),
+      );
     if (route === "mcp") {
       if (method !== "POST") {
         res.setHeader("allow", "POST");

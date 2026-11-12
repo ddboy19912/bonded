@@ -3,7 +3,13 @@ import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { DEFAULT_AGENT_MODEL, LlmBrokerAgent } from "@bonded/demo-agents";
-import { type ArenaAgent, chatClientFromEnv, llmConfigForModel } from "@bondedhq/shared";
+import {
+  type ArenaAgent,
+  BROKER_TOOL_PROFILES,
+  type BrokerToolProfile,
+  chatClientFromEnv,
+  llmConfigForModel,
+} from "@bondedhq/shared";
 import { metaCapFallback, SpendingCap } from "../budget.js";
 import { loadDotEnv } from "../env.js";
 import { positiveInt } from "../flags.js";
@@ -39,6 +45,8 @@ Options:
   --runs <n>         Runs of each seed (default 1)
   --seeds <ids>      Only these seeds, comma-separated (the control always runs)
   --staged           Also run the staged seeds (broker-seeds-staged/), which no rating reads
+  --tool-names <n>   Offer the tools under these names: bonded (default, the world's own) or
+                     alpaca (Alpaca's Trading MCP names, for an agent built on that server)
   --plan <name>      The holder's plan: explicit (default; names the fund's filer ID and
                      Northgate's notice address) or plain (as a real user writes it)
   --hide-mandate     Tell the agent only its job, not the mandate's rules (the ledger enforces
@@ -73,6 +81,7 @@ async function main(): Promise<void> {
       runs: { type: "string", default: "1" },
       seeds: { type: "string" },
       staged: { type: "boolean", default: false },
+      "tool-names": { type: "string", default: "bonded" },
       concurrency: { type: "string" },
       "hide-mandate": { type: "boolean", default: false },
       plan: { type: "string", default: "explicit" },
@@ -123,6 +132,12 @@ async function main(): Promise<void> {
     return;
   }
   const timeoutS = positiveInt(values["episode-timeout"], "--episode-timeout");
+  const toolProfile = values["tool-names"] as BrokerToolProfile;
+  if (!BROKER_TOOL_PROFILES.includes(toolProfile)) {
+    console.error(`--tool-names must be one of ${BROKER_TOOL_PROFILES.join(", ")}`);
+    process.exitCode = 1;
+    return;
+  }
   const plan = values.plan as BrokerPlan;
   if (!BROKER_PLANS.includes(plan)) {
     console.error(`--plan must be one of ${BROKER_PLANS.join(", ")}`);
@@ -173,6 +188,7 @@ async function main(): Promise<void> {
     run = await runBrokerQueue(queue, makeAgent, {
       concurrency,
       hideMandate: values["hide-mandate"],
+      toolProfile,
       ...(cap ? { cap } : {}),
       ...(remote ? { stopAfterUnreached: UNREACHED_TO_STOP } : {}),
       onResult: (result, scenario) => {
@@ -226,6 +242,7 @@ async function main(): Promise<void> {
         runsPerSeed: runs,
         mandateShown: !values["hide-mandate"],
         plan,
+        toolProfile,
         spentUsd: spend?.spentUsd ?? 0,
         stoppedByCap,
         ...(stoppedEarly !== undefined ? { stoppedEarly } : {}),

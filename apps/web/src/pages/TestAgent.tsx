@@ -10,6 +10,7 @@ import {
   type Connection,
   type PreviewRecord,
   type PreviewSession,
+  type PreviewToolNames,
   type PreviewWorld,
 } from "../lib/byoa-api";
 import {
@@ -45,6 +46,7 @@ import {
   ConnectStep,
   MODE_TEXT,
   ModeChoice,
+  ToolNamesChoice,
   WorldChoice,
 } from "../components/connection-setup";
 import { BrokerageFindingsReport, brokerageReportOf } from "../components/brokerage-findings";
@@ -112,6 +114,7 @@ export function TestAgent() {
   const [connection, setConnection] = useState<Connection>("url");
   const [mode, setMode] = useState<RemoteMode>("tools");
   const [world, setWorld] = useState<PreviewWorld>("vault");
+  const [toolNames, setToolNames] = useState<PreviewToolNames>("bonded");
   const [framework, setFramework] = useFramework();
   const [changing, setChanging] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -231,6 +234,7 @@ export function TestAgent() {
         mode: world === "brokerage" ? "tools" : mode,
         connection,
         world,
+        ...(world === "brokerage" ? { toolNames } : {}),
       });
       // Seeded, so the page goes straight on to connecting without a loading flash.
       queryClient.setQueryData(["preview", p.id, session.session], p);
@@ -247,6 +251,7 @@ export function TestAgent() {
   const rateAgain = async (from: PreviewRecord) => {
     setMode(from.mode);
     setWorld(from.world ?? "vault");
+    setToolNames(from.toolNames ?? "bonded");
     setConnection(from.connection);
     if (!session) return;
     setCreating(true);
@@ -256,6 +261,7 @@ export function TestAgent() {
         mode: from.mode,
         connection: from.connection,
         world: from.world ?? "vault",
+        ...(from.world === "brokerage" ? { toolNames: from.toolNames ?? "bonded" } : {}),
       });
       queryClient.setQueryData(["preview", next.id, session.session], next);
       setParams({ preview: next.id });
@@ -384,6 +390,7 @@ export function TestAgent() {
                           setConnection(p.connection);
                           setMode(p.mode);
                           setWorld(p.world ?? "vault");
+                          setToolNames(p.toolNames ?? "bonded");
                           setChanging(true);
                         }}
                       >
@@ -396,6 +403,9 @@ export function TestAgent() {
             >
               <div className="flex flex-col gap-6">
                 <WorldChoice world={world} onWorld={setWorld} />
+                {world === "brokerage" && (
+                  <ToolNamesChoice toolNames={toolNames} onToolNames={setToolNames} />
+                )}
                 <FrameworkQuestions
                   flat
                   name="preview"

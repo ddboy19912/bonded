@@ -105,6 +105,22 @@ Add `--agent-url <url>` to reach your agent by its own URL instead. The other op
 - **Inside the episode** the runner sets `BONDED_WORLD=brokerage` with the usual `BONDED_MCP_URL`, `BONDED_TOOLS_URL`, `BONDED_OPENAPI_URL`, `BONDED_DONE_URL`, `BONDED_TASK` and `BONDED_DEADLINE_MS`, and none of the vault variables. With `@bondedhq/sdk`, read it with `fromBondedBrokerageEnv()`; `bondedEpisodeWorld()` says which world the episode is. `isBondedEpisode()` is true in both worlds, so an agent under test never falls through to its production tools.
 - **By Agent URL** a brokerage episode is `{ type: "episode", world: "brokerage", ... }`. `createBondedHandler` runs it with `onBrokerageEpisode`, and answers 422 to one when that's missing, so an agent built for the vault world never gets one by surprise.
 
+## Your broker's tool names
+
+An agent built on a broker's own MCP server calls that broker's tool names. Bonded offers the brokerage world under them too, so the agent is tested with no code changes: only the server's URL changes.
+
+| Profile | Offered as | For |
+|---|---|---|
+| `bonded` (default) | `get_account`, `place_order`, `list_news` and the rest | Agents built for Bonded, or any MCP agent that lists its tools |
+| `alpaca` | `get_account_info`, `get_all_positions`, `get_open_position`, `get_orders`, `place_stock_order`, `close_position`, `get_stock_latest_quote`, `get_news`, with Alpaca's argument names (`qty` and `notional` as strings, `symbol_or_asset_id`, `symbols`) | Agents built on Alpaca's Trading MCP server (`alpacahq/alpaca-mcp-server`, names read from its source on 2026-11-12) |
+
+- **What Alpaca's server doesn't have keeps Bonded's names.** Filings, social posts, analyst notes, alerts, messages, the holder's instructions and linked accounts, `request_approval` and `withdraw` are listed beside Alpaca's tools, as an agent would have them from another server. The attacks live in those channels too.
+- **Answers look like Alpaca's.** The account, positions and orders come back with Alpaca's field names (`cash`, `qty`, `filled_avg_price`, `status: "filled"`), decimals as strings.
+- **Only market orders fill, as in the world itself.** `place_stock_order` with another `type`, a limit or stop price, a `time_in_force` other than `day`, or `extended_hours` (Alpaca takes it on limit orders only) is refused with a message saying so. As on Alpaca, a repeated `client_order_id` is refused (orders list the one they were placed under), and `close_position` never sells more than is held. `get_news` returns every story in the account's feed: the feed has no ticker tags, so `symbols` doesn't filter it.
+- **The judging doesn't change.** Each call runs as the world's own tool (`place_stock_order` as `place_order`), so the ledger records the same orders, and exposure, approvals and scoring read the same trace. The trace keeps the name the agent called beside it (`calledAs`).
+- **Where to choose it:** "Tool names" on Test your agent (Stock trading), `toolNames` on `POST /previews`, or `--tool-names alpaca` on `broker`. A connection check is for one set of names: a check under Bonded's names doesn't open a preview under Alpaca's. An agent that calls Alpaca's names on a preview offering Bonded's is told to choose Alpaca's.
+- **Robinhood next.** Its hosted agentic trading server's names (`place_equity_order`, `review_equity_order` and others) are reported by several sources, but its argument shapes aren't published. They need a `tools/list` on the real endpoint, from a partner who uses it.
+
 ## Two plans
 
 The holder's plan comes in two versions (`--plan`, `src/brokerage/scenarios.ts`). The ledger enforces the same mandate under both.
@@ -166,6 +182,6 @@ Assumptions: one agent template, 3 runs of each episode per briefing, one simula
 
 ## What's next
 
-1. **Release.** Runner 0.1.4, SDK 0.1.7 and shared 0.1.6 carry protocol 2, so partners can use `npx @bondedhq/runner --world brokerage` and `onBrokerageEpisode` for brokerage previews. The gateway must be deployed before the runner is published: only an updated gateway accepts a runner started with `--world brokerage`. Vault-world runners are unaffected either way, because they still say protocol 1. The same gateway change can serve the invoice world next, so outside invoice-paying agents can be tested too.
-2. **Broker tool names.** Offer the world under the tool names real broker integrations use, so a team points its agent at Bonded instead of its broker with no code changes. Start with the broker the first partner uses.
+1. **The invoice world through the gateway.** Runner 0.1.4, SDK 0.1.7 and shared 0.1.6 (released 2026-11-11) carry protocol 2 for the brokerage world. The same gateway change can serve the invoice world next, so outside invoice-paying agents can be tested too.
+2. **More broker tool names.** Alpaca's are done ("Your broker's tool names"). Add Robinhood's once a partner on it can run `tools/list` against the real endpoint, and others on demand.
 3. **More models.** Rate Claude Sonnet 5.5 or Haiku 5.5 on the stock-trading rows when a pitch or partner needs the comparison. Muse models are no longer tested.

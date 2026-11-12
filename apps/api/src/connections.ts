@@ -98,6 +98,8 @@ export interface ConnectionCheckRequest {
   mode: AgentMode;
   /** The world to check on (default vault). */
   world?: "vault" | "brokerage";
+  /** A brokerage check: whose tool names the agent is offered (default bonded). */
+  toolNames?: "bonded" | "alpaca";
   chainId: number;
   timeoutMs: number;
   onEvent: (event: ConnectionCheckEvent) => void;
@@ -142,6 +144,7 @@ export function gatewayCheckRunner(gateway: ArenaGateway): ConnectionCheckRunner
       transport: request.connection,
       mode: request.mode,
       ...(request.world ? { world: request.world } : {}),
+      ...(request.toolNames ? { toolProfile: request.toolNames } : {}),
       episodeTimeoutMs: Math.min(request.timeoutMs, 90_000),
       onEvent: (event) => request.onEvent(event as ConnectionCheckEvent),
     });

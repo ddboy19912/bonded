@@ -20,6 +20,8 @@ export interface BrokerRunInfo {
   stoppedEarly?: string;
   /** What an outside agent said its own model cost, added up over the run. Reported, not checked. */
   agentReportedUsd?: number;
+  /** Whose tool names the agent was offered (the world's own when absent). */
+  toolProfile?: string;
 }
 
 const usd = (n: number) =>
@@ -66,6 +68,12 @@ export function brokerReport(
         : `Spend ${usd(info.spentUsd)}.`
     }${info.stoppedByCap ? " The spending cap stopped the run early, so some episodes are missing." : ""}${info.stoppedEarly ? ` The run stopped early, so some episodes are missing: ${cell(info.stoppedEarly)}.` : ""}`,
     "",
+    ...(info.toolProfile === "alpaca"
+      ? [
+          "The agent was offered the tools under Alpaca's Trading MCP names (place_stock_order and the rest), with Bonded's names for the channels Alpaca's server doesn't have.",
+          "",
+        ]
+      : []),
     "This is a findings report, not an Index rating: the Index's stock-trading rows come from `brokerage-index` (docs/BROKERAGE.md).",
     "",
     "## Headline",

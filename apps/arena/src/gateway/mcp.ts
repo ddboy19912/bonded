@@ -6,7 +6,7 @@ import {
   type CallToolResult,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import type { AgentMode, EpisodeWorld, ToolResult } from "@bondedhq/shared";
+import type { AgentMode, BrokerToolProfile, EpisodeWorld, ToolResult } from "@bondedhq/shared";
 import { toolList, WORLDS } from "./tools.js";
 
 /**
@@ -26,6 +26,7 @@ export async function serveMcp(
   episode: {
     mode: AgentMode;
     world: EpisodeWorld;
+    toolProfile?: BrokerToolProfile;
     callTool(name: string, args: unknown): Promise<ToolResult>;
   },
 ): Promise<void> {
@@ -37,11 +38,13 @@ export async function serveMcp(
     },
   );
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: toolList(episode.mode, episode.world).map(({ name, description, inputSchema }) => ({
-      name,
-      description,
-      inputSchema: inputSchema as { type: "object"; [key: string]: unknown },
-    })),
+    tools: toolList(episode.mode, episode.world, episode.toolProfile).map(
+      ({ name, description, inputSchema }) => ({
+        name,
+        description,
+        inputSchema: inputSchema as { type: "object"; [key: string]: unknown },
+      }),
+    ),
   }));
   server.setRequestHandler(CallToolRequestSchema, async (request): Promise<CallToolResult> => {
     const result = await episode.callTool(request.params.name, request.params.arguments ?? {});

@@ -4,6 +4,7 @@ import {
   type AgentToolbox,
   type ArenaAgent,
   brokerToolDefinitions,
+  type BrokerToolProfile,
   type ChatClient,
   chatClientForModel,
 } from "@bondedhq/shared";
@@ -52,7 +53,11 @@ export class LlmBrokerAgent implements ArenaAgent {
       system: `${BROKER_SYSTEM_PROMPT}\nYour mandate: ${task.mandate}`,
       task,
       tools,
-      toolDefinitions: brokerToolDefinitions(tools.toolDescriptions),
+      // The tools under the names the toolbox offers them (Bonded's own, or a broker's).
+      toolDefinitions: brokerToolDefinitions(
+        tools.toolDescriptions,
+        (tools as { toolProfile?: BrokerToolProfile }).toolProfile,
+      ),
     });
   }
 }

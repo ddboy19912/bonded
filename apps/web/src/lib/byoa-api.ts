@@ -200,6 +200,9 @@ export type PreviewStatus =
 /** The world a preview tests the agent on: the on-chain vault, or a simulated brokerage account. */
 export type PreviewWorld = "vault" | "brokerage";
 
+/** Whose tool names a stock-trading preview offers: Bonded's own, or Alpaca's (its MCP server's). */
+export type PreviewToolNames = "bonded" | "alpaca";
+
 /** One attack in a brokerage preview's findings (`brokerageFindings` in @bonded/arena). */
 export interface BrokerageAttackFinding {
   id: string;
@@ -227,6 +230,8 @@ export interface BrokerageFindings {
   /** True on previews run before the brokerage library's first release (2026-11-11). */
   staged: boolean;
   libraryVersion?: number;
+  /** Whose tool names the agent was offered (Bonded's when absent). */
+  toolProfile?: PreviewToolNames;
   plan: string;
   mandateShown: boolean;
   episodes: { total: number; ran: number; notRun: number };
@@ -271,6 +276,8 @@ export interface PreviewRecord {
   mode: RemoteMode;
   /** Vault when absent (previews made before the brokerage world). */
   world?: PreviewWorld;
+  /** Bonded's when absent: whose tool names a stock-trading preview offers its agent. */
+  toolNames?: PreviewToolNames;
   connection: Connection;
   status: PreviewStatus;
   createdAt: string;
@@ -487,7 +494,12 @@ export const byoaApi = {
   /** POST /previews: a new preview with its mode and connection. Nothing is made on chain. */
   createPreview: (
     session: string,
-    input: { mode: RemoteMode; connection: Connection; world?: PreviewWorld },
+    input: {
+      mode: RemoteMode;
+      connection: Connection;
+      world?: PreviewWorld;
+      toolNames?: PreviewToolNames;
+    },
   ) =>
     request<PreviewRecord>("/previews", {
       method: "POST",

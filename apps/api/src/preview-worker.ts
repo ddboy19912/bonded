@@ -109,7 +109,8 @@ async function runPreview(
   };
   const row = (
     await db.pool.query(
-      `SELECT r.code_hash,r.code_source,v.id AS preview_id,v.owner,v.mode,v.connection,v.world
+      `SELECT r.code_hash,r.code_source,v.id AS preview_id,v.owner,v.mode,v.connection,v.world,
+              v.tool_names
        FROM ratings r JOIN previews v ON v.id=r.preview_id WHERE r.id=$1`,
       [job.id],
     )
@@ -121,6 +122,7 @@ async function runPreview(
     mode: AgentMode;
     connection: "runner" | "url";
     world: "vault" | "brokerage";
+    tool_names: "bonded" | "alpaca";
   };
   const key = previewKey(row.preview_id);
 
@@ -157,6 +159,8 @@ async function runPreview(
     const run = await runBrokeragePreview(agent, {
       plan: "plain",
       mandateShown: true,
+      // The tools under the names the agent was built for (Bonded's own, or its broker's).
+      toolProfile: row.tool_names ?? "bonded",
       beforeEpisode: async (index, total) => {
         if (index === 0)
           await db.setRatingProgress(job, { done: 0, total, startedAt: new Date(started) });
