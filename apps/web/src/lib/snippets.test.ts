@@ -96,7 +96,7 @@ describe("stock-trading (brokerage) snippets", () => {
       expect(s.note).toMatch(/runner` 0\.1\.4 or later, and `@bondedhq\/sdk` 0\.1\.7 or later if/);
     // An Agent URL agent has no runner: it needs only the SDK.
     for (const s of url.slice(0, 2)) {
-      expect(s.note).toMatch(/`@bondedhq\/sdk` 0\.1\.7 or later\.$/);
+      expect(s.note).toMatch(/`@bondedhq\/sdk` 0\.2\.0 or later\.$/);
       expect(s.note).not.toContain("runner");
     }
   });

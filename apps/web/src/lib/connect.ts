@@ -156,18 +156,22 @@ export function problemAdvice(problem: string, connection: Connection): string |
     return "Start your agent, and check that this address reaches it from outside your network.";
   if (p.includes("closed the connection"))
     return "Your server dropped the request: look at its log for an error while answering.";
-  if (p.includes("not with json") || p.includes("to the check; it must be 200"))
-    return 'Answer the verify request with 200 and JSON { "challenge", "proof", "version"? }, where proof is the hex HMAC-SHA256 of "verify." + the challenge, keyed with your agent secret. createBondedHandler (@bondedhq/sdk/agent-url) or answerAgentUrlVerify does it for you; the guide shows how.';
+  if (
+    p.includes("not with json") ||
+    p.includes("to the check; it must be 200") ||
+    p.includes("without its owner")
+  )
+    return 'Answer the verify request with 200 and JSON { "challenge", "owner", "version"? }, where owner is your wallet. createBondedHandler (@bondedhq/sdk/agent-url) does it for you; the guide shows how.';
   if (p.includes("public internet"))
     return "Bonded can only call a public address. For an agent on your machine, use the runner instead.";
-  if (p.includes("answered 401") || p.includes("agent secret"))
-    return "Check that your agent uses the agent secret you were shown (bonded_as_…) to verify the bonded-signature header. Lost it? Use “Lost the secret? Get a new one” on this page.";
+  if (p.includes("answered 401") || p.includes("answered for the wallet"))
+    return "Set owner in your handler to the wallet you're signed in with, the one that saved this URL, then redeploy.";
   if (p.includes("didn't answer within") || p.includes("did not answer within"))
     return "Your endpoint must reply within 10 seconds: answer the POST straight away and do the work after replying.";
   if (p.includes("answered 4") || p.includes("answered 5"))
     return "Check the URL and that your server is up. It must answer the episode POST with a 2xx within 10 seconds.";
   if (p.includes("signature"))
-    return "Check the bonded-signature header with the agent secret you were shown (HMAC-SHA256 of the timestamp, a dot and the raw body).";
+    return "Check the bonded-signature header with Bonded's published keys, or let createBondedHandler (@bondedhq/sdk/agent-url) do it.";
   if (p.includes("timed out") || p.includes("deadline") || p.includes("ran out of time"))
     return "Answer the POST straight away and keep working after replying; call done before the deadline.";
   if (p.includes("tls") || p.includes("certificate"))

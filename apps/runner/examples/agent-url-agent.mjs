@@ -1,53 +1,82 @@
 #!/usr/bin/env node
 /**
  * A minimal agent for Agent URL mode: no runner, no install on Bonded's side. Bonded POSTs each
- * episode to this server; it checks the signature, answers 202 at once, then works the episode
- * over MCP and posts to its done URL.
+ * episode to this server; it checks the call is signed by Bonded for its owner, answers 202 at
+ * once, then works the episode over MCP and posts to its done URL.
  *
- *   BONDED_AGENT_SECRET=bonded_as_... PORT=8080 node agent-url-agent.mjs
+ *   BONDED_AGENT_OWNER=0xYourWallet PORT=8080 node agent-url-agent.mjs
  *
- * Put it behind HTTPS (a reverse proxy, a tunnel or your platform's TLS) and register that URL.
+ * BONDED_AGENT_OWNER is the wallet you save the URL from on Bonded: public, not a secret. Put the
+ * server behind HTTPS (a reverse proxy, a tunnel or your platform's TLS) and save that URL.
  * Like mcp-agent.mjs it has no model: it reads every source an attack can be planted in, makes
  * the one trade its task names and never acts on what it reads. Swap `work` for your own agent.
  *
- * Needs @modelcontextprotocol/sdk (npm install @modelcontextprotocol/sdk). Signature checking
- * uses only node:crypto, so it ports to any language: HMAC-SHA256 of "<timestamp>.<raw body>",
- * and the verify answer's proof is HMAC-SHA256 of "verify.<challenge>".
+ * Needs @modelcontextprotocol/sdk (npm install @modelcontextprotocol/sdk). The signature check
+ * uses only node:crypto, so it ports to any language: Ed25519 over
+ * "v2.<key id>.<timestamp>.<owner>.<raw body>", with Bonded's public keys from
+ * <api>/.well-known/bonded-agent-keys.json.
  */
 import { Buffer } from "node:buffer";
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createPublicKey, verify } from "node:crypto";
 import { createServer } from "node:http";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
-const SECRET = process.env.BONDED_AGENT_SECRET;
-if (!SECRET) throw new Error("set BONDED_AGENT_SECRET to the agent secret Bonded gave you");
+const OWNER = (process.env.BONDED_AGENT_OWNER ?? "").toLowerCase();
+if (!/^0x[0-9a-f]{40}$/.test(OWNER))
+  throw new Error("set BONDED_AGENT_OWNER to the wallet you save this URL from on Bonded");
+const API = (process.env.BONDED_API_URL ?? "https://api-production-ba50.up.railway.app").replace(
+  /\/+$/,
+  "",
+);
 const VERSION = process.env.AGENT_VERSION ?? "example-1";
 const TOLERANCE_SECONDS = 300;
+
+/** Bonded's public keys by id, fetched again (at most once a minute) for a key not seen yet. */
+let keys = new Map();
+let fetchedAt = 0;
+async function keyFor(kid) {
+  if (!keys.has(kid) && Date.now() - fetchedAt > 60_000) {
+    fetchedAt = Date.now();
+    const res = await fetch(`${API}/.well-known/bonded-agent-keys.json`);
+    if (res.ok) {
+      const set = await res.json();
+      keys = new Map(
+        set.keys.map((k) => [
+          k.kid,
+          createPublicKey({ key: { kty: "OKP", crv: "Ed25519", x: k.x }, format: "jwk" }),
+        ]),
+      );
+    }
+  }
+  return keys.get(kid);
+}
 
 /** Signatures already accepted, so a captured call can't be replayed. */
 const seen = new Map();
 
-/** Checks bonded-timestamp and bonded-signature against the raw body. */
-function verified(headers, raw) {
+/** Checks bonded-timestamp, bonded-owner and bonded-signature against the raw body. */
+async function verified(headers, raw) {
   const timestamp = Number(headers["bonded-timestamp"]);
   const now = Math.floor(Date.now() / 1000);
   if (!Number.isInteger(timestamp) || Math.abs(now - timestamp) > TOLERANCE_SECONDS) return false;
-  const expected = createHmac("sha256", SECRET).update(`${timestamp}.`).update(raw).digest();
-  const given = String(headers["bonded-signature"] ?? "")
-    .split(",")
-    .map((part) => part.trim())
-    .filter((part) => part.startsWith("v1="))
-    .map((part) => Buffer.from(part.slice(3), "hex"));
-  const match = given.find(
-    (sig) => sig.length === expected.length && timingSafeEqual(sig, expected),
-  );
-  if (!match) return false;
-  for (const [sig, ts] of seen) if (ts < now - TOLERANCE_SECONDS) seen.delete(sig);
-  const key = match.toString("hex");
-  if (seen.has(key)) return false;
-  seen.set(key, timestamp);
-  return true;
+  // Calls for anyone else's wallet are refused: nobody can claim this URL as theirs.
+  const owner = String(headers["bonded-owner"] ?? "").toLowerCase();
+  if (owner !== OWNER) return false;
+  for (const part of String(headers["bonded-signature"] ?? "").split(",")) {
+    const match = /^v2=([A-Za-z0-9_-]+):([A-Za-z0-9_-]+)$/.exec(part.trim());
+    if (!match) continue;
+    const [, kid, signature] = match;
+    const key = await keyFor(kid);
+    if (!key) continue;
+    const payload = Buffer.concat([Buffer.from(`v2.${kid}.${timestamp}.${owner}.`), raw]);
+    if (!verify(null, payload, key, Buffer.from(signature, "base64url"))) continue;
+    for (const [sig, ts] of seen) if (ts < now - TOLERANCE_SECONDS) seen.delete(sig);
+    if (seen.has(signature)) return false;
+    seen.set(signature, timestamp);
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -116,9 +145,10 @@ const server = createServer((req, res) => {
     if (size > 512 * 1024) req.destroy();
     else chunks.push(chunk);
   });
-  req.on("end", () => {
+  req.on("end", async () => {
     const raw = Buffer.concat(chunks);
-    if (!verified(req.headers, raw)) return void res.writeHead(401).end();
+    if (!(await verified(req.headers, raw).catch(() => false)))
+      return void res.writeHead(401).end();
     let message;
     try {
       message = JSON.parse(raw.toString("utf8"));
@@ -126,13 +156,10 @@ const server = createServer((req, res) => {
       return void res.writeHead(400).end();
     }
     if (message.type === "verify") {
-      // The proof shows this server holds the secret: HMAC-SHA256 of "verify." + challenge.
-      const proof = createHmac("sha256", SECRET)
-        .update(`verify.${message.challenge}`)
-        .digest("hex");
+      // The owner it answers for: Bonded checks it is the wallet that saved the URL.
       res.writeHead(200, { "content-type": "application/json" });
       return void res.end(
-        JSON.stringify({ challenge: message.challenge, proof, version: VERSION }),
+        JSON.stringify({ challenge: message.challenge, owner: OWNER, version: VERSION }),
       );
     }
     if (message.type === "cancel") {

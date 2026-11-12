@@ -17,13 +17,13 @@ import {
 } from "../src/index.js";
 import { eventually, type FakeRunner, fakeRunner } from "./fixtures/gateway-client.js";
 import { paritySeeds, verdictOf } from "./fixtures/parity.js";
+import { OWNER, TEST_SIGNER } from "./fixtures/agent-url-keys.js";
 import { type UrlAgent, urlAgent } from "./fixtures/url-agent.js";
 
 /**
  * Agent URL mode end to end: the gateway POSTs signed episodes to an agent's own HTTP endpoint,
  * the agent works through the episode's endpoints, and the result is judged like any other.
  */
-const SECRET = "bonded_as_integration-secret-00000000000";
 const TOKEN = "bonded_rt_url-parity-runner-token-0001";
 
 let sandbox: Sandbox;
@@ -38,6 +38,7 @@ beforeAll(async () => {
     // The agent URLs here are all on this machine, so they share one host's rate limit.
     agentUrl: {
       allowLoopback: true,
+      signer: TEST_SIGNER,
       limits: {
         callsPerMinute: 10_000,
         callBurst: 1_000,
@@ -66,7 +67,7 @@ const remote = (url: string, fields: Partial<ConstructorParameters<typeof Remote
   new RemoteAgent({
     gateway,
     sandbox,
-    transport: { kind: "url", url, secret: SECRET, registration: url },
+    transport: { kind: "url", url, owner: OWNER, registration: url },
     mode: "tools",
     ...fields,
   });
@@ -75,7 +76,7 @@ const spec = () => loadAttackLibrary().find((s) => s.id === "A6-operator-imperso
 
 describe("Agent URL episodes", () => {
   it("POSTs the signed episode, and judges what the agent did from the vault", async () => {
-    const at = await agentAt({ secret: SECRET, agent: new ScriptedVulnerableAgent() });
+    const at = await agentAt({ agent: new ScriptedVulnerableAgent() });
     const agent = remote(at.url);
     expect(agent.name).toBe("remote/127.0.0.1");
     const result = await runEpisode(sandbox, { agent, attack: spec() });
@@ -92,7 +93,7 @@ describe("Agent URL episodes", () => {
   });
 
   it("fails the episode, as the agent's failure, when the POST fails", async () => {
-    const at = await agentAt({ secret: SECRET, episodeStatus: 500 });
+    const at = await agentAt({ episodeStatus: 500 });
     const result = await runEpisode(sandbox, { agent: remote(at.url), attack: null });
     expect(episodeOutcome(result)).toBe("agent_error");
     expect(result.agentSummary.finalMessage).toBe("the agent's URL failed: Your URL answered 500");
@@ -125,7 +126,6 @@ describe("Agent URL episodes", () => {
     // The agent takes 1.5 s to answer, then finishes at once: within a 1 s deadline counted from
     // its answer, though not from the POST.
     const at = await agentAt({
-      secret: SECRET,
       answerDelayMs: 1_500,
       onEpisode: async (episode) => {
         await fetch(`${episode.endpoints.tools}/read_inbox`, { method: "POST" });
@@ -140,7 +140,7 @@ describe("Agent URL episodes", () => {
   });
 
   it("cancels an agent that runs out of time", async () => {
-    const at = await agentAt({ secret: SECRET, onEpisode: () => {} });
+    const at = await agentAt({ onEpisode: () => {} });
     const result = await runEpisode(sandbox, {
       agent: remote(at.url, { episodeTimeoutMs: 800 }),
       attack: null,
@@ -155,7 +155,6 @@ describe("Agent URL episodes", () => {
 
   it("works in chain mode: the session key travels in the signed body", async () => {
     const at = await agentAt({
-      secret: SECRET,
       agent: new ScriptedVulnerableAgent(),
       transport: "chain",
     });
@@ -186,7 +185,7 @@ describe("Agent URL episodes", () => {
           transport: {
             kind: "url",
             url: "https://a.example",
-            secret: SECRET,
+            owner: OWNER,
             registration: "a",
           },
           mode: "tools",
@@ -202,17 +201,18 @@ describe("when Bonded's own rate limit is in the way", () => {
       tokens: new StaticRunnerTokens(),
       agentUrl: {
         allowLoopback: true,
+        signer: TEST_SIGNER,
         limits: { callsPerMinute: 0.001, callBurst: 1, slotWaitMs: 100 },
       },
     });
     await tight.listen();
     cleanup.push(() => tight.close());
-    const at = await agentAt({ secret: SECRET, agent: new ScriptedVulnerableAgent() });
-    const transport = { kind: "url", url: at.url, secret: SECRET, registration: "busy" } as const;
+    const at = await agentAt({ agent: new ScriptedVulnerableAgent() });
+    const transport = { kind: "url", url: at.url, owner: OWNER, registration: "busy" } as const;
     // Its one call a minute is spent.
     await tight.agentUrls.send(
       at.url,
-      SECRET,
+      OWNER,
       { type: "cancel", episodeId: "x" },
       { registration: "busy" },
     );
@@ -255,7 +255,7 @@ describe("a rating through an Agent URL", () => {
   });
 
   it("gets the runner's verdicts, episode by episode, and reports only progress counts", async () => {
-    const at = await agentAt({ secret: SECRET, agent: new ScriptedVulnerableAgent() });
+    const at = await agentAt({ agent: new ScriptedVulnerableAgent() });
     const attacks = paritySeeds().slice(0, 3);
     const settings = { attacks, controls: 1, shuffle: false } as const;
     const progress: RatingProgress[] = [];

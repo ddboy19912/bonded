@@ -48,7 +48,8 @@ export type AgentTransport =
   | {
       kind: "url";
       url: string;
-      secret: string;
+      /** The wallet that saved the URL: every call is signed for it, and the agent checks that. */
+      owner: string;
       /**
        * What the URL is registered to (the agent's `<chain>:<agentId>` or `preview:<id>`): its
        * episodes run one at a time and share one rate limit, apart from every other agent's.
@@ -600,7 +601,7 @@ export class RemoteAgent implements SelfSigningAgent {
       this.emit({ type: "started", episodeId });
       // Only a call Bonded never made (its rate limit) is tried again: the agent didn't see it.
       const deliver = () =>
-        client.send(transport.url, transport.secret, message, {
+        client.send(transport.url, transport.owner, message, {
           registration: transport.registration,
           waitMs: client.limits.slotWaitMs,
         });
@@ -628,7 +629,7 @@ export class RemoteAgent implements SelfSigningAgent {
         void client
           .send(
             transport.url,
-            transport.secret,
+            transport.owner,
             { type: "cancel", episodeId },
             { registration: transport.registration },
           )

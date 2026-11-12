@@ -1,72 +1,62 @@
 /**
- * Agent URL request signatures: how an agent knows a request really comes from Bonded.
+ * Agent URL request signatures: how an agent knows a request really comes from Bonded, for its
+ * owner.
  *
- * Bonded signs every call to an Agent URL with the agent's secret:
+ * Bonded signs every call to an Agent URL with its own Ed25519 key (no shared secret):
  * - `bonded-timestamp`: unix seconds;
- * - `bonded-signature`: `v1=<hex HMAC-SHA256(secret, "<timestamp>.<raw body>")>` (up to four,
- *   comma-separated, while a secret is rotated).
+ * - `bonded-owner`: the wallet that saved the URL on Bonded;
+ * - `bonded-signature`: `v2=<key id>:<base64url signature>` over
+ *   `v2.<key id>.<timestamp>.<owner>.<raw body>`.
  *
- * The scheme lives in @bondedhq/shared (`@bondedhq/shared/agent-url`, which the gateway signs with);
- * these are the SDK's names for it. Web Crypto only, so it runs in Node, Bun, Deno, Cloudflare
- * Workers and edge runtimes, and the comparison is Web Crypto's constant-time HMAC verify.
+ * The handler checks it against Bonded's published keys (`${apiUrl}/.well-known/bonded-agent-keys.json`)
+ * and refuses calls for any owner but its own. The scheme lives in @bondedhq/shared
+ * (`@bondedhq/shared/agent-url`, which the gateway signs with). Web Crypto only, so it runs in
+ * Node 22+, Bun, Deno, Cloudflare Workers and edge runtimes.
  */
 import {
+  AGENT_URL_KEYS_PATH,
+  AGENT_URL_OWNER_HEADER,
   AGENT_URL_SIGNATURE_HEADER,
   AGENT_URL_TIMESTAMP_HEADER,
   AGENT_URL_TOLERANCE_SECONDS,
-  signAgentUrlRequest,
-  verifyAgentUrlRequest,
+  type AgentUrlPublicKey,
+  agentUrlSigner,
+  newAgentUrlSigningKey,
 } from "@bondedhq/shared/agent-url";
 
 export const SIGNATURE_HEADER = AGENT_URL_SIGNATURE_HEADER;
 export const TIMESTAMP_HEADER = AGENT_URL_TIMESTAMP_HEADER;
+export const OWNER_HEADER = AGENT_URL_OWNER_HEADER;
 /** How far a request's timestamp may be from the agent's clock, either way. */
 export const SIGNATURE_TOLERANCE_SECONDS = AGENT_URL_TOLERANCE_SECONDS;
+/** Bonded's API, where the signing keys are published. */
+export const BONDED_AGENT_API_URL = "https://api-production-ba50.up.railway.app";
+/** Where an API publishes the keys that sign calls to agents. */
+export const keysUrlOf = (apiUrl: string) => `${apiUrl.replace(/\/+$/, "")}${AGENT_URL_KEYS_PATH}`;
 
 /**
- * Signs a body as Bonded does: the two headers to send with it. For testing your endpoint
- * locally; Bonded signs real calls itself.
+ * A stand-in for Bonded, for testing your endpoint locally: a fresh key, `sign` to sign a body
+ * for an owner the way Bonded does, and `keys` to give the handler (`createBondedHandler({ keys })`).
+ * Bonded signs real calls itself, with keys your handler fetches.
  */
-export async function signBondedRequest(
-  secret: string,
-  body: string,
-  timestamp: number = Math.floor(Date.now() / 1000),
-): Promise<{ "bonded-timestamp": string; "bonded-signature": string }> {
-  const headers = await signAgentUrlRequest(secret, body, timestamp * 1000);
+export async function createTestSigner(): Promise<{
+  keys: AgentUrlPublicKey[];
+  sign(
+    owner: string,
+    body: string,
+    timestamp?: number,
+  ): Promise<{ "bonded-timestamp": string; "bonded-owner": string; "bonded-signature": string }>;
+}> {
+  const signer = await agentUrlSigner(await newAgentUrlSigningKey());
   return {
-    "bonded-timestamp": headers[TIMESTAMP_HEADER]!,
-    "bonded-signature": headers[SIGNATURE_HEADER]!,
-  };
-}
-
-export type SignatureCheck = { ok: true; timestamp: number } | { ok: false; reason: string };
-
-/**
- * Checks a request's signature only: the timestamp is within `toleranceSeconds` of now and one of
- * the header's `v1=` signatures is the body's HMAC under `secret` (or one of several secrets).
- * It doesn't look at the body or check for replays; `createBondedHandler` does both.
- */
-export async function verifyBondedSignature(input: {
-  secret: string | string[];
-  body: string;
-  timestamp: string | null | undefined;
-  signature: string | null | undefined;
-  /** Unix seconds. Default: now. */
-  now?: number;
-  toleranceSeconds?: number;
-}): Promise<SignatureCheck> {
-  const result = await verifyAgentUrlRequest({
-    secret: input.secret,
-    body: input.body,
-    headers: {
-      [TIMESTAMP_HEADER]: input.timestamp ?? undefined,
-      [SIGNATURE_HEADER]: input.signature ?? undefined,
+    keys: signer.keySet().keys,
+    async sign(owner, body, timestamp = Math.floor(Date.now() / 1000)) {
+      const headers = await signer.sign(owner, body, timestamp * 1000);
+      return {
+        "bonded-timestamp": headers[TIMESTAMP_HEADER]!,
+        "bonded-owner": headers[OWNER_HEADER]!,
+        "bonded-signature": headers[SIGNATURE_HEADER]!,
+      };
     },
-    ...(input.now !== undefined ? { nowMs: input.now * 1000 } : {}),
-    ...(input.toleranceSeconds !== undefined ? { toleranceSeconds: input.toleranceSeconds } : {}),
-  });
-  if (result.ok) return { ok: true, timestamp: result.timestamp };
-  // 400 means the signature matched but the body isn't one of Bonded's messages.
-  if (result.status === 400) return { ok: true, timestamp: Number(input.timestamp) };
-  return { ok: false, reason: result.reason };
+  };
 }

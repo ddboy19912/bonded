@@ -5,10 +5,10 @@ import {
   AGENT_URL_MAX_BODY_BYTES,
   AGENT_URL_MAX_RESPONSE_BYTES,
   type AgentUrlMessage,
+  type AgentUrlSigner,
   AgentUrlVerifyAnswer,
   agentUrlCodeHash,
-  checkAgentUrlVerifyProof,
-  signAgentUrlRequest,
+  checkAgentUrlVerifyAnswer,
 } from "@bondedhq/shared";
 import {
   AddressNotAdmittedError,
@@ -33,7 +33,8 @@ import { addressGroup } from "./address.js";
  *   the URL belongs to), so one operator can't use up another's allowance. Verify calls, which
  *   anyone registering a URL can cause, are limited per host name, per registrable domain and per
  *   resolved address (IPv4, or IPv6 by /64), so the Arena can't be aimed at one site;
- * - is signed with the agent secret.
+ * - is signed with Bonded's Ed25519 key, for the wallet that saved the URL (the agent refuses calls
+ *   for anyone else, so nobody can claim someone else's URL).
  *
  * Failures come back as plain sentences for the operator ("Your URL answered 404"), never thrown,
  * and never with more detail than the operator needs (no internal error text: that goes to `log`).
@@ -154,9 +155,18 @@ export interface AgentUrlClientOptions {
   /** More hosts to refuse, beyond BONDED_OWN_HOSTS (e.g. from an env variable). */
   refusedHosts?: readonly string[];
   limits?: Partial<AgentUrlLimits>;
-  /** Where failure details go (server side only: the host and the error, never the secret). */
+  /** Where failure details go (server side only: the host and the error). */
   log?: (message: string) => void;
+  /**
+   * Signs every call (AGENT_URL_SIGNING_KEY, `agentUrlSigner`). Without one, no call is sent:
+   * Agent URL mode is off on that service.
+   */
+  signer?: AgentUrlSigner;
 }
+
+/** Why a service without AGENT_URL_SIGNING_KEY can't call agents. */
+export const SIGNING_KEY_MISSING =
+  "Agent URL mode is off on this service: AGENT_URL_SIGNING_KEY isn't set";
 
 /** The outcome of one call: the answer, or why there is none, as a sentence for the operator. */
 export type AgentUrlCall =
@@ -255,16 +265,19 @@ export class AgentUrlClient {
   }
 
   /**
-   * POSTs one signed message to the agent's URL. Episodes and cancels name the `registration`
+   * POSTs one message to the agent's URL, signed for `owner` (the wallet that saved the URL).
+   * Episodes and cancels name the `registration`
    * they belong to (the agent or preview id), whose rate limit they use; an episode waits up to
    * `waitMs` for it. Verify calls use the per-host, per-domain and per-address limits.
    */
   async send(
     url: string,
-    secret: string,
+    owner: string,
     message: AgentUrlMessage,
     options: { registration?: string; waitMs?: number } = {},
   ): Promise<AgentUrlCall> {
+    const signer = this.options.signer;
+    if (!signer) return { ok: false, problem: SIGNING_KEY_MISSING, caused: "bonded" };
     const problem = this.urlProblem(url);
     if (problem) return { ok: false, problem, caused: "agent" };
     const target = new URL(url);
@@ -287,7 +300,7 @@ export class AgentUrlClient {
         headers: {
           "content-type": "application/json",
           "user-agent": "Bonded-Gateway/1",
-          ...(await signAgentUrlRequest(secret, body)),
+          ...(await signer.sign(owner, body)),
         },
         body,
         timeoutMs: this.limits.answerMs,
@@ -317,13 +330,14 @@ export class AgentUrlClient {
   }
 
   /**
-   * The ownership check: POSTs `{ type: "verify", challenge }` and expects 200 with
-   * `{ challenge, proof, version? }`, where proof is HMAC-SHA256(secret, "verify." + challenge):
-   * only a holder of the secret can answer, so an echo server can't pass.
+   * The ownership check: POSTs `{ type: "verify", challenge }`, signed for `owner`, and expects
+   * 200 with `{ challenge, owner, version? }`. An agent set up for another wallet refuses the call
+   * or names that wallet, so nobody can claim someone else's URL; the owner isn't in the body, so
+   * an echo server can't pass.
    */
-  async verify(url: string, secret: string): Promise<AgentUrlVerifyResult> {
+  async verify(url: string, owner: string): Promise<AgentUrlVerifyResult> {
     const challenge = randomBytes(24).toString("base64url");
-    const call = await this.send(url, secret, { type: "verify", challenge });
+    const call = await this.send(url, owner, { type: "verify", challenge });
     if (!call.ok) return { ok: false, problem: call.problem };
     if (call.status !== 200)
       return {
@@ -337,11 +351,19 @@ export class AgentUrlClient {
       return { ok: false, problem: "Your URL answered the check, but not with JSON" };
     }
     const answer = AgentUrlVerifyAnswer.safeParse(raw);
-    if (!answer.success || !(await checkAgentUrlVerifyProof(secret, challenge, answer.data)))
+    if (!answer.success)
       return {
         ok: false,
         problem:
-          'Your URL answered the check without proving it holds the agent secret: answer verify with { challenge, proof } (proof = HMAC-SHA256 of "verify." + challenge with your secret)',
+          "Your URL answered the check without its owner: answer verify with { challenge, owner } (createBondedHandler does it)",
+      };
+    if (!checkAgentUrlVerifyAnswer(owner, challenge, answer.data))
+      return {
+        ok: false,
+        problem:
+          answer.data.challenge !== challenge
+            ? "Your URL answered the check with another challenge"
+            : `Your URL answered for the wallet ${answer.data.owner}, not ${owner.toLowerCase()}: set owner in your handler to the wallet you saved this URL with`,
       };
     const version = answer.data.version;
     return version ? { ok: true, version, codeHash: agentUrlCodeHash(version) } : { ok: true };
@@ -438,20 +460,21 @@ function hostOf(url: URL): string {
 
 function statusProblem(status: number): string {
   if (status === 401 || status === 403)
-    return `Your URL answered ${status}: check that your agent uses the agent secret Bonded gave you`;
+    return `Your URL answered ${status}: check that owner in your handler is the wallet you saved this URL with`;
   return `Your URL answered ${status}`;
 }
 
 /**
  * The ownership check on its own (registration, before a check or a rating): POSTs a signed
- * `{ type: "verify", challenge }` and expects `{ challenge, proof, version? }` within 10 seconds.
+ * `{ type: "verify", challenge }` for `owner` and expects `{ challenge, owner, version? }` within
+ * 10 seconds.
  * Pass the gateway's client (`gateway.agentUrls`) so the rate limits are shared.
  */
 export function verifyAgentUrl(
   url: string,
-  secret: string,
+  owner: string,
   options: AgentUrlClientOptions | { client: AgentUrlClient } = {},
 ): Promise<AgentUrlVerifyResult> {
   const client = "client" in options ? options.client : new AgentUrlClient(options);
-  return client.verify(url, secret);
+  return client.verify(url, owner);
 }

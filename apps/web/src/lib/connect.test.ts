@@ -153,16 +153,30 @@ describe("problem advice", () => {
     [
       "Your URL answered 500 to the check; it must be 200",
       "url",
-      /"proof".*HMAC-SHA256 of "verify\." \+ the challenge.*createBondedHandler/,
+      /"owner".*your wallet.*createBondedHandler/,
     ],
-    ["Your URL answered the check, but not with JSON", "url", /answerAgentUrlVerify/],
+    ["Your URL answered the check, but not with JSON", "url", /createBondedHandler/],
+    [
+      "Your URL answered the check without its owner: answer verify with { challenge, owner }",
+      "url",
+      /"owner".*your wallet/,
+    ],
     [
       "If your agent uses a model, report its usage at /done: without it, a cost estimate gives time only",
       "url",
       /usage with done/,
     ],
     ["The runner is connected in the wrong mode: chain", "runner", /--mode chain/],
-    ["Your URL answered 401: check your agent secret", "url", /bonded_as_/],
+    [
+      "Your URL answered 401: check that owner in your handler is the wallet you saved this URL with",
+      "url",
+      /Set owner in your handler/,
+    ],
+    [
+      "Your URL answered for the wallet 0xbad, not 0xa11ce: set owner in your handler",
+      "url",
+      /Set owner in your handler/,
+    ],
     ["Your URL didn't answer within 10 seconds", "url", /reply within 10 seconds/],
   ] as const)("%s (%s)", (problem, connection, advice) => {
     expect(problemAdvice(problem, connection)).toMatch(advice);

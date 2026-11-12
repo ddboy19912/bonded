@@ -24,6 +24,7 @@ import {
   RunnerToServer,
   type ServerToRunner,
   type ToolResult,
+  AGENT_URL_KEYS_PATH,
 } from "@bondedhq/shared";
 import { type WebSocket, WebSocketServer } from "ws";
 import { publicAddress } from "../safe-fetch.js";
@@ -661,6 +662,13 @@ export class ArenaGateway {
   private async route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const path = new URL(req.url ?? "/", "http://gateway").pathname;
     if (path === "/healthz" && req.method === "GET") return reply(res, 200, { ok: true });
+    // The public keys that sign calls to agents, for a local run (the hosted API publishes them
+    // too): an agent pointed at this gateway (`apiUrl`) checks calls with them.
+    if (path === AGENT_URL_KEYS_PATH && req.method === "GET") {
+      const signer = this.options.agentUrl?.signer;
+      if (!signer) throw new HttpError(404, "this gateway doesn't call agent URLs");
+      return reply(res, 200, signer.keySet());
+    }
     const match = /^\/e\/([A-Za-z0-9_-]{43})\/(.+)$/.exec(path);
     if (!match) throw new HttpError(404, "not found");
     const episode = this.episodes.get(hashToken(match[1]!));

@@ -9,15 +9,17 @@ import {
   type EpisodeMessage,
   verifyAgentUrlRequest,
 } from "@bondedhq/shared";
+import { OWNER, TEST_KEYS } from "./agent-url-keys.js";
 import { toolboxFor, type Transport } from "./gateway-client.js";
 
 /**
  * A stand-in Agent URL for tests: an HTTP server on this machine that checks each call's
- * signature with the shared helper, answers at once, and runs a brain in-process over the
+ * signature and owner with the shared helper, answers at once, and runs a brain in-process over the
  * episode's real endpoints, as an agent behind its own HTTPS endpoint would.
  */
 export interface UrlAgentOptions {
-  secret: string;
+  /** The wallet it belongs to (default OWNER): calls for anyone else are refused. */
+  owner?: string;
   /** The brain the default episode handler runs. */
   agent?: ArenaAgent;
   transport?: Transport;
@@ -39,7 +41,7 @@ export interface UrlAgent {
   url: string;
   received: AgentUrlMessage[];
   cancels: string[];
-  /** Calls refused for a bad signature. */
+  /** Calls refused for a bad signature or another owner. */
   refused: number;
   close(): Promise<void>;
 }
@@ -77,7 +79,8 @@ export async function urlAgent(options: UrlAgentOptions): Promise<UrlAgent> {
     req.on("end", () => {
       const body = Buffer.concat(chunks).toString("utf8");
       void verifyAgentUrlRequest({
-        secret: options.secret,
+        owner: options.owner ?? OWNER,
+        keys: TEST_KEYS,
         body,
         headers: req.headers,
         replay,
@@ -91,10 +94,8 @@ export async function urlAgent(options: UrlAgentOptions): Promise<UrlAgent> {
         const message = checked.message;
         state.received.push(message);
         if (message.type === "verify") {
-          void answerAgentUrlVerify(options.secret, message, options.version).then((answer) => {
-            res.writeHead(200, { "content-type": "application/json" });
-            res.end(JSON.stringify(answer));
-          });
+          res.writeHead(200, { "content-type": "application/json" });
+          res.end(JSON.stringify(answerAgentUrlVerify(checked.owner, message, options.version)));
           return;
         }
         if (message.type === "cancel") {

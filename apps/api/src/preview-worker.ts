@@ -29,7 +29,6 @@ import {
   previewRatingPlan,
   type RemoteRatingPolicy,
 } from "./remote-policy.js";
-import { SECRET_KEY_MISSING, agentUrlContext, type SecretBox } from "./secrets.js";
 import type { AgentConnection } from "./connections.js";
 import type { Notifier } from "./notifications.js";
 import { PREVIEW_LABEL } from "./previews.js";
@@ -51,7 +50,6 @@ export interface PreviewWorkerOptions {
   remote?: RemoteAgentFactory;
   heldOut?: { perClass?: number; llm?: { client: ChatClient; model: string; maxUsd: number } };
   policy?: RemoteRatingPolicy;
-  secrets?: SecretBox;
   notifier?: Notifier;
   /** Narrows the attack library (tests only). */
   selectAttacks?: (attacks: AttackSpec[]) => AttackSpec[];
@@ -225,7 +223,7 @@ async function runPreview(
   try {
     // Setting up (the sandbox, the held-out set): "starting", then "running".
     await db.markStarting(job);
-    const reach = await reachFor(db, key, row.connection, options.secrets);
+    const reach = await reachFor(db, key, row.connection);
     if (row.code_source && row.code_source !== "declared") {
       const now = await db.currentConnection(key, row.connection);
       if (now.code?.hash.toLowerCase() !== String(row.code_hash).toLowerCase())
@@ -415,7 +413,6 @@ async function reachFor(
   db: Database,
   key: string,
   connection: "runner" | "url",
-  secrets: SecretBox | undefined,
 ): Promise<AgentConnection> {
   if (connection === "runner") {
     if (!(await db.runnerIsConnected(key)))
@@ -431,15 +428,5 @@ async function reachFor(
       "the preview's Agent URL isn't verified; verify it and rate again",
       true,
     );
-  if (!secrets) throw new RatingRefused(SECRET_KEY_MISSING, true);
-  try {
-    return {
-      kind: "url",
-      url: live.url,
-      secret: secrets.decrypt(live.ciphertext, agentUrlContext(live.id)),
-      registration: key,
-    };
-  } catch {
-    throw new RatingRefused("the Agent URL's secret can't be used; set the Agent URL again", true);
-  }
+  return { kind: "url", url: live.url, owner: live.createdBy, registration: key };
 }

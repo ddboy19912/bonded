@@ -166,7 +166,7 @@ describe("NotificationSettingsForm", () => {
       webhook: { url: "https://hooks.example/x" },
       email: null,
       emailAvailable: false,
-      webhookSecret: "bonded_as_hook",
+      webhookSecret: "bonded_ws_hook",
     });
     wrap(
       <NotificationSettingsForm subject={{ kind: "preview", id: "p1" }} auth={{ session: "s" }} />,
@@ -186,7 +186,7 @@ describe("NotificationSettingsForm", () => {
         { webhookUrl: "https://hooks.example/x" },
       ),
     );
-    expect(await screen.findByText("bonded_as_hook")).toBeTruthy();
+    expect(await screen.findByText("bonded_ws_hook")).toBeTruthy();
   });
   it("offers email when the deployment sends it, and turning it off", async () => {
     vi.spyOn(byoaApi, "notifications").mockResolvedValue({

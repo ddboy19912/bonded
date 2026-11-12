@@ -78,6 +78,10 @@ describe("framework-first answers", () => {
     expect(initCommand({ connection: "url", mode: "chain" })).toBe(
       "npx @bondedhq/runner init --url",
     );
+    // The signed-in wallet goes into the route as its owner.
+    expect(initCommand({ connection: "url", owner: "0xabc" })).toBe(
+      "npx @bondedhq/runner init --url --owner 0xabc",
+    );
     expect(initWorks("python")).toBe(false);
     expect(initWorks("eliza")).toBe(true);
   });

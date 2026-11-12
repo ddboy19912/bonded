@@ -2,38 +2,51 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   AGENT_URL_MAX_BODY_BYTES,
   AGENT_URL_TOLERANCE_SECONDS,
+  AgentUrlKeys,
+  type AgentUrlPublicKey,
   AgentUrlReplayGuard,
   type AgentUrlMessage,
+  agentUrlSignatureKeyIds,
   answerAgentUrlVerify,
+  isAgentUrlOwner,
   verifyAgentUrlRequest,
 } from "@bondedhq/shared/agent-url";
+import { BONDED_AGENT_API_URL, keysUrlOf } from "./signature.js";
 import type { BondedBrokerageEpisode, BondedEpisode } from "./episode.js";
 import { finishEpisode } from "./done.js";
 import type { EpisodeUsage } from "./mcp.js";
 
-/** For your own handler: the proof a verify answer carries, and the whole answer. */
-export { agentUrlVerifyProof, answerAgentUrlVerify } from "@bondedhq/shared/agent-url";
+/** For your own handler: the verify answer, and the request check. */
 export {
+  AGENT_URL_KEYS_PATH,
+  AgentUrlKeys,
+  type AgentUrlPublicKey,
+  answerAgentUrlVerify,
+  verifyAgentUrlRequest,
+} from "@bondedhq/shared/agent-url";
+export {
+  BONDED_AGENT_API_URL,
+  createTestSigner,
+  keysUrlOf,
+  OWNER_HEADER,
   SIGNATURE_HEADER,
   SIGNATURE_TOLERANCE_SECONDS,
-  signBondedRequest,
-  type SignatureCheck,
   TIMESTAMP_HEADER,
-  verifyBondedSignature,
 } from "./signature.js";
 
 /**
  * Agent URL mode: instead of running the Bonded runner, an agent serves one HTTPS endpoint and
  * Bonded calls it once per episode. Every call is a signed `POST` of one JSON message:
  *
- * - `{ type: "verify", challenge }` when the URL is registered: answer
- *   `200 { challenge, proof, version? }`, where `proof` is the hex HMAC-SHA256 of
- *   `"verify." + challenge` under the secret.
+ * - `{ type: "verify", challenge }` when the URL is saved: answer
+ *   `200 { challenge, owner, version? }`, where `owner` is your wallet.
  * - `{ type: "episode", ... }` (the runner protocol's `EpisodeMessage`): answer `2xx` within
  *   10 seconds, then work: call the episode's tools and `POST {done}` when finished.
  * - `{ type: "cancel", episodeId }`: stop that episode (best effort).
  *
- * `createBondedHandler` does all of that: it checks signatures, answers challenges, acknowledges an
+ * Every call is signed by Bonded's own key and names the owner it is for; there is no secret to
+ * set. `createBondedHandler` does all of that: it checks signatures against Bonded's published
+ * keys, refuses calls for any wallet but `owner`, answers challenges, acknowledges an
  * episode at once and runs your `onEpisode` in the background, aborts it on cancel or at the
  * deadline, and posts `/done` (with the usage you return) when it resolves.
  */
@@ -55,10 +68,18 @@ export interface EpisodeContext {
 
 export interface BondedHandlerOptions {
   /**
-   * The agent secret Bonded showed you when you registered the URL (`bonded_as_...`), or several
-   * while you rotate it (any one may match).
+   * Your wallet: the one you sign in to Bonded with and save this URL from (or several, for a
+   * team). Bonded signs each call for the wallet that saved the URL, and the handler refuses calls
+   * for anyone else, so nobody can claim your URL as theirs. It's public, not a secret.
    */
-  secret: string | string[];
+  owner: string | string[];
+  /**
+   * Bonded's API, where its signing keys are published. Default: Bonded's production API. Set it
+   * when you rate against another Bonded deployment (a local Arena, a staging API).
+   */
+  apiUrl?: string;
+  /** Bonded's public keys, given directly instead of fetched (for tests: `createTestSigner`). */
+  keys?: AgentUrlPublicKey[];
   /** Runs one episode. Resolve when the agent is finished; the handler then posts `/done`. */
   onEpisode(
     episode: BondedEpisode,
@@ -110,7 +131,7 @@ export type BondedHandler = (
  *
  * ```ts
  * const handler = createBondedHandler({
- *   secret: process.env.BONDED_AGENT_SECRET!,
+ *   owner: "0xYourWallet",
  *   version: process.env.GIT_SHA,
  *   async onEpisode(episode, { signal }) {
  *     const tools = await bondedAiSdkTools(episode);
@@ -122,8 +143,17 @@ export type BondedHandler = (
  * ```
  */
 export function createBondedHandler(options: BondedHandlerOptions): BondedHandler {
-  if (!options.secret || (Array.isArray(options.secret) && options.secret.length === 0))
-    throw new Error("createBondedHandler needs the agent secret");
+  const owners = Array.isArray(options.owner) ? options.owner : [options.owner];
+  if (owners.length === 0 || !owners.every((o) => typeof o === "string" && isAgentUrlOwner(o)))
+    throw new Error(
+      "createBondedHandler needs owner: your wallet address (0x…), the one you save this URL from",
+    );
+  const keyStore = options.keys
+    ? undefined
+    : new AgentUrlKeys(keysUrlOf(options.apiUrl ?? BONDED_AGENT_API_URL), {
+        ...(options.fetch ? { fetch: options.fetch } : {}),
+        ...(options.now ? { now: options.now } : {}),
+      });
   const now = options.now ?? Date.now;
   const tolerance = options.toleranceSeconds ?? AGENT_URL_TOLERANCE_SECONDS;
   const maxBody = options.maxBodyBytes ?? AGENT_URL_MAX_BODY_BYTES;
@@ -132,7 +162,6 @@ export function createBondedHandler(options: BondedHandlerOptions): BondedHandle
     options.onError ??
     ((error: unknown, episode: BondedEpisode) =>
       console.error(`Bonded episode ${episode.episodeId} failed:`, error));
-  const secrets = Array.isArray(options.secret) ? options.secret : [options.secret];
   /** Signatures already accepted, until they fall out of the window: replays are refused. */
   const replay = new AgentUrlReplayGuard(tolerance);
   const running = new Map<string, AbortController>();
@@ -209,8 +238,18 @@ export function createBondedHandler(options: BondedHandlerOptions): BondedHandle
     const body = await readCapped(request, maxBody);
     if (body === undefined) return json(413, { error: `the body is over ${maxBody} bytes` });
 
+    let keys: AgentUrlPublicKey[];
+    try {
+      keys =
+        options.keys ??
+        (await keyStore!.get(agentUrlSignatureKeyIds(request.headers).find(Boolean)));
+    } catch (error) {
+      console.error("Bonded: couldn't fetch Bonded's signing keys:", error);
+      return json(503, { error: "the agent couldn't fetch Bonded's signing keys; try again" });
+    }
     const check = await verifyAgentUrlRequest({
-      secret: options.secret,
+      owner: owners,
+      keys,
       body,
       headers: request.headers,
       nowMs: now(),
@@ -220,16 +259,10 @@ export function createBondedHandler(options: BondedHandlerOptions): BondedHandle
     if (!check.ok) return json(check.status, { error: check.reason });
     const message = check.message;
 
-    // The answer proves the secret (an HMAC of the challenge), so an echo server can't pass.
+    // The answer names the owner the call was signed for (one of ours, checked above). The verify
+    // body carries no owner, so a server that echoes it back can't pass.
     if (message.type === "verify")
-      return json(
-        200,
-        await answerAgentUrlVerify(
-          await signingSecret(secrets, body, request.headers, now(), tolerance),
-          message,
-          options.version,
-        ),
-      );
+      return json(200, answerAgentUrlVerify(check.owner, message, options.version));
 
     if (message.type === "cancel") {
       const controller = running.get(message.episodeId);
@@ -261,25 +294,6 @@ export function createBondedHandler(options: BondedHandlerOptions): BondedHandle
     else options.waitUntil?.(work);
     return json(202, { ok: true, episodeId: message.episodeId });
   };
-}
-
-/**
- * Which of the secrets signed a request already verified (while a secret rotates, the verify
- * proof must be made with the one Bonded holds).
- */
-async function signingSecret(
-  secrets: string[],
-  body: string,
-  headers: Headers,
-  nowMs: number,
-  toleranceSeconds: number,
-): Promise<string> {
-  if (secrets.length === 1) return secrets[0]!;
-  for (const secret of secrets) {
-    const check = await verifyAgentUrlRequest({ secret, body, headers, nowMs, toleranceSeconds });
-    if (check.ok) return secret;
-  }
-  return secrets[0]!;
 }
 
 /** A brokerage episode as the agent sees it (the same shape `fromBondedBrokerageEnv` returns). */

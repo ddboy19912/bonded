@@ -12,6 +12,8 @@ import {
   type EpisodeFilters,
 } from "@bonded/db";
 import {
+  AGENT_URL_KEYS_PATH,
+  type AgentUrlSigner,
   QuoteError,
   REMOTE_KIND,
   SELF_SERVE_MAX_COVER_USD,
@@ -52,7 +54,7 @@ import { ownDomainsFrom, ownerRoutes } from "./previews.js";
 import { notificationRoutes, type EmailSender } from "./notifications.js";
 import { PollStreams } from "./poll-stream.js";
 import { DEFAULT_REMOTE_POLICY } from "./remote-policy.js";
-import type { SecretBox } from "./secrets.js";
+import { SIGNING_KEY_MISSING, type SecretBox } from "./secrets.js";
 import { gatewayUrlVerifier, type AgentUrlVerifier } from "./connections.js";
 import { AgentStatusReader } from "./agent-status.js";
 import { launchRoutes } from "./launch.js";
@@ -136,11 +138,13 @@ export function createApi(options: {
    * (default `UNDERWRITING_COVER_CAP_USD`: 5,000 declared, 20,000 TEE).
    */
   coverCaps?: Readonly<Record<BindingLevel, number>>;
-  /**
-   * Encrypts Agent URL and webhook secrets (AGENT_URL_SECRET_KEY). Without it, Agent URL mode and
-   * webhooks are refused.
-   */
+  /** Encrypts webhook secrets (AGENT_URL_SECRET_KEY). Without it, webhooks are refused. */
   secrets?: SecretBox;
+  /**
+   * Signs calls to agents' URLs (AGENT_URL_SIGNING_KEY), and its public keys are published at
+   * AGENT_URL_KEYS_PATH for handlers to check them. Without it, Agent URL mode is refused.
+   */
+  agentUrlSigner?: AgentUrlSigner;
   /** Answers an Agent URL's verify challenge (default: the Arena Gateway's). */
   verifyAgentUrl?: AgentUrlVerifier;
   /** Sends notification emails, when configured (RESEND_API_KEY and EMAIL_FROM). */
@@ -308,6 +312,14 @@ export function createApi(options: {
     ...(options.statusFetch ? { fetch: options.statusFetch } : {}),
     ...(options.statusCacheMs !== undefined ? { cacheMs: options.statusCacheMs } : {}),
     hasToken: (c) => hasToken(c.req.header("Authorization")),
+  });
+  // Bonded's public keys for calls to agents' URLs: every Agent URL handler checks calls with
+  // them. Public, and cached for an hour (a new key is published before it starts signing).
+  app.get(AGENT_URL_KEYS_PATH, (c) => {
+    if (!options.agentUrlSigner) return c.json({ error: SIGNING_KEY_MISSING }, 404);
+    c.header("Cache-Control", "public, max-age=3600");
+    c.header("Access-Control-Allow-Origin", "*");
+    return c.json(options.agentUrlSigner.keySet());
   });
   app.get("/health", async (c) => {
     await db.pool.query("SELECT 1");
@@ -644,7 +656,7 @@ export function createApi(options: {
     ...(options.selfServe ? { limits: options.selfServe } : {}),
     ...(options.gatewayUrl ? { gatewayUrl: options.gatewayUrl } : {}),
     ...(options.coverCaps ? { coverCaps: options.coverCaps } : {}),
-    agentUrls: Boolean(options.secrets),
+    agentUrls: Boolean(options.agentUrlSigner),
     wallet,
     status: vaultStatus,
   });
@@ -655,6 +667,7 @@ export function createApi(options: {
   const streams = new PollStreams();
   const urlClient = new AgentUrlClient({
     refusedHosts: ownDomains,
+    ...(options.agentUrlSigner ? { signer: options.agentUrlSigner } : {}),
     ...(options.allowLoopbackUrls ? { allowLoopback: true } : {}),
   });
   const owners = ownerRoutes(app, {
@@ -666,6 +679,7 @@ export function createApi(options: {
     writes,
     reads,
     ...(options.secrets ? { secrets: options.secrets } : {}),
+    agentUrls: Boolean(options.agentUrlSigner),
     // The API's own Agent URL client (the gateway has its own): it refuses Bonded's hosts and
     // rate-limits calls per URL host.
     verifyAgentUrl: options.verifyAgentUrl ?? gatewayUrlVerifier(urlClient),

@@ -201,6 +201,7 @@ export function InitCommand({
   teeUrl,
   token,
   gatewayUrl,
+  owner,
 }: {
   framework: Framework | undefined;
   connection: Connection;
@@ -210,6 +211,8 @@ export function InitCommand({
   teeUrl?: string | null;
   token?: string | null;
   gatewayUrl?: string | null;
+  /** The Agent URL handler's owner (the signed-in wallet), for `--owner`. */
+  owner?: string | null;
 }) {
   if (connection === "runner" && teeUrl)
     return (
@@ -246,6 +249,7 @@ export function InitCommand({
         token: token ?? null,
         gatewayUrl: gatewayUrl ?? null,
         apiUrl,
+        owner: owner ?? null,
       })}
       note={
         connection === "url"

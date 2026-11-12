@@ -2,19 +2,22 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  AGENT_URL_KEYS_PATH,
   type BondedHandlerOptions,
   createBondedHandler,
-  signBondedRequest,
+  createTestSigner,
   toNodeHandler,
-  verifyBondedSignature,
 } from "../src/agent-url.js";
 import type { BondedEpisode } from "../src/index.js";
-import { agentUrlVerifyProof, checkAgentUrlVerifyProof } from "@bondedhq/shared/agent-url";
+import { checkAgentUrlVerifyAnswer } from "@bondedhq/shared/agent-url";
 
 /** A verify challenge as the gateway sends it (16 to 128 characters). */
 const CHALLENGE = "challenge-0123456789abcdef";
 const errorOf = async (r: Response) => ((await r.json()) as { error: string }).error;
-const SECRET = "bonded_as_test-secret-not-real-0001";
+const OWNER = "0x00000000000000000000000000000000000a11ce";
+const MALLORY = "0x000000000000000000000000000000000000bad0";
+const bonded = await createTestSigner();
+const KEYS = bonded.keys;
 const NOW = 1_800_000_000_000; // ms
 const now = () => NOW;
 const seconds = Math.floor(NOW / 1000);
@@ -41,14 +44,19 @@ const episodeMessage = (id = "ep-1", deadlineMs = 60_000) => ({
   deadlineMs,
 });
 
-/** A signed request, as Bonded sends it. */
+/** A signed request, as Bonded sends it (for OWNER unless told otherwise). */
 async function signed(
   message: unknown,
-  options: { secret?: string; timestamp?: number; headers?: Record<string, string> } = {},
+  options: {
+    owner?: string;
+    signer?: typeof bonded;
+    timestamp?: number;
+    headers?: Record<string, string>;
+  } = {},
 ) {
   const body = JSON.stringify(message);
-  const headers = await signBondedRequest(
-    options.secret ?? SECRET,
+  const headers = await (options.signer ?? bonded).sign(
+    options.owner ?? OWNER,
     body,
     options.timestamp ?? seconds,
   );
@@ -64,7 +72,8 @@ function setup(overrides: Partial<BondedHandlerOptions> = {}) {
   const done: { url: string; body: unknown }[] = [];
   const work: Promise<unknown>[] = [];
   const handler = createBondedHandler({
-    secret: SECRET,
+    owner: OWNER,
+    keys: KEYS,
     now,
     fetch: (async (url: string, init: RequestInit) => {
       done.push({ url, body: JSON.parse(String(init.body)) });
@@ -78,90 +87,100 @@ function setup(overrides: Partial<BondedHandlerOptions> = {}) {
   return { handler, done, settled: () => Promise.all(work) };
 }
 
-describe("signatures", () => {
-  it("accept Bonded's signature and refuse others", async () => {
-    const body = '{"type":"verify","challenge":"challenge-0123456789"}';
-    const h = await signBondedRequest(SECRET, body, seconds);
-    expect(h["bonded-signature"]).toMatch(/^v1=[0-9a-f]{64}$/);
-    const check = (patch: Partial<Parameters<typeof verifyBondedSignature>[0]>) =>
-      verifyBondedSignature({
-        secret: SECRET,
-        body,
-        timestamp: h["bonded-timestamp"],
-        signature: h["bonded-signature"],
-        now: seconds,
-        ...patch,
-      });
-    expect(await check({})).toEqual({ ok: true, timestamp: seconds });
-    const mismatch = { ok: false, reason: "the signature doesn't match" };
-    const stale = { ok: false, reason: "the timestamp is too old or in the future" };
-    expect(await check({ body: body + " " })).toEqual(mismatch);
-    expect(await check({ secret: "bonded_as_other" })).toEqual(mismatch);
-    expect(await check({ timestamp: String(seconds + 1) })).toEqual(mismatch);
-    expect(await check({ now: seconds + 301 })).toEqual(stale);
-    expect(await check({ now: seconds - 301 })).toEqual(stale);
-    expect(await check({ now: seconds + 300 })).toMatchObject({ ok: true });
-    expect(await check({ signature: undefined })).toEqual({
-      ok: false,
-      reason: "the call is not signed",
-    });
-    expect(await check({ signature: "v1=zz" })).toEqual({ ok: false, reason: "no v1 signature" });
-    expect(await check({ signature: "v0=" + "a".repeat(64) })).toMatchObject({ ok: false });
-    expect(await check({ timestamp: "12.5" })).toMatchObject({ ok: false });
-    // Several secrets while rotating: any one may match.
-    expect(await check({ secret: ["bonded_as_old", SECRET] })).toMatchObject({ ok: true });
-    // Signature-only: a body that isn't a Bonded message still has a valid signature.
-    const other = "not json";
-    const otherHeaders = await signBondedRequest(SECRET, other, seconds);
-    expect(
-      await check({
-        body: other,
-        timestamp: otherHeaders["bonded-timestamp"],
-        signature: otherHeaders["bonded-signature"],
-      }),
-    ).toEqual({ ok: true, timestamp: seconds });
-    // Any one of several signatures may match (secret rotation).
-    expect(
-      await check({ signature: `v1=${"0".repeat(64)}, ${h["bonded-signature"]}` }),
-    ).toMatchObject({ ok: true });
-  });
-});
-
 describe("createBondedHandler", () => {
-  it("answers a verify challenge with a proof of the secret and the agent's version", async () => {
+  it("needs the owner's wallet", () => {
+    const base = { keys: KEYS, onEpisode: () => {} };
+    expect(() => createBondedHandler({ ...base, owner: "" })).toThrow(/owner: your wallet/);
+    expect(() => createBondedHandler({ ...base, owner: "alice" })).toThrow(/owner/);
+    expect(() => createBondedHandler({ ...base, owner: [] })).toThrow(/owner/);
+    expect(() => createBondedHandler({ ...base, owner: [OWNER, MALLORY] })).not.toThrow();
+  });
+
+  it("answers a verify challenge with its owner and version", async () => {
     const { handler } = setup({ version: "v1.2.3" });
     const res = await handler(await signed({ type: "verify", challenge: CHALLENGE }));
     expect(res.status).toBe(200);
-    const answer = (await res.json()) as { challenge: string; proof: string };
-    expect(answer).toEqual({
-      challenge: CHALLENGE,
-      proof: await agentUrlVerifyProof(SECRET, CHALLENGE),
-      version: "v1.2.3",
-    });
-    // The gateway's own check accepts it, and not under another secret.
-    expect(await checkAgentUrlVerifyProof(SECRET, CHALLENGE, answer)).toBe(true);
-    expect(await checkAgentUrlVerifyProof("bonded_as_someone-else", CHALLENGE, answer)).toBe(false);
+    const answer = (await res.json()) as { challenge: string; owner: string };
+    expect(answer).toEqual({ challenge: CHALLENGE, owner: OWNER, version: "v1.2.3" });
+    // The gateway's own check accepts it, and not for another owner.
+    expect(checkAgentUrlVerifyAnswer(OWNER, CHALLENGE, answer)).toBe(true);
+    expect(checkAgentUrlVerifyAnswer(MALLORY, CHALLENGE, answer)).toBe(false);
     const noVersion = setup().handler;
     expect(
       await (await noVersion(await signed({ type: "verify", challenge: CHALLENGE }))).json(),
-    ).toEqual({ challenge: CHALLENGE, proof: await agentUrlVerifyProof(SECRET, CHALLENGE) });
+    ).toEqual({ challenge: CHALLENGE, owner: OWNER });
   });
 
-  it("while a secret rotates, proves with the secret that signed the call", async () => {
-    const OLD = "bonded_as_test-secret-being-rotated-out";
-    const { handler } = setup({ secret: [SECRET, OLD] });
-    const res = await handler(
-      await signed({ type: "verify", challenge: CHALLENGE }, { secret: OLD }),
+  it("refuses calls Bonded signed for someone else: nobody can claim this URL", async () => {
+    let ran = 0;
+    const { handler } = setup({ onEpisode: async () => void ran++ });
+    const theirs = await handler(
+      await signed({ type: "verify", challenge: CHALLENGE }, { owner: MALLORY }),
     );
-    expect(((await res.json()) as { proof: string }).proof).toBe(
-      await agentUrlVerifyProof(OLD, CHALLENGE),
+    expect(theirs.status).toBe(401);
+    expect(await errorOf(theirs)).toMatch(/another owner/);
+    expect((await handler(await signed(episodeMessage(), { owner: MALLORY }))).status).toBe(401);
+    expect(ran).toBe(0);
+    // A team: either wallet's calls pass.
+    const team = setup({ owner: [MALLORY, OWNER] }).handler;
+    expect(
+      await (
+        await team(await signed({ type: "verify", challenge: CHALLENGE }, { owner: MALLORY }))
+      ).json(),
+    ).toMatchObject({ owner: MALLORY });
+  });
+
+  it("fetches Bonded's keys from the API (once), and answers 503 when it can't", async () => {
+    let fetched: string[] = [];
+    let up = true;
+    const handler = createBondedHandler({
+      owner: OWNER,
+      apiUrl: "https://api.example/",
+      now,
+      fetch: (async (url: string) => {
+        fetched.push(url);
+        return up
+          ? new Response(JSON.stringify({ keys: KEYS }))
+          : new Response("down", { status: 503 });
+      }) as typeof fetch,
+      onEpisode: () => {},
+    });
+    const verify = async () =>
+      handler(await signed({ type: "verify", challenge: `${CHALLENGE}-${Math.random()}` }));
+    expect((await verify()).status).toBe(200);
+    expect((await verify()).status).toBe(200);
+    expect(fetched).toEqual([`https://api.example${AGENT_URL_KEYS_PATH}`]);
+    // A call from another Bonded key: fetches again (there may be a new key), then refuses.
+    const other = await createTestSigner();
+    fetched = [];
+    up = false;
+    const unknown = await handler(
+      await signed({ type: "verify", challenge: CHALLENGE }, { signer: other }),
     );
+    expect(unknown.status).toBe(401);
+    expect(await errorOf(unknown)).toMatch(/key this agent doesn't know/);
+    // Nothing cached and the API down: 503, so Bonded's verify says to try again.
+    const cold = createBondedHandler({
+      owner: OWNER,
+      fetch: (async () => new Response("down", { status: 503 })) as unknown as typeof fetch,
+      onEpisode: () => {},
+    });
+    const original = console.error;
+    console.error = () => {};
+    try {
+      expect((await cold(await signed({ type: "verify", challenge: CHALLENGE }))).status).toBe(503);
+    } finally {
+      console.error = original;
+    }
   });
 
   it("refuses bad, stale, missing and replayed signatures before reading the message", async () => {
     let ran = 0;
     const { handler } = setup({ onEpisode: async () => void ran++ });
-    const bad = await handler(await signed(episodeMessage(), { secret: "bonded_as_wrong" }));
+    const forged = await signed(episodeMessage(), {
+      headers: { "bonded-signature": `v2=${KEYS[0]!.kid}:${"A".repeat(86)}` },
+    });
+    const bad = await handler(forged);
     expect(bad.status).toBe(401);
     expect(await bad.json()).toEqual({ error: "the signature doesn't match" });
     const stale = await handler(await signed(episodeMessage(), { timestamp: seconds - 600 }));
@@ -322,32 +341,37 @@ describe("toNodeHandler", () => {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        ...(await signBondedRequest(SECRET, body, timestamp)),
+        ...(await bonded.sign(OWNER, body, timestamp)),
       },
       body,
     });
   };
 
   it("serves the handler from a Node http server, reading the raw body", async () => {
-    const handler = createBondedHandler({ secret: SECRET, version: "abc", onEpisode: () => {} });
+    const handler = createBondedHandler({
+      owner: OWNER,
+      keys: KEYS,
+      version: "abc",
+      onEpisode: () => {},
+    });
     const url = await listen(toNodeHandler(handler));
     const res = await post(url, { type: "verify", challenge: `node-${CHALLENGE}` });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       challenge: `node-${CHALLENGE}`,
-      proof: await agentUrlVerifyProof(SECRET, `node-${CHALLENGE}`),
+      owner: OWNER,
       version: "abc",
     });
     const bad = await fetch(url, {
       method: "POST",
       body: "{}",
-      headers: { "bonded-timestamp": "1", "bonded-signature": "v1=00" },
+      headers: { "bonded-timestamp": "1", "bonded-owner": OWNER, "bonded-signature": "v2=00" },
     });
     expect(bad.status).toBe(401);
   });
 
   it("accepts a raw body (express.raw) and refuses one already parsed (express.json)", async () => {
-    const handler = createBondedHandler({ secret: SECRET, onEpisode: () => {} });
+    const handler = createBondedHandler({ owner: OWNER, keys: KEYS, onEpisode: () => {} });
     const node = toNodeHandler(handler);
     let parse: "raw" | "json" = "raw";
     const url = await listen((req, res) => {
@@ -371,7 +395,8 @@ describe("toNodeHandler", () => {
 describe("platform waitUntil", () => {
   it("keeps the work alive with the context's waitUntil, called as a method", async () => {
     const handler = createBondedHandler({
-      secret: SECRET,
+      owner: OWNER,
+      keys: KEYS,
       now,
       fetch: (async () => new Response("{}")) as unknown as typeof fetch,
       onEpisode: async () => ({ finalMessage: "ok" }),

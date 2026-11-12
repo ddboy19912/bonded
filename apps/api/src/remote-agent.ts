@@ -38,7 +38,7 @@ export interface RemoteAgentRequest {
   codeHash: Hex;
   /**
    * How to reach the agent: its runner (by `agentKey`, the default) or its Agent URL, with the
-   * secret that signs each call. The secret never leaves the worker except in that signature.
+   * wallet each call is signed for (Bonded's key signs it; the agent checks the wallet is its owner).
    */
   connection?: AgentConnection;
   /**
@@ -71,7 +71,7 @@ export type RemoteAgentFactory = (
 
 /**
  * The Arena Gateway's `RemoteAgent` for a rating: the agent's runner is the one its token maps to
- * (the agent's key), or its Agent URL, called with the agent secret; a TEE-bound agent's evidence goes to `verify` at every episode, and in chain
+ * (the agent's key), or its Agent URL, called signed for its owner; a TEE-bound agent's evidence goes to `verify` at every episode, and in chain
  * mode its vault names the TEE's attested key, so no key is sent.
  */
 export function gatewayAgents(

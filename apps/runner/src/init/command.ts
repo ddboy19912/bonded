@@ -29,6 +29,8 @@ On yes it writes them and adds @bondedhq/sdk with your package manager.
   --yes, -y            apply without asking
   --framework <name>   skip detection: ${FRAMEWORKS.filter((f) => f !== "python").join(", ")}
   --url                also add an Agent URL route (Next.js, Express, Hono, or a node:http server)
+  --owner <wallet>     with --url: the wallet you save the Agent URL from on Bonded (public, not
+                       a secret). Without it the handler gets a placeholder to fill in
   --env                append the new variables' names, with empty values, to .env
   --skip-install       don't add @bondedhq/sdk
   --overwrite-generated
@@ -92,6 +94,7 @@ export async function initCommand(argv: string[], io: InitIO): Promise<number> {
         yes: { type: "boolean", short: "y", default: false },
         framework: { type: "string" },
         url: { type: "boolean", default: false },
+        owner: { type: "string" },
         env: { type: "boolean", default: false },
         "skip-install": { type: "boolean", default: false },
         "overwrite-generated": { type: "boolean", default: false },
@@ -118,6 +121,10 @@ export async function initCommand(argv: string[], io: InitIO): Promise<number> {
     io.err(`--framework must be one of ${FRAMEWORKS.join(", ")}`);
     return 1;
   }
+  if (values.owner !== undefined && !/^0x[0-9a-fA-F]{40}$/.test(values.owner)) {
+    io.err("--owner must be a wallet address: 0x and 40 hex digits");
+    return 1;
+  }
   const mode = AgentMode.safeParse(values.mode);
   if (!mode.success) {
     io.err("--mode must be tools or chain");
@@ -127,6 +134,7 @@ export async function initCommand(argv: string[], io: InitIO): Promise<number> {
   const project = detectProject(root, values.framework as Framework | undefined);
   const plan = planInit(project, {
     url: values.url,
+    ...(values.owner ? { owner: values.owner } : {}),
     overwriteGenerated: values["overwrite-generated"],
   });
   printPlan(project, plan, io.out);

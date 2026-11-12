@@ -30,6 +30,7 @@ import {
   gateMandateHash,
   isMetaModel,
   UNDERWRITING_COVER_CAP_USD,
+  agentUrlSigner,
 } from "@bondedhq/shared";
 import { REMOTE_EPISODE_TIMEOUT_MS, gatewayAgents } from "./remote-agent.js";
 import { DbRunnerAuth, RunnerPresenceWriter } from "./runners.js";
@@ -98,6 +99,12 @@ const remotePolicy = remotePolicyFromEnv();
 // Agent URL and webhook secrets are stored encrypted with AGENT_URL_SECRET_KEY; without it, Agent
 // URL mode and webhooks are refused (a malformed key stops the service here).
 const secrets = secretBoxFromEnv();
+// Signs every call to an agent's URL (AGENT_URL_SIGNING_KEY: base64url PKCS#8 Ed25519 keys,
+// comma-separated, the signing one first; `pnpm --filter @bonded/api agent-url-key` makes one).
+// The API verifies URLs and publishes the public keys; the gateway signs episodes. Without it,
+// Agent URL mode is refused (a malformed key stops the service here).
+const signingKey = process.env.AGENT_URL_SIGNING_KEY?.trim();
+const agentUrlSigning = signingKey ? await agentUrlSigner(signingKey) : undefined;
 // Notification email, only when RESEND_API_KEY and EMAIL_FROM are both set.
 const email = emailFromEnv();
 // The chains Watch mode reads wallets on: each on its public node, unless GATE_WATCH_RPC_URLS
@@ -198,6 +205,7 @@ if (role === "migrate") {
         tee: usdCap("TEE_COVER_CAP_USD", UNDERWRITING_COVER_CAP_USD.tee),
       },
       ...(secrets ? { secrets } : {}),
+      ...(agentUrlSigning ? { agentUrlSigner: agentUrlSigning } : {}),
       ...(email ? { email } : {}),
       // Bonded's own hosts, which an Agent URL or webhook may not point at (the web origins and
       // the gateway are added from their own settings).
@@ -443,7 +451,11 @@ if (role === "migrate") {
         ...(publicUrl ? { publicUrl } : {}),
         onRunnerPresence: presence.onEvent,
         // Agent URL mode: never call Bonded's own hosts.
-        agentUrl: { refusedHosts: ownHosts, ...(allowLoopback ? { allowLoopback: true } : {}) },
+        agentUrl: {
+          refusedHosts: ownHosts,
+          ...(allowLoopback ? { allowLoopback: true } : {}),
+          ...(agentUrlSigning ? { signer: agentUrlSigning } : {}),
+        },
         // Proxies in front of the gateway whose X-Forwarded-For it trusts for per-address limits:
         // 1 behind Railway's edge, 0 (the socket's address) anywhere else.
         trustProxy: z.coerce
@@ -503,7 +515,6 @@ if (role === "migrate") {
         () =>
           workCheckOne(db, deployment.chainId, {
             runCheck: gateway ? gatewayCheckRunner(gateway) : undefined,
-            secrets,
             log: (line) => console.error(line),
           }),
         1000,

@@ -9,7 +9,6 @@ import {
   type ConnectionCheckRunner,
 } from "./connections.js";
 import { CHECK_BUDGET_MS } from "./remote-policy.js";
-import { SECRET_KEY_MISSING, agentUrlContext, type SecretBox } from "./secrets.js";
 
 /**
  * The connection check lane (bring your own agent, round 2): one benign episode per check, never
@@ -21,8 +20,6 @@ import { SECRET_KEY_MISSING, agentUrlContext, type SecretBox } from "./secrets.j
 export interface CheckWorkerOptions {
   /** The gateway's check runner; without it every check fails with CHECKS_UNAVAILABLE. */
   runCheck?: ConnectionCheckRunner | undefined;
-  /** Decrypts Agent URL secrets. */
-  secrets?: SecretBox | undefined;
   /** A check's budget (default 120 s). */
   timeoutMs?: number;
   log?: (line: string) => void;
@@ -162,7 +159,7 @@ export async function workCheckOne(
     };
     let result: ConnectionCheckResult;
     try {
-      const connection = await connectionFor(db, check, options.secrets);
+      const connection = await connectionFor(db, check);
       if ("problem" in connection) result = failed(connection.problem);
       else if (!options.runCheck) result = failed(CHECKS_UNAVAILABLE);
       else
@@ -211,7 +208,6 @@ export async function workCheckOne(
 async function connectionFor(
   db: Database,
   check: { subject: string; connection: string; credentialId: string | null },
-  secrets: SecretBox | undefined,
 ): Promise<{ reach: AgentConnection } | { problem: string }> {
   if (check.connection === "runner") {
     const now = await db.currentConnection(check.subject, "runner");
@@ -232,19 +228,9 @@ async function connectionFor(
       problem:
         "The Agent URL changed (or was removed) since the check was asked for. Run it again.",
     };
-  if (!secrets) return { problem: SECRET_KEY_MISSING };
-  try {
-    return {
-      reach: {
-        kind: "url",
-        url: live.url,
-        secret: secrets.decrypt(live.ciphertext, agentUrlContext(live.id)),
-        registration: check.subject,
-      },
-    };
-  } catch {
-    return { problem: "The Agent URL's secret can't be used. Set the Agent URL again." };
-  }
+  return {
+    reach: { kind: "url", url: live.url, owner: live.createdBy, registration: check.subject },
+  };
 }
 
 async function within<T>(promise: Promise<T>, ms: number): Promise<T> {

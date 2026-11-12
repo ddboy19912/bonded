@@ -13,13 +13,13 @@ import {
   StaticRunnerTokens,
 } from "../src/index.js";
 import { eventually, type FakeRunner, fakeRunner } from "./fixtures/gateway-client.js";
+import { MALLORY, OWNER, TEST_SIGNER } from "./fixtures/agent-url-keys.js";
 import { type UrlAgent, urlAgent } from "./fixtures/url-agent.js";
 
 /**
  * Connection checks: one benign episode, live events, and plain-sentence problems, through the
  * runner and through an agent URL.
  */
-const SECRET = "bonded_as_check-test-secret-0000000000";
 const TOKENS = {
   tools: "bonded_rt_check-runner-token-tools-001",
   chain: "bonded_rt_check-runner-token-chain-001",
@@ -42,6 +42,7 @@ beforeAll(async () => {
     // The agent URLs here are all on this machine, so they share one host's rate limit.
     agentUrl: {
       allowLoopback: true,
+      signer: TEST_SIGNER,
       limits: {
         callsPerMinute: 10_000,
         callBurst: 1_000,
@@ -74,16 +75,16 @@ async function runner(
   return r;
 }
 
-async function agentAt(options: Omit<Parameters<typeof urlAgent>[0], "secret">): Promise<UrlAgent> {
-  const at = await urlAgent({ secret: SECRET, ...options });
+async function agentAt(options: Parameters<typeof urlAgent>[0]): Promise<UrlAgent> {
+  const at = await urlAgent(options);
   cleanup.push(() => at.close());
   return at;
 }
 
-const byUrl = (url: string, secret = SECRET): AgentTransport => ({
+const byUrl = (url: string, owner = OWNER): AgentTransport => ({
   kind: "url",
   url,
-  secret,
+  owner,
   registration: `check:${url}`,
 });
 const byRunner = (mode: "tools" | "chain"): AgentTransport => ({
@@ -347,11 +348,11 @@ describe("a connection check", () => {
     await eventually(() => at.cancels.length === 1);
   });
 
-  it("checks the URL's secret before anything runs", async () => {
+  it("checks the URL is the owner's before anything runs", async () => {
     const at = await agentAt({ agent: new ScriptedVulnerableAgent() });
-    const { result, events } = await check(byUrl(at.url, "bonded_as_wrong-secret-0000000000000"));
+    const { result, events } = await check(byUrl(at.url, MALLORY));
     expect(result.problems).toEqual([
-      "Your URL answered 401: check that your agent uses the agent secret Bonded gave you",
+      "Your URL answered 401: check that owner in your handler is the wallet you saved this URL with",
     ]);
     expect(events.map((e) => e.type)).toEqual(["result"]);
     expect(at.received).toHaveLength(0);
@@ -366,7 +367,14 @@ describe("the Agent URL example", () => {
 
   it("passes a check on a fresh chain of its own", async () => {
     child = spawn(process.execPath, [EXAMPLE], {
-      env: { ...process.env, BONDED_AGENT_SECRET: SECRET, PORT: "0", AGENT_VERSION: "example-9" },
+      env: {
+        ...process.env,
+        BONDED_AGENT_OWNER: OWNER,
+        // The gateway publishes the test key, as Bonded's API publishes the real one.
+        BONDED_API_URL: gateway.url,
+        PORT: "0",
+        AGENT_VERSION: "example-9",
+      },
       stdio: ["ignore", "pipe", "pipe"],
     });
     const url = await new Promise<string>((resolve, reject) => {

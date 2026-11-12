@@ -7,6 +7,7 @@ import {
   verifyAgentUrlRequest,
 } from "@bondedhq/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { MALLORY, OWNER, TEST_KEYS, TEST_SIGNER } from "./fixtures/agent-url-keys.js";
 import {
   AgentUrlClient,
   ArenaGateway,
@@ -30,7 +31,6 @@ vi.mock("node:dns", async (importOriginal) => {
   return { ...actual, lookup };
 });
 
-const SECRET = "bonded_as_unit-test-secret-000000000000";
 const servers: Server[] = [];
 const timers: NodeJS.Timeout[] = [];
 afterEach(() => {
@@ -52,12 +52,16 @@ async function agent(handler: Handler): Promise<{ url: string; calls: AgentUrlMe
     req.on("data", (c: Buffer) => chunks.push(c));
     req.on("end", () => {
       const body = Buffer.concat(chunks).toString("utf8");
-      void verifyAgentUrlRequest({ secret: SECRET, body, headers: req.headers, replay }).then(
-        (checked) => {
-          if (checked.ok) calls.push(checked.message);
-          handler(req, res, checked.ok ? body : "");
-        },
-      );
+      void verifyAgentUrlRequest({
+        owner: OWNER,
+        keys: TEST_KEYS,
+        body,
+        headers: req.headers,
+        replay,
+      }).then((checked) => {
+        if (checked.ok) calls.push(checked.message);
+        handler(req, res, checked.ok ? body : "");
+      });
     });
   });
   servers.push(server);
@@ -65,19 +69,18 @@ async function agent(handler: Handler): Promise<{ url: string; calls: AgentUrlMe
   return { url: `http://127.0.0.1:${(server.address() as { port: number }).port}/agent`, calls };
 }
 
-const local = (limits = {}) => new AgentUrlClient({ allowLoopback: true, limits });
+const local = (limits = {}) =>
+  new AgentUrlClient({ allowLoopback: true, limits, signer: TEST_SIGNER });
 const NOT_PUBLIC =
   "Your URL's host isn't reachable on the public internet: it must resolve to a public address";
 const RATE_LIMITED = "Bonded has called your URL too often in the last minute; try again shortly";
 
-/** An agent that answers verify properly, with the proof. */
+/** An agent that answers verify properly, with its owner. */
 const proving: Handler = (_req, res, body) => {
   const message = body ? (JSON.parse(body) as AgentUrlMessage) : undefined;
   if (message?.type !== "verify") return void res.writeHead(204).end();
-  void answerAgentUrlVerify(SECRET, message, "v1.4.2").then((answer) => {
-    res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify(answer));
-  });
+  res.writeHead(200, { "content-type": "application/json" });
+  res.end(JSON.stringify(answerAgentUrlVerify(OWNER, message, "v1.4.2")));
 };
 
 describe("which URLs an agent may register", () => {
@@ -157,15 +160,14 @@ describe("which URLs an agent may register", () => {
 
   it("refuses a name that resolves to an internal address, when it connects, in the same words as one that doesn't resolve", async () => {
     const logged: string[] = [];
-    const client = new AgentUrlClient({ log: (line) => logged.push(line) });
+    const client = new AgentUrlClient({ log: (line) => logged.push(line), signer: TEST_SIGNER });
     const cancel = { type: "cancel", episodeId: "e" } as const;
-    const rebind = await client.send("https://rebind.example/agent", SECRET, cancel);
-    const missing = await client.send("https://nxdomain.example/agent", SECRET, cancel);
+    const rebind = await client.send("https://rebind.example/agent", OWNER, cancel);
+    const missing = await client.send("https://nxdomain.example/agent", OWNER, cancel);
     expect(rebind).toEqual({ ok: false, problem: NOT_PUBLIC, caused: "agent" });
     expect(missing).toEqual(rebind);
-    // The detail stays on the server, without the secret.
+    // The detail stays on the server.
     expect(logged.join("\n")).toMatch(/nxdomain\.example failed: ENOTFOUND/);
-    expect(logged.join("\n")).not.toContain(SECRET);
   });
 
   it("knows the site a host belongs to", () => {
@@ -179,47 +181,84 @@ describe("which URLs an agent may register", () => {
 });
 
 describe("calling an agent URL", () => {
-  it("signs every call so the agent can verify it, and verify returns the version", async () => {
+  it("signs every call for the owner so the agent can verify it, and verify returns the version", async () => {
     const { url, calls } = await agent((req, res, body) =>
       body ? proving(req, res, body) : void res.writeHead(401).end(),
     );
-    const result = await verifyAgentUrl(url, SECRET, { allowLoopback: true });
+    const opts = { allowLoopback: true, signer: TEST_SIGNER };
+    const result = await verifyAgentUrl(url, OWNER, opts);
     expect(result).toEqual({ ok: true, version: "v1.4.2", codeHash: agentUrlCodeHash("v1.4.2") });
     expect(calls).toHaveLength(1);
-    // With the wrong secret the agent refuses it, and the sentence says why.
-    expect(
-      await verifyAgentUrl(url, "bonded_as_wrong-secret-000000000000000", { allowLoopback: true }),
-    ).toEqual({
+    // Someone else saving this URL: their calls are signed for them, and the agent refuses them.
+    expect(await verifyAgentUrl(url, MALLORY, opts)).toEqual({
       ok: false,
-      problem: "Your URL answered 401: check that your agent uses the agent secret Bonded gave you",
+      problem:
+        "Your URL answered 401: check that owner in your handler is the wallet you saved this URL with",
     });
   });
 
-  it("requires proof of the secret, so an echo server can't pass", async () => {
-    // The review's proof of concept: a server that echoes the body knows no secret.
+  it("sends nothing without a signing key", async () => {
+    const { url, calls } = await agent(proving);
+    expect(await verifyAgentUrl(url, OWNER, { allowLoopback: true })).toEqual({
+      ok: false,
+      problem: "Agent URL mode is off on this service: AGENT_URL_SIGNING_KEY isn't set",
+    });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("needs the answer to name the owner, so an echo server or an agent for another wallet can't pass", async () => {
+    const opts = { allowLoopback: true, signer: TEST_SIGNER };
+    // The review's proof of concept: a server that echoes the body. The owner isn't in the body.
     const echo = await agent((_req, res, body) => {
       res.writeHead(200, { "content-type": "application/json" });
       res.end(body);
     });
-    const proofless = await agent((_req, res, body) => {
+    const ownerless = await agent((_req, res, body) => {
       const message = JSON.parse(body) as { challenge: string };
-      res.end(JSON.stringify({ challenge: message.challenge, proof: "ab".repeat(32) }));
+      res.end(JSON.stringify({ challenge: message.challenge }));
     });
-    for (const url of [echo.url, proofless.url])
-      expect(await verifyAgentUrl(url, SECRET, { allowLoopback: true })).toMatchObject({
+    for (const url of [echo.url, ownerless.url])
+      expect(await verifyAgentUrl(url, OWNER, opts)).toMatchObject({
         ok: false,
-        problem: expect.stringMatching(/without proving it holds the agent secret/),
+        problem: expect.stringMatching(/without its owner/),
       });
+    // An agent that skips the owner check and answers for another wallet: refused.
+    const careless = await agent((_req, res, body) => {
+      const message = JSON.parse(body) as { challenge: string };
+      res.end(JSON.stringify({ challenge: message.challenge, owner: MALLORY }));
+    });
+    expect(await verifyAgentUrl(careless.url, OWNER, opts)).toMatchObject({
+      ok: false,
+      problem: expect.stringMatching(/answered for the wallet 0x0+bad0, not 0x0+a11ce/),
+    });
     const text = await agent((_req, res) => res.end("hello"));
-    expect(await verifyAgentUrl(text.url, SECRET, { allowLoopback: true })).toMatchObject({
+    expect(await verifyAgentUrl(text.url, OWNER, opts)).toMatchObject({
       ok: false,
       problem: "Your URL answered the check, but not with JSON",
     });
     const accepted = await agent((_req, res) => res.writeHead(202).end());
-    expect(await verifyAgentUrl(accepted.url, SECRET, { allowLoopback: true })).toMatchObject({
+    expect(await verifyAgentUrl(accepted.url, OWNER, opts)).toMatchObject({
       ok: false,
       problem: "Your URL answered 202 to the check; it must be 200",
     });
+  });
+
+  it("publishes its public keys at the well-known path, for a local run", async () => {
+    const gateway = new ArenaGateway({
+      tokens: new StaticRunnerTokens(),
+      agentUrl: { allowLoopback: true, signer: TEST_SIGNER },
+    });
+    const base = await gateway.listen();
+    const keyless = new ArenaGateway({ tokens: new StaticRunnerTokens() });
+    const keylessBase = await keyless.listen();
+    try {
+      const res = await fetch(`${base}/.well-known/bonded-agent-keys.json`);
+      expect(await res.json()).toEqual({ keys: TEST_KEYS });
+      expect((await fetch(`${keylessBase}/.well-known/bonded-agent-keys.json`)).status).toBe(404);
+    } finally {
+      await gateway.close();
+      await keyless.close();
+    }
   });
 
   it("doesn't follow a redirect", async () => {
@@ -229,7 +268,7 @@ describe("calling an agent URL", () => {
       res.end("{}");
     });
     const redirect = await agent((_req, res) => res.writeHead(307, { location: inside.url }).end());
-    const call = await local().send(redirect.url, SECRET, { type: "cancel", episodeId: "e" });
+    const call = await local().send(redirect.url, OWNER, { type: "cancel", episodeId: "e" });
     expect(call).toMatchObject({
       ok: false,
       problem:
@@ -242,7 +281,7 @@ describe("calling an agent URL", () => {
     const client = local({ answerMs: 300 });
     const silent = await agent(() => {});
     let start = Date.now();
-    expect(await client.send(silent.url, SECRET, { type: "cancel", episodeId: "e" })).toEqual({
+    expect(await client.send(silent.url, OWNER, { type: "cancel", episodeId: "e" })).toEqual({
       ok: false,
       problem: "Your URL didn't answer within 0.3 seconds",
       caused: "agent",
@@ -255,14 +294,14 @@ describe("calling an agent URL", () => {
       res.on("close", () => clearInterval(drip));
     });
     start = Date.now();
-    const call = await client.send(dribble.url, SECRET, { type: "cancel", episodeId: "e" });
+    const call = await client.send(dribble.url, OWNER, { type: "cancel", episodeId: "e" });
     expect(call.ok === false && call.problem).toMatch(/didn't answer within/);
     expect(Date.now() - start).toBeLessThan(1_500);
   });
 
   it("reads at most 64 KiB of an answer", async () => {
     const big = await agent((_req, res) => res.end("x".repeat(100 * 1024)));
-    expect(await local().send(big.url, SECRET, { type: "cancel", episodeId: "e" })).toMatchObject({
+    expect(await local().send(big.url, OWNER, { type: "cancel", episodeId: "e" })).toMatchObject({
       ok: false,
       problem: "Your URL's answer was over 64 KiB",
     });
@@ -270,14 +309,14 @@ describe("calling an agent URL", () => {
 
   it("says what a non-2xx answer or a closed port was", async () => {
     const missing = await agent((_req, res) => res.writeHead(404).end());
-    expect(await local().send(missing.url, SECRET, { type: "cancel", episodeId: "e" })).toEqual({
+    expect(await local().send(missing.url, OWNER, { type: "cancel", episodeId: "e" })).toEqual({
       ok: false,
       problem: "Your URL answered 404",
       status: 404,
       caused: "agent",
     });
     expect(
-      await local().send("http://127.0.0.1:1/agent", SECRET, { type: "cancel", episodeId: "e" }),
+      await local().send("http://127.0.0.1:1/agent", OWNER, { type: "cancel", episodeId: "e" }),
     ).toMatchObject({ ok: false, problem: "Nothing accepted a connection at your URL" });
   });
 
@@ -286,15 +325,15 @@ describe("calling an agent URL", () => {
     const client = local({ callsPerMinute: 2, callBurst: 2 });
     const cancel = (episodeId: string) => ({ type: "cancel", episodeId }) as const;
     const as = (registration: string) => ({ registration });
-    expect((await client.send(ok.url, SECRET, cancel("e1"), as("noisy"))).ok).toBe(true);
-    expect((await client.send(`${ok.url}?x`, SECRET, cancel("e2"), as("noisy"))).ok).toBe(true);
-    expect(await client.send(ok.url, SECRET, cancel("e3"), as("noisy"))).toEqual({
+    expect((await client.send(ok.url, OWNER, cancel("e1"), as("noisy"))).ok).toBe(true);
+    expect((await client.send(`${ok.url}?x`, OWNER, cancel("e2"), as("noisy"))).ok).toBe(true);
+    expect(await client.send(ok.url, OWNER, cancel("e3"), as("noisy"))).toEqual({
       ok: false,
       problem: RATE_LIMITED,
       caused: "bonded",
     });
     // Another agent on the same host still gets its calls.
-    expect((await client.send(ok.url, SECRET, cancel("e4"), as("victim"))).ok).toBe(true);
+    expect((await client.send(ok.url, OWNER, cancel("e4"), as("victim"))).ok).toBe(true);
     expect(ok.calls).toHaveLength(3);
   });
 
@@ -302,14 +341,14 @@ describe("calling an agent URL", () => {
     const ok = await agent(proving);
     const port = new URL(ok.url).port;
     const client = local({ verifiesPerMinute: 1, verifyBurst: 1 });
-    expect((await client.verify(`http://localhost:${port}/`, SECRET)).ok).toBe(true);
+    expect((await client.verify(`http://localhost:${port}/`, OWNER)).ok).toBe(true);
     // The same host with a trailing dot is the same bucket.
-    expect(await client.verify(`http://localhost.:${port}/`, SECRET)).toEqual({
+    expect(await client.verify(`http://localhost.:${port}/`, OWNER)).toEqual({
       ok: false,
       problem: RATE_LIMITED,
     });
     // Another name for the same address: refused at connect time by the address's bucket.
-    expect(await client.verify(`http://127.0.0.1:${port}/`, SECRET)).toEqual({
+    expect(await client.verify(`http://127.0.0.1:${port}/`, OWNER)).toEqual({
       ok: false,
       problem: RATE_LIMITED,
     });
@@ -320,7 +359,7 @@ describe("calling an agent URL", () => {
     const ok = await agent((_req, res) => res.writeHead(204).end());
     const client = local({ callsPerMinute: 0.001, callBurst: 1, maxBuckets: 2 });
     const send = (registration: string, id: string) =>
-      client.send(ok.url, SECRET, { type: "cancel", episodeId: id }, { registration });
+      client.send(ok.url, OWNER, { type: "cancel", episodeId: id }, { registration });
     expect((await send("a", "1")).ok).toBe(true);
     expect((await send("b", "2")).ok).toBe(true);
     // "a" is used again (refused), so it is the most recent; a third bucket drops "b".

@@ -118,9 +118,13 @@ export default defineRailway(() => {
       ...gateway,
       API_TOKEN: preserve(),
       ATTESTER_KEY: preserve(),
-      // Encrypts Agent URL and webhook secrets at rest (bring your own agent, round 2): 32 bytes
-      // set by the founder in Railway (openssl rand -hex 32). The arena-worker reads the same.
+      // Encrypts webhook secrets at rest: 32 bytes set by the founder in Railway (openssl rand
+      // -hex 32). The arena-worker reads the same.
       AGENT_URL_SECRET_KEY: preserve(),
+      // Signs every call to an agent's URL (Ed25519; docs/AGENT-URL-SIGNED-CALLS.md), and the API
+      // publishes its public key. Made by the founder with `pnpm --filter @bonded/api
+      // agent-url-key` and set in Railway. The arena-worker's gateway signs with the same key.
+      AGENT_URL_SIGNING_KEY: preserve(),
       // Signs the payment gate's check receipts (apps/api/GATE.md): a new 32-byte key set by the
       // founder in Railway, never the attester's. Without it, checks are refused.
       GATE_RECEIPT_PRIVATE_KEY: preserve(),
@@ -158,8 +162,10 @@ export default defineRailway(() => {
       GATEWAY_TRUST_PROXY: "1",
       ROLE: "arena-worker",
       ATTESTER_KEY: preserve(),
-      // Decrypts Agent URL secrets to sign calls to agents, and webhook secrets for notifications.
+      // Decrypts webhook secrets for notifications.
       AGENT_URL_SECRET_KEY: api.env.AGENT_URL_SECRET_KEY,
+      // Signs calls to agents' URLs: the same key the API publishes.
+      AGENT_URL_SIGNING_KEY: api.env.AGENT_URL_SIGNING_KEY,
       ...previews,
     },
   });

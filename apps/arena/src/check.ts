@@ -180,7 +180,7 @@ export async function runConnectionCheck(options: ConnectionCheckOptions): Promi
       );
     if (runner.code) code = runner.code;
   } else {
-    const verified = await gateway.agentUrls.verify(transport.url, transport.secret);
+    const verified = await gateway.agentUrls.verify(transport.url, transport.owner);
     if (!verified.ok) return early(verified.problem);
     if (verified.codeHash && verified.version)
       code = {
