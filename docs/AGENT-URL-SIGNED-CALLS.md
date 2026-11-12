@@ -1,6 +1,7 @@
 # Agent URL without a secret: Bonded-signed calls (plan)
 
-Status: plan, not built. Nothing here changes the on-chain attestation format or any library
+Status: built in the `agent-url-signed-calls` branch (2026-11-12); the key setup and a run
+against a deployed agent are still to do (Section 6). Nothing here changes the on-chain attestation format or any library
 version: this is how the gateway talks to an agent, not how a rating is scored.
 
 ## 1. The problem
@@ -34,15 +35,20 @@ Any replacement has to do both jobs.
 
 ### 3.1 Bonded signs with its own key
 
-The gateway signs every call with an Ed25519 key that only Bonded holds. The public key ships
-inside the SDK and is also published at a fixed URL, so the handler can check a call without any
-secret of the owner's.
+The gateway signs every call with an Ed25519 key that only Bonded holds. The public key is
+published by the API at `/.well-known/bonded-agent-keys.json`, so the handler can check a call
+without any secret of the owner's.
 
-The signed text covers more than today's so a signature can't be reused elsewhere:
+The signed text covers the owner as well as the body, so a call signed for one wallet can't be
+passed off as another's:
 
 ```
-v2.<key id>.<timestamp>.<owner wallet, lowercase>.<agent url>.<raw body>
+v2.<key id>.<timestamp>.<owner wallet, lowercase>.<raw body>
 ```
+
+The agent's URL isn't signed: behind a proxy or a tunnel the handler can't reliably see the URL
+Bonded called. Replaying a captured call to another of the same owner's agents within the
+5-minute window does no harm (the episode's endpoints accept one run).
 
 Header: `bonded-signature: v2=<key id>:<base64url signature>`. This replaces `v1` (HMAC) for
 agent URLs outright (Section 5).
@@ -86,25 +92,25 @@ handler set up for that wallet answers with it.
 
 1. Copy the handler from the page (the owner's wallet is already in it) and deploy.
 2. Paste the URL.
-3. Verify: it passes at once.
+3. "Save and verify" is one click: saving verifies at once.
 
-No secret, no env var, one deploy. If the handler is already deployed with the right wallet,
-saving and verifying is one click.
+No secret, no env var, one deploy. `runner init --url --owner <wallet>` writes the same handler.
 
 ## 4. Keys and rotation
 
 - **Where the key lives:** an env var on the gateway to start (`AGENT_URL_SIGNING_KEY`), the
   only service that calls agents. The signer sits behind one small interface, so moving it into a
   KMS later changes one file. Move it before the first design partner connects a real agent.
-- **Key ids:** every signature names its key id. The SDK ships the current and next public keys.
-  It also fetches `https://api.<domain>/.well-known/bonded-agent-keys.json`, caches it for a day,
-  and accepts only keys listed there or in the bundled ones.
-- **Rotation:** publish the next key, release an SDK with it, wait, then switch the signer. Old
-  SDKs that can't fetch keep working until the bundled key is retired.
-- **If the key leaks:** remove it from the published list and sign with the next key. Handlers
-  that fetch pick that up within a day; an emergency SDK release covers those that don't. This is
-  a worse case than one leaked customer secret, because one key covers every agent. That is why it
-  belongs in a KMS.
+- **Key ids:** every signature names its key id, the first 12 characters of the base64url
+  SHA-256 of the public key, so nothing needs configuring. The handler fetches the published set,
+  keeps it for a day, and fetches again at once (at most once a minute) for a key id it hasn't
+  seen. No key is bundled in the SDK yet: there is no production key to bundle until Section 6's
+  key setup. Bundling one later would let a handler start while the API is down.
+- **Rotation:** `AGENT_URL_SIGNING_KEY=<new>,<old>`: both are published and the first signs.
+  Handlers pick up the new key on its first call. Drop the old one after a day.
+- **If the key leaks:** replace it (the old one off the list). Handlers stop trusting it within a
+  day, or at once if they restart. This is a worse case than one leaked customer secret, because
+  one key covers every agent. That is why it belongs in a KMS.
 
 ## 5. No fallback: the secret goes away
 
@@ -130,33 +136,35 @@ The secret code is deleted in the same release, so these must pass first, on the
 and the published SDK against a deployed test agent:
 
 1. A real episode is signed, checked and answered.
-2. A call with a bad signature, an old timestamp, a replayed body, an unknown key id or a
-   different URL is refused.
+2. A call with a bad signature, an old timestamp, a replayed body, an unknown key id or another
+   owner is refused.
 3. Someone else's account saving the same URL can't verify it, and gets no episodes.
 4. A body-echo server fails verify.
-5. Rotating the key: a handler with only the bundled key, and one that fetches the keys file,
-   both keep working across the switch.
+5. Rotating the key: a running handler keeps working across the switch.
 6. The TypeScript handler (Node and edge runtimes) and the Python example both pass 1 to 4.
 
 ## 6. Work, in order
 
-One branch per item, each with its tests in the same commit. Items 1 to 6 merge together as one
-release, since the secret is removed as the new path lands.
+Items 1 to 5 are built in one branch, `agent-url-signed-calls`, with their tests: the secret is
+removed as the new path lands. Section 5.1's checks 1 to 4 and 6 pass locally (a real gateway,
+the SDK handler and the Python example, in the Arena's and the framework examples' integration
+tests); item 6 is running them against a deployed agent once item 7 is done.
 
 1. **Shared:** `v2` signing payload, header format, verify and answer schemas, keys-file format.
    Remove the agent-URL HMAC helpers (`packages/shared/src/agent-url.ts`).
-2. **Gateway:** Ed25519 signer with key ids, signing in the owner wallet and the URL
+2. **Gateway:** Ed25519 signer with key ids, signing in the owner wallet
    (`apps/arena/src/gateway/agent-url.ts`).
 3. **API:** save a URL without a secret; verify checks the answered owner; serve the keys file;
    remove the secret column, routes and encryption context for agent URLs (`previews.ts`,
    `self-serve.ts`, `secrets.ts`).
-4. **SDK:** `owner` option and the `v2` check against bundled plus fetched keys; remove
-   `secret`. Then the npm release.
+4. **SDK:** `owner` option and the `v2` check against the fetched keys; remove `secret`. Then
+   the npm release (SDK 0.2.0, shared 0.2.0, runner 0.1.5).
 5. **Web, docs, runner `init`, Python example:** snippets fill in the signed-in wallet; the
    connect step is "paste URL, verify"; every mention of `BONDED_AGENT_SECRET` goes.
 6. **End-to-end tests** from Section 5.1, run against the deployed test agent before merging.
-7. **Key setup (the founder):** generate the key pair, set `AGENT_URL_SIGNING_KEY` on the
-   gateway, publish the keys file. It needs production access.
+7. **Key setup (the founder):** `pnpm --filter @bonded/api agent-url-key`, then set
+   `AGENT_URL_SIGNING_KEY` on the api service in Railway (the arena-worker takes the same value).
+   The API publishes the public key. It needs production access.
 
 ## 7. Decisions
 
