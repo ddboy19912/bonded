@@ -292,7 +292,6 @@ describe("Test your agent", () => {
         toolNames: "bonded",
       }),
     );
-    expect(await screen.findByText(/the runner is started with --world brokerage/)).toBeTruthy();
     // The command is for the brokerage world, and nothing offers the vault set-up.
     expect(
       await findCodeBlock(

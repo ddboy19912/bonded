@@ -286,8 +286,8 @@ describe("ConnectAgent", () => {
     );
     // Step 1: the secret, once, with where it goes. Step 2: verify.
     expect(await screen.findByText("bonded_as_secret")).toBeTruthy();
-    expect(screen.getByText("Saved, not verified yet")).toBeTruthy();
-    expect(screen.getByText(/won't be shown again/)).toBeTruthy();
+    expect(screen.getByText("Not verified yet")).toBeTruthy();
+    expect(screen.getByText(/shown once/)).toBeTruthy();
     expect(screen.getAllByText("BONDED_AGENT_SECRET").length).toBeGreaterThan(0);
     runner.mockResolvedValue(
       runnerRecord({
@@ -325,7 +325,7 @@ describe("ConnectAgent", () => {
     signedIn();
     show();
     // Saved earlier, so its secret isn't shown again: the page says how to get a new one.
-    expect(await screen.findByText(/if you no longer have it, get a new one below/)).toBeTruthy();
+    expect(await screen.findByText(/needs the secret shown when you saved this URL/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Verify it now" }));
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toMatch(/Your URL answered 404/);
@@ -603,7 +603,7 @@ describe("ConnectAgent", () => {
     );
     expect(await screen.findByText("bonded_as_new")).toBeTruthy();
     // It must be verified again with the new secret.
-    expect(screen.getByText("Saved, not verified yet")).toBeTruthy();
+    expect(screen.getByText("Not verified yet")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Verify it now" })).toBeTruthy();
   });
 });

@@ -455,16 +455,6 @@ export function TestAgent() {
               }
               open={stateOf("connect") === "done"}
             >
-              {p?.world === "brokerage" && (
-                <p className="mb-4 text-sm text-muted">
-                  Your agent gets the brokerage tools (account, quotes, filings, orders,
-                  withdrawals), not the vault's: list them first. The commands and code below are
-                  for stock trading
-                  {p.connection === "runner"
-                    ? ": the runner is started with --world brokerage. This needs @bondedhq/runner 0.1.4 or later."
-                    : ": the handler takes brokerage episodes with onBrokerageEpisode. This needs @bondedhq/sdk 0.1.7 or later."}
-                </p>
-              )}
               {p && status && subject && auth && (
                 <ConnectStep
                   key={p.id}
