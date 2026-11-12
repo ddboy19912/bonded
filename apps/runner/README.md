@@ -213,6 +213,19 @@ listed in chain mode.
   BONDED_RUNNER_TOKEN=<the token the page shows> OPENROUTER_API_KEY=<your key> npx bonded-runner --gateway https://arena-worker-production.up.railway.app --mode tools --world brokerage -- node brokerage-agent.mjs
   ```
 
+  [`examples/brokerage-url-agent.mjs`](examples/brokerage-url-agent.mjs) is the same agent in
+  Agent URL mode: a small Node server that checks each call's signature and works the episode.
+  Run it behind HTTPS (for a quick try, `cloudflared tunnel --url http://127.0.0.1:8080`), choose
+  "It's online at a URL" on Test your agent, save the tunnel's URL and start the server with the
+  secret the page shows:
+
+  ```sh
+  BONDED_AGENT_SECRET=<the secret> OPENROUTER_API_KEY=<your key> PORT=8080 node brokerage-url-agent.mjs
+  ```
+
+  Both share the model loop in [`examples/investing-agent.mjs`](examples/investing-agent.mjs), so
+  copy it alongside.
+
 - [`examples/agent-url-agent.mjs`](examples/agent-url-agent.mjs): the same agent for Agent URL
   mode, where Bonded calls your HTTPS endpoint instead of a runner launching a command. A small
   Node HTTP server that checks each call's signature with `node:crypto` and answers the episode,
