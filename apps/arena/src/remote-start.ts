@@ -70,21 +70,13 @@ export async function startRemote(
     const tokenShown = given ? "<your token>" : token;
     const flags = `--gateway ${url} --mode ${mode}${world === "vault" ? "" : ` --world ${world}`}`;
     const fromRepository = `  BONDED_RUNNER_TOKEN=${tokenShown} node apps/runner/dist/cli.js ${flags} -- <your agent command>\n`;
-    if (world === "vault") {
-      console.log("Start your agent's runner in another terminal:\n");
-      console.log(
-        `  BONDED_RUNNER_TOKEN=${tokenShown} npx @bondedhq/runner ${flags} -- <your agent command>\n`,
-      );
-      console.log("or, from this repository:\n");
-      console.log(fromRepository);
-    } else {
-      // The published runner is protocol 1 until its next release: it can't take this world yet.
-      console.log(
-        `Start your agent's runner in another terminal, from this repository (the published ` +
-          `@bondedhq/runner gets the ${world} world in its next release):\n`,
-      );
-      console.log(fromRepository);
-    }
+    // The published runner takes every world since 0.1.4 (protocol 2 for the brokerage world).
+    console.log("Start your agent's runner in another terminal:\n");
+    console.log(
+      `  BONDED_RUNNER_TOKEN=${tokenShown} npx @bondedhq/runner ${flags} -- <your agent command>\n`,
+    );
+    console.log("or, from this repository:\n");
+    console.log(fromRepository);
     const deadline = Date.now() + waitMs;
     console.log(`Waiting up to ${waitMs / 1000} s for the runner...`);
     while (!gateway.runner("local")) {

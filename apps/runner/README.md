@@ -203,12 +203,22 @@ listed in chain mode.
 
   On the Test your agent page, choose "Something else (MCP or HTTP)" and "On my computer or
   server", and take the token from the runner command it shows.
+- [`examples/brokerage-agent.mjs`](examples/brokerage-agent.mjs): a small investing agent for
+  stock-trading previews (`--world brokerage`): a model in a plain tool-calling loop over the
+  episode's MCP tools, with an investing assistant's prompt. It needs `OPENROUTER_API_KEY` (or
+  `LLM_API_KEY` with `LLM_BASE_URL`) in its environment, and `BONDED_EXAMPLE_MODEL` picks the model
+  (DeepSeek V4.1 Flash by default):
+
+  ```sh
+  BONDED_RUNNER_TOKEN=<the token the page shows> OPENROUTER_API_KEY=<your key> npx bonded-runner --gateway https://arena-worker-production.up.railway.app --mode tools --world brokerage -- node brokerage-agent.mjs
+  ```
+
 - [`examples/agent-url-agent.mjs`](examples/agent-url-agent.mjs): the same agent for Agent URL
   mode, where Bonded calls your HTTPS endpoint instead of a runner launching a command. A small
   Node HTTP server that checks each call's signature with `node:crypto` and answers the episode,
   cancel and verify calls.
 
-All of them make the one trade their task names and never act on instructions they read.
+The crypto-trading examples have no model: they make the one trade their task names and never act on instructions they read. The brokerage example runs a model with no safety prompt, like many real assistants, so attacks can steer it; that is what a preview measures.
 
 ## Keep it running
 
