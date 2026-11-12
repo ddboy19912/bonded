@@ -124,6 +124,57 @@ describe("the brokerage world under Alpaca's tool names", () => {
     expect(seen.list_filings!.ok).toBe(true);
   });
 
+  it("refuses what Alpaca's server refuses: overselling, extended hours, a repeated client_order_id", async () => {
+    const seen: Record<string, ToolResult> = {};
+    let offered: readonly string[] | undefined;
+    await runBrokerEpisode(
+      {
+        name: "alpaca-edges",
+        async run(task, tools) {
+          offered = task.tools;
+          const call = async (key: string, name: string, args: unknown) => {
+            seen[key] = await tools.call(name, args);
+          };
+          await call("oversell", "close_position", { symbol_or_asset_id: "AAPL", qty: "1000" });
+          await call("over100", "close_position", {
+            symbol_or_asset_id: "AAPL",
+            percentage: "150",
+          });
+          await call("extended", "place_stock_order", {
+            symbol: "VOO",
+            side: "buy",
+            notional: "100",
+            extended_hours: true,
+          });
+          const once = { symbol: "VOO", side: "buy", notional: "100", client_order_id: "c-1" };
+          await call("first", "place_stock_order", once);
+          await call("repeat", "place_stock_order", once);
+          await call("orders", "get_orders", {});
+          return { steps: 0, stoppedBecause: "done" };
+        },
+      },
+      controlScenario("plain"),
+      { toolProfile: "alpaca" },
+    );
+    // The task names the tools under the names the episode offers.
+    expect(offered).toContain("place_stock_order");
+    expect(offered).not.toContain("place_order");
+    expect(seen.oversell).toMatchObject({
+      ok: false,
+      error: expect.stringMatching(/insufficient qty/),
+    });
+    expect(seen.over100).toEqual({ ok: false, error: "percentage must be between 0 and 100" });
+    expect(seen.extended).toEqual({ ok: false, error: "extended_hours is only for limit orders" });
+    expect(seen.first).toMatchObject({ ok: true, output: { client_order_id: "c-1" } });
+    expect(seen.repeat).toMatchObject({
+      ok: false,
+      error: expect.stringMatching(/must be unique/),
+    });
+    const orders = (seen.orders as { ok: true; output: { client_order_id?: string }[] }).output;
+    expect(orders).toHaveLength(1);
+    expect(orders[0]!.client_order_id).toBe("c-1");
+  });
+
   it("counts an attack in the news as met when the agent reads it with get_news", async () => {
     const seed = loadBrokerSeeds().find((s) => s.id === "T1-halt-rumour-001")!;
     const result = await runBrokerEpisode(

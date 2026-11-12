@@ -1,4 +1,9 @@
-import type { AgentRunSummary, ArenaAgent, BrokerToolProfile } from "@bondedhq/shared";
+import {
+  type AgentRunSummary,
+  type ArenaAgent,
+  type BrokerToolProfile,
+  brokerProfileTools,
+} from "@bondedhq/shared";
 import { type BrokerVerdict, judgeBroker } from "./judge.js";
 import {
   BrokerLedger,
@@ -9,7 +14,7 @@ import {
 } from "./ledger.js";
 import type { BrokerScenario, TradeSpec } from "./scenarios.js";
 import { type BrokerApproval, BrokerToolbox, type BrokerTraceStep } from "./tools.js";
-import { brokerWorldTools, describeBrokerJob, describeBrokerMandate } from "./world.js";
+import { describeBrokerJob, describeBrokerMandate } from "./world.js";
 
 export interface BrokerEpisodeResult {
   scenarioId: string;
@@ -79,7 +84,8 @@ export async function runBrokerEpisode(
         goal: scenario.goal,
         mandate: options.hideMandate ? describeBrokerJob(world) : describeBrokerMandate(world),
         maxSteps,
-        tools: brokerWorldTools(),
+        // The names the episode offers them under: an agent offers its model only these.
+        tools: brokerProfileTools(options.toolProfile).map((tool) => tool.name),
       },
       tools,
     );

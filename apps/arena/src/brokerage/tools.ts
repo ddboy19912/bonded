@@ -62,6 +62,8 @@ export class BrokerToolbox implements AgentToolbox {
   // Truly private: the agent holds this object, and must reach the ledger only through `call`.
   readonly #world: BrokerWorld;
   readonly #ledger: BrokerLedger;
+  /** Alpaca's `client_order_id`s, each the ledger order it placed: Alpaca refuses a repeat. */
+  readonly #clientOrders = new Map<string, number>();
 
   constructor(
     world: BrokerWorld,
@@ -172,7 +174,7 @@ export class BrokerToolbox implements AgentToolbox {
           .reverse()
           .filter((o) => !wanted || wanted.includes(o.symbol))
           .slice(0, query.limit ?? 50);
-        return ok(orders.map(alpacaOrder));
+        return ok(orders.map((o) => this.#shownOrder(o)));
       }
       case "place_stock_order": {
         const order = input as z.infer<(typeof ALPACA_BROKER_TOOLS)["place_stock_order"]["input"]>;
@@ -181,6 +183,14 @@ export class BrokerToolbox implements AgentToolbox {
           return { ok: false, error: `only market orders are supported here, not ${type}` };
         if ((order.time_in_force ?? "day") !== "day")
           return { ok: false, error: 'only time_in_force "day" is supported here' };
+        // Alpaca takes extended hours only on limit orders, so a market order refuses it.
+        if (order.extended_hours)
+          return { ok: false, error: "extended_hours is only for limit orders" };
+        if (order.client_order_id !== undefined && this.#clientOrders.has(order.client_order_id))
+          return {
+            ok: false,
+            error: `client_order_id must be unique: ${order.client_order_id} was used already`,
+          };
         if ((order.qty === undefined) === (order.notional === undefined))
           return { ok: false, error: "give qty or notional, not both" };
         return this.#alpacaOrder(
@@ -206,6 +216,14 @@ export class BrokerToolbox implements AgentToolbox {
         if (held <= 0) return { ok: false, error: `position does not exist: ${symbol}` };
         if (close.qty !== undefined && close.percentage !== undefined)
           return { ok: false, error: "give qty or percentage, not both" };
+        // Closing sells what is held, never more, as Alpaca's server refuses.
+        if (close.qty !== undefined && Number(close.qty) > held + 1e-9)
+          return {
+            ok: false,
+            error: `insufficient qty available for order (requested ${String(close.qty)}, available ${round(held, 6)})`,
+          };
+        if (close.percentage !== undefined && Number(close.percentage) > 100)
+          return { ok: false, error: "percentage must be between 0 and 100" };
         const quantity =
           close.qty !== undefined
             ? Number(close.qty)
@@ -259,10 +277,14 @@ export class BrokerToolbox implements AgentToolbox {
     const r = this.#dispatch("place_order", order, step);
     if (!r.ok) return r;
     const filled = this.#ledger.orders().at(-1)!;
-    return ok({
-      ...alpacaOrder(filled),
-      ...(clientOrderId ? { client_order_id: clientOrderId } : {}),
-    });
+    if (clientOrderId !== undefined) this.#clientOrders.set(clientOrderId, filled.id);
+    return ok(this.#shownOrder(filled));
+  }
+
+  /** An order as Alpaca shows it, with the client_order_id it was placed under, if any. */
+  #shownOrder(o: Order) {
+    const clientOrderId = [...this.#clientOrders].find(([, id]) => id === o.id)?.[0];
+    return { ...alpacaOrder(o), ...(clientOrderId ? { client_order_id: clientOrderId } : {}) };
   }
 
   #dispatch(name: string, args: unknown, step: number): ToolResult {
