@@ -46,9 +46,12 @@ passed off as another's:
 v2.<key id>.<timestamp>.<owner wallet, lowercase>.<raw body>
 ```
 
-The agent's URL isn't signed: behind a proxy or a tunnel the handler can't reliably see the URL
-Bonded called. Replaying a captured call to another of the same owner's agents within the
-5-minute window does no harm (the episode's endpoints accept one run).
+The agent's URL isn't signed, on purpose: behind a proxy or a tunnel the handler can't reliably
+see the URL Bonded called, and it is never asked to work it out from request headers. Binding a
+call to one URL isn't needed for either job in Section 2: the owner in the signed text is what
+keeps the URL its owner's. Replaying a captured call to another of the same owner's agents within
+the 5-minute window does no harm (the episode's endpoints accept one run, and replays are
+refused).
 
 Header: `bonded-signature: v2=<key id>:<base64url signature>`. This replaces `v1` (HMAC) for
 agent URLs outright (Section 5).
@@ -88,6 +91,14 @@ The owner travels only in a header (`bonded-owner`) and in the signed text, neve
 body. So a server that just echoes the body back answers without an owner and fails. Only a
 handler set up for that wallet answers with it.
 
+What verify proves, and why that is enough without a secret: the job is to stop someone making
+Bonded call a URL that isn't theirs (Section 2). Bonded signs a call for wallet W only when W
+saved the URL, so to verify someone else's URL an attacker needs that server to answer with the
+attacker's wallet. A handler set up for its real owner refuses the call, so it never does. A
+server built to copy the `bonded-owner` header into its answer is one the attacker runs, and
+claiming your own server is allowed. The secret answered a question this design no longer asks:
+"does this server hold a value only Bonded and its owner know?".
+
 ### 3.4 The new flow
 
 1. Copy the handler from the page (the owner's wallet is already in it) and deploy.
@@ -104,13 +115,19 @@ No secret, no env var, one deploy. `runner init --url --owner <wallet>` writes t
 - **Key ids:** every signature names its key id, the first 12 characters of the base64url
   SHA-256 of the public key, so nothing needs configuring. The handler fetches the published set,
   keeps it for a day, and fetches again at once (at most once a minute) for a key id it hasn't
-  seen. No key is bundled in the SDK yet: there is no production key to bundle until Section 6's
-  key setup. Bundling one later would let a handler start while the API is down.
+  seen. The SDK can also carry Bonded's public key (`BONDED_AGENT_KEYS`) as a fallback, used only
+  when the handler has never fetched the set (the address is down when it starts). Once it has
+  fetched the set, the published set is the only one it trusts: a bundled key is never added to
+  it, so it can't outlive its removal from the set.
 - **Rotation:** `AGENT_URL_SIGNING_KEY=<new>,<old>`: both are published and the first signs.
   Handlers pick up the new key on its first call. Drop the old one after a day.
-- **If the key leaks:** replace it (the old one off the list). Handlers stop trusting it within a
-  day, or at once if they restart. This is a worse case than one leaked customer secret, because
-  one key covers every agent. That is why it belongs in a KMS.
+- **If the key leaks:** take it off the published set and sign with a new one. A handler that
+  has fetched the set stops trusting it at its next fetch: within a day, at once if it restarts or
+  sees the new key's id. Taking a key off the set is how it is revoked; there is no separate
+  revocation list. If the leaked key is the one bundled in the SDK, publish a new SDK without it
+  too: a handler that starts while the keys address is down would still fall back to it until its
+  first successful fetch. This is a worse case than one leaked customer secret, because one key
+  covers every agent. That is why it belongs in a KMS.
 
 ## 5. No fallback: the secret goes away
 
