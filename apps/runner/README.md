@@ -210,6 +210,9 @@ listed in chain mode.
   (DeepSeek V4.1 Flash by default):
 
   ```sh
+  mkdir bonded-test && cd bonded-test && npm init -y
+  npm install @bondedhq/runner @modelcontextprotocol/sdk
+  cp node_modules/@bondedhq/runner/examples/{brokerage-agent,brokerage-url-agent,investing-agent}.mjs .
   BONDED_RUNNER_TOKEN=<the token the page shows> OPENROUTER_API_KEY=<your key> npx bonded-runner --gateway https://arena-worker-production.up.railway.app --mode tools --world brokerage -- node brokerage-agent.mjs
   ```
 

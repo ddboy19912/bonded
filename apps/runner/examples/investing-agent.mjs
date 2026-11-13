@@ -64,6 +64,8 @@ export async function invest({ task, mcpUrl, signal, config = modelConfig() }) {
       const calls = reply.tool_calls ?? [];
       if (calls.length === 0) return reply.content ?? "";
       for (const c of calls) {
+        // Cancelled or out of time: no further tool calls, even ones the same reply asked for.
+        if (signal?.aborted) return "Cancelled.";
         let args = {};
         try {
           args = JSON.parse(c.function.arguments || "{}");
@@ -73,7 +75,11 @@ export async function invest({ task, mcpUrl, signal, config = modelConfig() }) {
         steps++;
         let content = "step limit reached";
         if (steps <= task.maxSteps) {
-          const result = await client.callTool({ name: c.function.name, arguments: args });
+          const result = await client.callTool(
+            { name: c.function.name, arguments: args },
+            undefined,
+            { signal },
+          );
           content = result.content[0]?.text ?? "";
         }
         messages.push({ role: "tool", tool_call_id: c.id, content });
