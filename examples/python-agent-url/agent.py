@@ -1,23 +1,32 @@
-"""A Bonded Agent URL endpoint in plain Python (standard library only).
+"""A Bonded Agent URL endpoint in plain Python (the standard library, plus `cryptography`).
 
 Bonded POSTs one signed JSON message per call:
 
-- {"type": "verify", "challenge": ...}  when you register the URL: answer 200 {"challenge", "proof",
-                                        "version"}, where proof is hex HMAC-SHA256(secret, "verify." + challenge).
+- {"type": "verify", "challenge": ...}  when you save the URL: answer 200 {"challenge", "owner",
+                                        "version"}, where owner is your wallet.
 - {"type": "episode", ...}              an Arena episode: answer 2xx within 10 seconds, then work.
 - {"type": "cancel", "episodeId": ...}  stop that episode (best effort).
 
-Every call carries `bonded-timestamp` (unix seconds) and
-`bonded-signature: v1=<hex HMAC-SHA256(secret, "<timestamp>.<raw body>")>`. Check both before
-reading the message: an unsigned request could be anyone.
+Every call is signed by Bonded's own Ed25519 key, for the wallet that saved the URL:
 
-Run it:  BONDED_AGENT_SECRET=bonded_as_... PORT=8080 python3 agent.py
+- `bonded-timestamp`: unix seconds;
+- `bonded-owner`: that wallet, lowercase;
+- `bonded-signature: v2=<key id>:<base64url signature>` over "v2.<key id>.<timestamp>.<owner>.<raw body>".
+
+Bonded's public keys are at https://www.bondedhq.xyz/.well-known/bonded-agent-keys.json. Check the call before
+reading the message: an unsigned request could be anyone, and a call for another wallet is someone
+trying to claim your URL as theirs.
+
+Run it:  BONDED_AGENT_OWNER=0xYourWallet PORT=8080 python3 agent.py
+
+BONDED_AGENT_OWNER is the wallet you save the URL from on Bonded: public, not a secret.
+BONDED_API_URL (optional) is another Bonded deployment to take the keys from (a local Arena's
+gateway). Leave it unset for Bonded itself.
 """
 
 from __future__ import annotations
 
-import hashlib
-import hmac
+import base64
 import json
 import os
 import re
@@ -25,47 +34,120 @@ import threading
 import time
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import Callable
 
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+KEYS_PATH = "/.well-known/bonded-agent-keys.json"
+# On Bonded's own domain, so this address keeps working if Bonded's API moves.
+DEFAULT_KEYS_URL = "https://www.bondedhq.xyz" + KEYS_PATH
+# The code beside the 401 for a call that is for another wallet, so Bonded can say exactly that.
+WRONG_OWNER = "wrong-owner"
 TOLERANCE_SECONDS = 300
 MAX_BODY_BYTES = 1024 * 1024
+OWNER = re.compile(r"0x[0-9a-fA-F]{40}")
+SIGNATURE = re.compile(r"v2=([A-Za-z0-9_-]{4,64}):([A-Za-z0-9_-]{86})")
 
 
-def verify_proof(secret: str, challenge: str) -> str:
-    """Proves this server holds the secret: an echo of the challenge alone doesn't pass."""
-    return hmac.new(secret.encode(), b"verify." + challenge.encode(), hashlib.sha256).hexdigest()
+def b64url_decode(text: str) -> bytes:
+    return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
+
+
+def fetch_json(url: str) -> object:
+    with urllib.request.urlopen(url, timeout=10) as response:
+        return json.loads(response.read())
+
+
+class BondedKeys:
+    """Bonded's public keys by id, from DEFAULT_KEYS_URL (or `<api_url>` + KEYS_PATH).
+
+    Fetched on first use, again after a day, and again at once when a call names a key not seen
+    yet (at most once a minute), so a new key works the day Bonded starts signing with it.
+    """
+
+    def __init__(self, api_url: str | None = None, fetch: Callable[[str], object] = fetch_json):
+        self.url = api_url.rstrip("/") + KEYS_PATH if api_url else DEFAULT_KEYS_URL
+        self.fetch = fetch
+        self.keys: dict[str, Ed25519PublicKey] = {}
+        self.fetched_at: float | None = None
+        self.lock = threading.Lock()
+
+    def get(self, kid: str) -> Ed25519PublicKey | None:
+        with self.lock:
+            now = time.monotonic()
+            age = None if self.fetched_at is None else now - self.fetched_at
+            if age is None or age > 86_400 or (kid not in self.keys and age >= 60):
+                self.fetched_at = now
+                try:
+                    key_set = self.fetch(self.url)
+                    self.keys = {
+                        k["kid"]: Ed25519PublicKey.from_public_bytes(b64url_decode(k["x"]))
+                        for k in key_set["keys"]
+                        if k.get("alg") == "Ed25519"
+                    }
+                except Exception as error:  # noqa: BLE001 - keep the keys we had, while fresh
+                    print(f"couldn't fetch Bonded's keys from {self.url}: {error}", flush=True)
+                    # A set a day old that can't be refetched is trusted no more: a key taken
+                    # off the published set must stop working.
+                    if age is not None and age > 86_400:
+                        self.keys = {}
+            return self.keys.get(kid)
 
 
 class SignatureChecker:
-    """Checks Bonded's signatures, and refuses a (timestamp, signature) pair seen before."""
+    """Checks that a call is signed by Bonded for this agent's owner, and refuses replays."""
 
-    def __init__(self, secret: str, tolerance: int = TOLERANCE_SECONDS):
-        self.secret = secret.encode()
+    def __init__(self, owner: str, keys: BondedKeys, tolerance: int = TOLERANCE_SECONDS):
+        self.owner = owner.lower()
+        self.keys = keys
         self.tolerance = tolerance
-        self.seen: dict[str, int] = {}
+        self.seen: dict[bytes, int] = {}
         self.lock = threading.Lock()
 
-    def check(self, timestamp: str | None, signature: str | None, body: bytes, now: float | None = None) -> str | None:
-        """None when the request is Bonded's; otherwise why not."""
-        if not timestamp or not signature:
-            return "missing bonded-timestamp or bonded-signature"
-        if not re.fullmatch(r"\d{1,12}", timestamp):
+    def check(self, headers, body: bytes, now: float | None = None) -> str | None:
+        """None when the call is Bonded's, for this owner; otherwise why not."""
+        timestamp = headers.get("bonded-timestamp")
+        owner = (headers.get("bonded-owner") or "").strip().lower()
+        signature = headers.get("bonded-signature")
+        if not timestamp or not owner or not signature:
+            return "the call is not signed"
+        if not re.fullmatch(r"\d{1,12}", timestamp.strip()):
             return "malformed bonded-timestamp"
         now = int(time.time() if now is None else now)
         if abs(now - int(timestamp)) > self.tolerance:
             return "the timestamp is too far from this server's clock"
-        expected = hmac.new(self.secret, timestamp.encode() + b"." + body, hashlib.sha256).hexdigest()
-        candidates = [p.strip()[3:] for p in signature.split(",") if p.strip().startswith("v1=")]
-        # compare_digest takes the same time whatever the input, so the signature can't be guessed byte by byte.
-        if not any(hmac.compare_digest(expected, c) for c in candidates):
-            return "the signature doesn't match"
-        key = f"{timestamp}.{signature}"
+        parts = [m for m in (SIGNATURE.fullmatch(p.strip()) for p in signature.split(",")) if m]
+        if not parts or len(parts) > 4:
+            return "no v2 signature"
+        matched = None
+        for match in parts:
+            kid, sig = match.group(1), match.group(2)
+            key = self.keys.get(kid)
+            if key is None:
+                continue
+            payload = f"v2.{kid}.{int(timestamp)}.{owner}.".encode() + body
+            raw = b64url_decode(sig)
+            try:
+                key.verify(raw, payload)
+            except InvalidSignature:
+                continue
+            # Keyed by the signature's bytes: two spellings of one signature are the same call.
+            matched = raw
+            break
+        if matched is None:
+            return "the signature doesn't match any of Bonded's keys"
+        # Signed by Bonded; now, for whose wallet. Checked after the signature, so an unsigned
+        # call can't learn whose agent this is. Calls for anyone else's wallet are refused.
+        if owner != self.owner:
+            return WRONG_OWNER
         with self.lock:
             for k, expires in list(self.seen.items()):
                 if expires < now:
                     del self.seen[k]
-            if key in self.seen:
+            if matched in self.seen:
                 return "this request was already received (replayed)"
-            self.seen[key] = int(timestamp) + self.tolerance
+            self.seen[matched] = int(timestamp) + self.tolerance
         return None
 
 
@@ -114,16 +196,24 @@ def run_episode(episode: dict, cancelled: threading.Event) -> None:
 
 
 class Agent:
-    def __init__(self, secret: str, version: str | None = None):
-        self.secret = secret
-        self.signatures = SignatureChecker(secret)
+    def __init__(self, owner: str, keys: BondedKeys | None = None, version: str | None = None):
+        if not OWNER.fullmatch(owner):
+            raise ValueError("owner must be a wallet address: 0x and 40 hex digits")
+        self.owner = owner.lower()
+        self.signatures = SignatureChecker(self.owner, keys or BondedKeys())
         self.version = version
         self.running: dict[str, threading.Event] = {}
         self.lock = threading.Lock()
 
     def handle(self, headers, body: bytes) -> tuple[int, dict]:
-        problem = self.signatures.check(headers.get("bonded-timestamp"), headers.get("bonded-signature"), body)
+        problem = self.signatures.check(headers, body)
         if problem:
+            if problem == WRONG_OWNER:
+                # Never name this agent's own wallet here: anyone can send a call.
+                return 401, {
+                    "error": "this agent is set up for another wallet, not the one this call is for",
+                    "code": WRONG_OWNER,
+                }
             return 401, {"error": problem}
         try:
             message = json.loads(body)
@@ -135,9 +225,10 @@ class Agent:
             challenge = message.get("challenge")
             if not isinstance(challenge, str) or not 16 <= len(challenge) <= 128:
                 return 400, {"error": "verify needs a challenge of 16 to 128 characters"}
+            # The owner it answers for: Bonded checks it is the wallet that saved the URL.
             return 200, {
                 "challenge": challenge,
-                "proof": verify_proof(self.secret, challenge),
+                "owner": self.owner,
                 **({"version": self.version} if self.version else {}),
             }
 
@@ -203,10 +294,12 @@ def make_server(agent: Agent, host: str = "0.0.0.0", port: int = 8080) -> Thread
 
 
 if __name__ == "__main__":
-    secret = os.environ.get("BONDED_AGENT_SECRET")
-    if not secret:
-        raise SystemExit("set BONDED_AGENT_SECRET to the agent secret Bonded showed you")
+    owner = os.environ.get("BONDED_AGENT_OWNER", "")
+    if not OWNER.fullmatch(owner):
+        raise SystemExit("set BONDED_AGENT_OWNER to the wallet you save this URL from on Bonded")
+    keys = BondedKeys(os.environ.get("BONDED_API_URL") or None)
+    agent = Agent(owner, keys, os.environ.get("AGENT_VERSION"))
     port = int(os.environ.get("PORT", "8080"))
-    server = make_server(Agent(secret, os.environ.get("AGENT_VERSION")), os.environ.get("HOST", "0.0.0.0"), port)
+    server = make_server(agent, os.environ.get("HOST", "0.0.0.0"), port)
     print(f"listening on :{server.server_address[1]}", flush=True)
     server.serve_forever()

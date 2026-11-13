@@ -43,6 +43,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { randomBytes } from "node:crypto";
 import { gatewayAgents } from "../dist/remote-agent.js";
 import { SecretBox } from "../dist/secrets.js";
+import { agentUrlSigner, newAgentUrlSigningKey } from "@bondedhq/shared";
 import { gatewayCheckRunner, gatewayUrlVerifier } from "../dist/connections.js";
 import { workCheckOne } from "../dist/check-worker.js";
 import { workPreviewOne } from "../dist/preview-worker.js";
@@ -58,15 +59,18 @@ const usd = (n) => BigInt(n) * 1_000_000n;
 
 /**
  * The local Arena Gateway, with runner tokens and presence in the demo's database, and what
- * Agent URL mode, connection checks and previews need on this machine: an ephemeral secret key
- * (AGENT_URL_SECRET_KEY's stand-in, for this run only) and plain-http loopback Agent URLs.
+ * Agent URL mode, connection checks and previews need on this machine: an ephemeral signing key
+ * (AGENT_URL_SIGNING_KEY's stand-in, for this run only; the API publishes it, so a handler given
+ * `apiUrl` of the local API checks calls with it), an ephemeral secret key for webhooks
+ * (AGENT_URL_SECRET_KEY's stand-in) and plain-http loopback Agent URLs.
  */
 export async function startGateway(db, chainId) {
   const presence = new RunnerPresenceWriter(db);
+  const signer = await agentUrlSigner(await newAgentUrlSigningKey());
   const gateway = new ArenaGateway({
     tokens: new DbRunnerAuth(db, chainId),
     onRunnerPresence: presence.onEvent,
-    agentUrl: { allowLoopback: true },
+    agentUrl: { allowLoopback: true, signer },
   });
   const url = await gateway.listen({ port: 0, host: "127.0.0.1" });
   const secrets = new SecretBox(randomBytes(32));
@@ -79,13 +83,14 @@ export async function startGateway(db, chainId) {
     // What createApi takes for Agent URLs on this machine.
     api: {
       secrets,
+      agentUrlSigner: signer,
       verifyAgentUrl: gatewayUrlVerifier(gateway.agentUrls),
       allowLoopbackUrls: true,
     },
     // Connection checks and previews, run alongside the demo's rating worker.
     async workExtras(chain, rpc) {
-      await workCheckOne(db, chainId, { runCheck: gatewayCheckRunner(gateway), secrets });
-      await workPreviewOne(db, chain, rpc, { remote, secrets, heldOut: { perClass: 1 } });
+      await workCheckOne(db, chainId, { runCheck: gatewayCheckRunner(gateway) });
+      await workPreviewOne(db, chain, rpc, { remote, heldOut: { perClass: 1 } });
     },
   };
 }

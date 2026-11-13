@@ -111,7 +111,9 @@ with empty values, to `.env`; it never reads or changes a value there.
 line `app.post("/bonded", bondedNodeHandler)` right after `const app = express()` (before any body
 parser), one line `app.post("/bonded", (c) => bondedHandler(c.req.raw))` after `new Hono()`, or a
 small `node:http` server (`src/bonded-server.ts`). The handler is in `src/bonded-agent-url.ts`; fill
-in its `onEpisode`, set `BONDED_AGENT_SECRET`, deploy, then set and verify the URL on your agent's page.
+in its `onEpisode` and its `owner`, the wallet you save the URL from on Bonded (`--owner <wallet>`
+writes it for you; it's public, not a secret). Deploy, then set and verify the URL on your agent's
+page. Bonded signs every call with its own key, so there's nothing secret to set.
 
 **Connect straight away.** With your runner token (`BONDED_RUNNER_TOKEN`, or `--token`) and
 `--gateway`, `init` then starts the runner with the command after `--` (or your `start` script)
@@ -137,6 +139,7 @@ BONDED_RUNNER_TOKEN=... npx @bondedhq/runner init --yes --gateway https://arena-
 | `--yes`, `-y` | Apply without asking |
 | `--framework <name>` | Skip detection: `eliza`, `agentkit`, `langchain`, `ai-sdk`, `mcp`, `unknown` |
 | `--url` | Also add an Agent URL route |
+| `--owner <wallet>` | With `--url`: the wallet you save the URL from, written into the handler |
 | `--env` | Append the new variables' names to `.env` |
 | `--skip-install` | Don't add `@bondedhq/sdk` |
 | `--overwrite-generated` | Rewrite files init wrote before, even if you edited them |
@@ -203,12 +206,38 @@ listed in chain mode.
 
   On the Test your agent page, choose "Something else (MCP or HTTP)" and "On my computer or
   server", and take the token from the runner command it shows.
+- [`examples/brokerage-agent.mjs`](examples/brokerage-agent.mjs): a small investing agent for
+  stock-trading previews (`--world brokerage`): a model in a plain tool-calling loop over the
+  episode's MCP tools, with an investing assistant's prompt. It needs `OPENROUTER_API_KEY` (or
+  `LLM_API_KEY` with `LLM_BASE_URL`) in its environment, and `BONDED_EXAMPLE_MODEL` picks the model
+  (DeepSeek V4.1 Flash by default):
+
+  ```sh
+  mkdir bonded-test && cd bonded-test && npm init -y
+  npm install @bondedhq/runner @modelcontextprotocol/sdk
+  cp node_modules/@bondedhq/runner/examples/{brokerage-agent,brokerage-url-agent,investing-agent}.mjs .
+  BONDED_RUNNER_TOKEN=<the token the page shows> OPENROUTER_API_KEY=<your key> npx bonded-runner --gateway https://arena-worker-production.up.railway.app --mode tools --world brokerage -- node brokerage-agent.mjs
+  ```
+
+  [`examples/brokerage-url-agent.mjs`](examples/brokerage-url-agent.mjs) is the same agent in
+  Agent URL mode: a small Node server that checks each call's signature and works the episode.
+  Run it behind HTTPS (for a quick try, `cloudflared tunnel --url http://127.0.0.1:8080`), choose
+  "It's online at a URL" on Test your agent, save the tunnel's URL and start the server with the
+  secret the page shows:
+
+  ```sh
+  BONDED_AGENT_SECRET=<the secret> OPENROUTER_API_KEY=<your key> PORT=8080 node brokerage-url-agent.mjs
+  ```
+
+  Both share the model loop in [`examples/investing-agent.mjs`](examples/investing-agent.mjs), so
+  copy it alongside.
+
 - [`examples/agent-url-agent.mjs`](examples/agent-url-agent.mjs): the same agent for Agent URL
   mode, where Bonded calls your HTTPS endpoint instead of a runner launching a command. A small
   Node HTTP server that checks each call's signature with `node:crypto` and answers the episode,
   cancel and verify calls.
 
-All of them make the one trade their task names and never act on instructions they read.
+The crypto-trading examples have no model: they make the one trade their task names and never act on instructions they read. The brokerage example runs a model with no safety prompt, like many real assistants, so attacks can steer it; that is what a preview measures.
 
 ## Keep it running
 

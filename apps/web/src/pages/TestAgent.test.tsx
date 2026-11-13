@@ -164,13 +164,17 @@ describe("Test your agent", () => {
       /^Python/,
     ])
       expect(within(step).getByRole("radio", { name: f })).toBeTruthy();
-    expect(within(step).getByRole("radio", { name: /It's online at a URL/ })).toBeTruthy();
-    expect(within(step).getByRole("radio", { name: /On my computer or server/ })).toBeTruthy();
-    expect(within(step).getByText(/Nothing to install/)).toBeTruthy();
+    expect(within(step).getByRole("radio", { name: /On a host like Vercel/ })).toBeTruthy();
+    // The runner is the default: it fits any agent that can be started with a command.
+    expect(within(step).getByRole("radio", { name: /On my computer or server/ })).toHaveProperty(
+      "checked",
+      true,
+    );
+    expect(within(step).getByText(/Add one file to your app and deploy/)).toBeTruthy();
     // A hint for those who aren't sure which to pick.
     expect(
       within(step).getByText(
-        "Not sure? Choose On my computer or server: it works for any agent you can start from a terminal.",
+        "Not sure? Choose On my computer or server. It works on Railway, Render and Fly too.",
       ),
     ).toBeTruthy();
     // Tools or chain is for those who need it: under Advanced, closed.

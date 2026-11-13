@@ -6,13 +6,7 @@ import { connectChain, type ServiceChain } from "@bonded/keeper";
 import { selfServeMessage } from "@bondedhq/shared";
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { createApi } from "../src/index.js";
-import {
-  SecretBox,
-  agentUrlContext,
-  secretBoxFromEnv,
-  verifySignature,
-  webhookContext,
-} from "../src/secrets.js";
+import { SecretBox, secretBoxFromEnv, verifySignature, webhookContext } from "../src/secrets.js";
 import {
   Notifier,
   ResendEmail,
@@ -23,7 +17,7 @@ import {
   type RatingNotification,
 } from "../src/notifications.js";
 import { safeRequest } from "@bonded/arena";
-import { signAgentUrlRequest } from "@bondedhq/shared";
+import { signWebhookRequest } from "@bondedhq/shared";
 import { workOne } from "../src/worker.js";
 import {
   DbRunnerAuth,
@@ -36,25 +30,25 @@ import { postgres } from "./postgres.js";
 describe("secrets at rest", () => {
   const box = new SecretBox(randomBytes(32));
   it("encrypt with AES-256-GCM, bound to their row and key", () => {
-    const sealed = box.encrypt("bonded_as_secret", agentUrlContext("a"));
+    const sealed = box.encrypt("bonded_ws_secret", webhookContext("0xa"));
     expect(sealed).toMatch(/^v1\.[0-9a-f]{8}\./);
-    expect(sealed).not.toContain("bonded_as_secret");
-    expect(box.decrypt(sealed, agentUrlContext("a"))).toBe("bonded_as_secret");
+    expect(sealed).not.toContain("bonded_ws_secret");
+    expect(box.decrypt(sealed, webhookContext("0xa"))).toBe("bonded_ws_secret");
     // Two encryptions differ (fresh IV each time).
     expect(box.encrypt("x", "c")).not.toBe(box.encrypt("x", "c"));
     // Copied to another row, it doesn't decrypt; nor with another key; nor tampered with.
-    expect(() => box.decrypt(sealed, agentUrlContext("b"))).toThrow("could not be decrypted");
-    expect(() => new SecretBox(randomBytes(32)).decrypt(sealed, agentUrlContext("a"))).toThrow(
+    expect(() => box.decrypt(sealed, webhookContext("0xb"))).toThrow("could not be decrypted");
+    expect(() => new SecretBox(randomBytes(32)).decrypt(sealed, webhookContext("0xa"))).toThrow(
       "another AGENT_URL_SECRET_KEY",
     );
     const parts = sealed.split(".");
     parts[4] = Buffer.from("tampered").toString("base64url");
-    expect(() => box.decrypt(parts.join("."), agentUrlContext("a"))).toThrow();
+    expect(() => box.decrypt(parts.join("."), webhookContext("0xa"))).toThrow();
     // Errors never carry the secret.
     try {
       box.decrypt(sealed, "other");
     } catch (e) {
-      expect(String(e)).not.toContain("bonded_as_secret");
+      expect(String(e)).not.toContain("bonded_ws_secret");
     }
   });
   it("read the key from AGENT_URL_SECRET_KEY (hex or base64), or are off without it", () => {
@@ -69,7 +63,7 @@ describe("secrets at rest", () => {
     expect(() => secretBoxFromEnv({ AGENT_URL_SECRET_KEY: "short" })).not.toThrow(/short/);
   });
   it("check webhook calls signed as v1=HMAC-SHA256(secret, timestamp.body) by @bondedhq/shared", async () => {
-    const headers = await signAgentUrlRequest("s3cret", '{"a":1}', 1_000_000);
+    const headers = await signWebhookRequest("s3cret", '{"a":1}', 1_000_000);
     expect(headers["bonded-timestamp"]).toBe("1000");
     const check = (body: string, nowSeconds: number, secret = "s3cret") =>
       verifySignature(

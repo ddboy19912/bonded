@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSignMessage } from "wagmi";
 import type { BindingLevel, RemoteMode } from "@bondedhq/shared";
 import { api, type RatingAttempt, type SelfAgentRecord } from "../lib/api";
@@ -235,6 +235,7 @@ export function NewAgentConnection({
   framework?: Framework | undefined;
 }) {
   const owner = useOwnerSession();
+  const queryClient = useQueryClient();
   const runner = useQuery({
     queryKey: ["runner", agentId],
     queryFn: () => api.runner(agentId),
@@ -255,7 +256,13 @@ export function NewAgentConnection({
       <ConnectAndCheck
         agentId={agentId}
         status={withOwnUrl(statusFromRunner(runner.data, mode), ownUrl.data?.agentUrl?.url)}
-        refresh={() => runner.refetch()}
+        refresh={() =>
+          Promise.all([
+            runner.refetch(),
+            // The owner's own view of the URL: a new one may just have been saved.
+            queryClient.invalidateQueries({ queryKey: ["agent-url", agentId] }),
+          ])
+        }
         framework={framework}
         {...(owner.session ? { session: owner.session.session } : {})}
         {...(initialConnection ? { initialConnection } : {})}
@@ -290,6 +297,7 @@ export function ConnectAgent({
 }) {
   const { signMessageAsync } = useSignMessage();
   const owner = useOwnerSession();
+  const queryClient = useQueryClient();
   // Everything the owner did here belongs to one agent: a rating or error that finished after
   // the page moved on to another agent is never shown for this one.
   const identity = `${deployment.chainId}:${agentId}`;
@@ -474,7 +482,13 @@ export function ConnectAgent({
                   key={identity}
                   agentId={agentId}
                   status={status}
-                  refresh={() => runner.refetch()}
+                  refresh={() =>
+                    Promise.all([
+                      runner.refetch(),
+                      // The owner's own view of the URL: a new one may just have been saved.
+                      queryClient.invalidateQueries({ queryKey: ["agent-url", agentId] }),
+                    ])
+                  }
                   teeUrl={record.tee?.url ?? null}
                   showBadge={false}
                   {...(owner.session ? { session: owner.session.session } : {})}

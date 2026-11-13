@@ -8,14 +8,12 @@ import {
 } from "node:crypto";
 
 /**
- * Secrets Bonded must be able to use, not just check: the agent secret that signs every call to an
- * Agent URL, and the webhook secret that signs notifications. Each is shown to its owner once and
- * stored only encrypted (AES-256-GCM with AGENT_URL_SECRET_KEY), bound to the row it belongs to,
+ * Secrets Bonded must be able to use, not just check: the webhook secrets that sign notifications
+ * and card hooks. (Agent URLs have none: Bonded signs calls to them with its own key,
+ * AGENT_URL_SIGNING_KEY.) Each is shown to its owner once and stored only encrypted (AES-256-GCM with AGENT_URL_SECRET_KEY), bound to the row it belongs to,
  * so a ciphertext copied to another row doesn't decrypt. They are never logged or returned again.
  */
 
-/** Prefix of an agent secret (Agent URL mode): @bondedhq/shared's. */
-export { AGENT_SECRET_PREFIX } from "@bondedhq/shared";
 /** Prefix of a webhook signing secret. */
 export const WEBHOOK_SECRET_PREFIX = "bonded_ws_";
 
@@ -26,7 +24,11 @@ export function newSecret(prefix: string): string {
 
 /** Why a feature that needs AGENT_URL_SECRET_KEY is off. */
 export const SECRET_KEY_MISSING =
-  "Agent URL mode and webhooks are off on this service: AGENT_URL_SECRET_KEY isn't set.";
+  "Webhooks are off on this service: AGENT_URL_SECRET_KEY isn't set.";
+
+/** Why Agent URL mode is off: nothing can sign calls to agents. */
+export const SIGNING_KEY_MISSING =
+  "Agent URL mode is off on this service: AGENT_URL_SIGNING_KEY isn't set.";
 
 export class SecretBox {
   private readonly key: Buffer;
@@ -89,8 +91,6 @@ export function secretBoxFromEnv(
   return new SecretBox(key);
 }
 
-/** Where an agent URL's secret is bound: its row. */
-export const agentUrlContext = (id: string) => `agent-url:${id}`;
 /** Where an owner's webhook secret is bound. */
 export const webhookContext = (owner: string) => `webhook:${owner.toLowerCase()}`;
 /** Where a card hook's signing secret (Stripe, Lithic) is bound (gate-card-hook.ts): its row. */
@@ -98,7 +98,7 @@ export const cardHookContext = (hookId: string) => `gate-card-hook:${hookId}`;
 
 /**
  * Checks a signed webhook call's headers: `bonded-timestamp` and `bonded-signature:
- * v1=<hex HMAC-SHA256(secret, "<timestamp>.<raw body>")>`, as `signAgentUrlRequest` in
+ * v1=<hex HMAC-SHA256(secret, "<timestamp>.<raw body>")>`, as `signWebhookRequest` in
  * @bondedhq/shared makes them (for tests and receivers written in TypeScript).
  */
 export function verifySignature(

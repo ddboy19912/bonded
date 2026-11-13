@@ -33,7 +33,8 @@ export type AgentConnection =
   | {
       kind: "url";
       url: string;
-      secret: string;
+      /** The wallet that saved the URL: every call is signed for it, and the agent checks that. */
+      owner: string;
       /** What it is registered to ("<chain>:<agent id>" or "preview:<id>"): its own rate limit. */
       registration: string;
     }
@@ -146,21 +147,21 @@ export type ConnectionCheckRunner = (
 
 /** The Agent URL's answer to Bonded's verify challenge. */
 export type AgentUrlVerification = { ok: true; version?: string } | { ok: false; problem: string };
-export type AgentUrlVerifier = (url: string, secret: string) => Promise<AgentUrlVerification>;
+export type AgentUrlVerifier = (url: string, owner: string) => Promise<AgentUrlVerification>;
 
 /** Why a worker can't run connection checks (no gateway, or no check support in it). */
 export const CHECKS_UNAVAILABLE =
   "Connection checks aren't available on this rating service yet: the Arena Gateway isn't running here.";
 
 /**
- * Verify an Agent URL with the gateway's `verifyAgentUrl`: a signed `verify` challenge the agent
- * must answer within 10 s with the challenge and its proof (an HMAC of it with the agent secret,
- * so an echo server can't pass), through `client` (its per-host rate limit and refused hosts are shared
+ * Verify an Agent URL with the gateway's `verifyAgentUrl`: a `verify` challenge signed for the
+ * owner, which the agent must answer within 10 s with the challenge and that owner (the owner isn't
+ * in the body, so an echo server can't pass), through `client` (its per-host rate limit and refused hosts are shared
  * with everything else that calls agent URLs from this process).
  */
 export function gatewayUrlVerifier(client: AgentUrlClient): AgentUrlVerifier {
-  return async (url, secret) => {
-    const answer = await verifyAgentUrl(url, secret, { client });
+  return async (url, owner) => {
+    const answer = await verifyAgentUrl(url, owner, { client });
     return answer.ok
       ? { ok: true, ...(answer.version !== undefined ? { version: answer.version } : {}) }
       : { ok: false, problem: answer.problem };

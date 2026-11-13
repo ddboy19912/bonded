@@ -168,7 +168,7 @@ export function NewAgent() {
   const [teeUrl, setTeeUrl] = useState("");
   const [composeHash, setComposeHash] = useState("");
   // How it will connect: its URL (verified once it's registered) or the runner.
-  const [connection, setConnection] = useState<Connection>("url");
+  const [connection, setConnection] = useState<Connection>("runner");
   const [agentUrl, setAgentUrl] = useState("");
   const [advanced, setAdvanced] = useState(false);
   const [framework, setFramework] = useFramework();

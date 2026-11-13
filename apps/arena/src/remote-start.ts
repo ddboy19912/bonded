@@ -1,9 +1,10 @@
 import {
   type AgentMode,
+  agentUrlSigner,
   type EpisodeWorld,
-  isWellFormedAgentSecret,
+  isAgentUrlOwner,
   isWellFormedRunnerToken,
-  newAgentSecret,
+  newAgentUrlSigningKey,
 } from "@bondedhq/shared";
 import { positiveInt } from "./flags.js";
 import {
@@ -30,7 +31,7 @@ export async function startRemote(
   values: {
     "runner-token"?: string;
     "agent-url"?: string;
-    "agent-secret"?: string;
+    "agent-owner"?: string;
     "gateway-port"?: string;
     "gateway-host"?: string;
     "public-url"?: string;
@@ -70,21 +71,13 @@ export async function startRemote(
     const tokenShown = given ? "<your token>" : token;
     const flags = `--gateway ${url} --mode ${mode}${world === "vault" ? "" : ` --world ${world}`}`;
     const fromRepository = `  BONDED_RUNNER_TOKEN=${tokenShown} node apps/runner/dist/cli.js ${flags} -- <your agent command>\n`;
-    if (world === "vault") {
-      console.log("Start your agent's runner in another terminal:\n");
-      console.log(
-        `  BONDED_RUNNER_TOKEN=${tokenShown} npx @bondedhq/runner ${flags} -- <your agent command>\n`,
-      );
-      console.log("or, from this repository:\n");
-      console.log(fromRepository);
-    } else {
-      // The published runner is protocol 1 until its next release: it can't take this world yet.
-      console.log(
-        `Start your agent's runner in another terminal, from this repository (the published ` +
-          `@bondedhq/runner gets the ${world} world in its next release):\n`,
-      );
-      console.log(fromRepository);
-    }
+    // The published runner takes every world since 0.1.4 (protocol 2 for the brokerage world).
+    console.log("Start your agent's runner in another terminal:\n");
+    console.log(
+      `  BONDED_RUNNER_TOKEN=${tokenShown} npx @bondedhq/runner ${flags} -- <your agent command>\n`,
+    );
+    console.log("or, from this repository:\n");
+    console.log(fromRepository);
     const deadline = Date.now() + waitMs;
     console.log(`Waiting up to ${waitMs / 1000} s for the runner...`);
     while (!gateway.runner("local")) {
@@ -119,13 +112,14 @@ export async function startRemote(
 
 /**
  * Agent URL mode for a local run: a gateway whose episodes are POSTed to the agent's URL (http to
- * this machine allowed, since it's local). The secret is held in memory only.
+ * this machine allowed, since it's local). Calls are signed for --agent-owner with a key made for
+ * this run (or AGENT_URL_SIGNING_KEY), published by this gateway for the agent to check them.
  */
 async function startAgentUrl(
   sandbox: Sandbox | undefined,
   values: {
     "agent-url"?: string;
-    "agent-secret"?: string;
+    "agent-owner"?: string;
     "gateway-port"?: string;
     "gateway-host"?: string;
     "public-url"?: string;
@@ -140,35 +134,38 @@ async function startAgentUrl(
   code?: { hash: `0x${string}`; source: string };
 }> {
   const url = values["agent-url"]!;
-  const given = values["agent-secret"] ?? process.env.BONDED_AGENT_SECRET;
-  const secret = given ?? newAgentSecret();
-  if (!isWellFormedAgentSecret(secret))
+  const owner = (values["agent-owner"] ?? process.env.BONDED_AGENT_OWNER ?? "").toLowerCase();
+  if (!isAgentUrlOwner(owner))
     throw new Error(
-      "--agent-secret must be bonded_as_ followed by at least 16 base64url characters",
+      "--agent-owner (or BONDED_AGENT_OWNER) must be the wallet in your handler's owner (0x…)",
     );
+  const signer = await agentUrlSigner(
+    process.env.AGENT_URL_SIGNING_KEY || (await newAgentUrlSigningKey()),
+  );
   const port = positiveInt(values["gateway-port"], "--gateway-port");
   const gateway = new ArenaGateway({
     tokens: new StaticRunnerTokens(),
     ...(values["public-url"] ? { publicUrl: values["public-url"] } : {}),
-    agentUrl: { allowLoopback: true },
+    agentUrl: { allowLoopback: true, signer },
   });
   const base = await gateway.listen({ port, host: values["gateway-host"] ?? "127.0.0.1" });
   try {
     console.log(`\nArena Gateway listening at ${base}`);
     const problem = gateway.agentUrls.urlProblem(url);
     if (problem) throw new Error(problem);
-    if (!given) {
+    if (!process.env.AGENT_URL_SIGNING_KEY) {
       console.log(
-        "Your agent checks each call's signature with this secret (for this run only):\n",
+        "This gateway signs calls with a key made for this run. Point your handler at it so it\n" +
+          "checks them with that key:\n",
       );
-      console.log(`  BONDED_AGENT_SECRET=${secret}\n`);
-      console.log("Start your agent with it, then press Enter.");
+      console.log(`  createBondedHandler({ owner: "${owner}", apiUrl: "${base}", ... })\n`);
+      console.log("Start your agent like that, then press Enter.");
       await new Promise<void>((resolve) => process.stdin.once("data", () => resolve()));
       process.stdin.pause();
     }
     let code: { hash: `0x${string}`; source: string } | undefined;
     if (options.verify) {
-      const verified = await gateway.agentUrls.verify(url, secret);
+      const verified = await gateway.agentUrls.verify(url, owner);
       if (!verified.ok) throw new Error(verified.problem);
       console.log(`Agent URL verified${verified.version ? ` (version ${verified.version})` : ""}`);
       if (verified.codeHash) code = { hash: verified.codeHash, source: "url" };
@@ -177,7 +174,7 @@ async function startAgentUrl(
       gateway,
       ...(sandbox ? { sandbox } : {}),
       world: options.world ?? "vault",
-      transport: { kind: "url", url, secret, registration: "local" },
+      transport: { kind: "url", url, owner, registration: "local" },
       mode,
       name: values.name ?? "remote/url",
       episodeTimeoutMs,

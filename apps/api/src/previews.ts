@@ -22,7 +22,6 @@ import {
   bondedRegistryAbi,
   byoaMessage,
   hostedCodeHash,
-  newAgentSecret,
   problemCode,
   type AgentMode,
   type ByoaAction,
@@ -33,7 +32,7 @@ import { Refused, handle } from "./refused.js";
 import { RateLimiter, clientAddress } from "./rate-limit.js";
 import { signedRequestKey, type SessionWallet } from "./sessions.js";
 import { RUNNER_TOKEN_PREFIX, helloProblem, newRunnerToken, runnerTokenHash } from "./runners.js";
-import { SECRET_KEY_MISSING, agentUrlContext, type SecretBox } from "./secrets.js";
+import { SIGNING_KEY_MISSING, type SecretBox } from "./secrets.js";
 import {
   NEEDS_CHECK,
   checkSummary,
@@ -89,6 +88,8 @@ export interface OwnerRouteOptions {
   reads: RateLimiter;
   secrets?: SecretBox;
   email?: EmailSender;
+  /** Whether this service can sign calls to agents (AGENT_URL_SIGNING_KEY): Agent URL mode is off without. */
+  agentUrls: boolean;
   verifyAgentUrl: AgentUrlVerifier;
   /** The gateway's own rules for an Agent URL (ports, hosts), checked when it is registered. */
   urlProblem?: (url: string) => string | undefined;
@@ -348,13 +349,14 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
       : "The runner isn't connected. Start it with the command on this page, then check again.";
   }
 
-  /** The live Agent URL, never its secret. */
+  /** The live Agent URL, with the wallet its calls are signed for (the handler's owner). */
   async function agentUrlInfo(key: string) {
     const u = await db.agentUrl(key);
     return u
       ? {
           agentUrlId: u.id,
           url: u.url,
+          owner: u.createdBy,
           verified: Boolean(u.verifiedAt),
           verifiedAt: u.verifiedAt?.toISOString() ?? null,
           version: u.version,
@@ -571,7 +573,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
           400,
           "Only the brokerage world is offered under a broker's tool names: the vault world has its own.",
         );
-      if (connection === "url" && !options.secrets) throw new Refused(409, SECRET_KEY_MISSING);
+      if (connection === "url" && !options.agentUrls) throw new Refused(409, SIGNING_KEY_MISSING);
       if (connection === "hosted" && world !== "brokerage")
         throw new Refused(
           400,
@@ -823,10 +825,10 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
   // Agent URLs, checks, estimates and notification settings: for a preview or a registered agent.
 
   /**
-   * Verification: send the `verify` challenge signed with `secret`; the agent must answer with the
-   * challenge and its proof (an HMAC of it with the same secret). The gateway's verifier checks it.
+   * Verification: send the `verify` challenge, signed for `owner` (the wallet that saved the URL);
+   * the agent must answer with the challenge and that owner. The gateway's verifier checks it.
    */
-  async function challenge(url: string, secret: string, wallet: string) {
+  async function challenge(url: string, owner: string, wallet: string) {
     let host: string;
     try {
       host = new URL(url).host.toLowerCase();
@@ -848,7 +850,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
         },
       );
     const answer = await options
-      .verifyAgentUrl(url, secret)
+      .verifyAgentUrl(url, owner)
       .catch(() => ({ ok: false as const, problem: "The verification couldn't run; try again." }));
     if (!answer.ok) throw new Refused(422, sentence(answer.problem));
     const version = answer.version?.slice(0, 200) ?? null;
@@ -860,11 +862,12 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
     ["agent", "/self/agents/:id"],
   ] as const) {
     /**
-     * Register the agent's HTTPS endpoint (after the URL rules: https, a public host, not one of
-     * Bonded's). The secret that signs every call is returned once and stored only encrypted; the
-     * agent needs it before it can answer, so the URL is checked by a separate call
-     * (…/agent-url/verify) once the agent has it. Until then it can't be used for checks or
-     * ratings. A registered agent reached by its runner switches to Agent URL mode.
+     * Save the agent's HTTPS endpoint (after the URL rules: https, a public host, not one of
+     * Bonded's). Every call to it is signed by Bonded's key for the wallet saving it, and the
+     * agent's handler names that wallet as its owner; there is no secret. The URL is verified by a
+     * separate call (…/agent-url/verify), so a URL can be saved before its handler is deployed.
+     * Until then it can't be used for checks or ratings. A registered agent reached by its runner
+     * switches to Agent URL mode.
      */
     app.post(
       `${base}/agent-url`,
@@ -890,31 +893,27 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
             409,
             "A TEE-bound agent is rated through its runner, not an Agent URL.",
           );
-        if (!options.secrets) throw new Refused(409, SECRET_KEY_MISSING);
+        if (!options.agentUrls) throw new Refused(409, SIGNING_KEY_MISSING);
         const { url } = urlInput.parse(body);
         const problem =
           outboundUrlProblem(url, options.ownDomains, options.allowLoopbackUrls) ??
           options.urlProblem?.(url);
         if (problem) throw new Refused(400, sentence(problem));
-        const secret = newAgentSecret();
-        const id = randomUUID();
         const made = await db.createAgentUrl(subject.key, {
-          id,
+          id: randomUUID(),
           url,
-          ciphertext: options.secrets.encrypt(secret, agentUrlContext(id)),
           createdBy: wallet,
         });
-        c.header("Cache-Control", "no-store");
         return c.json(
           {
             agentUrlId: made.id,
             url,
-            // Not yet: give the agent its secret, then call …/agent-url/verify.
+            // The wallet calls are signed for: the handler's `owner`.
+            owner: wallet.toLowerCase(),
+            // Not yet: deploy the handler, then call …/agent-url/verify.
             verified: false,
             verifiedAt: null,
             version: null,
-            // Shown once: Bonded keeps it only encrypted and never returns it again.
-            secret,
             codeHash: subject.declaredCode
               ? codeInfo({ hash: subject.declaredCode, source: "declared" })
               : null,
@@ -925,9 +924,9 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
       }),
     );
     /**
-     * Prove the URL is the owner's: Bonded sends it a signed `verify` challenge with the stored
-     * secret and it must answer within 10 s (422 with the reason otherwise). Again after a
-     * redeploy, say. Capped per URL host, per wallet and in all: each one calls out.
+     * Prove the URL is the owner's: Bonded sends it a `verify` challenge signed for the wallet that
+     * saved it, and it must answer within 10 s naming that wallet (422 with the reason otherwise).
+     * Again after a redeploy, say. Capped per URL host, per wallet and in all: each one calls out.
      */
     app.post(
       `${base}/agent-url/verify`,
@@ -938,16 +937,10 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
             : undefined;
         const { wallet } = await writer(c, kind, "agent-url", () => ({ url: live0?.url ?? "" }));
         const subject = await subjectOf(kind, c.req.param("id"), wallet);
-        if (!options.secrets) throw new Refused(409, SECRET_KEY_MISSING);
+        if (!options.agentUrls) throw new Refused(409, SIGNING_KEY_MISSING);
         const live = await db.agentUrl(subject.key);
         if (!live) throw new Refused(404, "Set your Agent URL first.");
-        let secret: string;
-        try {
-          secret = options.secrets.decrypt(live.ciphertext, agentUrlContext(live.id));
-        } catch {
-          throw new Refused(409, "The stored secret can't be used. Set the Agent URL again.");
-        }
-        const reported = await challenge(live.url, secret, wallet);
+        const reported = await challenge(live.url, live.createdBy, wallet);
         await db.markAgentUrlVerified(live.id, reported);
         const info = await agentUrlInfo(subject.key);
         return c.json({
@@ -964,50 +957,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
         });
       }),
     );
-    /**
-     * A new secret for the same URL ("Get a new secret"), returned once. The old secret stops
-     * working at once (no overlap: a lost secret may be someone else's), and the URL must be
-     * verified again with the new one before it can be checked or rated.
-     */
-    app.post(
-      `${base}/agent-url/secret`,
-      handle(async (c) => {
-        const live0 =
-          kind === "agent"
-            ? await db.agentUrl(`${chainId}:${uint.parse(c.req.param("id"))}`)
-            : undefined;
-        const { wallet } = await writer(c, kind, "agent-url", () => ({ url: live0?.url ?? "" }));
-        const subject = await subjectOf(kind, c.req.param("id"), wallet);
-        if (!options.secrets) throw new Refused(409, SECRET_KEY_MISSING);
-        const live = await db.agentUrl(subject.key);
-        if (!live) throw new Refused(404, "Set your Agent URL first.");
-        const secret = newAgentSecret();
-        const id = randomUUID();
-        const made = await db.createAgentUrl(subject.key, {
-          id,
-          url: live.url,
-          ciphertext: options.secrets.encrypt(secret, agentUrlContext(id)),
-          createdBy: wallet,
-        });
-        c.header("Cache-Control", "no-store");
-        return c.json(
-          {
-            agentUrlId: made.id,
-            url: live.url,
-            verified: false,
-            verifiedAt: null,
-            version: null,
-            secret,
-            codeHash: subject.declaredCode
-              ? codeInfo({ hash: subject.declaredCode, source: "declared" })
-              : null,
-            createdAt: made.createdAt.toISOString(),
-          },
-          201,
-        );
-      }),
-    );
-    /** Revoke the Agent URL and its secret (a registered agent goes back to its runner). */
+    /** Remove the Agent URL (a registered agent goes back to its runner). */
     app.delete(
       `${base}/agent-url`,
       handle(async (c) => {

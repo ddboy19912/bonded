@@ -89,24 +89,23 @@ export interface CodeHashInfo {
   label?: string;
 }
 
-/** A registered Agent URL. Its secret is shown once, when it is registered, and never again. */
+/** A saved Agent URL. Bonded signs calls to it for `owner`; there is no secret. */
 export interface AgentUrlInfo {
   /** Only in the owner's own view: public views say only that one is set. */
   url?: string;
+  /** The wallet that saved it (owner's view only): the handler names it as its `owner`. */
+  owner?: string;
   configured?: boolean;
   verified?: boolean;
   verifiedAt: string | null;
   version: string | null;
 }
 
-/** POST …/agent-url: Bonded challenged the URL and it answered. */
+/** POST …/agent-url: the URL saved, not verified yet. */
 export interface AgentUrlRegistered extends AgentUrlInfo {
   url: string;
-  /** Signs every call Bonded makes to the URL (`bonded_as_…`). Shown once. */
-  secret: string;
+  owner: string;
   codeHash: CodeHashInfo | null;
-  /** Why it isn't verified yet, when the URL was saved before its agent had the secret. */
-  problem?: string | null;
 }
 
 export interface CheckSummary {
@@ -609,9 +608,9 @@ export const byoaApi = {
       body: JSON.stringify(target),
     }),
   /**
-   * POST …/agent-url/verify: Bonded challenges the saved URL, signed with its secret, and the
-   * agent must answer with the challenge and its proof within 10 s (after it was given the secret, or after a redeploy). 422
-   * with the reason otherwise.
+   * POST …/agent-url/verify: Bonded challenges the saved URL, signed for the wallet that saved it,
+   * and the agent must answer with the challenge and that wallet within 10 s. 422 with the reason
+   * otherwise.
    */
   reverifyAgentUrl: (subject: Subject, auth: Auth, url: string) =>
     write<{
@@ -621,20 +620,6 @@ export const byoaApi = {
       version: string | null;
       codeHash: CodeHashInfo | null;
     }>("POST", `${subjectPath(subject)}/agent-url/verify`, subject, auth, "agent-url", {}, { url }),
-  /**
-   * POST …/agent-url/secret: a new secret for the saved URL, shown once. The old one stops
-   * working at once; the URL must be verified again, and checked again.
-   */
-  newAgentUrlSecret: (subject: Subject, auth: Auth, url: string) =>
-    write<AgentUrlRegistered>(
-      "POST",
-      `${subjectPath(subject)}/agent-url/secret`,
-      subject,
-      auth,
-      "agent-url",
-      {},
-      { url },
-    ),
   /**
    * GET /previews/:id/events (SSE): its status, queue place and progress as they change. Ends
    * when it is over, or after 10 quiet minutes; reopened with a fresh token before one expires.
@@ -665,8 +650,8 @@ export const byoaApi = {
       { url: "none" },
     ),
   /**
-   * POST …/agent-url: save the agent's HTTPS endpoint and make its secret (shown once). Nothing
-   * calls the URL yet: the owner gives the agent the secret, then verifies (reverifyAgentUrl).
+   * POST …/agent-url: save the agent's HTTPS endpoint. Nothing calls it yet: verify it next
+   * (reverifyAgentUrl), once the handler is deployed there.
    */
   registerAgentUrl: (subject: Subject, auth: Auth, url: string) =>
     write<AgentUrlRegistered>(

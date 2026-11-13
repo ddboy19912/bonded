@@ -269,9 +269,7 @@ try {
   const byo = values.byo ? await import("./demo-byo.mjs") : undefined;
   const started = byo ? await byo.startGateway(db, d.chainId) : undefined;
   byoGateway = started?.gateway;
-  const workerOptions = started
-    ? { remote: started.remote, heldOut: { perClass: 1 }, secrets: started.secrets }
-    : {};
+  const workerOptions = started ? { remote: started.remote, heldOut: { perClass: 1 } } : {};
   const app = createApi({
     db,
     chain,

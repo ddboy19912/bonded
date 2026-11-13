@@ -392,12 +392,14 @@ export interface PreviewRecord {
   updatedAt: Date;
 }
 
-/** A live Agent URL. `ciphertext` is the encrypted agent secret: never returned to anyone. */
+/**
+ * A live Agent URL. Calls to it are signed by Bonded's key for `createdBy`, the wallet that saved
+ * it; the agent checks that wallet is its owner.
+ */
 export interface AgentUrlRecord {
   id: string;
   ownerKey: string;
   url: string;
-  ciphertext: string;
   createdBy: string;
   createdAt: Date;
   verifiedAt: Date | null;
@@ -589,7 +591,6 @@ const agentUrlRow = (row: Record<string, unknown>): AgentUrlRecord => ({
   id: row.id as string,
   ownerKey: row.owner_key as string,
   url: row.url as string,
-  ciphertext: row.secret_ciphertext as string,
   createdBy: row.created_by as string,
   createdAt: row.created_at as Date,
   verifiedAt: (row.verified_at as Date | null) ?? null,
@@ -673,7 +674,7 @@ export class Database {
       "0033_gate_budgets.sql",
       "0034_preview_world.sql",
       "0035_preview_tool_names.sql",
-      // 0036 is taken by the Agent URL signed-calls change on its own branch.
+      "0036_agent_url_signed_calls.sql",
       "0037_hosted_agents.sql",
     ];
     await this.transaction(async (c) => {
@@ -2747,12 +2748,12 @@ export class Database {
   }
 
   /**
-   * Store a new Agent URL for an agent or preview, with its encrypted secret, replacing (revoking)
-   * the live one in the same transaction.
+   * Store a new Agent URL for an agent or preview, saved by `createdBy` (the wallet its calls are
+   * signed for), replacing (revoking) the live one in the same transaction.
    */
   async createAgentUrl(
     ownerKey: string,
-    u: { url: string; ciphertext: string; createdBy: string; id?: string },
+    u: { url: string; createdBy: string; id?: string },
   ): Promise<{ id: string; createdAt: Date }> {
     return this.transaction(async (c) => {
       await this.lockSubject(c, ownerKey);
@@ -2761,9 +2762,9 @@ export class Database {
         [ownerKey],
       );
       const r = await c.query(
-        `INSERT INTO agent_urls(id,owner_key,url,secret_ciphertext,created_by) VALUES($1,$2,$3,$4,$5)
+        `INSERT INTO agent_urls(id,owner_key,url,created_by) VALUES($1,$2,$3,$4)
          RETURNING id,created_at`,
-        [u.id ?? randomUUID(), ownerKey, u.url, u.ciphertext, u.createdBy.toLowerCase()],
+        [u.id ?? randomUUID(), ownerKey, u.url, u.createdBy.toLowerCase()],
       );
       return { id: r.rows[0].id as string, createdAt: r.rows[0].created_at as Date };
     });

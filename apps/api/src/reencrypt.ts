@@ -1,5 +1,5 @@
 import type { Database } from "@bonded/db";
-import { agentUrlContext, cardHookContext, webhookContext, type SecretBox } from "./secrets.js";
+import { cardHookContext, webhookContext, type SecretBox } from "./secrets.js";
 
 /** What one table's pass did. */
 export interface ReencryptCount {
@@ -10,7 +10,6 @@ export interface ReencryptCount {
 }
 
 export interface ReencryptResult {
-  agentUrls: ReencryptCount;
   webhooks: ReencryptCount;
   /** Each card hook's signing secret (Stripe, Lithic). */
   cardHooks: ReencryptCount;
@@ -21,8 +20,8 @@ export interface ReencryptResult {
 const keyIdOf = (sealed: string) => sealed.split(".")[1];
 
 /**
- * Moves every stored secret (Agent URL secrets, revoked ones included, webhook signing secrets,
- * and the payment gate's card hook signing secrets) from the `from` key to the `to` key,
+ * Moves every stored secret (webhook signing secrets and the payment gate's card hook signing
+ * secrets) from the `from` key to the `to` key,
  * for rotating AGENT_URL_SECRET_KEY. One
  * transaction with the rows locked: a value that won't decrypt with either key (malformed, or
  * under a third key) rolls everything back, naming its row but never the secret. Values already
@@ -58,23 +57,6 @@ export async function reencryptSecrets(
   };
   try {
     await client.query("BEGIN");
-    const agentUrls: ReencryptCount = { reencrypted: 0, already: 0 };
-    const urls = await client.query<{ id: string; secret_ciphertext: string }>(
-      "SELECT id, secret_ciphertext FROM agent_urls ORDER BY id FOR UPDATE",
-    );
-    for (const r of urls.rows) {
-      const sealed = move(
-        r.secret_ciphertext,
-        agentUrlContext(r.id),
-        `agent URL ${r.id}`,
-        agentUrls,
-      );
-      if (sealed && !dryRun)
-        await client.query("UPDATE agent_urls SET secret_ciphertext=$2 WHERE id=$1", [
-          r.id,
-          sealed,
-        ]);
-    }
     const webhooks: ReencryptCount = { reencrypted: 0, already: 0 };
     const hooks = await client.query<{ owner: string; webhook_secret_ciphertext: string }>(
       `SELECT owner, webhook_secret_ciphertext FROM notification_settings
@@ -114,7 +96,7 @@ export async function reencryptSecrets(
         ]);
     }
     await client.query(dryRun ? "ROLLBACK" : "COMMIT");
-    return { agentUrls, webhooks, cardHooks, dryRun };
+    return { webhooks, cardHooks, dryRun };
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     throw error;

@@ -16,7 +16,7 @@ import { safeRequest } from "@bonded/arena";
 import {
   NOTIFICATION_TYPE_LIST,
   codedProblem,
-  signAgentUrlRequest,
+  signWebhookRequest,
   type NotificationType,
 } from "@bondedhq/shared";
 
@@ -474,7 +474,7 @@ export class Notifier {
           method: "POST",
           headers: {
             "content-type": "application/json",
-            ...(await signAgentUrlRequest(secret, body)),
+            ...(await signWebhookRequest(secret, body)),
           },
           body,
           timeoutMs: 10_000,

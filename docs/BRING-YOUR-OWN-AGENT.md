@@ -12,7 +12,7 @@ The fastest way in, in order. Each step links to the details below.
 2. **Connect it**, one of two ways ([Connect your agent](#connect-your-agent)):
    - **A Node agent, on your machine or server:** in your agent's folder, run the `init` command the page gives you. It looks like `BONDED_RUNNER_TOKEN=bonded_rt_... npx @bondedhq/runner init --gateway https://arena-worker-production.up.railway.app`. It shows the change to your code as a diff, asks before writing, then starts the runner and runs the connection check ([Set it up with init](#set-it-up-with-init)). Want to see the change first, with no token? `npx @bondedhq/runner init --print`.
    - **Any other agent under the runner** (Python, a binary, an MCP client): `BONDED_RUNNER_TOKEN=bonded_rt_... npx @bondedhq/runner --gateway https://arena-worker-production.up.railway.app --mode tools -- <your agent command>` ([Runner](#runner)). On the page, choose **Something else (MCP or HTTP)** or **Python**, and the page leads with this command.
-   - **An agent already online at an HTTPS address:** add the endpoint Bonded calls. In a Node project, `npx @bondedhq/runner init --url` writes it for Next.js, Express, Hono or `node:http` (or `npm install @bondedhq/sdk` and mount `createBondedHandler` yourself); in Python, copy the standard-library example. Deploy, save the URL on the page, give your agent the secret it shows you once, and verify ([Agent URL](#agent-url)).
+   - **An agent already online at an HTTPS address:** add the endpoint Bonded calls. In a Node project, `npx @bondedhq/runner init --url` writes it for Next.js, Express, Hono or `node:http` (or `npm install @bondedhq/sdk` and mount `createBondedHandler` yourself); in Python, copy the standard-library example. Put your wallet in it as its owner, deploy, save the URL on the page and verify ([Agent URL](#agent-url)).
 3. **Run the connection check** on the page: one benign episode, streamed live, that says what to fix ([The connection check](#the-connection-check)).
 4. **Start the preview rating** and read the report: what your agent read, what it did, and the three fixes that address the most of its breaches ([Previews](#previews), [What the report shows](#what-the-report-shows)). Change your agent and press **Rate again** to see before and after.
 5. **Make it official** from the report when you want a score on chain and cover: register the agent, create its vault and stake a bond, connect and check again, then **Rate my agent** ([Official ratings](#official-ratings)).
@@ -41,7 +41,7 @@ As of 2026-10-10, on Robinhood Chain testnet:
 | Piece | Status | Where |
 |---|---|---|
 | The **Test your agent** page: previews, Agent URL mode, connection checks, estimates, progress and webhooks | Live on the hosted service | https://www.bondedhq.xyz/agents/test |
-| `@bondedhq/runner` 0.1.4 and `@bondedhq/sdk` 0.1.7 (with `@bondedhq/shared` and `@bondedhq/solana`, which they depend on) | On npm | `npx @bondedhq/runner …`, `npm install @bondedhq/sdk` |
+| `@bondedhq/runner` 0.1.4 and `@bondedhq/sdk` 0.1.7 (with `@bondedhq/shared` and `@bondedhq/solana`, which they depend on) | On npm. Agent URL handlers with `owner` (no secret) need `@bondedhq/sdk` 0.2.0 and `@bondedhq/shared` 0.2.0, and `init --owner` needs `@bondedhq/runner` 0.1.5: not published yet | `npx @bondedhq/runner …`, `npm install @bondedhq/sdk` |
 | Official ratings of your own agent, Mandate Vaults, cover, and self-serve ratings of Bonded's built-in agent designs | Live | Onboarding at https://www.bondedhq.xyz/agents/new |
 | The health panel, owner alerts and in-app notifications, vault trading status, the suggested mandate, the before/after comparison, the actionable report and `GET /status` | Live | The service's status: https://www.bondedhq.xyz/status |
 | The Arena Gateway your runner connects to | Live | `https://arena-worker-production.up.railway.app` (the page fills it in for you) |
@@ -96,12 +96,12 @@ flowchart LR
 ```
 
 1. **Sign in.** Connect your wallet, press **Sign in** and sign one message (`Bonded: start preview`, the chain, your wallet and the time). It opens a session for 12 hours; nothing is sent on chain.
-2. **Answer two questions.** *Which framework is your agent built on?* (ElizaOS, Coinbase AgentKit, LangChain or LangGraph, the Vercel AI SDK, something else over MCP or HTTP, or Python) and *Where do you run it?* (on your computer or server: the runner; online at a URL: Agent URL). The snippets and the `init` command follow your answers. The mode (tools or chain) is under **Advanced (optional)**; then press **Continue**. A declared code hash and a TEE are set later, when you make it official (onboarding has its own **Advanced (optional)**).
-   - **Agent URL**: Bonded calls your HTTPS endpoint once per episode. Nothing to install, and nothing to keep running beyond your server.
-   - **Runner**: a small program next to your agent connects out to Bonded and starts your agent command once per episode. Use it when your agent isn't on a public address (your laptop, a private network) or is a command rather than a server.
+2. **Answer two questions.** *Which framework is your agent built on?* (ElizaOS, Coinbase AgentKit, LangChain or LangGraph, the Vercel AI SDK, something else over MCP or HTTP, or Python) and *Where do you run it?* (on your computer or server: the runner, which is the default; on a host like Vercel: Agent URL). The snippets and the `init` command follow your answers. The mode (tools or chain) is under **Advanced (optional)**; then press **Continue**. A declared code hash and a TEE are set later, when you make it official (onboarding has its own **Advanced (optional)**).
+   - **Runner** (the default): a small program next to your agent connects out to Bonded and starts your agent command once per episode. It works anywhere you can run a command: your laptop, a private network, or a host that keeps a process running (Railway, Render, Fly).
+   - **Agent URL**: for an agent that only runs when it is called, on a host like Vercel. You add one file (the handler) to your app and deploy; Bonded calls that HTTPS endpoint once per episode.
    - **Tools** or **chain** mode: whether your agent trades through tool calls (tools) or signs its own vault transactions (chain). Tools mode fits most agents.
 3. **Connect it** ([Connect your agent](#connect-your-agent)).
-   - Agent URL: paste the URL and press **Save and get its secret**, copy the agent secret (`bonded_as_...`, shown once) into your agent and deploy, then press **Verify it now**. Bonded sends a signed challenge your agent must answer with the challenge and its proof, an HMAC-SHA256 of it keyed with the secret, which only the secret's holder can make. Lost it? **Lost the secret? Get a new one**, then **Make a new secret**, keeps the URL; verify again after.
+   - Agent URL: copy the handler from the page (your wallet is already in it, as its `owner`) and deploy it, then paste the URL, save it and press **Verify it now**. Bonded sends a signed challenge; your agent answers with the challenge and its owner, and the check passes when that is the wallet that saved the URL. There is no secret to copy or keep.
    - Runner: the page makes a runner token (shown once, so copy the commands then) and gives you the command, with npx (**Or start the runner yourself (Node)**) or Docker (**With Docker**, which needs the image you build: [Docker](#keep-it-running)). Start it where your agent runs; the page shows it connected.
    - **Fastest, for a Node agent:** the page also gives `BONDED_RUNNER_TOKEN=bonded_rt_... npx @bondedhq/runner init --gateway https://arena-worker-production.up.railway.app` (with `--mode chain` added for a chain-mode agent). Run in your agent's folder, it shows the change to your code as a diff, asks before writing, then starts the runner and runs the connection check, printing it as it goes ([Set it up with init](#set-it-up-with-init)).
    - The page has copy-paste snippets for your framework ([Use your framework](#use-your-framework)).
@@ -130,7 +130,7 @@ Two ways, with the same episodes, the same tools and the same judging:
 
 ### Agent URL
 
-Bonded `POST`s JSON to your URL. Every call is signed with your agent secret, and your endpoint must check the signature before it reads the message.
+Bonded `POST`s JSON to your URL. Every call is signed with Bonded's own key, for the wallet that saved the URL, and your endpoint must check the signature and that wallet before it reads the message. Your endpoint knows its owner because the wallet is written in its code: it's public, not a secret.
 
 ```mermaid
 sequenceDiagram
@@ -138,7 +138,7 @@ sequenceDiagram
   participant A as Your endpoint
   Note over B,A: Registration (once, and again after a redeploy)
   B->>A: POST verify { challenge } (signed)
-  A-->>B: 200 { challenge, proof, version? }
+  A-->>B: 200 { challenge, owner, version? }
   Note over B,A: Each episode
   B->>A: POST episode { task, endpoints, vault, deadlineMs, ... } (signed)
   A-->>B: 2xx within 10 s
@@ -151,19 +151,25 @@ sequenceDiagram
 
 | Body | Your answer |
 |---|---|
-| `{ "type": "verify", "challenge": "<random>" }` | `200` with `{ "challenge", "proof", "version"? }` within 10 seconds. `proof` is the hex HMAC-SHA256 of `"verify." + challenge` under your secret, so only a server holding the secret passes (an echo server doesn't). `version` is your code version (a commit, a release tag, an image digest): when you declare no code hash, it becomes the code hash, keccak256 of `"url:<version>"` |
+| `{ "type": "verify", "challenge": "<random>" }` | `200` with `{ "challenge", "owner", "version"? }` within 10 seconds. `owner` is your wallet; the check passes when it is the wallet that saved the URL. The owner is only in the signed headers, never in the body, so an echo server can't pass. `version` is your code version (a commit, a release tag, an image digest): when you declare no code hash, it becomes the code hash, keccak256 of `"url:<version>"` |
 | The `episode` message: `type`, `episodeId`, `task` (`goal`, `mandate`, `policy?`, `maxSteps`), `mode`, `endpoints` (`mcp`, `tools`, `openapi`, `done`, and `rpc` in chain mode), `chainId`, `vault`, `contracts` (`exchange`, `tokens`), `sessionKey?` (chain mode), `deadlineMs` | Any `2xx` within 10 seconds, then do the work in the background: read and trade through `endpoints`, and `POST` `endpoints.done` when finished. It is the same JSON the runner receives (`EpisodeMessage` in `@bondedhq/shared`) |
 | `{ "type": "cancel", "episodeId": "..." }` | Stop that episode. Best effort: the episode's endpoints already refuse calls |
 
-**The signature.** Two headers on every call:
+**The signature.** Three headers on every call:
 - `bonded-timestamp`: unix seconds.
-- `bonded-signature`: `v1=` and the hex HMAC-SHA256, under your secret, of the timestamp, a dot and the raw body (`<timestamp>.<raw body>`). While a secret rotates the header may carry up to four `v1=` values, comma-separated.
+- `bonded-owner`: the wallet that saved the URL, lowercase.
+- `bonded-signature`: `v2=<key id>:<signature>`, the base64url Ed25519 signature of `v2.<key id>.<timestamp>.<owner>.<raw body>`. While a key rotates the header may carry up to four `v2=` values, comma-separated.
 
-Check the HMAC over the raw bytes as received (not re-encoded JSON), compare in constant time, refuse a timestamp more than 300 seconds from your clock, and refuse a signature you have accepted before (a replay). Answer `401` to anything that fails. `createBondedHandler` (below), `verifyAgentUrlRequest` in `@bondedhq/shared`, and the Python example all do this.
+Bonded's public keys are published at `https://www.bondedhq.xyz/.well-known/bonded-agent-keys.json` (Bonded's own domain, so the address stays the same if the API moves; the API serves the same file), as `{ "keys": [{ "kid", "alg": "Ed25519", "x" }] }` (`x` is the 32-byte key, base64url). Fetch them, keep them, and fetch again (at most once a minute) when a call names a key id you haven't seen.
 
-**Register, then verify.** Two steps, because your agent needs its secret before it can answer the challenge:
-1. Save the URL (**Save and get its secret**, on the **Test your agent** page or the agent's page). Bonded makes the agent secret, `bonded_as_` and 32 random bytes, and shows it **once**. It is stored only encrypted (AES-256-GCM under the service's `AGENT_URL_SECRET_KEY`), never logged and never returned again. Setting a new URL makes a new secret and the old URL stops working. Lost the secret? **Lost the secret? Get a new one** (`POST …/agent-url/secret`) keeps the URL and shows a new secret once; the old one stops working at once (there is no overlap, since a lost secret may be in someone else's hands), so put the new one in your agent, verify again and run a new check.
-2. Put the secret in your agent (for example `BONDED_AGENT_SECRET`), deploy, and press **Verify it now** (**Verify again** after that). Bonded sends the verify challenge. Until a verify passes, the URL can't be used for a check or a rating. Verify again after a redeploy to report a new version.
+Check the signature over the raw bytes as received (not re-encoded JSON), refuse a timestamp more than 300 seconds from your clock, refuse a call whose `bonded-owner` isn't your wallet, and refuse a signature you have accepted before (a replay). Answer `401` to anything that fails. `createBondedHandler` (below), `verifyAgentUrlRequest` in `@bondedhq/shared`, and the Python example all do this.
+
+The owner check is what keeps your URL yours. Bonded signs a call for a wallet only for a URL that wallet saved. If someone else saves your URL, their calls are signed for their wallet, your endpoint refuses them, so they can't verify it and Bonded never sends it their episodes.
+
+**Deploy, save, verify.**
+1. Deploy your endpoint with your wallet as its owner (the page's snippet has it filled in).
+2. Save the URL, on the **Test your agent** page or the agent's page (`POST …/agent-url`), signed in with that wallet. You can save it before the endpoint is up.
+3. Press **Verify it now** (**Verify again** after that). Bonded sends the verify challenge. Until a verify passes, the URL can't be used for a check or a rating. Verify again after a redeploy to report a new version.
 
 **Limits.**
 
@@ -186,7 +192,7 @@ Check the HMAC over the raw bytes as received (not re-encoded JSON), compare in 
 
 #### The handler, in TypeScript
 
-`createBondedHandler` from `@bondedhq/sdk/agent-url` is the whole endpoint: a standard Fetch API handler, with `toNodeHandler` for Express and `node:http`. It checks the signature (300-second window, replays refused, `401` otherwise; `400` for a body that isn't a Bonded message), answers verify with the proof and your `version`, answers an episode with `202` at once and runs `onEpisode` in the background, then posts `/done` with the `finalMessage` and `usage` you return. If `onEpisode` throws, `/done` is still posted, saying the agent failed. A cancel, or the episode's deadline, aborts `signal` and no `/done` is posted. It accepts bodies up to 256 KiB (`maxBodyBytes`), runs up to 8 episodes at once (`maxConcurrent`) and runs an episode delivered twice once.
+`createBondedHandler` from `@bondedhq/sdk/agent-url` is the whole endpoint: a standard Fetch API handler, with `toNodeHandler` for Express and `node:http`. Give it your wallet as `owner` (a list, for a team). It fetches Bonded's keys and checks the signature and owner (300-second window, replays refused, calls for any other wallet refused, `401` otherwise; `400` for a body that isn't a Bonded message), answers verify with your owner and `version`, answers an episode with `202` at once and runs `onEpisode` in the background, then posts `/done` with the `finalMessage` and `usage` you return. If `onEpisode` throws, `/done` is still posted, saying the agent failed. A cancel, or the episode's deadline, aborts `signal` and no `/done` is posted. It accepts bodies up to 256 KiB (`maxBodyBytes`), runs up to 8 episodes at once (`maxConcurrent`) and runs an episode delivered twice once.
 
 **Next.js** (route handler), from the web app's snippet:
 
@@ -197,7 +203,7 @@ import { bondedAiSdkTools } from "@bondedhq/sdk/ai-sdk";
 import { generateText, stepCountIs } from "ai";
 
 export const POST = createBondedHandler({
-  secret: process.env.BONDED_AGENT_SECRET!,
+  owner: "0xYourWallet", // the wallet you save this URL from; public, not a secret
   version: process.env.GIT_SHA,
   async onEpisode(episode, { signal }) {
     const tools = await bondedAiSdkTools(episode);
@@ -219,7 +225,7 @@ On a platform that stops work once the response is sent, pass its `waitUntil` as
 ```ts
 import { createBondedHandler, toNodeHandler } from "@bondedhq/sdk/agent-url";
 
-const handler = createBondedHandler({ secret: process.env.BONDED_AGENT_SECRET!, version, onEpisode });
+const handler = createBondedHandler({ owner: "0xYourWallet", version, onEpisode });
 app.post("/bonded", toNodeHandler(handler));
 app.use(express.json()); // after
 ```
@@ -238,14 +244,15 @@ export default { fetch: (req, env, ctx) => handler(req, ctx) };
 
 **Plain `node:http`**, as the tested example in [`examples/frameworks/src/agent-url.ts`](../examples/frameworks/src/agent-url.ts) does: `createServer(toNodeHandler(handler))`.
 
-To test your endpoint, `signBondedRequest(secret, body)` signs a request the way Bonded does. `verifyBondedSignature(...)` is the signature check on its own. Both use the scheme from `@bondedhq/shared/agent-url`, a small entry point without the contract ABIs, for edge bundles.
+To test your endpoint, `createTestSigner()` stands in for Bonded: it makes a key, gives you its public `keys` to pass to the handler (`createBondedHandler({ owner, keys, ... })`), and `sign(owner, body)` returns the headers Bonded would send. `verifyAgentUrlRequest(...)` is the check on its own. Both use the scheme from `@bondedhq/shared/agent-url`, a small entry point without the contract ABIs, for edge bundles. To rate against a local Arena instead of Bonded's API, set `apiUrl` to the gateway's URL: the Arena makes a key for the run and publishes it there.
 
 #### In Python, or any language
 
-[`examples/python-agent-url`](../examples/python-agent-url/README.md) is a whole endpoint with the Python standard library only (`http.server`, `hmac`, `urllib`): it checks signatures, answers verify with the proof, replies `202` to an episode and works it over the plain HTTP tools, and handles cancel. `python3 selfcheck.py` sends it what Bonded sends (verify, an episode, a cancel, and bad, stale and replayed signatures); the repository's tests also rate it against a real Arena Gateway episode.
+[`examples/python-agent-url`](../examples/python-agent-url/README.md) is a whole endpoint with the Python standard library and the `cryptography` package (for Ed25519): it fetches Bonded's keys, checks signatures and the owner, answers verify with its owner, replies `202` to an episode and works it over the plain HTTP tools, and handles cancel. `python3 selfcheck.py` plays Bonded with a key of its own and sends what Bonded sends (verify, an episode, a cancel, and calls for another owner, an unknown key, and bad, stale and replayed signatures); the repository's tests also rate it against a real Arena Gateway episode.
 
 ```sh
-BONDED_AGENT_SECRET=bonded_as_... PORT=8080 AGENT_VERSION=$(git rev-parse HEAD) python3 agent.py
+pip install cryptography
+BONDED_AGENT_OWNER=0xYourWallet PORT=8080 AGENT_VERSION=$(git rev-parse HEAD) python3 agent.py
 ```
 
 With FastAPI or Flask, keep the same order: read the raw body, check the signature, then parse. [`apps/runner/examples/agent-url-agent.mjs`](../apps/runner/examples/agent-url-agent.mjs) is the same endpoint in plain JavaScript with `node:crypto`, a template for other languages.
@@ -301,7 +308,7 @@ The Bonded code goes in one new file (`src/bonded.ts`, or `.js`/`.mjs`), and at 
 | MCP client | `new StreamableHTTPClientTransport(new URL(bondedMcpUrl(yourServerUrl)))`; trade with `bondedVault.swap(...)` in production |
 | Unknown, Python | No change: it prints what to do |
 
-It edits a line only when it is sure (exactly one match); otherwise it prints the line to add. `npx @bondedhq/runner init --help` lists every flag, including `--framework` (skip detection), `--skip-install` and `--overwrite-generated`. It never writes outside the folder, never reads or changes your `.env` values (`--env` appends the new variables' names with empty values), and adds `@bondedhq/sdk` with your package manager (npm, pnpm, yarn or bun, from your lockfile) only when you say yes. `--url` also adds the Agent URL route Bonded calls (Next.js, Express, Hono or a small `node:http` server), with its handler in `src/bonded-agent-url.ts`: fill in its `onEpisode`, set `BONDED_AGENT_SECRET`, deploy, then save and verify the URL on the page.
+It edits a line only when it is sure (exactly one match); otherwise it prints the line to add. `npx @bondedhq/runner init --help` lists every flag, including `--framework` (skip detection), `--skip-install` and `--overwrite-generated`. It never writes outside the folder, never reads or changes your `.env` values (`--env` appends the new variables' names with empty values), and adds `@bondedhq/sdk` with your package manager (npm, pnpm, yarn or bun, from your lockfile) only when you say yes. `--url` also adds the Agent URL route Bonded calls (Next.js, Express, Hono or a small `node:http` server), with its handler in `src/bonded-agent-url.ts`: fill in its `onEpisode` and its `owner` (your wallet; `--owner <wallet>` writes it for you), deploy, then save and verify the URL on the page.
 
 **The check, with the runner token alone.** With `BONDED_RUNNER_TOKEN` (or `--token`) and `--gateway`, `init` starts the runner with the command after `--` (or your `start` script) and, once it is connected, runs a connection check with the token: `POST /runner/check` (`Authorization: Bearer bonded_rt_...`, no body) checks the preview or agent the token belongs to, for its owner, under the same limits as the page, and answers with the check and a stream token; `init` follows `GET /checks/:id/events?token=` and prints each event and the result, with a troubleshooting link for each problem. No sign-in is needed. A passing check leaves the runner running for your rating; a failing one stops it. The API is `--api`, else `BONDED_API_URL`, else the hosted API (`https://api-production-ba50.up.railway.app`, the same default the web app uses); the page adds `--api` to the command only when it talks to another API. `--skip-check` starts the runner without a check. The older way, `--session <token>` with `--preview <id>` or `--agent <id>`, still works. Prefer `BONDED_RUNNER_TOKEN` to `--token`: anyone on the machine can read a command line in the process list, and `init` says so when you use `--token`.
 
@@ -570,7 +577,7 @@ A check is one episode with a benign task in a benign world and **no attack**, n
 
 A check passes when there are no problems: your agent was reached, called tools, finished on its own, did the trade its task names, and broke no rule doing it. Warnings never fail a check.
 
-**A rating needs one.** A preview, or an official rating you ask for, can only be queued with a passing check of the **same connection**: the same mode, runner token or Agent URL, and code hash, finished in the last 24 hours. Otherwise the API refuses: "Run a connection check first: a rating needs a passing check of this exact connection (the same runner token or Agent URL, mode and code) in the last 24 hours." A new runner token, a new URL, a new agent secret or new code means a new check.
+**A rating needs one.** A preview, or an official rating you ask for, can only be queued with a passing check of the **same connection**: the same mode, runner token or Agent URL, and code hash, finished in the last 24 hours. Otherwise the API refuses: "Run a connection check first: a rating needs a passing check of this exact connection (the same runner token or Agent URL, mode and code) in the last 24 hours." A new runner token, a new URL or new code means a new check.
 
 **Problems, and what to do.** The sentences are the ones the check returns.
 
@@ -599,11 +606,13 @@ A check passes when there are no problems: your agent was reached, called tools,
 
 | Problem | What to do |
 |---|---|
-| Your URL answered 401 (or 403): check that your agent uses the agent secret Bonded gave you | Use the `bonded_as_...` secret you were shown to check `bonded-signature`. Lost it? Get a new secret, then verify again |
+| Your URL is set up for another wallet, not the one you're signed in with (0x…): copy the handler code again and redeploy, or sign in with the wallet in your code | The handler's `owner` is a different wallet from the one that saved the URL (the one the message names). Copy the code from the page again, which has your wallet in it, and redeploy; or sign in with the wallet in your code. The message never names the handler's own wallet, so nobody who saves a URL learns whose it is |
+| Your URL answered 401 (or 403): its handler refused Bonded's call… | A handler refuses a call for another wallet (an older handler says so only with this status), a call more than 5 minutes off its server's clock, or one signed with a key it couldn't fetch. Check `owner`, the server's clock, and that it can reach `bonded-agent-keys.json` (above), redeploy if you changed anything, then verify again |
 | Your URL answered N | Check the URL and that your server is up: it must answer with a 2xx (200 for verify) |
 | Your URL answered N to the check; it must be 200 | Answer verify with status 200 |
-| Your URL answered the check, but not with JSON | Answer verify with JSON: `{ "challenge", "proof", "version"? }` |
-| Your URL answered the check without proving it holds the agent secret: answer verify with { challenge, proof } (proof = HMAC-SHA256 of "verify." + challenge with your secret) | Send `proof`, not just the challenge. `createBondedHandler` and `answerAgentUrlVerify` do it |
+| Your URL answered the check, but not with JSON | Answer verify with JSON: `{ "challenge", "owner", "version"? }` |
+| Your URL answered the check without its owner: answer verify with { challenge, owner } (createBondedHandler does it) | Send `owner`, your wallet, not just the challenge. `createBondedHandler` and `answerAgentUrlVerify` do it |
+| Your URL answered for the wallet 0x…, not 0x…: set owner in your handler to the wallet you saved this URL with | The handler names another wallet: fix `owner`, or save the URL from that wallet |
 | Your URL didn't answer within 10 seconds | Answer at once and work after replying |
 | Your URL answered with a redirect; Bonded doesn't follow redirects, so give the final URL | Register the final URL |
 | Your URL's host isn't reachable on the public internet: it must resolve to a public address | It doesn't resolve, or resolves to a private address. For an agent on your machine, use the runner |
@@ -672,7 +681,7 @@ An official rating is attested: the attester signs the score and posts it to the
 ### From the web app
 
 1. **Onboard an agent** ([www.bondedhq.xyz/agents/new](https://www.bondedhq.xyz/agents/new), or **Make it official** on a preview's report).
-   - In step 1 (**What gets rated**), choose **My own agent: any framework or language, where it already runs**, then answer the same two questions as on the Test page: your framework, and where it runs (**On my computer or server** for the runner, **It's online at a URL** for an Agent URL, with the URL). How it acts (**Tools** or **Chain**) is under **Advanced (optional)**.
+   - In step 1 (**What gets rated**), choose **My own agent: any framework or language, where it already runs**, then answer the same two questions as on the Test page: your framework, and where it runs (**On my computer or server** for the runner, **On a host like Vercel** for an Agent URL, with the URL). How it acts (**Tools** or **Chain**) is under **Advanced (optional)**.
    - The code hash is optional, also under **Advanced (optional)**: without one, each rating records the code the runner or the URL reports ([The code hash fills itself in](#the-code-hash-fills-itself-in)). Declare one for a TEE-bound agent (the one its TEE reports), or to pin your own fingerprint (an image digest `sha256:…`, or 32 bytes of hex).
    - Optionally a TEE URL and compose hash (chain mode, runner only), there too.
    - Then create a vault (or choose a module) and **stake an operator bond**: ratings of your own agent need one.
@@ -869,7 +878,7 @@ Bonded doesn't pay for your model calls and doesn't limit them.
 | Channel | How |
 |---|---|
 | The page | A browser notification while the tab is open, if you allow it |
-| Webhook | A URL you set (public https, not one of Bonded's hosts, no redirects followed). Bonded `POST`s `{ type: "rating_finished" \| "rating_failed" \| "rating_refused", ratingId, previewId? or agentId?, chainId, status, score?, tier?, reason?, label?, at }`, signed like Agent URL calls (`bonded-timestamp`, `bonded-signature`) with a webhook secret of its own (`bonded_ws_...`, shown once when you set the URL; a new one with `POST /self/notifications/webhook-secret`). 10 seconds to answer; not retried |
+| Webhook | A URL you set (public https, not one of Bonded's hosts, no redirects followed). Bonded `POST`s `{ type: "rating_finished" \| "rating_failed" \| "rating_refused", ratingId, previewId? or agentId?, chainId, status, score?, tier?, reason?, label?, at }`, signed with `bonded-timestamp` and `bonded-signature` (`v1=`, a hex HMAC-SHA256 of `<timestamp>.<raw body>`) under a webhook secret of its own (`bonded_ws_...`, shown once when you set the URL; a new one with `POST /self/notifications/webhook-secret`). 10 seconds to answer; not retried |
 | Email | Only when the service has an email sender (`RESEND_API_KEY` and `EMAIL_FROM`), which is off by default and on for the hosted service. An address you give gets a plain-text email |
 
 Your settings are yours (by wallet), for all your previews and agents. The page shows them masked (the webhook's origin, `m***@example.com`), never the secret. The alerts about your agents ([Staying rated](#staying-rated)) use the same webhook, with `{ type, dedupeKey, agentId, chainId, message, code, fix?, details?, at }`, where `type` is `score_expiring`, `runner_offline`, `breach_recorded`, `claim_filed`, `claim_paid`, `cover_lapsing` or `low_gas`.
@@ -889,7 +898,8 @@ Everything the pages do is plain HTTP, for scripts. The hosted API is `https://a
 | `POST`/`DELETE /previews/:id/runner-token` | A preview's runner token, shown once; or revoke it |
 | `POST /previews/:id/rate` | Queue the preview's rating (needs a passing check) |
 | `GET /previews/:id/report` | The labelled report: `{ label, attested: false, insurable: false, report }` |
-| `POST`/`GET`/`DELETE …/agent-url`, `POST …/agent-url/verify`, `POST …/agent-url/secret` | Set (secret returned once), read, revoke and verify the Agent URL of a preview (`/previews/:id`) or a registered agent (`/self/agents/:id`); get a new secret for the same URL (returned once; the old one stops at once, and the URL must be verified again) |
+| `POST`/`GET`/`DELETE …/agent-url`, `POST …/agent-url/verify` | Set, read, revoke and verify the Agent URL of a preview (`/previews/:id`) or a registered agent (`/self/agents/:id`). Setting it returns `owner`, the wallet calls are signed for |
+| `GET /.well-known/bonded-agent-keys.json` | Bonded's public keys that sign calls to Agent URLs (`{ keys: [{ kid, alg: "Ed25519", x }] }`) |
 | `POST`/`GET …/checks` | Run a connection check, or list the last 10 |
 | `GET /checks/:id`, `GET /checks/:id/events` | A check, and its live events as server-sent events (from the start or `Last-Event-ID`; the stream ends after the result) |
 | `GET …/estimate` | The cost estimate from the passing check of this connection as it is now; without one, 409 "Run a connection check of this connection first: the estimate comes from it." |
@@ -930,7 +940,7 @@ pnpm build
 **The web flow, locally.** `pnpm demo -- --byo` runs the usual demo, then:
 - registers `examples/byo-agent` as an operator's own agent, makes its runner token through the API, starts the real runner, runs a connection check through the check lane, and rates it through a local gateway;
 - protects a smart account (the ERC-7579 reference account) with an Enforce-mode module, then rates and insures it;
-- keeps running connection checks and previews asked for in the web app at http://localhost:5180, through a runner or an Agent URL (Agent URLs may be plain http on this machine, such as `http://127.0.0.1:8080/`, with a secret key made for the run);
+- keeps running connection checks and previews asked for in the web app at http://localhost:5180, through a runner or an Agent URL (Agent URLs may be plain http on this machine, such as `http://127.0.0.1:8080/`, signed with a key made for the run);
 - prints both agents' pages.
 
 **The Arena CLI, with a runner.** Terminal 1 starts a local chain with the protocol deployed and a local Arena Gateway, then waits for your runner:
@@ -948,7 +958,7 @@ BONDED_RUNNER_TOKEN=my-local-runner-token node apps/runner/dist/cli.js \
 
 It runs, in a random order, every published attack once, a held-out set made for this rating alone (one variant per attack class) and six control episodes with no attack, judged by the hosted rules with the CLI's lighter local settings. It prints each verdict, then the score, and writes the report to `apps/arena/ratings/remote_local/report.md`. Put your own agent in place of the example. For chain mode, add `--mode chain` to both commands and run `-- node examples/byo-agent/dist/main.js`.
 
-**With an Agent URL** instead of a runner: `pnpm arena rate --agent remote --agent-url http://127.0.0.1:8080/` (plain http to this machine is allowed locally), with your secret in `BONDED_AGENT_SECRET` or `--agent-secret`, or a fresh one printed for you.
+**With an Agent URL** instead of a runner: `pnpm arena rate --agent remote --agent-url http://127.0.0.1:8080/ --agent-owner 0xYourWallet` (plain http to this machine is allowed locally). The owner is the wallet in your handler's `owner` (or set `BONDED_AGENT_OWNER`). The local gateway makes a signing key for the run and publishes it at `http://127.0.0.1:8789/.well-known/bonded-agent-keys.json`, so point your handler there with `apiUrl` (the CLI prints the line: `createBondedHandler({ owner, apiUrl: "http://127.0.0.1:8789", ... })`).
 
 **A check first:** `pnpm arena check` with the same options.
 
@@ -957,7 +967,7 @@ It runs, in a random order, every published attack once, a held-out set made for
 | `--mode tools\|chain` | How your agent acts (default `tools`) |
 | `--profile local\|hosted` | `local` (default): the CLI's own settings, each overridable (1 run of each attack, 6 controls, 240 s episodes, one held-out variant per class). `hosted`: exactly what a hosted official rating runs (3 runs, 6 controls, 90 s episodes, one held-out variant per class); it refuses `--repeats`, `--controls`, `--episode-timeout` and `--held-out-fresh`, since those would change it. `rate` only |
 | `--runner-token <t>` | The token your runner connects with (default: a fresh one, printed). At least 16 characters |
-| `--agent-url <url>`, `--agent-secret <s>` | Agent URL mode instead of a runner. The secret defaults to `BONDED_AGENT_SECRET`, else a fresh one, printed |
+| `--agent-url <url>`, `--agent-owner <wallet>` | Agent URL mode instead of a runner. Calls are signed for the owner (default `BONDED_AGENT_OWNER`) with a key the run makes and publishes on the gateway |
 | `--gateway-port <n>`, `--gateway-host <h>` | Where the local gateway listens (default `127.0.0.1:8789`) |
 | `--public-url <url>` | The address your runner and agent reach the gateway at, when it isn't `http://<host>:<port>` (for example behind a tunnel) |
 | `--runner-wait <s>` | How long to wait for the runner (default 300) |
@@ -973,7 +983,7 @@ The usual `--repeats`, `--controls`, `--enforce` and `--fork` work too. `--fork 
 Your agent is untrusted, and so is the gateway from your side. Agent URLs, previews and checks also let anyone make Bonded do work or call out, so each of them is authenticated, rate-limited and size-limited.
 
 **What Bonded calls.**
-- Your Agent URL, with `POST`s of exactly three kinds (verify, episode, cancel), each signed with your agent secret, with the limits and URL rules above.
+- Your Agent URL, with `POST`s of exactly three kinds (verify, episode, cancel), each signed with Bonded's key for the wallet that saved the URL, with the limits and URL rules above.
 - Your webhook, with a signed `POST` when a rating ends.
 - Your TEE's evidence endpoint (`GET …/attestation`), for a TEE-bound agent.
 - Nothing else of yours. Bonded never follows a redirect, never calls a private or internal address, and never calls its own hosts on your behalf.
@@ -982,7 +992,7 @@ Your agent is untrusted, and so is the gateway from your side. Agent URLs, previ
 - Run your code. The runner runs the command you gave it, on your machine; an Agent URL runs on your server.
 - See your code, your wallet, your production key, your model or your prompts. It sees what your agent does in the episode: its tool calls and transactions, what it reports at `/done`, and (runner) the last 4 KB of its output.
 - Give your agent the runner token, or send the token anywhere but an https gateway (or one on this machine).
-- Return a secret twice. Agent secrets and webhook secrets are shown once and kept only encrypted (AES-256-GCM, bound to the row they belong to); runner tokens, session tokens and capability tokens only as SHA-256 hashes.
+- Return a secret twice. Webhook secrets are shown once and kept only encrypted (AES-256-GCM, bound to the row they belong to); runner tokens, session tokens and capability tokens only as SHA-256 hashes.
 - Show a rating's verdicts while it runs, or anyone's check, preview or rating stream to anyone but its owner.
 - Let anything your agent, runner or TEE reports (exit codes, final messages, usage, a code hash) change a verdict.
 
@@ -992,7 +1002,7 @@ Your agent is untrusted, and so is the gateway from your side. Agent URLs, previ
 | **The gateway** | Send your runner an episode or a cancel; `POST` signed verify, episode and cancel messages to your Agent URL | Choose what runs: the runner only ever runs the command you gave it. See your code, your wallet or your production key |
 | **The runner** | Start and stop your command; forward your TEE's evidence unchanged | Pass the runner token to your agent; send the token anywhere but an https gateway (or one on this machine); act on chain |
 | **Anyone with your runner token** | Connect a runner as your agent (replacing yours), and so answer the episodes of your next rating | Rate the agent or change its registration: both need the owner's wallet signature. Revoke or replace the token from the agent's page |
-| **Anyone with your agent secret** | Sign calls your endpoint would accept as Bonded's | Make Bonded do anything: the secret only signs calls to you. Set a new URL to get a new secret |
+| **Anyone who saves your Agent URL** | Have Bonded send it calls signed for *their* wallet | Get those calls accepted: your endpoint refuses any owner but yours, so they can't verify the URL and Bonded never sends it their episodes. There is no agent secret to steal; Bonded's signing key never leaves Bonded |
 | **Anyone else** | Sign in with their own wallet and start their own preview, within the caps | Read your previews, checks, streams, reports or settings ("not found"); register a URL that points at Bonded or a private network |
 
 More protections:

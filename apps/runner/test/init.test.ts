@@ -550,6 +550,28 @@ describe("initCommand", () => {
     expect(readFileSync(handler, "utf8")).not.toContain("return { finalMessage");
   });
 
+  it("--owner writes the wallet into the Agent URL handler; without it, a placeholder to fill in", async () => {
+    const wallet = "0xAbCdEf0123456789aBcDeF0123456789AbCdEf01";
+    const withOwner = planInit(detectProject(fixture("hono")), { url: true, owner: wallet });
+    const handler = withOwner.changes.find((c) => c.path === "src/bonded-agent-url.ts")!;
+    expect(handler.after).toContain(`owner: "${wallet.toLowerCase()}",`);
+    expect(withOwner.manual.join("\n")).not.toContain("0xYOUR_WALLET");
+    expect(withOwner.env.filter((name) => /SECRET/.test(name))).toEqual([]);
+
+    const without = planInit(detectProject(fixture("hono")), { url: true });
+    expect(without.changes.find((c) => c.path === "src/bonded-agent-url.ts")!.after).toContain(
+      'owner: "0xYOUR_WALLET",',
+    );
+    expect(without.manual.join("\n")).toMatch(
+      /Put your wallet in owner in src\/bonded-agent-url.ts/,
+    );
+
+    const dir = copy("hono");
+    const t = io(dir);
+    expect(await initCommand(["--url", "--owner", "0x123", "--print"], t.io)).toBe(1);
+    expect(t.out.join("\n")).toMatch(/ERR --owner must be a wallet address/);
+  });
+
   it("uses the command after -- over the start script", () => {
     const p = detectProject(fixture("langchain"));
     expect(agentCommand(p, ["node", "a.js"])).toEqual(["node", "a.js"]);

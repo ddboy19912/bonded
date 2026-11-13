@@ -37,7 +37,7 @@ import {
 import { RateLimiter, clientAddress } from "./rate-limit.js";
 import { Refused, handle } from "./refused.js";
 import type { AgentStatusReader } from "./agent-status.js";
-import { SECRET_KEY_MISSING } from "./secrets.js";
+import { SIGNING_KEY_MISSING } from "./secrets.js";
 import { NEEDS_CHECK, codeInfo, publicCheckSummary } from "./connections.js";
 import {
   DEFAULT_REMOTE_POLICY,
@@ -417,7 +417,7 @@ export function selfServeRoutes(
           "A TEE-bound agent needs a declared code hash (the one its TEE reports) and the runner, which forwards its evidence.",
         );
       if (input.kind === REMOTE_KIND && input.connection === "url" && !options.agentUrls)
-        throw new Refused(409, SECRET_KEY_MISSING);
+        throw new Refused(409, SIGNING_KEY_MISSING);
       const hash = mandateHash(input.mandate);
       const module = input.protection === "module";
       const base = {

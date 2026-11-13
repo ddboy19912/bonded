@@ -1,5 +1,5 @@
-// Rotates AGENT_URL_SECRET_KEY: re-encrypts every stored Agent URL secret and webhook signing
-// secret from the old key to the new one, in one transaction (docs/DEVELOPING.md, "Rotating
+// Rotates AGENT_URL_SECRET_KEY: re-encrypts every stored webhook and card hook signing secret
+// from the old key to the new one, in one transaction (docs/DEVELOPING.md, "Rotating
 // AGENT_URL_SECRET_KEY").
 //
 //   pnpm secrets:reencrypt -- [--dry-run]
@@ -29,9 +29,6 @@ try {
   const r = await reencryptSecrets(db, from, to, { dryRun: values["dry-run"] });
   const verb = r.dryRun ? "would re-encrypt" : "re-encrypted";
   console.log(`key ${from.keyId} -> ${to.keyId}${r.dryRun ? " (dry run: nothing written)" : ""}`);
-  console.log(
-    `agent URLs: ${verb} ${r.agentUrls.reencrypted}, already on the new key ${r.agentUrls.already}`,
-  );
   console.log(
     `webhooks:   ${verb} ${r.webhooks.reencrypted}, already on the new key ${r.webhooks.already}`,
   );

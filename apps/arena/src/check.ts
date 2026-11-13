@@ -188,7 +188,7 @@ export async function runConnectionCheck(options: ConnectionCheckOptions): Promi
   } else if (transport.kind === "hosted") {
     // Bonded runs it here: nothing to reach. Its code hash is what the owner saved.
   } else {
-    const verified = await gateway.agentUrls.verify(transport.url, transport.secret);
+    const verified = await gateway.agentUrls.verify(transport.url, transport.owner);
     if (!verified.ok) return early(verified.problem);
     if (verified.codeHash && verified.version)
       code = {
