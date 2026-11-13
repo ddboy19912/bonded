@@ -357,8 +357,11 @@ export interface RatedCode {
   detail?: string;
 }
 
-/** How Bonded reaches an operator's agent. */
-export type ConnectionKind = "runner" | "url";
+/**
+ * How Bonded reaches an operator's agent: their runner, their Agent URL, or (0037, previews only)
+ * Bonded runs it itself from what its owner gave it.
+ */
+export type ConnectionKind = "runner" | "url" | "hosted";
 
 /** The world a preview tests its agent on (0034): the on-chain vault, or a brokerage account. */
 export type PreviewWorld = "vault" | "brokerage";
@@ -400,6 +403,23 @@ export interface AgentUrlRecord {
   verifiedAt: Date | null;
   version: string | null;
   codeHash: string | null;
+}
+
+/**
+ * What a hosted preview runs (0037): its owner's instructions on a model, or one code file. A new
+ * save is a new id, so a check passes only the agent it ran.
+ */
+export interface HostedAgentRecord {
+  id: string;
+  ownerKey: string;
+  kind: "instructions" | "code";
+  model: string;
+  instructions: string | null;
+  language: "js" | "ts" | null;
+  code: string | null;
+  codeHash: string;
+  createdBy: string;
+  createdAt: Date;
 }
 
 /** What a passing check must match for a rating to be queued. */
@@ -552,6 +572,19 @@ const checkRow = (row: Record<string, unknown>): ConnectionCheckRecord => ({
   startedAt: (row.started_at as Date | null) ?? null,
   finishedAt: (row.finished_at as Date | null) ?? null,
 });
+const hostedAgentRow = (row: Record<string, unknown>): HostedAgentRecord => ({
+  id: row.id as string,
+  ownerKey: row.owner_key as string,
+  kind: row.kind as HostedAgentRecord["kind"],
+  model: row.model as string,
+  instructions: (row.instructions as string | null) ?? null,
+  language: (row.language as HostedAgentRecord["language"]) ?? null,
+  code: (row.code as string | null) ?? null,
+  codeHash: row.code_hash as string,
+  createdBy: row.created_by as string,
+  createdAt: row.created_at as Date,
+});
+
 const agentUrlRow = (row: Record<string, unknown>): AgentUrlRecord => ({
   id: row.id as string,
   ownerKey: row.owner_key as string,
@@ -640,6 +673,8 @@ export class Database {
       "0033_gate_budgets.sql",
       "0034_preview_world.sql",
       "0035_preview_tool_names.sql",
+      // 0036 is taken by the Agent URL signed-calls change on its own branch.
+      "0037_hosted_agents.sql",
     ];
     await this.transaction(async (c) => {
       await c.query("SELECT pg_advisory_xact_lock(7001)");
@@ -2113,14 +2148,15 @@ export class Database {
    * How an operator-run agent is reached: by its Agent URL when registered so or when it has a
    * live one (registering a URL switches it; revoking switches it back), else by its runner.
    */
-  async connectionOf(key: string, config: unknown): Promise<ConnectionKind> {
+  /** How a registered agent is reached: its runner or its Agent URL (never hosted). */
+  async connectionOf(key: string, config: unknown): Promise<"runner" | "url"> {
     return this.connectionOfIn(this.pool, key, config);
   }
   private async connectionOfIn(
     c: Connection | pg.Pool,
     key: string,
     config: unknown,
-  ): Promise<ConnectionKind> {
+  ): Promise<"runner" | "url"> {
     if ((config as { connection?: unknown } | null)?.connection === "url") return "url";
     const live = await c.query(
       "SELECT 1 FROM agent_urls WHERE owner_key=$1 AND revoked_at IS NULL",
@@ -2257,6 +2293,14 @@ export class Database {
    * can be reached (runner connected in the right mode, or URL verified), and the code it reports.
    */
   async currentConnection(key: string, connection: ConnectionKind): Promise<CurrentConnection> {
+    if (connection === "hosted") {
+      const h = await this.hostedAgent(key);
+      return {
+        credentialId: h?.id ?? null,
+        ready: Boolean(h),
+        code: h ? { hash: h.codeHash, source: "hosted" } : undefined,
+      };
+    }
     if (connection === "url") {
       const u = await this.agentUrl(key);
       return {
@@ -2744,6 +2788,46 @@ export class Database {
     );
     return (r.rowCount ?? 0) > 0;
   }
+  /** Save what a hosted preview runs, replacing what it ran before (a new id: checks start over). */
+  async saveHostedAgent(
+    ownerKey: string,
+    h: {
+      kind: "instructions" | "code";
+      model: string;
+      instructions?: string;
+      language?: "js" | "ts";
+      code?: string;
+      codeHash: string;
+      createdBy: string;
+    },
+  ): Promise<HostedAgentRecord> {
+    return this.transaction(async (c) => {
+      await this.lockSubject(c, ownerKey);
+      await c.query("DELETE FROM hosted_agents WHERE owner_key=$1", [ownerKey]);
+      const r = await c.query(
+        `INSERT INTO hosted_agents(id,owner_key,kind,model,instructions,language,code,code_hash,created_by)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+        [
+          randomUUID(),
+          ownerKey,
+          h.kind,
+          h.model,
+          h.kind === "instructions" ? (h.instructions ?? null) : null,
+          h.kind === "code" ? (h.language ?? null) : null,
+          h.kind === "code" ? (h.code ?? null) : null,
+          h.codeHash.toLowerCase(),
+          h.createdBy.toLowerCase(),
+        ],
+      );
+      return hostedAgentRow(r.rows[0]);
+    });
+  }
+  /** What a hosted preview runs now, if its owner saved anything. */
+  async hostedAgent(ownerKey: string): Promise<HostedAgentRecord | undefined> {
+    const r = await this.pool.query("SELECT * FROM hosted_agents WHERE owner_key=$1", [ownerKey]);
+    return r.rows[0] ? hostedAgentRow(r.rows[0]) : undefined;
+  }
+
   /** Revoke an agent's or preview's Agent URL (and so its secret). */
   async revokeAgentUrls(ownerKey: string, c?: Connection): Promise<number> {
     const r = await (c ?? this.pool).query(

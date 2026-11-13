@@ -54,6 +54,7 @@ import { FrameworkQuestions, useFramework } from "../components/framework-questi
 import { FRAMEWORK_TEXT, connectionFor, hostingFor } from "../lib/frameworks";
 import { Collapsible } from "../components/collapsible";
 import { ConnectionCheck } from "../components/connection-check";
+import { hostedSummary } from "../components/connect-hosted";
 import { Estimate, NotificationSettingsForm, RatingLive } from "../components/rating-live";
 import { PREVIEW_LABEL, PreviewReport } from "../components/preview-report";
 import {
@@ -111,9 +112,15 @@ export function TestAgent() {
   const [signingIn, setSigningIn] = useState(false);
   const [signInError, setSignInError] = useState<unknown>(null);
   const [expired, setExpired] = useState(false);
-  const [connection, setConnection] = useState<Connection>("url");
+  // Stock trading first, and Bonded running the agent: the quickest way to a first result.
+  const [connection, setConnection] = useState<Connection>("hosted");
   const [mode, setMode] = useState<RemoteMode>("tools");
-  const [world, setWorld] = useState<PreviewWorld>("vault");
+  const [world, setWorldState] = useState<PreviewWorld>("brokerage");
+  // Bonded runs agents on the stock-trading world only: another world falls back to the runner.
+  const setWorld = (w: PreviewWorld) => {
+    setWorldState(w);
+    if (w !== "brokerage") setConnection((c) => (c === "hosted" ? "runner" : c));
+  };
   const [toolNames, setToolNames] = useState<PreviewToolNames>("bonded");
   const [framework, setFramework] = useFramework();
   const [changing, setChanging] = useState(false);
@@ -306,7 +313,11 @@ export function TestAgent() {
       ? `${/day|today|wallet/i.test(allowance.data!.reason ?? "") || !allowance.data!.reason ? "You've used today's preview" : allowance.data!.reason!.replace(/[.;]\s*$/, "")}; try again in ${waitFor(allowance.data!.retryAt)}.`
       : (allowance.data!.reason ?? "Previews can't start right now.")
     : undefined;
-  const plan = allowance.data?.plan;
+  // What the side card says a preview runs: the stock-trading world's plan when that's the world.
+  const plan =
+    allowanceWorld === "brokerage"
+      ? (allowance.data?.brokeragePlan ?? allowance.data?.plan)
+      : allowance.data?.plan;
   const auth = session ? { session: session.session } : undefined;
   const subject = p ? ({ kind: "preview", id: p.id } as const) : undefined;
 
@@ -378,9 +389,9 @@ export function TestAgent() {
                 p && (
                   <span className="flex flex-wrap items-center gap-x-3">
                     <span>
-                      {framework ? `${FRAMEWORK_TEXT[framework].title}, ` : ""}
-                      {CONNECTION_TEXT[p.connection].title.toLowerCase()},{" "}
-                      {MODE_TEXT[p.mode].title.toLowerCase()} mode
+                      {p.connection === "hosted"
+                        ? `Stock trading, ${CONNECTION_TEXT.hosted.title}`
+                        : `${framework ? `${FRAMEWORK_TEXT[framework].title}, ` : ""}${CONNECTION_TEXT[p.connection].title.toLowerCase()}, ${MODE_TEXT[p.mode].title.toLowerCase()} mode`}
                     </span>
                     {!p.ratingId && (
                       <button
@@ -411,6 +422,9 @@ export function TestAgent() {
                   name="preview"
                   framework={framework}
                   hosting={hostingFor(connection)}
+                  hostings={
+                    world === "brokerage" ? ["bonded", "machine", "online"] : ["machine", "online"]
+                  }
                   onFramework={setFramework}
                   onHosting={(h) => setConnection(connectionFor(h))}
                   advanced={
@@ -442,16 +456,18 @@ export function TestAgent() {
               state={stateOf("connect")}
               summary={
                 status &&
-                (status.connection === "url"
-                  ? status.agentUrl && (
-                      <span>
-                        Verified{" "}
-                        <span className="font-mono text-xs break-all">{status.agentUrl.url}</span>
-                      </span>
-                    )
-                  : status.runner?.connected
-                    ? "Runner connected"
-                    : "Runner offline: start it again before the rating")
+                (status.connection === "hosted"
+                  ? status.hosted && <span>Saved: {hostedSummary(status.hosted)}</span>
+                  : status.connection === "url"
+                    ? status.agentUrl && (
+                        <span>
+                          Verified{" "}
+                          <span className="font-mono text-xs break-all">{status.agentUrl.url}</span>
+                        </span>
+                      )
+                    : status.runner?.connected
+                      ? "Runner connected"
+                      : "Runner offline: start it again before the rating")
               }
               open={stateOf("connect") === "done"}
             >
@@ -500,9 +516,11 @@ export function TestAgent() {
                   status={status}
                   ready={isConnected(status)}
                   notReadyReason={
-                    status.connection === "url"
-                      ? "Verify your URL first."
-                      : "Start the runner first: the check runs through it."
+                    status.connection === "hosted"
+                      ? "Save your agent first."
+                      : status.connection === "url"
+                        ? "Verify your URL first."
+                        : "Start the runner first: the check runs through it."
                   }
                   onFinished={() => preview.refetch()}
                 />
@@ -518,12 +536,13 @@ export function TestAgent() {
               {p && subject && (
                 <div className="flex flex-col gap-5 text-sm">
                   <p className="text-muted">
-                    Every published attack runs once, plus a set made for this preview alone (one
-                    per attack class) and 6 episodes with no attack, shuffled. Each episode gives
-                    your agent 90 seconds.
+                    {p.world === "brokerage"
+                      ? `The control, every attack and every benign twin run once${p.expectedRating ? `: ${p.expectedRating.episodes} episodes` : ""}. Each episode gives your agent 90 seconds.`
+                      : "Every published attack runs once, plus a set made for this preview alone (one per attack class) and 6 episodes with no attack, shuffled. Each episode gives your agent 90 seconds."}
                   </p>
                   <Estimate
                     subject={subject}
+                    hosted={p.connection === "hosted"}
                     enabled={Boolean(status && passingCheck(status))}
                     {...(session ? { session: session.session } : {})}
                   />
@@ -637,12 +656,21 @@ export function TestAgent() {
                   Previews run one at a time, after official ratings.
                 </dd>
               </div>
-              <div>
-                <dt className="font-medium">Your model, your bill</dt>
-                <dd className="mt-0.5 text-muted">
-                  Bonded runs the attacks; your agent's own model calls are yours.
-                </dd>
-              </div>
+              {(p?.connection ?? connection) === "hosted" ? (
+                <div>
+                  <dt className="font-medium">Bonded pays for the model</dt>
+                  <dd className="mt-0.5 text-muted">
+                    Bonded runs your agent on its own servers, on the model you pick.
+                  </dd>
+                </div>
+              ) : (
+                <div>
+                  <dt className="font-medium">Your model, your bill</dt>
+                  <dd className="mt-0.5 text-muted">
+                    Bonded runs the attacks; your agent's own model calls are yours.
+                  </dd>
+                </div>
+              )}
             </dl>
             <p className="mt-4 text-sm">
               <a className={linkClass} href={DOCS_BYOA}>

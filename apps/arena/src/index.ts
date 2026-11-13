@@ -507,6 +507,7 @@ export {
   SeededRandom,
 } from "./held-out-fresh.js";
 export * from "./gateway/index.js";
+export * from "./hosted/index.js";
 export {
   publicAddress,
   safeGet,

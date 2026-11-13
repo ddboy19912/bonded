@@ -142,6 +142,16 @@ describe("refusals", () => {
 
 describe("problem advice", () => {
   it.each([
+    [
+      "Your agent never called a tool: its instructions should have it read the holder's plan and the account, then trade through its tools",
+      "hosted",
+      /in its instructions, to read the holder's plan/,
+    ],
+    [
+      "the agent failed: ReferenceError: fetch is not defined at agent.js:2:9",
+      "hosted",
+      /Fix the error it names in your file/,
+    ],
     ["Your agent never called a tool", "runner", /BONDED_MCP_URL/],
     ["Your agent never called a tool", "url", /endpoints in the episode/],
     ["It exited with code 1 before finishing (see its output below)", "runner", /on its own/],
@@ -221,6 +231,7 @@ describe("code hash source", () => {
       "the git commit of your agent's folder (a1b2c3d), reported by the runner",
     );
     expect(codeSourceLabel({ value: "0x", source: "git-dirty" })).toMatch(/uncommitted changes/);
+    expect(codeSourceLabel({ value: "0x", source: "hosted" })).toMatch(/what you saved for Bonded/);
     expect(codeSourceLabel({ value: "0x", source: "unpinned" })).toMatch(
       /not pinned to a version \(set a git commit or image digest\)/,
     );

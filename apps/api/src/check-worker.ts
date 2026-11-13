@@ -3,6 +3,7 @@ import type { AgentMode } from "@bondedhq/shared";
 import {
   CHECKS_UNAVAILABLE,
   checkIssuesOf,
+  hostedSpecOf,
   type AgentConnection,
   type ConnectionCheckEvent,
   type ConnectionCheckResult,
@@ -213,6 +214,12 @@ async function connectionFor(
   check: { subject: string; connection: string; credentialId: string | null },
   secrets: SecretBox | undefined,
 ): Promise<{ reach: AgentConnection } | { problem: string }> {
+  if (check.connection === "hosted") {
+    const saved = await db.hostedAgent(check.subject);
+    if (!saved || saved.id !== check.credentialId)
+      return { problem: "Your agent changed since the check was asked for. Run it again." };
+    return { reach: { kind: "hosted", spec: hostedSpecOf(saved), registration: check.subject } };
+  }
   if (check.connection === "runner") {
     const now = await db.currentConnection(check.subject, "runner");
     if (now.credentialId !== check.credentialId)

@@ -12,12 +12,15 @@ import {
   type PreviewWorld,
   type RatedCode,
 } from "@bonded/db";
-import { brokeragePreviewSize } from "@bonded/arena";
+import { brokeragePreviewSize, inspectCodeAgent } from "@bonded/arena";
 import {
+  HOSTED_MODELS,
+  HostedAgentSpec,
   REMOTE_KIND,
   SELF_SERVE_MAX_AGE_SECONDS,
   bondedRegistryAbi,
   byoaMessage,
+  hostedCodeHash,
   newAgentSecret,
   problemCode,
   type AgentMode,
@@ -132,7 +135,8 @@ const previewInput = z.strictObject({
    * own): alpaca offers Alpaca's Trading MCP names, for an agent built on that server.
    */
   toolNames: z.enum(["bonded", "alpaca"]).optional(),
-  connection: z.enum(["runner", "url"]).optional(),
+  /** How Bonded reaches the agent (default runner). hosted: Bonded runs it (brokerage only). */
+  connection: z.enum(["runner", "url", "hosted"]).optional(),
   /** Advanced: the owner's own code hash. Without it the runner's or URL's reported one is used. */
   codeHash: codeHash.optional(),
 });
@@ -327,6 +331,8 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
   async function connectionProblem(subject: Subject): Promise<string | undefined> {
     const { current } = await connectionNow(subject);
     if (current.ready) return undefined;
+    if (subject.connection === "hosted")
+      return "Save your agent first: its instructions, or its code file.";
     if (subject.connection === "url")
       return current.credentialId
         ? "Verify your Agent URL first: Bonded hasn't had an answer to its challenge yet."
@@ -400,7 +406,21 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
       passingCheck: passing ? checkSummary(passing) : null,
       ready: now_.current.ready,
       code: now_.code ?? null,
+      hosted: subject.connection === "hosted" ? await hostedInfo(subject.key) : null,
     };
+  }
+  /** A hosted preview's saved agent, without its text. */
+  async function hostedInfo(key: string) {
+    const h = await db.hostedAgent(key);
+    return h
+      ? {
+          kind: h.kind,
+          model: h.model,
+          language: h.language,
+          codeHash: h.codeHash,
+          savedAt: h.createdAt.toISOString(),
+        }
+      : null;
   }
   async function previewRecord(p: PreviewRecord) {
     const subject = await previewSubject(p.id);
@@ -526,6 +546,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
         queued,
         plan: previewPlan(),
         brokeragePlan: previewPlan("brokerage"),
+        hostedModels: HOSTED_MODELS,
       });
     }),
   );
@@ -550,6 +571,13 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
           "Only the brokerage world is offered under a broker's tool names: the vault world has its own.",
         );
       if (connection === "url" && !options.secrets) throw new Refused(409, SECRET_KEY_MISSING);
+      if (connection === "hosted" && world !== "brokerage")
+        throw new Refused(
+          400,
+          "Bonded can run an agent for you on the stock-trading world only, for now.",
+        );
+      if (connection === "hosted" && input.codeHash)
+        throw new Refused(400, "A hosted agent's code hash is worked out from what you save.");
       const made = await db.createPreview(
         {
           chainId,
@@ -569,6 +597,75 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
           { retryAt: made.nextAt.toISOString() },
         );
       return c.json(await previewRecord(made), 201);
+    }),
+  );
+
+  /**
+   * Save what a hosted preview runs: its instructions on a model, or one code file. A code file is
+   * loaded in the sandbox first (it reads, its top-level code runs, it has a default export), so a
+   * broken file is refused here with the reason, not in a check. Each save is a new agent: it
+   * needs a new connection check before it can be rated.
+   */
+  app.put(
+    "/previews/:id/hosted-agent",
+    handle(async (c) => {
+      const { wallet, body } = await writer(c, "preview", "sign-in");
+      const subject = await previewSubject(c.req.param("id"), wallet);
+      if (subject.preview!.status === "stopped")
+        throw new Refused(409, "This preview was stopped.");
+      if (subject.connection !== "hosted")
+        throw new Refused(409, "This preview runs your agent on your side, not on Bonded.");
+      if (["queued", "running", "starting"].includes(subject.preview!.status))
+        throw new Refused(409, "Its rating has started. Wait for it to finish, then change it.");
+      const parsed = HostedAgentSpec.safeParse(body);
+      if (!parsed.success)
+        throw new Refused(400, parsed.error.issues[0]?.message ?? "That agent can't be saved.");
+      const spec = parsed.data;
+      if (spec.kind === "code") {
+        const inspected = await inspectCodeAgent(spec.code, spec.language);
+        if (!inspected.ok) throw new Refused(422, `Your file can't run: ${inspected.problem}.`);
+      }
+      const saved = await db.saveHostedAgent(subject.key, {
+        ...spec,
+        codeHash: hostedCodeHash(spec),
+        createdBy: wallet,
+      });
+      // A changed agent needs a new check: back to "created" if it had passed one.
+      await db.pool.query(
+        "UPDATE previews SET status='created',updated_at=now() WHERE id=$1 AND status='ready'",
+        [subject.id],
+      );
+      return c.json(
+        {
+          kind: saved.kind,
+          model: saved.model,
+          language: saved.language,
+          codeHash: saved.codeHash,
+          savedAt: saved.createdAt.toISOString(),
+        },
+        200,
+      );
+    }),
+  );
+
+  /** What a hosted preview runs, with its text: its owner's only. */
+  app.get(
+    "/previews/:id/hosted-agent",
+    handle(async (c) => {
+      const wallet = await reader(c);
+      const subject = await previewSubject(c.req.param("id"), wallet);
+      const h = await db.hostedAgent(subject.key);
+      if (!h) throw new Refused(404, "Nothing is saved for this preview yet.");
+      c.header("Cache-Control", "no-store");
+      return c.json({
+        kind: h.kind,
+        model: h.model,
+        ...(h.kind === "instructions"
+          ? { instructions: h.instructions }
+          : { language: h.language, code: h.code }),
+        codeHash: h.codeHash,
+        savedAt: h.createdAt.toISOString(),
+      });
     }),
   );
 
@@ -621,7 +718,12 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
       if (subject.preview!.status === "stopped")
         throw new Refused(409, "This preview was stopped.");
       if (subject.connection !== "runner")
-        throw new Refused(409, "This preview connects by its Agent URL, not with a runner.");
+        throw new Refused(
+          409,
+          subject.connection === "hosted"
+            ? "Bonded runs this preview's agent, so it has no runner."
+            : "This preview connects by its Agent URL, not with a runner.",
+        );
       const token = newRunnerToken();
       const made = await db.createRunnerToken(subject.key, {
         hash: runnerTokenHash(token),
@@ -765,7 +867,12 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
         if (subject.preview?.status === "stopped")
           throw new Refused(409, "This preview was stopped.");
         if (subject.kind === "preview" && subject.connection !== "url")
-          throw new Refused(409, "This preview connects with the runner, so it has no Agent URL.");
+          throw new Refused(
+            409,
+            subject.connection === "hosted"
+              ? "Bonded runs this preview's agent, so it has no Agent URL."
+              : "This preview connects with the runner, so it has no Agent URL.",
+          );
         if (
           subject.kind === "agent" &&
           ((await db.agentRecord(subject.key))?.config as { tee?: unknown } | undefined)?.tee

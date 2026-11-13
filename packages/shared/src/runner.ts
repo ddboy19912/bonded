@@ -218,9 +218,19 @@ export type ServerToRunner = z.infer<typeof ServerToRunner>;
  * - image: BONDED_IMAGE_DIGEST, a container image digest;
  * - git: the commit of the agent's working tree; git-dirty: the same, with uncommitted changes;
  * - unpinned: nothing better, so the command line and the bytes of its entry file;
- * - url: the `version` an Agent URL answered verify with.
+ * - url: the `version` an Agent URL answered verify with;
+ * - hosted: an agent Bonded runs itself, from the instructions or code its owner gave (hosted.ts).
  */
-export const CodeSource = z.enum(["flag", "env", "image", "git", "git-dirty", "unpinned", "url"]);
+export const CodeSource = z.enum([
+  "flag",
+  "env",
+  "image",
+  "git",
+  "git-dirty",
+  "unpinned",
+  "url",
+  "hosted",
+]);
 export type CodeSource = z.infer<typeof CodeSource>;
 
 /** A derived code hash: keccak256 of `"<source>:<value>"` (the value as UTF-8, or raw bytes). */

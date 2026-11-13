@@ -1,16 +1,20 @@
 import {
+  hostedAgent,
   runConnectionCheck,
   verifyAgentUrl,
+  type AgentTransport,
   type AgentUrlClient,
   type ArenaGateway,
 } from "@bonded/arena";
 import {
   agentUrlCodeHash,
+  type HostedAgentSpec,
+  hostedCodeHash,
   problemCode,
   type AgentMode,
   type TradingSummary,
 } from "@bondedhq/shared";
-import type { ConnectionCheckRecord, RatedCode } from "@bonded/db";
+import type { ConnectionCheckRecord, HostedAgentRecord, RatedCode } from "@bonded/db";
 import type { Hex } from "viem";
 
 /**
@@ -20,7 +24,10 @@ import type { Hex } from "viem";
  * workers never depend on how the gateway does it.
  */
 
-/** Through the operator's runner (its key), or by calling the agent's own HTTPS endpoint. */
+/**
+ * Through the operator's runner (its key), by calling the agent's own HTTPS endpoint, or (a hosted
+ * preview) by running what its owner gave Bonded, here.
+ */
 export type AgentConnection =
   | { kind: "runner"; key: string }
   | {
@@ -29,7 +36,35 @@ export type AgentConnection =
       secret: string;
       /** What it is registered to ("<chain>:<agent id>" or "preview:<id>"): its own rate limit. */
       registration: string;
-    };
+    }
+  | { kind: "hosted"; spec: HostedAgentSpec; registration: string };
+
+/** What a saved hosted agent runs, as the arena's spec. */
+export function hostedSpecOf(saved: HostedAgentRecord): HostedAgentSpec {
+  return saved.kind === "instructions"
+    ? {
+        kind: "instructions",
+        model: saved.model as HostedAgentSpec["model"],
+        instructions: saved.instructions ?? "",
+      }
+    : {
+        kind: "code",
+        model: saved.model as HostedAgentSpec["model"],
+        language: saved.language ?? "js",
+        code: saved.code ?? "",
+      };
+}
+
+/** The gateway's transport for a connection: a hosted agent is built here, on Bonded's keys. */
+export function transportOf(connection: AgentConnection): AgentTransport {
+  return connection.kind === "hosted"
+    ? {
+        kind: "hosted",
+        agent: hostedAgent(connection.spec),
+        registration: connection.registration,
+      }
+    : connection;
+}
 
 /** What a connection check streams while it runs (docs/BRING-YOUR-OWN-AGENT.md). */
 export type ConnectionCheckEvent =
@@ -141,7 +176,7 @@ export function gatewayCheckRunner(gateway: ArenaGateway): ConnectionCheckRunner
   return async (request) => {
     const result = await runConnectionCheck({
       gateway,
-      transport: request.connection,
+      transport: transportOf(request.connection),
       mode: request.mode,
       ...(request.world ? { world: request.world } : {}),
       ...(request.toolNames ? { toolProfile: request.toolNames } : {}),
@@ -164,7 +199,10 @@ export function gatewayCheckRunner(gateway: ArenaGateway): ConnectionCheckRunner
             codeHash: result.code.hash,
             codeSource: result.code.source,
           }
-        : {}),
+        : request.connection.kind === "hosted"
+          ? // Bonded ran exactly what was saved: that is its code.
+            { codeHash: hostedCodeHash(request.connection.spec), codeSource: "hosted" }
+          : {}),
     };
   };
 }

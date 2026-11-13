@@ -217,6 +217,11 @@ export function createApi(options: {
   // route has its own, larger cap: the most its schema allows (sentinel.ts). Card programs'
   // requests (Stripe Issuing's carry the card and cardholder) can pass 16 KB too: card hooks
   // (gate-card-hook.ts, which caps its own requests at 64 KB) get it.
+  const HOSTED_AGENT_PATH = /^\/previews\/[0-9a-f-]{36}\/hosted-agent$/;
+  const hostedBodies = bodyLimit({
+    maxSize: 256 * 1024,
+    onError: (c) => c.json({ error: "the agent is over 256 KB" }, 413),
+  });
   const checkBodies = bodyLimit({
     maxSize: SENTINEL_CHECK_MAX_BYTES,
     onError: (c) => c.json({ error: "the check is over 256 KB" }, 413),
@@ -224,7 +229,10 @@ export function createApi(options: {
   app.use("*", (c, next) =>
     c.req.path === "/sentinel/check" || cardHookPath(c.req.path)
       ? checkBodies(c, next)
-      : smallBodies(c, next),
+      : // A hosted agent's code file is up to 100 KB (HOSTED_CODE_MAX), so its save takes 256 KB.
+        HOSTED_AGENT_PATH.test(c.req.path)
+        ? hostedBodies(c, next)
+        : smallBodies(c, next),
   );
   // POSTs that need no operator token: a bounty reveal (the hash check against the chain's
   // revealed specURI authenticates it), self-serve requests (signed by the agent's owner: register,
@@ -238,7 +246,7 @@ export function createApi(options: {
   const PUBLIC_POST =
     /^\/(bounties\/\d{1,78}\/reveal|self\/agents(\/\d{1,78}\/(rate|runner-token|agent-url|agent-url\/verify|agent-url\/secret|checks))?|quotes|sentinel\/check|self\/session|self\/notifications(\/webhook-secret|\/inbox\/read)?|previews(\/session|\/[0-9a-f-]{36}\/(stop|runner-token|agent-url|agent-url\/verify|agent-url\/secret|checks|rate|notifications))?|self\/agents\/\d{1,78}\/notifications|streams\/token|runner\/check)$/;
   const PUBLIC_PUT =
-    /^\/(self\/notifications|previews\/[0-9a-f-]{36}\/notifications|self\/agents\/\d{1,78}\/notifications)$/;
+    /^\/(self\/notifications|previews\/[0-9a-f-]{36}\/(notifications|hosted-agent)|self\/agents\/\d{1,78}\/notifications)$/;
   const PUBLIC_DELETE =
     /^\/(self\/agents\/\d{1,78}\/(runner-token|agent-url)|self\/session|previews\/session|previews\/[0-9a-f-]{36}\/(runner-token|agent-url))$/;
   const hasToken = (header: string | undefined) => {

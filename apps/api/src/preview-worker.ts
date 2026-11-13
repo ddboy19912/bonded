@@ -30,7 +30,7 @@ import {
   type RemoteRatingPolicy,
 } from "./remote-policy.js";
 import { SECRET_KEY_MISSING, agentUrlContext, type SecretBox } from "./secrets.js";
-import type { AgentConnection } from "./connections.js";
+import { hostedSpecOf, type AgentConnection } from "./connections.js";
 import type { Notifier } from "./notifications.js";
 import { PREVIEW_LABEL } from "./previews.js";
 
@@ -120,7 +120,7 @@ async function runPreview(
     preview_id: string;
     owner: string;
     mode: AgentMode;
-    connection: "runner" | "url";
+    connection: "runner" | "url" | "hosted";
     world: "vault" | "brokerage";
     tool_names: "bonded" | "alpaca";
   };
@@ -230,7 +230,9 @@ async function runPreview(
       const now = await db.currentConnection(key, row.connection);
       if (now.code?.hash.toLowerCase() !== String(row.code_hash).toLowerCase())
         throw new RatingRefused(
-          "the agent now reports different code than when this preview was queued; run a connection check and rate again",
+          row.connection === "hosted"
+            ? "the agent was changed after this preview was queued; run a connection check and rate again"
+            : "the agent now reports different code than when this preview was queued; run a connection check and rate again",
           true,
         );
     }
@@ -414,9 +416,15 @@ async function runPreview(
 async function reachFor(
   db: Database,
   key: string,
-  connection: "runner" | "url",
+  connection: "runner" | "url" | "hosted",
   secrets: SecretBox | undefined,
 ): Promise<AgentConnection> {
+  if (connection === "hosted") {
+    const saved = await db.hostedAgent(key);
+    if (!saved)
+      throw new RatingRefused("the preview has no agent saved; save it and rate again", true);
+    return { kind: "hosted", spec: hostedSpecOf(saved), registration: key };
+  }
   if (connection === "runner") {
     if (!(await db.runnerIsConnected(key)))
       throw new RatingRefused(

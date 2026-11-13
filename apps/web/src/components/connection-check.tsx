@@ -109,6 +109,25 @@ export function ConnectionCheck({
     }
   };
 
+  // A check started elsewhere (saving a hosted agent starts one, or the page was reloaded while
+  // one ran): follow it here, live, as if this button had started it.
+  // A hosted agent's last check is shown in full too (what it called, what it printed), since
+  // there is no runner log of its own to look at.
+  const runningElsewhere =
+    status.lastCheck?.id &&
+    (status.lastCheck.status === "running" || status.connection === "hosted")
+      ? status.lastCheck.id
+      : undefined;
+  useEffect(() => {
+    if (!runningElsewhere || checkId === runningElsewhere || !auth.session) return;
+    stop.current();
+    clearInterval(poll.current);
+    setEvents([]);
+    setCheckId(runningElsewhere);
+    follow(runningElsewhere);
+    // follow() reads only the session, which the effect already depends on.
+  }, [runningElsewhere, auth.session]);
+
   const valid = passingCheck(status);
   const last = !checkId ? status.lastCheck : null;
   const done = events.find((e) => e.type === "done");
@@ -194,17 +213,32 @@ export function ConnectionCheck({
           {result && <CheckVerdict result={result} connection={status.connection} />}
           {done?.type === "done" &&
             result &&
-            !result.passed &&
+            // A hosted agent's own logs are worth seeing either way; a runner's, when it failed.
+            (!result.passed || status.connection === "hosted") &&
             (done.stdoutTail || done.stderrTail) && (
               <Collapsible
-                defaultOpen
+                defaultOpen={!result.passed}
                 className="border-t border-line pt-4"
                 triggerClassName="text-xs font-semibold"
                 contentClassName="pt-0"
-                summary="Its output, as reported (the last 4 KB)"
+                summary={
+                  status.connection === "hosted"
+                    ? "What your agent printed"
+                    : "Its output, as reported (the last 4 KB)"
+                }
               >
-                {done.stderrTail && <Tail label="stderr" text={done.stderrTail} />}
-                {done.stdoutTail && <Tail label="stdout" text={done.stdoutTail} />}
+                {done.stderrTail && (
+                  <Tail
+                    label={status.connection === "hosted" ? "The error" : "stderr"}
+                    text={done.stderrTail}
+                  />
+                )}
+                {done.stdoutTail && (
+                  <Tail
+                    label={status.connection === "hosted" ? "console" : "stdout"}
+                    text={done.stdoutTail}
+                  />
+                )}
               </Collapsible>
             )}
         </section>

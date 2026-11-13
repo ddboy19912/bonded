@@ -6,6 +6,7 @@ import {
   FRAMEWORK_LOGO,
   FRAMEWORK_TEXT,
   HOSTING_HINT,
+  HOSTING_HINT_HOSTED,
   HOSTING_TEXT,
   INIT_NOTE,
   INIT_URL_NOTE,
@@ -61,6 +62,7 @@ const LAYOUT = {
     frameworks: "flex flex-wrap gap-2",
     hostingHint: "mt-1 text-muted",
     hostings: "mt-1 divide-y divide-line",
+    hostingsThree: "mt-1 divide-y divide-line",
     advanced: "border-t border-line pt-4",
   },
   /** A bordered card for each option. */
@@ -71,6 +73,7 @@ const LAYOUT = {
     frameworks: "grid gap-2 sm:grid-cols-2",
     hostingHint: "mb-2 text-xs text-muted",
     hostings: "grid gap-2 sm:grid-cols-2",
+    hostingsThree: "grid gap-2 sm:grid-cols-3",
     advanced: "rounded-2xl border border-line-strong p-4",
   },
 } as const;
@@ -86,6 +89,7 @@ export function FrameworkQuestions({
   hosting,
   onFramework,
   onHosting,
+  hostings = ["machine", "online"],
   name = "byoa",
   advanced,
   advancedOpen,
@@ -96,6 +100,8 @@ export function FrameworkQuestions({
   hosting: Hosting;
   onFramework: (f: Framework) => void;
   onHosting: (h: Hosting) => void;
+  /** The places offered, in order (Bonded running it is for stock-trading previews only). */
+  hostings?: readonly Hosting[];
   name?: string;
   advanced?: ReactNode;
   advancedOpen?: boolean;
@@ -113,62 +119,72 @@ export function FrameworkQuestions({
       {FRAMEWORK_TEXT[f].title}
     </span>
   );
+  // When Bonded runs it, the framework doesn't matter: what it runs is pasted in the next step.
+  const askFramework = hosting !== "bonded";
+  const hostingQuestion = (
+    <fieldset className={L.fieldset}>
+      <legend className="font-medium">Where do you run it?</legend>
+      <p className={L.hostingHint}>
+        {hostings.includes("bonded") ? HOSTING_HINT_HOSTED : HOSTING_HINT}
+      </p>
+      <div className={hostings.length > 2 ? L.hostingsThree : L.hostings}>
+        {hostings.map((h) => (
+          <Choice
+            key={h}
+            flat={flat}
+            name={`${name}-hosting`}
+            checked={hosting === h}
+            onChange={() => onHosting(h)}
+            title={HOSTING_TEXT[h].title}
+          >
+            {HOSTING_TEXT[h].line}
+          </Choice>
+        ))}
+      </div>
+    </fieldset>
+  );
   return (
     <div className={`flex flex-col text-sm ${L.root}`}>
-      <fieldset className={L.fieldset}>
-        <legend className={`${L.frameworkLegend} font-medium`}>
-          Which framework is your agent built on?
-        </legend>
-        <div className={L.frameworks}>
-          {FRAMEWORKS.map((f) =>
-            flat ? (
-              <label
-                key={f}
-                className={`flex cursor-pointer items-center rounded-full border px-4 py-2 text-sm transition has-focus-visible:ring-2 has-focus-visible:ring-accent ${framework === f ? "border-accent/60 bg-accent-soft text-ink" : "border-line-strong text-muted hover:text-ink"}`}
-              >
-                <input
-                  type="radio"
+      {hostings.includes("bonded") && hostingQuestion}
+      {askFramework && (
+        <fieldset className={L.fieldset}>
+          <legend className={`${L.frameworkLegend} font-medium`}>
+            Which framework is your agent built on?
+          </legend>
+          <div className={L.frameworks}>
+            {FRAMEWORKS.map((f) =>
+              flat ? (
+                <label
+                  key={f}
+                  className={`flex cursor-pointer items-center rounded-full border px-4 py-2 text-sm transition has-focus-visible:ring-2 has-focus-visible:ring-accent ${framework === f ? "border-accent/60 bg-accent-soft text-ink" : "border-line-strong text-muted hover:text-ink"}`}
+                >
+                  <input
+                    type="radio"
+                    name={`${name}-framework`}
+                    className="sr-only"
+                    checked={framework === f}
+                    onChange={() => pick(f)}
+                  />
+                  {frameworkTitle(f)}
+                </label>
+              ) : (
+                <Choice
+                  key={f}
                   name={`${name}-framework`}
-                  className="sr-only"
                   checked={framework === f}
                   onChange={() => pick(f)}
-                />
-                {frameworkTitle(f)}
-              </label>
-            ) : (
-              <Choice
-                key={f}
-                name={`${name}-framework`}
-                checked={framework === f}
-                onChange={() => pick(f)}
-                title={frameworkTitle(f)}
-              >
-                {FRAMEWORK_TEXT[f].line}
-              </Choice>
-            ),
-          )}
-        </div>
-        {/* The chips carry no description of their own; the picked one's line sits under them. */}
-        {flat && framework && <p className="mt-3 text-muted">{FRAMEWORK_TEXT[framework].line}</p>}
-      </fieldset>
-      <fieldset className={L.fieldset}>
-        <legend className="font-medium">Where do you run it?</legend>
-        <p className={L.hostingHint}>{HOSTING_HINT}</p>
-        <div className={L.hostings}>
-          {(["machine", "online"] as const).map((h) => (
-            <Choice
-              key={h}
-              flat={flat}
-              name={`${name}-hosting`}
-              checked={hosting === h}
-              onChange={() => onHosting(h)}
-              title={HOSTING_TEXT[h].title}
-            >
-              {HOSTING_TEXT[h].line}
-            </Choice>
-          ))}
-        </div>
-      </fieldset>
+                  title={frameworkTitle(f)}
+                >
+                  {FRAMEWORK_TEXT[f].line}
+                </Choice>
+              ),
+            )}
+          </div>
+          {/* The chips carry no description of their own; the picked one's line sits under them. */}
+          {flat && framework && <p className="mt-3 text-muted">{FRAMEWORK_TEXT[framework].line}</p>}
+        </fieldset>
+      )}
+      {!hostings.includes("bonded") && hostingQuestion}
       {advanced && (
         <Collapsible
           {...(advancedOpen !== undefined ? { open: advancedOpen } : {})}

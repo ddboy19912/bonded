@@ -15,6 +15,7 @@ import {
 } from "@bondedhq/shared";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import type { SelfSigningAgent } from "../episode.js";
+import type { HostedAgentRunner } from "../hosted/index.js";
 import type { Sandbox } from "../sandbox.js";
 import { BrokerToolbox } from "../brokerage/tools.js";
 import { ArenaToolbox } from "../toolbox.js";
@@ -53,6 +54,16 @@ export type AgentTransport =
        * What the URL is registered to (the agent's `<chain>:<agentId>` or `preview:<id>`): its
        * episodes run one at a time and share one rate limit, apart from every other agent's.
        */
+      registration: string;
+    }
+  | {
+      /**
+       * An agent Bonded runs itself, from its owner's instructions or code (hosted/). It gets the
+       * same episode message, with endpoints on this machine, and posts /done like any agent.
+       */
+      kind: "hosted";
+      agent: HostedAgentRunner;
+      /** What it is registered to (`preview:<id>`): its episodes run one at a time. */
       registration: string;
     };
 
@@ -242,7 +253,9 @@ export class RemoteAgent implements SelfSigningAgent {
       options.name ??
       (transport.kind === "runner"
         ? `remote/${transport.key}`
-        : `remote/${new URL(transport.url).hostname}`);
+        : transport.kind === "hosted"
+          ? transport.agent.name
+          : `remote/${new URL(transport.url).hostname}`);
   }
 
   /** The code hash the agent's runner last reported, if any (runner transport only). */
@@ -409,6 +422,8 @@ export class RemoteAgent implements SelfSigningAgent {
 
     if (transport.kind === "url")
       return this.runUrlEpisode(transport, task, toolbox, record, signer, started, timeoutMs);
+    if (transport.kind === "hosted")
+      return this.runHostedEpisode(transport, task, toolbox, record, signer, started, timeoutMs);
 
     const runner = await gateway.acquireRunner(
       transport.key,
@@ -649,6 +664,98 @@ export class RemoteAgent implements SelfSigningAgent {
     }
   }
 
+  /**
+   * A hosted agent's episode: Bonded runs it here, against the same gateway episode (its tools,
+   * its trace, its /done), with the endpoints on this machine. Its deadline, cancellation and
+   * judging are the same as for an agent on its operator's servers.
+   */
+  private async runHostedEpisode(
+    transport: Extract<AgentTransport, { kind: "hosted" }>,
+    task: AgentTask,
+    toolbox: TracedToolbox,
+    record: RemoteEpisode,
+    signer: `0x${string}` | undefined,
+    started: number,
+    timeoutMs: number,
+  ): Promise<RemoteRunSummary> {
+    const { gateway, sandbox } = this.options;
+    const { episodeId } = record;
+    const forkScope = sandbox?.forkScope();
+    const cleanups: (() => void)[] = [];
+    const stop = new AbortController();
+    let episode: GatewayEpisode | undefined;
+    try {
+      const opened = await this.openGatewayEpisode(episodeId, toolbox, signer, false, forkScope);
+      episode = opened;
+      const ended = new Promise<string>((resolve) => {
+        const timer = setTimeout(() => resolve("deadline"), timeoutMs);
+        cleanups.push(() => clearTimeout(timer));
+        const onAbort = () => resolve("aborted");
+        toolbox.signal.addEventListener("abort", onAbort, { once: true });
+        cleanups.push(() => toolbox.signal.removeEventListener("abort", onAbort));
+        void opened.done.then(() => resolve("done"));
+      });
+      const message = localEndpoints(
+        this.episodeMessage(episodeId, task, toolbox, opened, timeoutMs),
+        gateway.url,
+        gateway.localUrl,
+      );
+      this.emit({ type: "started", episodeId });
+      const finished = transport.agent.run(message, stop.signal).then(
+        (result) => {
+          if (result.logs.length) record.stdoutTail = tail(result.logs.join("\n"));
+          if (result.ok) {
+            record.exitCode = 0;
+            return "exited";
+          }
+          if (result.bonded) {
+            record.bondedProblem = result.error ?? "the model account refused the call";
+            return "hosted_unavailable";
+          }
+          record.exitCode = 1;
+          record.runnerError = `the agent failed: ${result.error ?? "unknown error"}`;
+          record.stderrTail = tail(result.error ?? "");
+          return "exited";
+        },
+        (error: unknown) => {
+          record.exitCode = 1;
+          record.runnerError = `the agent failed: ${error instanceof Error ? error.message : String(error)}`;
+          return "exited";
+        },
+      );
+      let why = await Promise.race([ended, finished]);
+      // It posted /done: let its run return too, so what it printed is kept.
+      if (why === "done") await Promise.race([finished, sleep(2_000)]);
+      // It said it was done, then its run returned: either way it finished.
+      if (why === "exited" && record.exitCode === 0 && opened.finished) why = "done";
+      // Out of time or stopped: tell the agent to stop, and give it a moment to.
+      if (why === "deadline" || why === "aborted") {
+        stop.abort();
+        await Promise.race([finished, sleep(2_000)]);
+      }
+      opened.close();
+      record.durationMs = Date.now() - started;
+      collect(record, opened);
+      this.emit({
+        type: "done",
+        exitCode: record.exitCode,
+        durationMs: record.durationMs,
+        ...(record.stdoutTail ? { stdoutTail: record.stdoutTail } : {}),
+        ...(record.stderrTail ? { stderrTail: record.stderrTail } : {}),
+      });
+      return { ...this.summarise(why, record, opened, toolbox, timeoutMs), remote: record };
+    } finally {
+      stop.abort();
+      for (const cleanup of cleanups) cleanup();
+      episode?.close();
+      if (forkScope) {
+        forkScope.close();
+        record.forkFetches = forkScope.used;
+        if (forkScope.exhausted) record.budgetExhausted = true;
+      }
+    }
+  }
+
   private async acceptEvidence(
     message: Extract<RunnerToServer, { type: "tee_evidence" }>,
     record: RemoteEpisode,
@@ -705,10 +812,36 @@ export class RemoteAgent implements SelfSigningAgent {
           "error",
           `Bonded couldn't call the agent's URL (not the agent's fault): ${record.bondedProblem}`,
         );
+      case "hosted_unavailable":
+        return withMessage(
+          "error",
+          `Bonded couldn't run the agent's model (not the agent's fault): ${record.bondedProblem}`,
+        );
       default:
         return withMessage("error", "the episode was stopped");
     }
   }
+}
+
+/** The last 4,000 characters of an agent's output. */
+function tail(text: string): string {
+  return text.length > 4_000 ? text.slice(-4_000) : text;
+}
+
+/** The episode message with its endpoints on `local` instead of the public base URL. */
+function localEndpoints<M extends { endpoints: Record<string, string | undefined> }>(
+  message: M,
+  base: string,
+  local: string,
+): M {
+  if (base === local) return message;
+  const endpoints = Object.fromEntries(
+    Object.entries(message.endpoints).map(([k, v]) => [
+      k,
+      v?.startsWith(base) ? `${local}${v.slice(base.length)}` : v,
+    ]),
+  );
+  return { ...message, endpoints } as M;
 }
 
 /** Coverage and reported usage from the gateway's log of the episode. */

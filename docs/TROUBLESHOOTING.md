@@ -106,6 +106,18 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 **What to do:** Check the fields against the API reference; unknown fields are refused.
 
+### hosted-not-here
+
+**Message:** Bonded runs agents itself for stock-trading previews only.
+
+**What to do:** For a crypto-trading agent, or a preview that connects your own way, use the runner or an Agent URL. A hosted agent's code hash comes from what you save.
+
+### hosted-locked
+
+**Message:** The preview's rating has started, so its agent can't change now.
+
+**What to do:** Wait for the rating to finish, then change the agent and start a new preview.
+
 ### try-again
 
 **Message:** Another request for the same thing came first.
@@ -290,6 +302,18 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 **What to do:** Check the URL is up and answers POST from the internet (no firewall or allowlist in the way).
 
+### hosted-not-saved
+
+**Message:** Save your agent first: its instructions, or its code file.
+
+**What to do:** Paste your agent's instructions or its code file on the page and save. The check starts on its own.
+
+### hosted-file-cant-run
+
+**Message:** Your file can't run.
+
+**What to do:** Fix what the message names: a syntax error, an import other than "openai", or no default export function. Then save again.
+
 ### broker-tool-names-vault
 
 **Message:** Only the brokerage world is offered under a broker's tool names.
@@ -339,6 +363,24 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 **Message:** It exited or was stopped before finishing.
 
 **What to do:** Read its output in the check, fix the crash, and check again.
+
+### hosted-endless-loop
+
+**Message:** Your agent ran too long without waiting on a tool or the model, or used too much computing time.
+
+**What to do:** Look for a loop that never ends or never awaits callTool or the model. Each stretch of code may run 250 ms, and 10 s in all per episode.
+
+### hosted-cap
+
+**Message:** Your agent made too many model or tool calls, or used too many tokens, in one episode.
+
+**What to do:** Stop the agent's loop sooner: an episode allows 60 model calls, 80 tool calls and 600,000 tokens.
+
+### hosted-model-unavailable
+
+**Message:** Bonded couldn't run your agent's model. This isn't your agent's fault.
+
+**What to do:** Nothing to change on your side. Run it again in a few minutes.
 
 ### never-called-a-tool
 

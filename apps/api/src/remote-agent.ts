@@ -12,7 +12,7 @@ import {
 } from "@bonded/arena";
 import type { ArenaAgent, RemoteMode } from "@bondedhq/shared";
 import type { Hex } from "viem";
-import type { AgentConnection } from "./connections.js";
+import { transportOf, type AgentConnection } from "./connections.js";
 
 /**
  * Bring your own agent (docs/BRING-YOUR-OWN-AGENT.md): the rating worker's side of a remote agent.
@@ -80,7 +80,7 @@ export function gatewayAgents(
 ): RemoteAgentFactory {
   return (request, sandbox) => {
     // An Agent URL can't carry a TEE's evidence: that comes through the runner.
-    if (request.connection?.kind === "url" && request.tee)
+    if (request.connection && request.connection.kind !== "runner" && request.tee)
       throw new RatingRefused("a TEE-bound agent is rated through its runner", true);
     // No `onEvent` here: per-episode activity would show the operator which episodes are attacks.
     const world = request.world ?? "vault";
@@ -90,7 +90,9 @@ export function gatewayAgents(
       gateway,
       ...(sandbox ? { sandbox } : {}),
       world,
-      transport: request.connection ?? { kind: "runner", key: request.agentKey },
+      transport: request.connection
+        ? transportOf(request.connection)
+        : { kind: "runner", key: request.agentKey },
       mode: request.mode,
       name: `remote/agent-${request.agentId}`,
       episodeTimeoutMs: options.episodeTimeoutMs ?? REMOTE_EPISODE_TIMEOUT_MS,

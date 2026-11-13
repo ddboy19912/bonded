@@ -132,7 +132,29 @@ describe("Test your agent", () => {
       expect(within(current()).getByText("Tell us about your agent")).toBeTruthy(),
     );
     const step = current();
+    // Stock trading first, with Bonded running the agent: no framework to name for that.
+    expect(within(step).getByRole("radio", { name: /^Stock trading/ })).toHaveProperty(
+      "checked",
+      true,
+    );
+    expect(within(step).getByText("Where do you run it?")).toBeTruthy();
+    expect(within(step).getByRole("radio", { name: /^Bonded runs it/ })).toHaveProperty(
+      "checked",
+      true,
+    );
+    expect(within(step).getByText(/Paste its instructions or one code file/)).toBeTruthy();
+    expect(
+      within(step).getByText(
+        "Not sure? Choose Bonded runs it: you paste what your agent is told, and the check starts at once.",
+      ),
+    ).toBeTruthy();
+    expect(within(step).queryByText("Which framework is your agent built on?")).toBeNull();
+    // Its own code, where it runs: the framework question comes back.
+    fireEvent.click(within(step).getByRole("radio", { name: /On my computer or server/ }));
     expect(within(step).getByText("Which framework is your agent built on?")).toBeTruthy();
+    // A crypto-trading agent: Bonded can't run it, and the mode is under Advanced.
+    fireEvent.click(within(step).getByRole("radio", { name: /^Crypto trading/ }));
+    expect(within(step).queryByRole("radio", { name: /^Bonded runs it/ })).toBeNull();
     for (const f of [
       /^ElizaOS/,
       /^Coinbase AgentKit/,
@@ -142,7 +164,6 @@ describe("Test your agent", () => {
       /^Python/,
     ])
       expect(within(step).getByRole("radio", { name: f })).toBeTruthy();
-    expect(within(step).getByText("Where do you run it?")).toBeTruthy();
     expect(within(step).getByRole("radio", { name: /It's online at a URL/ })).toBeTruthy();
     expect(within(step).getByRole("radio", { name: /On my computer or server/ })).toBeTruthy();
     expect(within(step).getByText(/Nothing to install/)).toBeTruthy();
@@ -169,6 +190,7 @@ describe("Test your agent", () => {
       .spyOn(byoaApi, "createRunnerToken")
       .mockResolvedValue({ token: "bonded_rt_preview", gatewayUrl: "https://gw.example" });
     show();
+    fireEvent.click(await screen.findByRole("radio", { name: /^Crypto trading/ }));
     fireEvent.click(await screen.findByRole("radio", { name: /^Python/ }));
     fireEvent.click(screen.getByRole("radio", { name: /On my computer or server/ }));
     fireEvent.click(screen.getByRole("radio", { name: /^Chain/ }));
@@ -212,6 +234,60 @@ describe("Test your agent", () => {
     ).toBeTruthy();
   });
 
+  it("lets Bonded run a stock-trading agent: paste its instructions, save, and the check starts", async () => {
+    signedIn();
+    const created = preview({ id: "ph", connection: "hosted", world: "brokerage", hosted: null });
+    const create = vi.spyOn(byoaApi, "createPreview").mockResolvedValue(created);
+    vi.spyOn(byoaApi, "preview").mockResolvedValue(created);
+    const save = vi.spyOn(byoaApi, "saveHostedAgent").mockResolvedValue({
+      kind: "instructions",
+      model: "deepseek/deepseek-v4.1-flash",
+      language: null,
+      codeHash: `0x${"ab".repeat(32)}`,
+      savedAt: iso(0),
+    });
+    const check = vi.spyOn(byoaApi, "startCheck").mockResolvedValue({ checkId: "k1" });
+    show();
+    // The defaults: stock trading, Bonded runs it. Nothing else to answer.
+    fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
+    await waitFor(() =>
+      expect(create).toHaveBeenCalledWith("sess", {
+        mode: "tools",
+        connection: "hosted",
+        world: "brokerage",
+        toolNames: "bonded",
+      }),
+    );
+    expect(await screen.findByText("What should Bonded run?")).toBeTruthy();
+    expect(screen.queryByText(/BONDED_RUNNER_TOKEN/)).toBeNull();
+    const box = screen.getByLabelText("Your agent's instructions");
+    // Too short to say anything: refused here, before any call.
+    fireEvent.change(box, { target: { value: "Trade." } });
+    fireEvent.click(screen.getByRole("button", { name: "Save and check" }));
+    expect(await screen.findByText(/Write at least a sentence or two/)).toBeTruthy();
+    expect(save).not.toHaveBeenCalled();
+    fireEvent.change(box, {
+      target: {
+        value: "You run my account. Read my plan first, then make only the trades it asks for.",
+      },
+    });
+    fireEvent.change(screen.getByLabelText("Model"), { target: { value: "qwen/qwen3.7-flash" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save and check" }));
+    await waitFor(() =>
+      expect(save).toHaveBeenCalledWith("sess", "ph", {
+        kind: "instructions",
+        model: "qwen/qwen3.7-flash",
+        instructions:
+          "You run my account. Read my plan first, then make only the trades it asks for.",
+      }),
+    );
+    await waitFor(() =>
+      expect(check).toHaveBeenCalledWith({ kind: "preview", id: "ph" }, { session: "sess" }),
+    );
+    // Bonded pays for its model, and the page says so.
+    expect(screen.getByText("Bonded pays for the model")).toBeTruthy();
+  });
+
   it("asks for the daily preview of the world being chosen", async () => {
     signedIn();
     vi.mocked(byoaApi.previewAllowance).mockImplementation((_wallet, world) =>
@@ -228,12 +304,16 @@ describe("Test your agent", () => {
       ),
     );
     show();
-    expect(await screen.findByText(/You've used today's preview/)).toBeTruthy();
-    fireEvent.click(await screen.findByRole("radio", { name: /^Stock trading/ }));
+    // Stock trading is chosen first, and its preview is free today.
     await waitFor(() =>
       expect(byoaApi.previewAllowance).toHaveBeenCalledWith(expect.any(String), "brokerage"),
     );
-    await waitFor(() => expect(screen.queryByText(/You've used today's preview/)).toBeNull());
+    expect(screen.queryByText(/You've used today's preview/)).toBeNull();
+    fireEvent.click(await screen.findByRole("radio", { name: /^Crypto trading/ }));
+    await waitFor(() =>
+      expect(byoaApi.previewAllowance).toHaveBeenCalledWith(expect.any(String), "vault"),
+    );
+    expect(await screen.findByText(/You've used today's preview/)).toBeTruthy();
   });
 
   it("offers Alpaca's tools for a stock-trading agent, and sends the choice", async () => {
@@ -253,11 +333,12 @@ describe("Test your agent", () => {
     });
     show();
     // Only a stock-trading agent has a broker to choose.
+    fireEvent.click(await screen.findByRole("radio", { name: /^Crypto trading/ }));
     expect(screen.queryByRole("radio", { name: /^Through Alpaca/ })).toBeNull();
     fireEvent.click(await screen.findByRole("radio", { name: /^Stock trading/ }));
     fireEvent.click(screen.getByRole("radio", { name: /^Through Alpaca/ }));
-    fireEvent.click(screen.getByRole("radio", { name: /^Python/ }));
     fireEvent.click(screen.getByRole("radio", { name: /On my computer or server/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /^Python/ }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     await waitFor(() =>
       expect(create).toHaveBeenCalledWith("sess", {
@@ -280,8 +361,8 @@ describe("Test your agent", () => {
     });
     show();
     fireEvent.click(await screen.findByRole("radio", { name: /^Stock trading/ }));
-    fireEvent.click(screen.getByRole("radio", { name: /^Python/ }));
     fireEvent.click(screen.getByRole("radio", { name: /On my computer or server/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /^Python/ }));
     expect(screen.queryByRole("radio", { name: /^Chain/ })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     await waitFor(() =>
@@ -317,6 +398,7 @@ describe("Test your agent", () => {
       gatewayUrl: "https://gw.example",
     });
     show();
+    fireEvent.click(await screen.findByRole("radio", { name: /^Crypto trading/ }));
     fireEvent.click(await screen.findByRole("radio", { name: framework }));
     fireEvent.click(screen.getByRole("radio", { name: /On my computer or server/ }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
