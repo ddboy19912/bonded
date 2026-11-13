@@ -9,7 +9,11 @@ import {
   type QuickJSWASMModule,
 } from "quickjs-emscripten-core";
 import { type ChatMessage, modelAccountStop, type ToolDefinition } from "@bondedhq/shared";
-import { HostedLimitError, type HostedEpisode } from "./episode.js";
+import { HostedBudgetError, HostedLimitError, type HostedEpisode } from "./episode.js";
+
+/** The most the sandbox may hand out in one model request, and in one tool call's arguments. */
+const MAX_CHAT_BODY = 1_000_000;
+const MAX_TOOL_ARGS = 64_000;
 
 /**
  * A hosted agent made from one code file: its default export runs one episode. It runs in
@@ -237,7 +241,11 @@ class Sandbox {
         (error: unknown) => {
           if (this.closed) return;
           // A cap, or the model account refusing: the run ends here, whatever the code catches.
-          if (error instanceof HostedLimitError || modelAccountStop(error))
+          if (
+            error instanceof HostedLimitError ||
+            error instanceof HostedBudgetError ||
+            modelAccountStop(error)
+          )
             this.fail(error as Error);
           const h = ctx.newError(error instanceof Error ? error.message : String(error));
           deferred.reject(h);
@@ -390,6 +398,8 @@ export async function runCodeAgent(
   episode.signal.addEventListener("abort", onAbort, { once: true });
   try {
     sandbox.hostAsync("__bondedChat", async (body) => {
+      if (body.length > MAX_CHAT_BODY)
+        throw new Error(`a model request may be at most ${MAX_CHAT_BODY / 1_000_000} MB`);
       const request = JSON.parse(body || "{}") as {
         messages?: unknown;
         tools?: unknown;
@@ -425,6 +435,8 @@ export async function runCodeAgent(
       });
     });
     sandbox.hostAsync("__bondedCallTool", async (body) => {
+      if (body.length > MAX_TOOL_ARGS)
+        throw new Error(`a tool call's arguments may be at most ${MAX_TOOL_ARGS / 1000} KB`);
       const { name, args } = JSON.parse(body) as { name: string; args: unknown };
       return JSON.stringify(await episode.callTool(name, args));
     });
@@ -486,7 +498,7 @@ export async function runCodeAgent(
       ok: false,
       error: error instanceof Error ? error.message : String(error),
       logs: sandbox.logs,
-      ...(modelAccountStop(error) ? { bonded: true } : {}),
+      ...(modelAccountStop(error) || error instanceof HostedBudgetError ? { bonded: true } : {}),
     };
   } finally {
     episode.signal.removeEventListener("abort", onAbort);

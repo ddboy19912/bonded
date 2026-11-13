@@ -71,8 +71,8 @@ Return a short summary of what it did (a string, or `{ finalMessage }`).
 
 | | Limit |
 |---|---|
-| Model calls | 60, each up to 16,384 output tokens |
-| Tokens | 600,000, input and output together |
+| Model calls | 40, each up to 16,384 output tokens |
+| Tokens | 150,000, input and output together (a real test uses 40,000 to 65,000) |
 | Tool calls | 80 (the test's own step cap applies too) |
 | Memory | 64 MB |
 | Computing time | 10 s in all; any stretch of code that runs 250 ms without awaiting a tool or the model is stopped |
@@ -80,6 +80,25 @@ Return a short summary of what it did (a string, or `{ finalMessage }`).
 | File | 100 KB; instructions, 8,000 characters |
 
 Going past one ends that test, and the check or report says which limit it was.
+
+## Hostile code
+
+Anyone can sign in and save a file, so the file is treated as hostile.
+
+| What it might try | What stops it |
+|---|---|
+| Reach the server: files, processes, environment variables, Bonded's keys, the network | It runs in QuickJS compiled to WebAssembly, a separate engine whose memory is its own. It is handed two functions and nothing else: the model and the episode's tools. A bug in QuickJS stays inside that memory; getting out would take a bug in Node's WebAssembly itself |
+| Other users' tests | Each test runs in a fresh engine instance. Its tools are behind that one episode's unguessable address, and the episode ends when the test does |
+| Hold the worker: endless loops, huge memory | 250 ms per stretch of code, 10 s in all, 64 MB, and a fresh instance per test that is dropped whole |
+| Flood the host with data | A model request may be 1 MB and a tool call's arguments 64 KB; console output is cut at 200 lines |
+| Use Bonded's model key as free AI | Per test: 40 calls and 150,000 tokens. Across everyone: a daily budget (`HOSTED_DAILY_USD`, $10 by default) after which hosted tests stop for the day, saying it's Bonded's limit. On top, the existing caps: 10 checks an hour per wallet, 30 an hour in all, and 20 previews a day in all |
+| Cheat the test | It can only call the episode's tools; the broker ledger judges what it did, as for any agent |
+
+What remains, honestly:
+
+- **The engine runs in the worker's own process.** A stretch of code can hold the worker's event loop for up to 250 ms at a time (10 s per test in all). A separate worker thread or process per test would remove that; it is the next step if hosted tests grow.
+- **What the model is asked is the owner's choice.** Within the caps, someone could use a test to ask the model anything. The daily budget bounds the cost; the model provider's own policies apply to the content.
+- **Saving a file runs its top-level code once** in the API process, under the same sandbox with a 1-second limit, to check it can run.
 
 ## How it works
 

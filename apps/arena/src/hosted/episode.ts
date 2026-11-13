@@ -28,13 +28,65 @@ export interface HostedLimits {
 }
 
 export const HOSTED_LIMITS: HostedLimits = {
-  modelCalls: 60,
+  // A real test takes 15 to 30 model calls and 40,000 to 65,000 tokens: about double that.
+  modelCalls: 40,
   // As in Bonded's own agent loop: 4,096 cut answers off mid-tool-call under large prompts.
   maxTokensPerCall: 16_384,
-  tokens: 600_000,
+  tokens: 150_000,
   toolCalls: 80,
   toolResultChars: 20_000,
 };
+
+/**
+ * What every hosted agent in this process may spend on Bonded's model key in a day (UTC), in
+ * dollars: HOSTED_DAILY_USD, $10 by default. Per-test caps bound one agent; this bounds all of
+ * them together, so many wallets can't run up the bill. Past it, hosted tests stop with a
+ * sentence that says it's Bonded's limit, not the agent's failure.
+ */
+export class HostedBudget {
+  private day = "";
+  private spent = 0;
+  constructor(readonly dailyUsd: number) {}
+  private roll(now: number) {
+    const day = new Date(now).toISOString().slice(0, 10);
+    if (day !== this.day) {
+      this.day = day;
+      this.spent = 0;
+    }
+  }
+  check(now = Date.now()): void {
+    this.roll(now);
+    if (this.spent >= this.dailyUsd)
+      throw new HostedBudgetError(
+        "Bonded's daily budget for running agents is used up; run it again tomorrow",
+      );
+  }
+  record(usd: number, now = Date.now()): void {
+    this.roll(now);
+    this.spent += usd;
+  }
+  get spentToday(): number {
+    return this.spent;
+  }
+}
+
+/** Bonded's own spending limit stopped a hosted test: not the agent's failure. */
+export class HostedBudgetError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "HostedBudgetError";
+  }
+}
+
+const daily = Number(process.env.HOSTED_DAILY_USD ?? 10);
+/** The process-wide budget hosted agents share (HOSTED_DAILY_USD). */
+export const HOSTED_BUDGET = new HostedBudget(Number.isFinite(daily) && daily >= 0 ? daily : 10);
+
+/**
+ * What a model call costs when the provider doesn't say: a high per-token price for the listed
+ * models ($0.5 a million input tokens, $2 a million output), so the budget errs toward stopping.
+ */
+const costOf = (input: number, output: number) => (input * 0.5 + output * 2) / 1_000_000;
 
 /** A hosted agent ran into one of its caps: the episode ends, and this says which. */
 export class HostedLimitError extends Error {
@@ -78,6 +130,8 @@ export class HostedEpisode {
       signal: AbortSignal;
       limits?: Partial<HostedLimits>;
       fetch?: typeof fetch;
+      /** The shared daily budget (default HOSTED_BUDGET). */
+      budget?: HostedBudget;
     },
   ) {}
 
@@ -160,6 +214,8 @@ export class HostedEpisode {
       throw new HostedLimitError(
         `the agent made more than ${limits.modelCalls} model calls in one episode`,
       );
+    const budget = this.options.budget ?? HOSTED_BUDGET;
+    budget.check();
     if (this.usage.inputTokens + this.usage.outputTokens > limits.tokens)
       throw new HostedLimitError(
         `the agent used more than ${limits.tokens.toLocaleString("en-US")} model tokens in one episode`,
@@ -177,8 +233,11 @@ export class HostedEpisode {
       },
       { signal: this.signal },
     );
-    this.usage.inputTokens += response.usage?.prompt_tokens ?? 0;
-    this.usage.outputTokens += response.usage?.completion_tokens ?? 0;
+    const input = response.usage?.prompt_tokens ?? 0;
+    const output = response.usage?.completion_tokens ?? 0;
+    this.usage.inputTokens += input;
+    this.usage.outputTokens += output;
+    budget.record(response.usage?.cost ?? costOf(input, output));
     if (response.usage?.cost !== undefined) {
       this.usage.costUsd = (this.usage.costUsd ?? 0) + response.usage.cost;
       this.costReported = true;

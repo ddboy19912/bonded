@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   DEFAULT_HOSTED_MODEL,
@@ -10,7 +10,15 @@ import {
 import { byoaApi, type HostedAgentInput, type HostedInfo } from "../lib/byoa-api";
 import { ApiError } from "../lib/api";
 import { when } from "../lib/format";
-import { Badge, Button, Choice, ErrorText, Select, linkClass } from "./ui";
+import { Field, FieldLabel } from "@/components/shadcn/field";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/shadcn/select";
+import { Badge, Button, Choice, ErrorText, linkClass } from "./ui";
 import { CodeEditor } from "./code-editor";
 import { Collapsible } from "./collapsible";
 import { InlineCode } from "./code-block";
@@ -205,14 +213,7 @@ export function ConnectHosted({
         </div>
       </fieldset>
 
-      <div className="max-w-xs">
-        <Select
-          label="Model"
-          value={model}
-          onChange={setModel}
-          options={HOSTED_MODELS.map((m) => ({ value: m.id, label: m.label }))}
-        />
-      </div>
+      <ModelField value={model} onChange={setModel} />
 
       {kind === "instructions" ? (
         <div className="flex flex-col gap-1.5">
@@ -351,5 +352,30 @@ export function ConnectHosted({
         at once: one test with nothing planted, to see your agent do the job.
       </p>
     </form>
+  );
+}
+
+/** The model it runs on: the app's own dropdown, not the browser's. */
+function ModelField({ value, onChange }: { value: string; onChange: (model: string) => void }) {
+  const id = useId();
+  return (
+    <Field className="max-w-xs">
+      <FieldLabel htmlFor={id}>Model</FieldLabel>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger id={id} className="w-full rounded-xl data-[size=default]:h-11">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {HOSTED_MODELS.map((m) => (
+            <SelectItem key={m.id} value={m.id}>
+              {m.label}
+              {m.id === DEFAULT_HOSTED_MODEL && (
+                <span className="ml-1 text-xs text-muted">Default</span>
+              )}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Field>
   );
 }

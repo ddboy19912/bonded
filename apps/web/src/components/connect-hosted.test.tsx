@@ -110,7 +110,7 @@ describe("Bonded runs it", () => {
         (screen.getByLabelText("Your agent's instructions") as HTMLTextAreaElement).value,
       ).toBe("Read the plan first. Trade only what it asks for."),
     );
-    expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe("qwen/qwen3.7-flash");
+    expect(screen.getByRole("combobox", { name: "Model" }).textContent).toBe("Qwen3.7 Flash");
   });
 
   it("names what is saved in plain words", () => {

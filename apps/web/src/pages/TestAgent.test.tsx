@@ -271,7 +271,9 @@ describe("Test your agent", () => {
         value: "You run my account. Read my plan first, then make only the trades it asks for.",
       },
     });
-    fireEvent.change(screen.getByLabelText("Model"), { target: { value: "qwen/qwen3.7-flash" } });
+    Element.prototype.scrollIntoView = vi.fn();
+    fireEvent.click(screen.getByRole("combobox", { name: "Model" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Qwen3.7 Flash" }));
     fireEvent.click(screen.getByRole("button", { name: "Save and check" }));
     await waitFor(() =>
       expect(save).toHaveBeenCalledWith("sess", "ph", {

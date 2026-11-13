@@ -11,7 +11,12 @@ import {
   type RemoteEpisodeEvent,
   StaticRunnerTokens,
 } from "../src/gateway/index.js";
-import { hostedAgent, type HostedAgentOptions, inspectCodeAgent } from "../src/hosted/index.js";
+import {
+  HostedBudget,
+  hostedAgent,
+  type HostedAgentOptions,
+  inspectCodeAgent,
+} from "../src/hosted/index.js";
 
 /**
  * Hosted agents ("Run it on Bonded"): Bonded runs the owner's instructions or code itself, through
@@ -323,6 +328,60 @@ describe("a hosted preview", () => {
       controlScenario(),
     );
     expect(next.missed).toEqual([]);
+  });
+});
+
+describe("hostile code", () => {
+  it("can't run up Bonded's bill: past the day's budget, every hosted test stops, as Bonded's limit", async () => {
+    const g = await gateway();
+    const budget = new HostedBudget(0.01);
+    const turns = Array.from({ length: 10 }, () => (): ChatResponse => ({
+      choices: [{ message: { role: "assistant", content: "again" }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 10, completion_tokens: 10, cost: 0.006 },
+    }));
+    const model = scripted(...turns);
+    const loop = `
+import OpenAI from "openai";
+const ai = new OpenAI();
+export default async function run() {
+  for (;;) { try { await ai.chat.completions.create({ messages: [{ role: "user", content: "hi" }] }); } catch {} }
+}`;
+    const spec = {
+      kind: "code",
+      model: "deepseek/deepseek-v4.1-flash",
+      language: "js",
+      code: loop,
+    } as const;
+    const first = await runBrokerEpisode(
+      hostedRemote(g, spec, { client: model.client, budget }),
+      controlScenario(),
+    );
+    // Two calls ($0.012) pass the $0.01 budget: the third is refused, and the run ends there.
+    expect(model.requests).toHaveLength(2);
+    expect(first.agentSummary.finalMessage).toMatch(
+      /daily budget.*not the agent's fault|not the agent's fault.*daily budget/,
+    );
+    // Another agent, the same day: refused before any call.
+    const second = await runBrokerEpisode(
+      hostedRemote(g, spec, { client: model.client, budget }),
+      controlScenario(),
+    );
+    expect(model.requests).toHaveLength(2);
+    expect(second.agentSummary.finalMessage).toMatch(/not the agent's fault/);
+    // A new day starts the budget over.
+    expect(() => budget.check(Date.now() + 86_400_000)).not.toThrow();
+  });
+
+  it("can't hand oversized arguments out of the sandbox", async () => {
+    const g = await gateway();
+    const agent = hostedRemote(g, {
+      kind: "code",
+      model: "deepseek/deepseek-v4.1-flash",
+      language: "js",
+      code: `export default async ({ callTool }) => { try { await callTool("get_account", { x: "a".repeat(100000) }); } catch (e) { return e.message; } };`,
+    });
+    const result = await runBrokerEpisode(agent, controlScenario());
+    expect(result.agentSummary.finalMessage).toMatch(/at most 64 KB/);
   });
 });
 

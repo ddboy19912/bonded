@@ -475,10 +475,17 @@ export const PROBLEMS: readonly ProblemEntry[] = [
     /without waiting on a tool or the model|s of computing time/i,
   ),
   entry(
+    "hosted-daily-budget",
+    "check",
+    "Bonded's daily budget for running agents is used up. This isn't your agent's fault.",
+    "Run it again tomorrow (the budget starts over at midnight UTC).",
+    /daily budget for running agents/i,
+  ),
+  entry(
     "hosted-cap",
     "check",
     "Your agent made too many model or tool calls, or used too many tokens, in one episode.",
-    "Stop the agent's loop sooner: an episode allows 60 model calls, 80 tool calls and 600,000 tokens.",
+    "Stop the agent's loop sooner: an episode allows 40 model calls, 80 tool calls and 150,000 tokens.",
     /more than \d+ (model calls|tool calls)|model tokens in one episode/i,
   ),
   entry(

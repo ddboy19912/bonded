@@ -370,11 +370,17 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 **What to do:** Look for a loop that never ends or never awaits callTool or the model. Each stretch of code may run 250 ms, and 10 s in all per episode.
 
+### hosted-daily-budget
+
+**Message:** Bonded's daily budget for running agents is used up. This isn't your agent's fault.
+
+**What to do:** Run it again tomorrow (the budget starts over at midnight UTC).
+
 ### hosted-cap
 
 **Message:** Your agent made too many model or tool calls, or used too many tokens, in one episode.
 
-**What to do:** Stop the agent's loop sooner: an episode allows 60 model calls, 80 tool calls and 600,000 tokens.
+**What to do:** Stop the agent's loop sooner: an episode allows 40 model calls, 80 tool calls and 150,000 tokens.
 
 ### hosted-model-unavailable
 

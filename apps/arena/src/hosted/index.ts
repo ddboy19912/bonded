@@ -7,13 +7,22 @@ import {
   modelAccountStop,
 } from "@bondedhq/shared";
 import { runCodeAgent, type SandboxLimits } from "./code-agent.js";
-import { HostedEpisode, type HostedLimits, type HostedUsage } from "./episode.js";
+import {
+  type HostedBudget,
+  HostedBudgetError,
+  HostedEpisode,
+  type HostedLimits,
+  type HostedUsage,
+} from "./episode.js";
 import { runInstructionsAgent } from "./instructions-agent.js";
 
 export { inspectCodeAgent, javascriptOf, runCodeAgent, SANDBOX_LIMITS } from "./code-agent.js";
 export type { CodeAgentOutcome, SandboxLimits } from "./code-agent.js";
 export {
+  HOSTED_BUDGET,
   HOSTED_LIMITS,
+  HostedBudget,
+  HostedBudgetError,
   HostedEpisode,
   HostedLimitError,
   type HostedLimits,
@@ -49,6 +58,8 @@ export interface HostedAgentOptions {
   client?: ChatClient;
   limits?: Partial<HostedLimits>;
   sandbox?: Partial<SandboxLimits>;
+  /** The shared daily spending limit (default HOSTED_BUDGET, from HOSTED_DAILY_USD). */
+  budget?: HostedBudget;
   /** For tests: the HTTP client used for the episode's endpoints. */
   fetch?: typeof fetch;
 }
@@ -69,13 +80,16 @@ export function hostedAgent(
         signal,
         ...(options.limits ? { limits: options.limits } : {}),
         ...(options.fetch ? { fetch: options.fetch } : {}),
+        ...(options.budget ? { budget: options.budget } : {}),
       });
       const failed = (error: unknown, logs: string[] = []): HostedRunResult => {
         const text = error instanceof Error ? error.message : String(error);
         return {
           ok: false,
           error: text,
-          ...(modelAccountStop(error) ? { bonded: true } : {}),
+          ...(modelAccountStop(error) || error instanceof HostedBudgetError
+            ? { bonded: true }
+            : {}),
           logs,
           usage: episode.usage,
         };
