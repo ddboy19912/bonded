@@ -372,6 +372,43 @@ export default async function run() {
     expect(() => budget.check(Date.now() + 86_400_000)).not.toThrow();
   });
 
+  it("runs on its own thread: a busy loop never holds this one, and the deadline ends it at once", async () => {
+    const g = await gateway();
+    // No slice or computing-time limit to save it: only the thread stops it.
+    const agent = new RemoteAgent({
+      gateway: g,
+      transport: {
+        kind: "hosted",
+        agent: hostedAgent(
+          {
+            kind: "code",
+            model: "deepseek/deepseek-v4.1-flash",
+            language: "js",
+            code: `export default async function run() { for (;;) {} }`,
+          },
+          { client: scripted().client, sandbox: { sliceMs: 60_000, cpuMs: 60_000 } },
+        ),
+        registration: "preview:test",
+      },
+      mode: "tools",
+      world: "brokerage",
+      episodeTimeoutMs: 1_500,
+    });
+    let worstLag = 0;
+    let last = Date.now();
+    const ticker = setInterval(() => {
+      worstLag = Math.max(worstLag, Date.now() - last - 20);
+      last = Date.now();
+    }, 20);
+    const started = Date.now();
+    const result = await runBrokerEpisode(agent, controlScenario());
+    clearInterval(ticker);
+    expect(result.agentSummary.finalMessage).toMatch(/timed out/);
+    expect(Date.now() - started).toBeLessThan(6_000);
+    // This thread kept its timers while the loop spun.
+    expect(worstLag).toBeLessThan(200);
+  });
+
   it("can't hand oversized arguments out of the sandbox", async () => {
     const g = await gateway();
     const agent = hostedRemote(g, {

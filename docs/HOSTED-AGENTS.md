@@ -89,21 +89,21 @@ Anyone can sign in and save a file, so the file is treated as hostile.
 |---|---|
 | Reach the server: files, processes, environment variables, Bonded's keys, the network | It runs in QuickJS compiled to WebAssembly, a separate engine whose memory is its own. It is handed two functions and nothing else: the model and the episode's tools. A bug in QuickJS stays inside that memory; getting out would take a bug in Node's WebAssembly itself |
 | Other users' tests | Each test runs in a fresh engine instance. Its tools are behind that one episode's unguessable address, and the episode ends when the test does |
-| Hold the worker: endless loops, huge memory | 250 ms per stretch of code, 10 s in all, 64 MB, and a fresh instance per test that is dropped whole |
+| Hold the worker: endless loops, huge memory | Each test runs on a thread of its own, which Bonded ends at the deadline or a cap whatever the code is doing, so it never holds the thread that serves the gateway and the API. On top: 250 ms per stretch of code, 10 s in all, 64 MB in the engine and a capped heap for the thread |
 | Flood the host with data | A model request may be 1 MB and a tool call's arguments 64 KB; console output is cut at 200 lines |
 | Use Bonded's model key as free AI | Per test: 40 calls and 150,000 tokens. Across everyone: a daily budget (`HOSTED_DAILY_USD`, $10 by default) after which hosted tests stop for the day, saying it's Bonded's limit. On top, the existing caps: 10 checks an hour per wallet, 30 an hour in all, and 20 previews a day in all |
 | Cheat the test | It can only call the episode's tools; the broker ledger judges what it did, as for any agent |
 
 What remains, honestly:
 
-- **The engine runs in the worker's own process.** A stretch of code can hold the worker's event loop for up to 250 ms at a time (10 s per test in all). A separate worker thread or process per test would remove that; it is the next step if hosted tests grow.
+- **The thread shares the worker's process.** A thread is a strong wall for CPU and memory, not a separate operating-system process: an escape from WebAssembly and from the thread would land in the worker. A separate process or container per test is the next step if hosted code ever handles more than test accounts.
 - **What the model is asked is the owner's choice.** Within the caps, someone could use a test to ask the model anything. The daily budget bounds the cost; the model provider's own policies apply to the content.
-- **Saving a file runs its top-level code once** in the API process, under the same sandbox with a 1-second limit, to check it can run.
+- **Saving a file runs its top-level code once** on its own thread in the API process, with a 1-second limit, to check it can run.
 
 ## How it works
 
 - **The same test as any agent.** Bonded's gateway opens the episode exactly as for a runner or an Agent URL, and the hosted agent reaches its tools through the same endpoints (on Bonded's own machine). The broker ledger judges every order and withdrawal the same way. Nothing about the test changes with how the agent is connected.
-- **The sandbox.** A code file runs in QuickJS compiled to WebAssembly (`apps/arena/src/hosted/code-agent.ts`): a separate JavaScript engine with its own memory, which can reach nothing of the server's. Bonded hands it two functions, the model and the tools, each checked and capped on Bonded's side. A fresh engine runs every test.
+- **The sandbox.** A code file runs on its own thread (`apps/arena/src/hosted/code-worker.ts`) in QuickJS compiled to WebAssembly: a separate JavaScript engine with its own memory, which can reach nothing of the server's. Its two functions, the model and the tools, are calls back to Bonded's thread (`code-agent.ts`), which makes them and enforces the caps where the code can't reach. A fresh thread and engine run every test.
 - **The code hash.** Bonded knows exactly what ran, so a hosted agent's code hash is keccak256 of `"hosted:"` and the kind, the model and the instructions or code (`hostedCodeHash`), labelled "hosted". One changed character or a new model is a new hash.
 - **Whose failure.** If the model account refuses (a key or credit problem on Bonded's side), the test says so and isn't counted against your agent. Your code throwing, or going past a limit, is your agent's.
 
