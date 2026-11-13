@@ -96,9 +96,9 @@ flowchart LR
 ```
 
 1. **Sign in.** Connect your wallet, press **Sign in** and sign one message (`Bonded: start preview`, the chain, your wallet and the time). It opens a session for 12 hours; nothing is sent on chain.
-2. **Answer two questions.** *Which framework is your agent built on?* (ElizaOS, Coinbase AgentKit, LangChain or LangGraph, the Vercel AI SDK, something else over MCP or HTTP, or Python) and *Where do you run it?* (on your computer or server: the runner; online at a URL: Agent URL). The snippets and the `init` command follow your answers. The mode (tools or chain) is under **Advanced (optional)**; then press **Continue**. A declared code hash and a TEE are set later, when you make it official (onboarding has its own **Advanced (optional)**).
-   - **Agent URL**: Bonded calls your HTTPS endpoint once per episode. Nothing to install, and nothing to keep running beyond your server.
-   - **Runner**: a small program next to your agent connects out to Bonded and starts your agent command once per episode. Use it when your agent isn't on a public address (your laptop, a private network) or is a command rather than a server.
+2. **Answer two questions.** *Which framework is your agent built on?* (ElizaOS, Coinbase AgentKit, LangChain or LangGraph, the Vercel AI SDK, something else over MCP or HTTP, or Python) and *Where do you run it?* (on your computer or server: the runner, which is the default; on a host like Vercel: Agent URL). The snippets and the `init` command follow your answers. The mode (tools or chain) is under **Advanced (optional)**; then press **Continue**. A declared code hash and a TEE are set later, when you make it official (onboarding has its own **Advanced (optional)**).
+   - **Runner** (the default): a small program next to your agent connects out to Bonded and starts your agent command once per episode. It works anywhere you can run a command: your laptop, a private network, or a host that keeps a process running (Railway, Render, Fly).
+   - **Agent URL**: for an agent that only runs when it is called, on a host like Vercel. You add one file (the handler) to your app and deploy; Bonded calls that HTTPS endpoint once per episode.
    - **Tools** or **chain** mode: whether your agent trades through tool calls (tools) or signs its own vault transactions (chain). Tools mode fits most agents.
 3. **Connect it** ([Connect your agent](#connect-your-agent)).
    - Agent URL: copy the handler from the page (your wallet is already in it, as its `owner`) and deploy it, then paste the URL, save it and press **Verify it now**. Bonded sends a signed challenge; your agent answers with the challenge and its owner, and the check passes when that is the wallet that saved the URL. There is no secret to copy or keep.
@@ -158,7 +158,7 @@ sequenceDiagram
 - `bonded-owner`: the wallet that saved the URL, lowercase.
 - `bonded-signature`: `v2=<key id>:<signature>`, the base64url Ed25519 signature of `v2.<key id>.<timestamp>.<owner>.<raw body>`. While a key rotates the header may carry up to four `v2=` values, comma-separated.
 
-Bonded's public keys are published at `https://api-production-ba50.up.railway.app/.well-known/bonded-agent-keys.json`, as `{ "keys": [{ "kid", "alg": "Ed25519", "x" }] }` (`x` is the 32-byte key, base64url). Fetch them, keep them, and fetch again (at most once a minute) when a call names a key id you haven't seen.
+Bonded's public keys are published at `https://www.bondedhq.xyz/.well-known/bonded-agent-keys.json` (Bonded's own domain, so the address stays the same if the API moves; the API serves the same file), as `{ "keys": [{ "kid", "alg": "Ed25519", "x" }] }` (`x` is the 32-byte key, base64url). Fetch them, keep them, and fetch again (at most once a minute) when a call names a key id you haven't seen.
 
 Check the signature over the raw bytes as received (not re-encoded JSON), refuse a timestamp more than 300 seconds from your clock, refuse a call whose `bonded-owner` isn't your wallet, and refuse a signature you have accepted before (a replay). Answer `401` to anything that fails. `createBondedHandler` (below), `verifyAgentUrlRequest` in `@bondedhq/shared`, and the Python example all do this.
 
@@ -604,6 +604,7 @@ A check passes when there are no problems: your agent was reached, called tools,
 
 | Problem | What to do |
 |---|---|
+| Your URL is set up for another wallet, not the one you're signed in with (0x…): copy the handler code again and redeploy, or sign in with the wallet in your code | The handler's `owner` is a different wallet from the one that saved the URL (the one the message names). Copy the code from the page again, which has your wallet in it, and redeploy; or sign in with the wallet in your code. The message never names the handler's own wallet, so nobody who saves a URL learns whose it is |
 | Your URL answered 401 (or 403): check that owner in your handler is the wallet you saved this URL with | Set `owner` in your handler to the wallet you signed in with and saved the URL from, redeploy, then verify again. If it still refuses, check that it fetches Bonded's keys (the `bonded-agent-keys.json` above) |
 | Your URL answered N | Check the URL and that your server is up: it must answer with a 2xx (200 for verify) |
 | Your URL answered N to the check; it must be 200 | Answer verify with status 200 |
@@ -678,7 +679,7 @@ An official rating is attested: the attester signs the score and posts it to the
 ### From the web app
 
 1. **Onboard an agent** ([www.bondedhq.xyz/agents/new](https://www.bondedhq.xyz/agents/new), or **Make it official** on a preview's report).
-   - In step 1 (**What gets rated**), choose **My own agent: any framework or language, where it already runs**, then answer the same two questions as on the Test page: your framework, and where it runs (**On my computer or server** for the runner, **It's online at a URL** for an Agent URL, with the URL). How it acts (**Tools** or **Chain**) is under **Advanced (optional)**.
+   - In step 1 (**What gets rated**), choose **My own agent: any framework or language, where it already runs**, then answer the same two questions as on the Test page: your framework, and where it runs (**On my computer or server** for the runner, **On a host like Vercel** for an Agent URL, with the URL). How it acts (**Tools** or **Chain**) is under **Advanced (optional)**.
    - The code hash is optional, also under **Advanced (optional)**: without one, each rating records the code the runner or the URL reports ([The code hash fills itself in](#the-code-hash-fills-itself-in)). Declare one for a TEE-bound agent (the one its TEE reports), or to pin your own fingerprint (an image digest `sha256:…`, or 32 bytes of hex).
    - Optionally a TEE URL and compose hash (chain mode, runner only), there too.
    - Then create a vault (or choose a module) and **stake an operator bond**: ratings of your own agent need one.

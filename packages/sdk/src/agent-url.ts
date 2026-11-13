@@ -11,7 +11,7 @@ import {
   isAgentUrlOwner,
   verifyAgentUrlRequest,
 } from "@bondedhq/shared/agent-url";
-import { BONDED_AGENT_API_URL, keysUrlOf } from "./signature.js";
+import { BONDED_AGENT_KEYS, BONDED_AGENT_KEYS_URL, keysUrlOf } from "./signature.js";
 import type { BondedBrokerageEpisode, BondedEpisode } from "./episode.js";
 import { finishEpisode } from "./done.js";
 import type { EpisodeUsage } from "./mcp.js";
@@ -25,7 +25,8 @@ export {
   verifyAgentUrlRequest,
 } from "@bondedhq/shared/agent-url";
 export {
-  BONDED_AGENT_API_URL,
+  BONDED_AGENT_KEYS,
+  BONDED_AGENT_KEYS_URL,
   createTestSigner,
   keysUrlOf,
   OWNER_HEADER,
@@ -74,8 +75,8 @@ export interface BondedHandlerOptions {
    */
   owner: string | string[];
   /**
-   * Bonded's API, where its signing keys are published. Default: Bonded's production API. Set it
-   * when you rate against another Bonded deployment (a local Arena, a staging API).
+   * Another Bonded deployment to take the signing keys from (a local Arena, a staging API). Leave
+   * it out for Bonded itself: the keys then come from BONDED_AGENT_KEYS_URL.
    */
   apiUrl?: string;
   /** Bonded's public keys, given directly instead of fetched (for tests: `createTestSigner`). */
@@ -150,7 +151,9 @@ export function createBondedHandler(options: BondedHandlerOptions): BondedHandle
     );
   const keyStore = options.keys
     ? undefined
-    : new AgentUrlKeys(keysUrlOf(options.apiUrl ?? BONDED_AGENT_API_URL), {
+    : new AgentUrlKeys(options.apiUrl ? keysUrlOf(options.apiUrl) : BONDED_AGENT_KEYS_URL, {
+        // The built-in keys are Bonded's own: never a fallback for another deployment's.
+        ...(options.apiUrl ? {} : { fallback: BONDED_AGENT_KEYS }),
         ...(options.fetch ? { fetch: options.fetch } : {}),
         ...(options.now ? { now: options.now } : {}),
       });
@@ -256,7 +259,11 @@ export function createBondedHandler(options: BondedHandlerOptions): BondedHandle
       toleranceSeconds: tolerance,
       replay,
     });
-    if (!check.ok) return json(check.status, { error: check.reason });
+    if (!check.ok)
+      return json(check.status, {
+        error: check.reason,
+        ...(check.code ? { code: check.code } : {}),
+      });
     const message = check.message;
 
     // The answer names the owner the call was signed for (one of ours, checked above). The verify

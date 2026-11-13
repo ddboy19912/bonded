@@ -111,7 +111,7 @@ export function TestAgent() {
   const [signingIn, setSigningIn] = useState(false);
   const [signInError, setSignInError] = useState<unknown>(null);
   const [expired, setExpired] = useState(false);
-  const [connection, setConnection] = useState<Connection>("url");
+  const [connection, setConnection] = useState<Connection>("runner");
   const [mode, setMode] = useState<RemoteMode>("tools");
   const [world, setWorld] = useState<PreviewWorld>("vault");
   const [toolNames, setToolNames] = useState<PreviewToolNames>("bonded");

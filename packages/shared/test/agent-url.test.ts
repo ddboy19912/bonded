@@ -5,6 +5,7 @@ import {
   AGENT_URL_OWNER_HEADER,
   AGENT_URL_SIGNATURE_HEADER,
   AGENT_URL_TIMESTAMP_HEADER,
+  AGENT_URL_WRONG_OWNER,
   agentUrlCodeHash,
   AgentUrlKeys,
   AgentUrlKeySet,
@@ -112,7 +113,12 @@ describe("Agent URL signatures", () => {
     const headers = await signer.sign(MALLORY, body, NOW);
     expect(
       await verifyAgentUrlRequest({ owner: OWNER, keys, body, headers, nowMs: NOW }),
-    ).toMatchObject({ ok: false, status: 401, reason: /another owner/ });
+    ).toMatchObject({
+      ok: false,
+      status: 401,
+      reason: /set up for another wallet/,
+      code: AGENT_URL_WRONG_OWNER,
+    });
     // Changing the owner header on a call signed for Mallory breaks the signature.
     expect(
       await verifyAgentUrlRequest({
@@ -295,6 +301,27 @@ describe("the published keys", () => {
     });
     await expect(failing.get()).rejects.toThrow(/503/);
     expect((await store.get()).length).toBe(0);
+  });
+
+  it("fall back to the keys built in only when none can be fetched, and none was before", async () => {
+    let up = false;
+    let clock = 0;
+    const builtIn = (await agentUrlSigner(await newAgentUrlSigningKey())).keySet().keys;
+    const store = new AgentUrlKeys("https://x", {
+      fetch: (async () =>
+        up
+          ? new Response(JSON.stringify(signer.keySet()))
+          : new Response("down", { status: 503 })) as unknown as typeof fetch,
+      now: () => clock,
+      fallback: builtIn,
+    });
+    expect(await store.get()).toEqual(builtIn);
+    // Once the published set is fetched it is the only one trusted, even when a later fetch fails.
+    up = true;
+    expect((await store.get()).map((k) => k.kid)).toEqual([signer.kid]);
+    up = false;
+    clock = 2 * 86_400_000;
+    expect((await store.get()).map((k) => k.kid)).toEqual([signer.kid]);
   });
 });
 

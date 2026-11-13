@@ -8,8 +8,8 @@
  * - `bonded-signature`: `v2=<key id>:<base64url signature>` over
  *   `v2.<key id>.<timestamp>.<owner>.<raw body>`.
  *
- * The handler checks it against Bonded's published keys (`${apiUrl}/.well-known/bonded-agent-keys.json`)
- * and refuses calls for any owner but its own. The scheme lives in @bondedhq/shared
+ * The handler checks it against Bonded's published keys (BONDED_AGENT_KEYS_URL) and refuses calls
+ * for any owner but its own. The scheme lives in @bondedhq/shared
  * (`@bondedhq/shared/agent-url`, which the gateway signs with). Web Crypto only, so it runs in
  * Node 22+, Bun, Deno, Cloudflare Workers and edge runtimes.
  */
@@ -29,9 +29,19 @@ export const TIMESTAMP_HEADER = AGENT_URL_TIMESTAMP_HEADER;
 export const OWNER_HEADER = AGENT_URL_OWNER_HEADER;
 /** How far a request's timestamp may be from the agent's clock, either way. */
 export const SIGNATURE_TOLERANCE_SECONDS = AGENT_URL_TOLERANCE_SECONDS;
-/** Bonded's API, where the signing keys are published. */
-export const BONDED_AGENT_API_URL = "https://api-production-ba50.up.railway.app";
-/** Where an API publishes the keys that sign calls to agents. */
+/**
+ * Where Bonded publishes the keys that sign calls to agents. It is on Bonded's own domain, not the
+ * API's host name, because this address is built into every deployed handler: the API can move
+ * without breaking them.
+ */
+export const BONDED_AGENT_KEYS_URL = `https://www.bondedhq.xyz${AGENT_URL_KEYS_PATH}`;
+/**
+ * Bonded's production keys, built in: used only when BONDED_AGENT_KEYS_URL can't be reached and
+ * no key set was fetched before, so a handler still starts then. Empty until the production key
+ * exists (docs/AGENT-URL-SIGNED-CALLS.md, Section 6); add its public key here before a release.
+ */
+export const BONDED_AGENT_KEYS: AgentUrlPublicKey[] = [];
+/** Where another Bonded deployment (a local Arena, a staging API) publishes its keys. */
 export const keysUrlOf = (apiUrl: string) => `${apiUrl.replace(/\/+$/, "")}${AGENT_URL_KEYS_PATH}`;
 
 /**

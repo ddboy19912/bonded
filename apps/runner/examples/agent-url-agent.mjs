@@ -14,7 +14,8 @@
  * Needs @modelcontextprotocol/sdk (npm install @modelcontextprotocol/sdk). The signature check
  * uses only node:crypto, so it ports to any language: Ed25519 over
  * "v2.<key id>.<timestamp>.<owner>.<raw body>", with Bonded's public keys from
- * <api>/.well-known/bonded-agent-keys.json.
+ * https://www.bondedhq.xyz/.well-known/bonded-agent-keys.json (or BONDED_API_URL's, for a local
+ * Arena's gateway).
  */
 import { Buffer } from "node:buffer";
 import { createPublicKey, verify } from "node:crypto";
@@ -25,10 +26,8 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 const OWNER = (process.env.BONDED_AGENT_OWNER ?? "").toLowerCase();
 if (!/^0x[0-9a-f]{40}$/.test(OWNER))
   throw new Error("set BONDED_AGENT_OWNER to the wallet you save this URL from on Bonded");
-const API = (process.env.BONDED_API_URL ?? "https://api-production-ba50.up.railway.app").replace(
-  /\/+$/,
-  "",
-);
+// On Bonded's own domain, so this address keeps working if Bonded's API moves.
+const KEYS_URL = `${(process.env.BONDED_API_URL ?? "https://www.bondedhq.xyz").replace(/\/+$/, "")}/.well-known/bonded-agent-keys.json`;
 const VERSION = process.env.AGENT_VERSION ?? "example-1";
 const TOLERANCE_SECONDS = 300;
 
@@ -38,7 +37,7 @@ let fetchedAt = 0;
 async function keyFor(kid) {
   if (!keys.has(kid) && Date.now() - fetchedAt > 60_000) {
     fetchedAt = Date.now();
-    const res = await fetch(`${API}/.well-known/bonded-agent-keys.json`);
+    const res = await fetch(KEYS_URL);
     if (res.ok) {
       const set = await res.json();
       keys = new Map(

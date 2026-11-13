@@ -173,6 +173,11 @@ describe("problem advice", () => {
       /Set owner in your handler/,
     ],
     [
+      "Your URL is set up for another wallet, not the one you're signed in with (0xa11ce): copy the handler code again and redeploy, or sign in with the wallet in your code",
+      "url",
+      /Copy the code below again/,
+    ],
+    [
       "Your URL answered for the wallet 0xbad, not 0xa11ce: set owner in your handler",
       "url",
       /Set owner in your handler/,

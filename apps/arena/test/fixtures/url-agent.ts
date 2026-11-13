@@ -88,7 +88,13 @@ export async function urlAgent(options: UrlAgentOptions): Promise<UrlAgent> {
         if (!checked.ok) {
           state.refused++;
           res.writeHead(checked.status, { "content-type": "application/json" });
-          res.end(JSON.stringify({ error: checked.reason }));
+          // As createBondedHandler answers: the reason, and the code for "another wallet".
+          res.end(
+            JSON.stringify({
+              error: checked.reason,
+              ...(checked.code ? { code: checked.code } : {}),
+            }),
+          );
           return;
         }
         const message = checked.message;

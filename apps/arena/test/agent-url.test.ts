@@ -197,6 +197,22 @@ describe("calling an agent URL", () => {
     });
   });
 
+  it("says a handler is set up for another wallet when it answers so, naming only the caller's", async () => {
+    // What createBondedHandler answers to a call for a wallet it isn't set up for.
+    const { url } = await agent((_req, res) =>
+      res
+        .writeHead(401, { "content-type": "application/json" })
+        .end(JSON.stringify({ error: "not for this wallet", code: "wrong-owner" })),
+    );
+    const result = await verifyAgentUrl(url, MALLORY, { allowLoopback: true, signer: TEST_SIGNER });
+    expect(result).toEqual({
+      ok: false,
+      problem: `Your URL is set up for another wallet, not the one you're signed in with (${MALLORY.toLowerCase()}): copy the handler code again and redeploy, or sign in with the wallet in your code`,
+    });
+    // The agent's own wallet is never in the sentence: anyone can save a URL.
+    expect(result).not.toMatchObject({ problem: expect.stringContaining(OWNER.toLowerCase()) });
+  });
+
   it("sends nothing without a signing key", async () => {
     const { url, calls } = await agent(proving);
     expect(await verifyAgentUrl(url, OWNER, { allowLoopback: true })).toEqual({

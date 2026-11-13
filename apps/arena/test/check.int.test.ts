@@ -352,7 +352,7 @@ describe("a connection check", () => {
     const at = await agentAt({ agent: new ScriptedVulnerableAgent() });
     const { result, events } = await check(byUrl(at.url, MALLORY));
     expect(result.problems).toEqual([
-      "Your URL answered 401: check that owner in your handler is the wallet you saved this URL with",
+      `Your URL is set up for another wallet, not the one you're signed in with (${MALLORY.toLowerCase()}): copy the handler code again and redeploy, or sign in with the wallet in your code`,
     ]);
     expect(events.map((e) => e.type)).toEqual(["result"]);
     expect(at.received).toHaveLength(0);

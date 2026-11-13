@@ -5,9 +5,14 @@
 //
 //   pnpm --filter @bonded/api agent-url-key
 //
-// To rotate: put the new key first and keep the old one after it, comma-separated
-// (AGENT_URL_SIGNING_KEY=<new>,<old>). Both are published; the new one signs. Remove the old one
-// once handlers have fetched the new set (they refetch within a day, or at once for an unknown key).
+// The first production key also goes into the SDK (BONDED_AGENT_KEYS in
+// packages/sdk/src/signature.ts) before it is published, so a handler still starts when the keys
+// address can't be reached.
+//
+// To rotate: add the new key second for an hour (AGENT_URL_SIGNING_KEY=<old>,<new>): both are
+// published, the old one still signs, and cached copies of the keys file (an hour at most) run
+// out. Then put it first (<new>,<old>): the new one signs. Remove the old one once handlers have
+// fetched the new set (they refetch within a day, or at once for an unknown key).
 import console from "node:console";
 import { agentUrlSigner, newAgentUrlSigningKey } from "@bondedhq/shared";
 
@@ -18,3 +23,6 @@ console.log(`  ${key}\n`);
 console.log(`Key id: ${signer.kid}`);
 console.log("Public key set it publishes:\n");
 console.log(JSON.stringify(signer.keySet(), null, 2));
+console.log(
+  "\nFor the first production key: add that public key to BONDED_AGENT_KEYS in packages/sdk/src/signature.ts before publishing the SDK.",
+);

@@ -243,7 +243,7 @@ import { bondedAiSdkTools } from "@bondedhq/sdk/ai-sdk";
 import { generateText, stepCountIs } from "ai";
 
 export const POST = createBondedHandler({
-  owner: "${owner}", // your wallet: public, not a secret
+  owner: "${owner}", // the wallet you sign in to Bonded with (not a secret)
   version: process.env.GIT_SHA,
   // A stock-trading preview sends brokerage episodes. Without this the handler answers 422.
   async onBrokerageEpisode(episode, { signal }) {
@@ -351,7 +351,7 @@ import { bondedAiSdkTools } from "@bondedhq/sdk/ai-sdk";
 import { generateText, stepCountIs } from "ai";
 
 export const POST = createBondedHandler({
-  owner: "${owner}", // your wallet: public, not a secret
+  owner: "${owner}", // the wallet you sign in to Bonded with (not a secret)
   version: process.env.GIT_SHA,
   async onEpisode(episode, { signal }) {
     const tools = await bondedAiSdkTools(episode);

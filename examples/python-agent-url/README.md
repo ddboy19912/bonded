@@ -24,7 +24,7 @@ Every call is a `POST` of one JSON message, signed by Bonded's own Ed25519 key, 
 - `bonded-signature`: `v2=<key id>:<base64url signature>` over
   `v2.<key id>.<timestamp>.<owner>.<raw body>`.
 
-Bonded's public keys are at `<api>/.well-known/bonded-agent-keys.json`, as
+Bonded's public keys are at `https://www.bondedhq.xyz/.well-known/bonded-agent-keys.json`, as
 `{"keys": [{"kid", "alg": "Ed25519", "x": <base64url of the 32-byte key>}]}`. `BondedKeys` fetches
 them, keeps them, and fetches again (at most once a minute) when a call names a key it hasn't seen.
 

@@ -13,15 +13,15 @@ Every call is signed by Bonded's own Ed25519 key, for the wallet that saved the 
 - `bonded-owner`: that wallet, lowercase;
 - `bonded-signature: v2=<key id>:<base64url signature>` over "v2.<key id>.<timestamp>.<owner>.<raw body>".
 
-Bonded's public keys are at <api>/.well-known/bonded-agent-keys.json. Check the call before
+Bonded's public keys are at https://www.bondedhq.xyz/.well-known/bonded-agent-keys.json. Check the call before
 reading the message: an unsigned request could be anyone, and a call for another wallet is someone
 trying to claim your URL as theirs.
 
 Run it:  BONDED_AGENT_OWNER=0xYourWallet PORT=8080 python3 agent.py
 
 BONDED_AGENT_OWNER is the wallet you save the URL from on Bonded: public, not a secret.
-BONDED_API_URL (optional) is where the keys are fetched: Bonded's API by default, or a local
-Arena's gateway.
+BONDED_API_URL (optional) is another Bonded deployment to take the keys from (a local Arena's
+gateway). Leave it unset for Bonded itself.
 """
 
 from __future__ import annotations
@@ -39,8 +39,11 @@ from typing import Callable
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
-DEFAULT_API_URL = "https://api-production-ba50.up.railway.app"
 KEYS_PATH = "/.well-known/bonded-agent-keys.json"
+# On Bonded's own domain, so this address keeps working if Bonded's API moves.
+DEFAULT_KEYS_URL = "https://www.bondedhq.xyz" + KEYS_PATH
+# The code beside the 401 for a call that is for another wallet, so Bonded can say exactly that.
+WRONG_OWNER = "wrong-owner"
 TOLERANCE_SECONDS = 300
 MAX_BODY_BYTES = 1024 * 1024
 OWNER = re.compile(r"0x[0-9a-fA-F]{40}")
@@ -57,14 +60,14 @@ def fetch_json(url: str) -> object:
 
 
 class BondedKeys:
-    """Bonded's public keys by id, from <api>/.well-known/bonded-agent-keys.json.
+    """Bonded's public keys by id, from DEFAULT_KEYS_URL (or `<api_url>` + KEYS_PATH).
 
     Fetched on first use, again after a day, and again at once when a call names a key not seen
     yet (at most once a minute), so a new key works the day Bonded starts signing with it.
     """
 
-    def __init__(self, api_url: str = DEFAULT_API_URL, fetch: Callable[[str], object] = fetch_json):
-        self.url = api_url.rstrip("/") + KEYS_PATH
+    def __init__(self, api_url: str | None = None, fetch: Callable[[str], object] = fetch_json):
+        self.url = api_url.rstrip("/") + KEYS_PATH if api_url else DEFAULT_KEYS_URL
         self.fetch = fetch
         self.keys: dict[str, Ed25519PublicKey] = {}
         self.fetched_at: float | None = None
@@ -112,7 +115,7 @@ class SignatureChecker:
             return "the timestamp is too far from this server's clock"
         # Calls for anyone else's wallet are refused: nobody can claim this URL as theirs.
         if owner != self.owner:
-            return "this call is for another owner's agent, not this one's"
+            return WRONG_OWNER
         parts = [m for m in (SIGNATURE.fullmatch(p.strip()) for p in signature.split(",")) if m]
         if not parts or len(parts) > 4:
             return "no v2 signature"
@@ -198,6 +201,12 @@ class Agent:
     def handle(self, headers, body: bytes) -> tuple[int, dict]:
         problem = self.signatures.check(headers, body)
         if problem:
+            if problem == WRONG_OWNER:
+                # Never name this agent's own wallet here: anyone can send a call.
+                return 401, {
+                    "error": "this agent is set up for another wallet, not the one this call is for",
+                    "code": WRONG_OWNER,
+                }
             return 401, {"error": problem}
         try:
             message = json.loads(body)
@@ -281,7 +290,7 @@ if __name__ == "__main__":
     owner = os.environ.get("BONDED_AGENT_OWNER", "")
     if not OWNER.fullmatch(owner):
         raise SystemExit("set BONDED_AGENT_OWNER to the wallet you save this URL from on Bonded")
-    keys = BondedKeys(os.environ.get("BONDED_API_URL") or DEFAULT_API_URL)
+    keys = BondedKeys(os.environ.get("BONDED_API_URL") or None)
     agent = Agent(owner, keys, os.environ.get("AGENT_VERSION"))
     port = int(os.environ.get("PORT", "8080"))
     server = make_server(agent, os.environ.get("HOST", "0.0.0.0"), port)

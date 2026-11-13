@@ -3,6 +3,7 @@ import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   AGENT_URL_KEYS_PATH,
+  BONDED_AGENT_KEYS_URL,
   type BondedHandlerOptions,
   createBondedHandler,
   createTestSigner,
@@ -118,7 +119,13 @@ describe("createBondedHandler", () => {
       await signed({ type: "verify", challenge: CHALLENGE }, { owner: MALLORY }),
     );
     expect(theirs.status).toBe(401);
-    expect(await errorOf(theirs)).toMatch(/another owner/);
+    // It says so with a code Bonded reads, and never names its own wallet.
+    const refusal = await theirs.text();
+    expect(JSON.parse(refusal)).toEqual({
+      error: "this agent is set up for another wallet, not the one this call is for",
+      code: "wrong-owner",
+    });
+    expect(refusal.toLowerCase()).not.toContain(OWNER.toLowerCase());
     expect((await handler(await signed(episodeMessage(), { owner: MALLORY }))).status).toBe(401);
     expect(ran).toBe(0);
     // A team: either wallet's calls pass.
@@ -160,15 +167,23 @@ describe("createBondedHandler", () => {
     expect(unknown.status).toBe(401);
     expect(await errorOf(unknown)).toMatch(/key this agent doesn't know/);
     // Nothing cached and the API down: 503, so Bonded's verify says to try again.
+    // With no apiUrl the keys come from Bonded's own domain, not the API's host name: that
+    // address is built into every deployed handler, so it must outlive a move of the API.
+    fetched = [];
     const cold = createBondedHandler({
       owner: OWNER,
-      fetch: (async () => new Response("down", { status: 503 })) as unknown as typeof fetch,
+      fetch: (async (url: string) => {
+        fetched.push(url);
+        return new Response("down", { status: 503 });
+      }) as typeof fetch,
       onEpisode: () => {},
     });
     const original = console.error;
     console.error = () => {};
     try {
       expect((await cold(await signed({ type: "verify", challenge: CHALLENGE }))).status).toBe(503);
+      expect(fetched).toEqual(["https://www.bondedhq.xyz/.well-known/bonded-agent-keys.json"]);
+      expect(BONDED_AGENT_KEYS_URL).toBe(fetched[0]);
     } finally {
       console.error = original;
     }

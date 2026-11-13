@@ -4,6 +4,7 @@ import {
   AGENT_URL_ANSWER_MS,
   AGENT_URL_MAX_BODY_BYTES,
   AGENT_URL_MAX_RESPONSE_BYTES,
+  AGENT_URL_WRONG_OWNER,
   type AgentUrlMessage,
   type AgentUrlSigner,
   AgentUrlVerifyAnswer,
@@ -320,7 +321,7 @@ export class AgentUrlClient {
           : {}),
       });
       if (status < 200 || status > 299)
-        return { ok: false, problem: statusProblem(status), status, caused: "agent" };
+        return { ok: false, problem: statusProblem(status, text, owner), status, caused: "agent" };
       return { ok: true, status, text };
     } catch (error) {
       if (error instanceof AddressNotAdmittedError)
@@ -458,10 +459,25 @@ function hostOf(url: URL): string {
   return url.hostname.toLowerCase().replace(/\.$/, "");
 }
 
-function statusProblem(status: number): string {
+/**
+ * What a refusal means, for the operator. A handler set up for another wallet says so with a code
+ * (never with its own wallet: anyone can save a URL), so the sentence names the wallet the call
+ * was for, the one the operator is signed in with.
+ */
+function statusProblem(status: number, text: string, owner: string): string {
+  if (status === 401 && answeredWrongOwner(text))
+    return `Your URL is set up for another wallet, not the one you're signed in with (${owner.toLowerCase()}): copy the handler code again and redeploy, or sign in with the wallet in your code`;
   if (status === 401 || status === 403)
     return `Your URL answered ${status}: check that owner in your handler is the wallet you saved this URL with`;
   return `Your URL answered ${status}`;
+}
+
+function answeredWrongOwner(text: string): boolean {
+  try {
+    return (JSON.parse(text) as { code?: unknown } | null)?.code === AGENT_URL_WRONG_OWNER;
+  } catch {
+    return false;
+  }
 }
 
 /**

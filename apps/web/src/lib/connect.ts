@@ -164,6 +164,8 @@ export function problemAdvice(problem: string, connection: Connection): string |
     return 'Answer the verify request with 200 and JSON { "challenge", "owner", "version"? }, where owner is your wallet. createBondedHandler (@bondedhq/sdk/agent-url) does it for you; the guide shows how.';
   if (p.includes("public internet"))
     return "Bonded can only call a public address. For an agent on your machine, use the runner instead.";
+  if (p.includes("set up for another wallet"))
+    return "Copy the code below again (it has the wallet you're signed in with) and redeploy, or sign in with the wallet in your code.";
   if (p.includes("answered 401") || p.includes("answered for the wallet"))
     return "Set owner in your handler to the wallet you're signed in with, the one that saved this URL, then redeploy.";
   if (p.includes("didn't answer within") || p.includes("did not answer within"))

@@ -51,6 +51,13 @@ export const AGENT_URL_MAX_RESPONSE_BYTES = 64 * 1024;
 /** Largest body the gateway sends (an episode message is a few KB). */
 export const AGENT_URL_MAX_BODY_BYTES = 256 * 1024;
 
+/**
+ * The `code` an agent answers (with 401) to a call for a wallet it isn't set up for, so Bonded can
+ * tell its owner exactly that. The answer never names the agent's own wallet: anyone can save a
+ * URL, and shouldn't learn whose it is.
+ */
+export const AGENT_URL_WRONG_OWNER = "wrong-owner";
+
 /** A wallet address, the way an owner is written: 0x and 40 hex digits. */
 export const AgentUrlOwner = z.string().regex(/^0x[0-9a-fA-F]{40}$/, "a wallet address (0x…)");
 
@@ -278,6 +285,8 @@ export type AgentUrlVerification =
       /** The status to answer with: 401 for a bad or stale signature, 400 for a bad body. */
       status: 400 | 401;
       reason: string;
+      /** Set when the call was for a wallet this agent isn't set up for (answered as `code`). */
+      code?: typeof AGENT_URL_WRONG_OWNER;
     };
 
 export interface VerifyAgentUrlRequestOptions {
@@ -340,7 +349,12 @@ export async function verifyAgentUrlRequest(
     o.toLowerCase(),
   );
   if (!owners.includes(ownerText))
-    return refuse(401, "this call is for another owner's agent, not this one's");
+    return {
+      ok: false,
+      status: 401,
+      reason: "this agent is set up for another wallet, not the one this call is for",
+      code: AGENT_URL_WRONG_OWNER,
+    };
   const signatures = sigText
     .split(",")
     .map((part) => part.trim())
@@ -384,9 +398,10 @@ export async function verifyAgentUrlRequest(
 }
 
 /**
- * Fetches Bonded's published key set from `${apiUrl}${AGENT_URL_KEYS_PATH}`, keeping it for
- * `maxAgeMs` (a day by default) and fetching again at once when a call names a key it hasn't
- * seen (at most once a minute), so a new key is picked up the day it starts signing.
+ * Fetches Bonded's published key set from `url`, keeping it for `maxAgeMs` (a day by default) and
+ * fetching again at once when a call names a key it hasn't seen (at most once a minute), so a new
+ * key is picked up the day it starts signing. `fallback` keys are used only when the set can't be
+ * fetched and none was fetched before, so a handler still starts while the address is down.
  */
 export class AgentUrlKeys {
   private cached: { keys: AgentUrlPublicKey[]; at: number } | undefined;
@@ -399,6 +414,7 @@ export class AgentUrlKeys {
       fetch?: typeof fetch;
       now?: () => number;
       maxAgeMs?: number;
+      fallback?: AgentUrlPublicKey[];
     } = {},
   ) {}
 
@@ -414,6 +430,7 @@ export class AgentUrlKeys {
         return await this.fetchKeys(now);
       } catch (error) {
         if (this.cached) return this.cached.keys;
+        if (this.options.fallback?.length) return this.options.fallback;
         throw error;
       }
     }

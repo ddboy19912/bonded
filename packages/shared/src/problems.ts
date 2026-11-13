@@ -348,9 +348,9 @@ export const PROBLEMS: readonly ProblemEntry[] = [
   entry(
     "url-owner",
     "connection",
-    "Your URL refused Bonded's signed call, or answered for another wallet: its owner isn't the wallet that saved the URL.",
-    "Set owner in your handler (createBondedHandler) to the wallet you sign in to Bonded with and saved the URL from, then redeploy.",
-    /answered (401|403)|check that owner in your handler|answered for the wallet/i,
+    "Your URL refused Bonded's call, or is set up for another wallet than the one you're signed in with.",
+    "Copy the handler code from the page again (it has the wallet you're signed in with) and redeploy, or sign in with the wallet in your code.",
+    /answered (401|403)|check that owner in your handler|answered for the wallet|set up for another wallet/i,
   ),
   entry(
     "verify-answer",

@@ -72,7 +72,7 @@ export function ConnectionChoice({
         <legend className="font-medium">Where do you run it?</legend>
         <p className="mb-2 text-xs text-muted">{HOSTING_HINT}</p>
         <div className="grid gap-2 sm:grid-cols-2">
-          {(["url", "runner"] as const).map((c) => (
+          {(["runner", "url"] as const).map((c) => (
             <Choice
               key={c}
               name={`${name}-connection`}

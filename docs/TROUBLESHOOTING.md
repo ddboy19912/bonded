@@ -268,9 +268,9 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 ### url-owner
 
-**Message:** Your URL refused Bonded's signed call, or answered for another wallet: its owner isn't the wallet that saved the URL.
+**Message:** Your URL refused Bonded's call, or is set up for another wallet than the one you're signed in with.
 
-**What to do:** Set owner in your handler (createBondedHandler) to the wallet you sign in to Bonded with and saved the URL from, then redeploy.
+**What to do:** Copy the handler code from the page again (it has the wallet you're signed in with) and redeploy, or sign in with the wallet in your code.
 
 ### verify-answer
 

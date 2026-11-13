@@ -265,7 +265,7 @@ describe("ConnectAgent", () => {
     });
     signedIn();
     show();
-    fireEvent.click(await screen.findByRole("radio", { name: /It's online/ }));
+    fireEvent.click(await screen.findByRole("radio", { name: /On a host like Vercel/ }));
     const field = screen.getByLabelText("Your agent's URL");
     fireEvent.change(field, { target: { value: "http://agent.example" } });
     expect(screen.getByText("It must start with https://.")).toBeTruthy();

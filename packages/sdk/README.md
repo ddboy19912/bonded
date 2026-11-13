@@ -596,11 +596,12 @@ What the handler does with each request:
    for a team); and `bonded-signature` (`v2=<key id>:<base64url Ed25519 signature>` over
    `v2.<key id>.<timestamp>.<owner>.<raw body>`, up to four while a key rotates) must verify
    under one of Bonded's public keys. The handler fetches those from
-   `https://api-production-ba50.up.railway.app/.well-known/bonded-agent-keys.json` (`apiUrl`
-   changes the API, for a local Arena run), keeps them for a day, and fetches again at once (at
-   most once a minute) for a key it hasn't seen. A signature it has accepted before is refused as
-   a replay. Failures answer `401`, a body that isn't one of Bonded's messages `400`, and keys it
-   can't fetch `503`; nothing runs.
+   `https://www.bondedhq.xyz/.well-known/bonded-agent-keys.json` (`apiUrl` takes them from
+   another Bonded deployment instead, for a local Arena run), keeps them for a day, and fetches
+   again at once (at most once a minute) for a key it hasn't seen. A signature it has accepted before is refused as
+   a replay. Failures answer `401` (with `code: "wrong-owner"` when the call is
+   for a wallet the handler isn't set up for, so Bonded can tell you exactly that), a body that
+   isn't one of Bonded's messages `400`, and keys it can't fetch `503`; nothing runs.
 2. `{ type: "verify", challenge }`: answers `200 { challenge, owner, version }`. Bonded marks the
    URL verified when `owner` is the wallet that saved it. The owner is only in the signed
    headers, never the body, so an echo server can't pass, and someone who saves your URL gets
