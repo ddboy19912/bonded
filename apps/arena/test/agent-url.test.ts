@@ -193,7 +193,7 @@ describe("calling an agent URL", () => {
     expect(await verifyAgentUrl(url, MALLORY, opts)).toEqual({
       ok: false,
       problem:
-        "Your URL answered 401: check that owner in your handler is the wallet you saved this URL with",
+        "Your URL answered 401: its handler refused Bonded's call. Check that its owner is the wallet you saved this URL with, that its server's clock is right, and that it can reach Bonded's keys",
     });
   });
 

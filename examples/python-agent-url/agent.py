@@ -86,8 +86,12 @@ class BondedKeys:
                         for k in key_set["keys"]
                         if k.get("alg") == "Ed25519"
                     }
-                except Exception as error:  # noqa: BLE001 - keep the keys we had
+                except Exception as error:  # noqa: BLE001 - keep the keys we had, while fresh
                     print(f"couldn't fetch Bonded's keys from {self.url}: {error}", flush=True)
+                    # A set a day old that can't be refetched is trusted no more: a key taken
+                    # off the published set must stop working.
+                    if age is not None and age > 86_400:
+                        self.keys = {}
             return self.keys.get(kid)
 
 
@@ -98,7 +102,7 @@ class SignatureChecker:
         self.owner = owner.lower()
         self.keys = keys
         self.tolerance = tolerance
-        self.seen: dict[str, int] = {}
+        self.seen: dict[bytes, int] = {}
         self.lock = threading.Lock()
 
     def check(self, headers, body: bytes, now: float | None = None) -> str | None:
@@ -113,9 +117,6 @@ class SignatureChecker:
         now = int(time.time() if now is None else now)
         if abs(now - int(timestamp)) > self.tolerance:
             return "the timestamp is too far from this server's clock"
-        # Calls for anyone else's wallet are refused: nobody can claim this URL as theirs.
-        if owner != self.owner:
-            return WRONG_OWNER
         parts = [m for m in (SIGNATURE.fullmatch(p.strip()) for p in signature.split(",")) if m]
         if not parts or len(parts) > 4:
             return "no v2 signature"
@@ -126,14 +127,20 @@ class SignatureChecker:
             if key is None:
                 continue
             payload = f"v2.{kid}.{int(timestamp)}.{owner}.".encode() + body
+            raw = b64url_decode(sig)
             try:
-                key.verify(b64url_decode(sig), payload)
+                key.verify(raw, payload)
             except InvalidSignature:
                 continue
-            matched = sig
+            # Keyed by the signature's bytes: two spellings of one signature are the same call.
+            matched = raw
             break
         if matched is None:
             return "the signature doesn't match any of Bonded's keys"
+        # Signed by Bonded; now, for whose wallet. Checked after the signature, so an unsigned
+        # call can't learn whose agent this is. Calls for anyone else's wallet are refused.
+        if owner != self.owner:
+            return WRONG_OWNER
         with self.lock:
             for k, expires in list(self.seen.items()):
                 if expires < now:

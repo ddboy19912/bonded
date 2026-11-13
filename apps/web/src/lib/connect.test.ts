@@ -168,9 +168,9 @@ describe("problem advice", () => {
     ],
     ["The runner is connected in the wrong mode: chain", "runner", /--mode chain/],
     [
-      "Your URL answered 401: check that owner in your handler is the wallet you saved this URL with",
+      "Your URL answered 401: its handler refused Bonded's call. Check that its owner is the wallet you saved this URL with, that its server's clock is right, and that it can reach Bonded's keys",
       "url",
-      /Set owner in your handler/,
+      /clock is within 5 minutes/,
     ],
     [
       "Your URL is set up for another wallet, not the one you're signed in with (0xa11ce): copy the handler code again and redeploy, or sign in with the wallet in your code",

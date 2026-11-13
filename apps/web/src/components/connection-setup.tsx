@@ -498,6 +498,8 @@ export function ConnectUrl({
   }>();
   // Saved by this page and not verified since: the saved record may still say it was verified.
   const [fresh, setFresh] = useState(false);
+  // The URL this page just saved: shown and verified until the saved record catches up with it.
+  const [savedUrl, setSavedUrl] = useState<string>();
   const invalid = agentUrlError(url);
   const verify = async (target: string) => {
     setBusy("verify");
@@ -522,6 +524,7 @@ export function ConnectUrl({
     try {
       const r = await byoaApi.registerAgentUrl(subject, auth, url.trim());
       setSavedOwner(r.owner);
+      setSavedUrl(url.trim());
       setVerified(undefined);
       setFresh(true);
       setEditing(false);
@@ -537,7 +540,7 @@ export function ConnectUrl({
   const isVerified = Boolean(verified) || (!fresh && Boolean(saved?.verifiedAt));
   const codeHash = verified?.codeHash ?? status.codeHash;
   const version = verified?.version ?? saved?.version ?? null;
-  const shownUrl = saved?.url ?? (fresh ? url.trim() : undefined);
+  const shownUrl = savedUrl ?? saved?.url ?? (fresh ? url.trim() : undefined);
   const signing = Boolean(busy) && !auth.session;
   const verifyButton = (label: string, kind?: "secondary") => (
     <Button

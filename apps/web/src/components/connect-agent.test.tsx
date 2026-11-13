@@ -578,15 +578,13 @@ describe("ConnectAgent", () => {
     vi.spyOn(byoaApi, "reverifyAgentUrl").mockRejectedValue(
       new ApiError(
         422,
-        "Your URL answered 401: check that owner in your handler is the wallet you saved this URL with.",
+        "Your URL answered 401: its handler refused Bonded's call. Check that its owner is the wallet you saved this URL with, that its server's clock is right, and that it can reach Bonded's keys.",
       ),
     );
     signedIn();
     show();
     fireEvent.click(await screen.findByRole("button", { name: "Verify it now" }));
     const alert = await screen.findByRole("alert");
-    expect(alert.textContent).toMatch(
-      /Set owner in your handler to the wallet you're signed in with/,
-    );
+    expect(alert.textContent).toMatch(/the wallet you're signed in with/);
   });
 });

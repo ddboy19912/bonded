@@ -31,14 +31,22 @@ const KEYS_URL = `${(process.env.BONDED_API_URL ?? "https://www.bondedhq.xyz").r
 const VERSION = process.env.AGENT_VERSION ?? "example-1";
 const TOLERANCE_SECONDS = 300;
 
-/** Bonded's public keys by id, fetched again (at most once a minute) for a key not seen yet. */
+/**
+ * Bonded's public keys by id: fetched again every day (a key taken off the published set stops
+ * working) and at once, at most once a minute, for a key not seen yet. One fetch at a time: calls
+ * that arrive meanwhile wait for it. A set that is a day old and can't be refetched is dropped.
+ */
+const DAY_MS = 86_400_000;
 let keys = new Map();
 let fetchedAt = 0;
-async function keyFor(kid) {
-  if (!keys.has(kid) && Date.now() - fetchedAt > 60_000) {
-    fetchedAt = Date.now();
-    const res = await fetch(KEYS_URL);
-    if (res.ok) {
+let triedAt = 0;
+let inFlight;
+async function refresh() {
+  inFlight ??= (async () => {
+    triedAt = Date.now();
+    try {
+      const res = await fetch(KEYS_URL, { signal: AbortSignal.timeout(8_000) });
+      if (!res.ok) throw new Error(`the keys answered ${res.status}`);
       const set = await res.json();
       keys = new Map(
         set.keys.map((k) => [
@@ -46,8 +54,20 @@ async function keyFor(kid) {
           createPublicKey({ key: { kty: "OKP", crv: "Ed25519", x: k.x }, format: "jwk" }),
         ]),
       );
+      fetchedAt = Date.now();
+    } catch (error) {
+      console.error(`couldn't fetch Bonded's keys: ${error.message}`);
+      if (Date.now() - fetchedAt > DAY_MS) keys = new Map();
+    } finally {
+      inFlight = undefined;
     }
-  }
+  })();
+  return inFlight;
+}
+async function keyFor(kid) {
+  const stale = Date.now() - fetchedAt > DAY_MS;
+  const unknown = !keys.has(kid) && Date.now() - triedAt > 60_000;
+  if (inFlight || stale || unknown) await refresh();
   return keys.get(kid);
 }
 
@@ -59,9 +79,7 @@ async function verified(headers, raw) {
   const timestamp = Number(headers["bonded-timestamp"]);
   const now = Math.floor(Date.now() / 1000);
   if (!Number.isInteger(timestamp) || Math.abs(now - timestamp) > TOLERANCE_SECONDS) return false;
-  // Calls for anyone else's wallet are refused: nobody can claim this URL as theirs.
   const owner = String(headers["bonded-owner"] ?? "").toLowerCase();
-  if (owner !== OWNER) return false;
   for (const part of String(headers["bonded-signature"] ?? "").split(",")) {
     const match = /^v2=([A-Za-z0-9_-]+):([A-Za-z0-9_-]+)$/.exec(part.trim());
     if (!match) continue;
@@ -69,10 +87,16 @@ async function verified(headers, raw) {
     const key = await keyFor(kid);
     if (!key) continue;
     const payload = Buffer.concat([Buffer.from(`v2.${kid}.${timestamp}.${owner}.`), raw]);
-    if (!verify(null, payload, key, Buffer.from(signature, "base64url"))) continue;
+    const bytes = Buffer.from(signature, "base64url");
+    if (!verify(null, payload, key, bytes)) continue;
+    // Signed by Bonded; now, for whose wallet: calls for anyone else's are refused, so nobody can
+    // claim this URL as theirs (checked after the signature, so an unsigned call learns nothing).
+    if (owner !== OWNER) return false;
+    // Keyed by the signature's bytes: two spellings of one signature are the same call.
+    const replayKey = bytes.toString("base64url");
     for (const [sig, ts] of seen) if (ts < now - TOLERANCE_SECONDS) seen.delete(sig);
-    if (seen.has(signature)) return false;
-    seen.set(signature, timestamp);
+    if (seen.has(replayKey)) return false;
+    seen.set(replayKey, timestamp);
     return true;
   }
   return false;

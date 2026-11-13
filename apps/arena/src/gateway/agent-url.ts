@@ -468,7 +468,7 @@ function statusProblem(status: number, text: string, owner: string): string {
   if (status === 401 && answeredWrongOwner(text))
     return `Your URL is set up for another wallet, not the one you're signed in with (${owner.toLowerCase()}): copy the handler code again and redeploy, or sign in with the wallet in your code`;
   if (status === 401 || status === 403)
-    return `Your URL answered ${status}: check that owner in your handler is the wallet you saved this URL with`;
+    return `Your URL answered ${status}: its handler refused Bonded's call. Check that its owner is the wallet you saved this URL with, that its server's clock is right, and that it can reach Bonded's keys`;
   return `Your URL answered ${status}`;
 }
 

@@ -75,7 +75,11 @@ export const AgentUrlPublicKey = z.object({
 export type AgentUrlPublicKey = z.infer<typeof AgentUrlPublicKey>;
 
 /** The published key set (AGENT_URL_KEYS_PATH): every key that may sign, the current one first. */
-export const AgentUrlKeySet = z.object({ keys: z.array(AgentUrlPublicKey).max(8) });
+/** The most keys the published set holds (the signing one and those still being rotated out). */
+export const AGENT_URL_MAX_KEYS = 8;
+export const AgentUrlKeySet = z.object({
+  keys: z.array(AgentUrlPublicKey).max(AGENT_URL_MAX_KEYS),
+});
 export type AgentUrlKeySet = z.infer<typeof AgentUrlKeySet>;
 
 /** The ownership check. `challenge` is random; the agent sends it back with its owner. */
@@ -190,6 +194,10 @@ export async function agentUrlSigner(privateKeys: string): Promise<AgentUrlSigne
     .map((t) => t.trim())
     .filter(Boolean);
   if (texts.length === 0) throw new Error("no agent URL signing key");
+  if (texts.length > AGENT_URL_MAX_KEYS)
+    throw new Error(
+      `at most ${AGENT_URL_MAX_KEYS} agent URL signing keys (the published set's limit)`,
+    );
   const keys = await Promise.all(
     texts.map(async (text) => {
       let key: WebKey;
@@ -345,16 +353,6 @@ export async function verifyAgentUrlRequest(
   const tolerance = options.toleranceSeconds ?? AGENT_URL_TOLERANCE_SECONDS;
   if (Math.abs(now - timestamp) > tolerance)
     return refuse(401, "the timestamp is too old or in the future");
-  const owners = (Array.isArray(options.owner) ? options.owner : [options.owner]).map((o) =>
-    o.toLowerCase(),
-  );
-  if (!owners.includes(ownerText))
-    return {
-      ok: false,
-      status: 401,
-      reason: "this agent is set up for another wallet, not the one this call is for",
-      code: AGENT_URL_WRONG_OWNER,
-    };
   const signatures = sigText
     .split(",")
     .map((part) => part.trim())
@@ -378,12 +376,26 @@ export async function verifyAgentUrlRequest(
       signedPayload(kid, timestamp, ownerText, options.body),
     );
     if (ok) {
-      matched = signature;
+      // Keyed by the signature's bytes: base64url text has spare bits in its last character, so
+      // two spellings of one signature must count as the same call.
+      matched = base64url(unbase64url(signature));
       break;
     }
   }
   if (!knownKey) return refuse(401, "the call is signed with a key this agent doesn't know");
   if (!matched) return refuse(401, "the signature doesn't match");
+  // Only a call Bonded really signed learns it's for another wallet: an unsigned one can't probe
+  // whose agent this is.
+  const owners = (Array.isArray(options.owner) ? options.owner : [options.owner]).map((o) =>
+    o.toLowerCase(),
+  );
+  if (!owners.includes(ownerText))
+    return {
+      ok: false,
+      status: 401,
+      reason: "this agent is set up for another wallet, not the one this call is for",
+      code: AGENT_URL_WRONG_OWNER,
+    };
   if (options.replay && !options.replay.accept(matched, timestamp, now))
     return refuse(401, "this call was already received (a replay)");
   let raw: unknown;
@@ -400,8 +412,9 @@ export async function verifyAgentUrlRequest(
 /**
  * Fetches Bonded's published key set from `url`, keeping it for `maxAgeMs` (a day by default) and
  * fetching again at once when a call names a key it hasn't seen (at most once a minute), so a new
- * key is picked up the day it starts signing. `fallback` keys are used only when the set can't be
- * fetched and none was fetched before, so a handler still starts while the address is down.
+ * key is picked up the day it starts signing. A set older than that is not trusted if it can't be
+ * refetched. `fallback` keys are used only when the set can't be fetched and none was ever
+ * fetched, so a handler still starts while the address is down.
  */
 export class AgentUrlKeys {
   private cached: { keys: AgentUrlPublicKey[]; at: number } | undefined;
@@ -415,6 +428,8 @@ export class AgentUrlKeys {
       now?: () => number;
       maxAgeMs?: number;
       fallback?: AgentUrlPublicKey[];
+      /** How long a fetch of the set may take (default 8 s). */
+      timeoutMs?: number;
     } = {},
   ) {}
 
@@ -429,8 +444,9 @@ export class AgentUrlKeys {
       try {
         return await this.fetchKeys(now);
       } catch (error) {
-        if (this.cached) return this.cached.keys;
-        if (this.options.fallback?.length) return this.options.fallback;
+        // A set older than maxAgeMs is no longer trusted: a key taken off it must stop working.
+        if (fresh) return this.cached!.keys;
+        if (!this.cached && this.options.fallback?.length) return this.options.fallback;
         throw error;
       }
     }
@@ -441,8 +457,10 @@ export class AgentUrlKeys {
     this.pending ??= (async () => {
       this.lastFetch = now;
       try {
+        // Within the gateway's 10-second answer budget, so a slow keys address can't hang a call.
         const res = await (this.options.fetch ?? fetch)(this.url, {
           headers: { accept: "application/json" },
+          signal: AbortSignal.timeout(this.options.timeoutMs ?? 8_000),
         });
         if (!res.ok) throw new Error(`Bonded's keys answered ${res.status}`);
         const set = AgentUrlKeySet.parse(await res.json());

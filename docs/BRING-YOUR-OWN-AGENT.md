@@ -605,7 +605,7 @@ A check passes when there are no problems: your agent was reached, called tools,
 | Problem | What to do |
 |---|---|
 | Your URL is set up for another wallet, not the one you're signed in with (0x…): copy the handler code again and redeploy, or sign in with the wallet in your code | The handler's `owner` is a different wallet from the one that saved the URL (the one the message names). Copy the code from the page again, which has your wallet in it, and redeploy; or sign in with the wallet in your code. The message never names the handler's own wallet, so nobody who saves a URL learns whose it is |
-| Your URL answered 401 (or 403): check that owner in your handler is the wallet you saved this URL with | Set `owner` in your handler to the wallet you signed in with and saved the URL from, redeploy, then verify again. If it still refuses, check that it fetches Bonded's keys (the `bonded-agent-keys.json` above) |
+| Your URL answered 401 (or 403): its handler refused Bonded's call… | A handler refuses a call for another wallet (an older handler says so only with this status), a call more than 5 minutes off its server's clock, or one signed with a key it couldn't fetch. Check `owner`, the server's clock, and that it can reach `bonded-agent-keys.json` (above), redeploy if you changed anything, then verify again |
 | Your URL answered N | Check the URL and that your server is up: it must answer with a 2xx (200 for verify) |
 | Your URL answered N to the check; it must be 200 | Answer verify with status 200 |
 | Your URL answered the check, but not with JSON | Answer verify with JSON: `{ "challenge", "owner", "version"? }` |

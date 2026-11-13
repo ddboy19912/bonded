@@ -108,6 +108,20 @@ describe("Agent URL signatures", () => {
     );
   });
 
+  it("says a call is for another wallet only after its signature checks out", async () => {
+    const headers = await signer.sign(MALLORY, body, NOW);
+    // Unsigned, or forged: refused for that, so nobody learns whose agent this is by probing.
+    const unsigned = await verifyAgentUrlRequest({
+      owner: OWNER,
+      keys,
+      body,
+      headers: { ...headers, [AGENT_URL_SIGNATURE_HEADER]: `v2=${signer.kid}:${"A".repeat(86)}` },
+      nowMs: NOW,
+    });
+    expect(unsigned).toMatchObject({ ok: false, reason: "the signature doesn't match" });
+    expect(unsigned).not.toHaveProperty("code");
+  });
+
   it("refuses a call for another owner: the attack where someone saves your URL as theirs", async () => {
     // Bonded signs Mallory's calls for Mallory. The agent belongs to Alice, so it refuses them.
     const headers = await signer.sign(MALLORY, body, NOW);
@@ -183,6 +197,30 @@ describe("Agent URL signatures", () => {
     });
     expect((await at(NOW + 301_000)).ok).toBe(false);
     expect((await at(NOW - 299_000)).ok).toBe(true);
+  });
+
+  it("refuses a replay spelled differently: the same signature bytes are the same call", async () => {
+    const replay = new AgentUrlReplayGuard();
+    const headers = await signer.sign(OWNER, body, NOW);
+    const value = headers[AGENT_URL_SIGNATURE_HEADER]!;
+    // The last base64url character carries 4 spare bits: flip one, the bytes don't change.
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    const last = value.at(-1)!;
+    const respelled = value.slice(0, -1) + alphabet[alphabet.indexOf(last) ^ 1];
+    expect(respelled).not.toBe(value);
+    const once = { owner: OWNER, keys, body, nowMs: NOW, replay };
+    expect((await verifyAgentUrlRequest({ ...once, headers })).ok).toBe(true);
+    expect(
+      await verifyAgentUrlRequest({
+        ...once,
+        headers: { ...headers, [AGENT_URL_SIGNATURE_HEADER]: respelled },
+      }),
+    ).toMatchObject({ ok: false, reason: "this call was already received (a replay)" });
+  });
+
+  it("refuses more signing keys than the published set can hold", async () => {
+    const nine = await Promise.all(Array.from({ length: 9 }, () => newAgentUrlSigningKey()));
+    await expect(agentUrlSigner(nine.join(","))).rejects.toThrow(/at most 8/);
   });
 
   it("refuses a replay with a guard", async () => {
@@ -316,12 +354,33 @@ describe("the published keys", () => {
       fallback: builtIn,
     });
     expect(await store.get()).toEqual(builtIn);
-    // Once the published set is fetched it is the only one trusted, even when a later fetch fails.
+    // Once the published set is fetched it is the only one trusted: a failed fetch for a new key
+    // id keeps the set while it is fresh...
     up = true;
     expect((await store.get()).map((k) => k.kid)).toEqual([signer.kid]);
     up = false;
+    clock = 120_000;
+    expect((await store.get("an-unknown-kid")).map((k) => k.kid)).toEqual([signer.kid]);
+    // ...but a set older than a day that can't be refetched is trusted no more, and the built-in
+    // keys never stand in for it.
     clock = 2 * 86_400_000;
-    expect((await store.get()).map((k) => k.kid)).toEqual([signer.kid]);
+    await expect(store.get()).rejects.toThrow(/503/);
+  });
+
+  it("give up on a keys address that doesn't answer, and try again on the next call", async () => {
+    let calls = 0;
+    const store = new AgentUrlKeys("https://x", {
+      fetch: ((_url: string, init?: RequestInit) => {
+        calls++;
+        return new Promise((_, reject) =>
+          init?.signal?.addEventListener("abort", () => reject(new Error("timed out"))),
+        );
+      }) as unknown as typeof fetch,
+      timeoutMs: 50,
+    });
+    await expect(store.get()).rejects.toThrow(/timed out/);
+    await expect(store.get()).rejects.toThrow(/timed out/);
+    expect(calls).toBe(2);
   });
 });
 

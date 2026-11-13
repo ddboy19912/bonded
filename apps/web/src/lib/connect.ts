@@ -166,8 +166,10 @@ export function problemAdvice(problem: string, connection: Connection): string |
     return "Bonded can only call a public address. For an agent on your machine, use the runner instead.";
   if (p.includes("set up for another wallet"))
     return "Copy the code below again (it has the wallet you're signed in with) and redeploy, or sign in with the wallet in your code.";
-  if (p.includes("answered 401") || p.includes("answered for the wallet"))
+  if (p.includes("answered for the wallet"))
     return "Set owner in your handler to the wallet you're signed in with, the one that saved this URL, then redeploy.";
+  if (p.includes("answered 401") || p.includes("answered 403"))
+    return "Check that owner in your handler is the wallet you're signed in with, that its server's clock is within 5 minutes, and that it can fetch Bonded's keys (bondedhq.xyz/.well-known/bonded-agent-keys.json). Redeploy if you changed anything, then verify again.";
   if (p.includes("didn't answer within") || p.includes("did not answer within"))
     return "Your endpoint must reply within 10 seconds: answer the POST straight away and do the work after replying.";
   if (p.includes("answered 4") || p.includes("answered 5"))
