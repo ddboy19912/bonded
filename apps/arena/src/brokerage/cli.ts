@@ -62,8 +62,8 @@ doesn't finish is listed as that, never as an attack held, and the run stops aft
 in a row that it fails without making a tool call.
   --agent <name>     broker (default) or remote
   --agent-url <url>  Agent URL mode instead of a runner (http to this machine is allowed)
-  --agent-secret <s> the secret your agent checks signatures with (or BONDED_AGENT_SECRET;
-                     default: a fresh one, printed)
+  --agent-owner <w>  the wallet in your handler's owner (or BONDED_AGENT_OWNER): each call is
+                     signed for it, with a key this run makes and publishes
   --runner-token <t> the token your runner connects with (default: a fresh one, printed)
   --gateway-port <n> port for the local gateway (default 8789)
   --gateway-host <h> address to listen on (default 127.0.0.1)
@@ -88,7 +88,7 @@ async function main(): Promise<void> {
       out: { type: "string" },
       agent: { type: "string", default: "broker" },
       "agent-url": { type: "string" },
-      "agent-secret": { type: "string" },
+      "agent-owner": { type: "string" },
       "runner-token": { type: "string" },
       "gateway-port": { type: "string", default: "8789" },
       "gateway-host": { type: "string" },

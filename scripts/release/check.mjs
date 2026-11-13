@@ -43,17 +43,18 @@ for (const name of ["x402Guard", "x402Price", "remoteX402Signer"])
 for (const name of ["x402Signer", "x402SignerHandler", "serveX402Signer"])
   assert.equal(typeof signer[name], "function", "@bondedhq/signer exports " + name);
 
-// The Agent URL handler answers a challenge it can verify, and refuses one it can't.
-const secret = "bonded_as_release-check";
-const handler = agentUrl.createBondedHandler({ secret, version: "check", onEpisode() {} });
+// The Agent URL handler answers a challenge signed for its owner, and refuses one for anyone else.
+const owner = "0x00000000000000000000000000000000000a11ce";
+const bonded = await agentUrl.createTestSigner();
+const handler = agentUrl.createBondedHandler({ owner, keys: bonded.keys, version: "check", onEpisode() {} });
 const challenge = "release-check-challenge-0001";
 const body = JSON.stringify({ type: "verify", challenge });
-const signed = await agentUrl.signBondedRequest(secret, body);
-const ok = await handler(new Request("http://x/", { method: "POST", headers: signed, body }));
+const ok = await handler(new Request("http://x/", { method: "POST", headers: await bonded.sign(owner, body), body }));
 const answer = await ok.json();
 assert.equal(answer.version, "check");
-assert.ok(await sharedAgentUrl.checkAgentUrlVerifyProof(secret, challenge, answer), "the answer proves the secret");
-const bad = await handler(new Request("http://x/", { method: "POST", headers: { ...signed, "bonded-signature": "v1=" + "0".repeat(64) }, body }));
+assert.ok(sharedAgentUrl.checkAgentUrlVerifyAnswer(owner, challenge, answer), "the answer names its owner");
+const other = await bonded.sign("0x000000000000000000000000000000000000bad0", body);
+const bad = await handler(new Request("http://x/", { method: "POST", headers: other, body }));
 assert.equal(bad.status, 401);
 
 assert.deepEqual(mcp.mcpConfig({ endpoints: { mcp: "https://gw/e/t/mcp" } }), {

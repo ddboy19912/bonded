@@ -558,19 +558,20 @@ an episode. `mcpConfigJson(episode, options)` returns the same text.
 
 ### Agent URL
 
-In Agent URL mode Bonded `POST`s each episode to your HTTPS endpoint, signed with your agent
-secret (`bonded_as_...`, shown once when you register the URL). Registering is two steps: save
-the URL and copy the secret into your agent, then verify, when Bonded sends a signed challenge
-your endpoint must answer with a proof that it holds the secret. `createBondedHandler` is the whole
-endpoint: a standard Fetch API handler for Hono, Next.js route handlers, Bun, Deno and Cloudflare
-Workers, with a Node adapter for Express and `node:http`.
+In Agent URL mode Bonded `POST`s each episode to your HTTPS endpoint, signed with Bonded's own
+key for the wallet that saved the URL. There is no secret: your handler names its `owner`, your
+wallet, in code (it's public), and refuses calls signed for anyone else. Deploy it, save the URL
+on Bonded from that wallet, then verify: Bonded sends a signed challenge and your endpoint answers
+with its owner. `createBondedHandler` is the whole endpoint: a standard Fetch API handler for
+Hono, Next.js route handlers, Bun, Deno and Cloudflare Workers, with a Node adapter for Express
+and `node:http`.
 
 ```ts
 import { createBondedHandler, toNodeHandler } from "@bondedhq/sdk/agent-url";
 import { bondedAiSdkTools } from "@bondedhq/sdk/ai-sdk";
 
 const handler = createBondedHandler({
-  secret: process.env.BONDED_AGENT_SECRET!,
+  owner: "0xYourWallet", // the wallet you save this URL from on Bonded; public, not a secret
   version: process.env.GIT_SHA, // reported when Bonded verifies the URL; becomes the code hash
   async onEpisode(episode, { signal }) {
     const tools = await bondedAiSdkTools(episode);
@@ -590,15 +591,21 @@ expressApp.post("/bonded", toNodeHandler(handler)); // Express: mount before exp
 
 What the handler does with each request:
 
-1. **Checks the signature** before reading the message: `bonded-timestamp` (unix seconds) must be
-   within 300 seconds of the server's clock, and `bonded-signature`
-   (`v1=<hex HMAC-SHA256(secret, "<timestamp>.<raw body>")>`, up to four while a secret rotates)
-   must match, compared in constant time. `secret` may be a list while you rotate it. A signature
-   it has accepted before is refused as a replay. Failures answer `401`, and a body that isn't one
-   of Bonded's messages `400`; nothing runs.
-2. `{ type: "verify", challenge }`: answers `200 { challenge, proof, version }`. `proof` is the
-   hex HMAC-SHA256 of `"verify." + challenge` under the secret (`agentUrlVerifyProof`), so only a
-   server holding the secret passes; an echo server doesn't.
+1. **Checks the call** before reading the message. `bonded-timestamp` (unix seconds) must be
+   within 300 seconds of the server's clock; `bonded-owner` must be your `owner` (a list works,
+   for a team); and `bonded-signature` (`v2=<key id>:<base64url Ed25519 signature>` over
+   `v2.<key id>.<timestamp>.<owner>.<raw body>`, up to four while a key rotates) must verify
+   under one of Bonded's public keys. The handler fetches those from
+   `https://www.bondedhq.xyz/.well-known/bonded-agent-keys.json` (`apiUrl` takes them from
+   another Bonded deployment instead, for a local Arena run), keeps them for a day, and fetches
+   again at once (at most once a minute) for a key it hasn't seen. A signature it has accepted before is refused as
+   a replay. Failures answer `401` (with `code: "wrong-owner"` when the call is
+   for a wallet the handler isn't set up for, so Bonded can tell you exactly that), a body that
+   isn't one of Bonded's messages `400`, and keys it can't fetch `503`; nothing runs.
+2. `{ type: "verify", challenge }`: answers `200 { challenge, owner, version }`. Bonded marks the
+   URL verified when `owner` is the wallet that saved it. The owner is only in the signed
+   headers, never the body, so an echo server can't pass, and someone who saves your URL gets
+   calls signed for their own wallet, which your handler refuses.
 3. `{ type: "episode", ... }`: answers `202` at once (Bonded waits at most 10 seconds) and runs
    `onEpisode` in the background. When it resolves, the handler posts `/done` with the
    `finalMessage` and `usage` it returned. If it throws, `/done` is still posted, saying the agent
@@ -609,10 +616,30 @@ What the handler does with each request:
 Limits: 256 KiB bodies (`maxBodyBytes`, the most Bonded sends), 8 episodes at once (`maxConcurrent`; Bonded sends one at a
 time per agent), and the same episode delivered twice runs once. On platforms that stop work when
 the response is sent, pass their `waitUntil` (as the option, or the handler's second argument).
-`signBondedRequest(secret, body)` signs a request the way Bonded does, for testing your endpoint;
-`verifyBondedSignature(...)` is the signature check on its own. Both use the scheme Bonded's
-gateway signs with, from `@bondedhq/shared/agent-url` (a small entry point without the contract ABIs,
-for edge bundles). A Python endpoint with no dependencies is in
+
+To test your endpoint, `createTestSigner()` stands in for Bonded: give the handler its `keys`, and
+`sign(owner, body)` returns the headers Bonded would send.
+
+```ts
+import { createBondedHandler, createTestSigner } from "@bondedhq/sdk/agent-url";
+
+const owner = "0x1111111111111111111111111111111111111111"; // your wallet
+const bonded = await createTestSigner();
+const handler = createBondedHandler({ owner, keys: bonded.keys, onEpisode });
+const body = JSON.stringify({ type: "verify", challenge: "a-test-challenge-0001" });
+const res = await handler(
+  new Request("http://localhost/bonded", {
+    method: "POST",
+    headers: { "content-type": "application/json", ...(await bonded.sign(owner, body)) },
+    body,
+  }),
+);
+// 200 { challenge: "a-test-challenge-0001", owner: "0x1111…1111" }
+```
+
+`verifyAgentUrlRequest(...)` is the check on its own and `answerAgentUrlVerify(...)` the verify
+answer, from `@bondedhq/shared/agent-url` (a small entry point without the contract ABIs, for
+edge bundles). A Python endpoint (the standard library and `cryptography`) is in
 [`examples/python-agent-url`](../../examples/python-agent-url/README.md).
 
 ## Vault trading tools for LangChain, LangGraph and the AI SDK

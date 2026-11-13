@@ -194,10 +194,12 @@ describe("Onboarding your own agent", () => {
     expect(screen.getByRole("link", { name: "Test your agent first" }).getAttribute("href")).toBe(
       "/agents/test",
     );
-    expect(screen.getByRole("radio", { name: /It's online at a URL/ })).toHaveProperty(
+    // The runner is the default; an Agent URL is the other choice.
+    expect(screen.getByRole("radio", { name: /On my computer or server/ })).toHaveProperty(
       "checked",
       true,
     );
+    fireEvent.click(screen.getByRole("radio", { name: /On a host like Vercel/ }));
     // URL mode needs a URL, and says so in the list of what's missing.
     expect(screen.getByText("Paste your agent's URL.")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Your agent's URL"), {

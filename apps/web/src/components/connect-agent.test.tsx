@@ -237,14 +237,14 @@ describe("ConnectAgent", () => {
     expect(screen.getByRole("button", { name: "Rate my agent" })).toHaveProperty("disabled", true);
   });
 
-  it("connects by URL in two steps: save it and get the secret, then verify", async () => {
+  it("connects by URL in one click: save and verify, with the wallet already in the handler", async () => {
     const runner = vi.spyOn(api, "runner").mockResolvedValue(runnerRecord());
     const register = vi.spyOn(byoaApi, "registerAgentUrl").mockResolvedValue({
       url: "https://agent.example/bonded",
+      owner: "0x0000000000000000000000000000000000000001",
       verified: false,
       verifiedAt: null,
       version: null,
-      secret: "bonded_as_secret",
       codeHash: null,
     });
     const verify = vi.spyOn(byoaApi, "reverifyAgentUrl").mockResolvedValue({
@@ -265,7 +265,7 @@ describe("ConnectAgent", () => {
     });
     signedIn();
     show();
-    fireEvent.click(await screen.findByRole("radio", { name: /It's online/ }));
+    fireEvent.click(await screen.findByRole("radio", { name: /On a host like Vercel/ }));
     const field = screen.getByLabelText("Your agent's URL");
     fireEvent.change(field, { target: { value: "http://agent.example" } });
     expect(screen.getByText("It must start with https://.")).toBeTruthy();
@@ -276,7 +276,18 @@ describe("ConnectAgent", () => {
         agentUrl: { configured: true, verifiedAt: null, version: null },
       }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Save and get its secret" }));
+    // The handler's code names the signed-in wallet as its owner: nothing secret to set.
+    expect(document.body.textContent).toContain(
+      'owner: "0x0000000000000000000000000000000000000001"',
+    );
+    expect(document.body.textContent).not.toMatch(/BONDED_AGENT_SECRET|bonded_as_/);
+    runner.mockResolvedValue(
+      runnerRecord({
+        connection: "url",
+        agentUrl: { configured: true, verifiedAt: new Date().toISOString(), version: "v1.4.2" },
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save and verify" }));
     await waitFor(() =>
       expect(register).toHaveBeenCalledWith(
         { kind: "agent", agentId: "12" },
@@ -284,18 +295,7 @@ describe("ConnectAgent", () => {
         "https://agent.example/bonded",
       ),
     );
-    // Step 1: the secret, once, with where it goes. Step 2: verify.
-    expect(await screen.findByText("bonded_as_secret")).toBeTruthy();
-    expect(screen.getByText("Not verified yet")).toBeTruthy();
-    expect(screen.getByText(/shown once/)).toBeTruthy();
-    expect(screen.getAllByText("BONDED_AGENT_SECRET").length).toBeGreaterThan(0);
-    runner.mockResolvedValue(
-      runnerRecord({
-        connection: "url",
-        agentUrl: { configured: true, verifiedAt: new Date().toISOString(), version: "v1.4.2" },
-      }),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Verify it now" }));
+    // Saving verifies at once.
     await waitFor(() =>
       expect(verify).toHaveBeenCalledWith(
         { kind: "agent", agentId: "12" },
@@ -324,8 +324,8 @@ describe("ConnectAgent", () => {
     );
     signedIn();
     show();
-    // Saved earlier, so its secret isn't shown again: the page says how to get a new one.
-    expect(await screen.findByText(/needs the secret shown when you saved this URL/)).toBeTruthy();
+    // Saved earlier and not verified: deploy the handler there, then verify.
+    expect(await screen.findByText(/Deploy the handler below to this URL/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Verify it now" }));
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toMatch(/Your URL answered 404/);
@@ -564,46 +564,27 @@ describe("ConnectAgent", () => {
     );
   });
 
-  it("gets a new secret for a saved URL, after saying the old one stops at once", async () => {
+  it("says what to fix when the handler names another wallet", async () => {
     vi.spyOn(api, "runner").mockResolvedValue(
       runnerRecord({
         connection: "url",
-        agentUrl: { configured: true, verifiedAt: new Date().toISOString(), version: "v1" },
+        agentUrl: { configured: true, verifiedAt: null, version: null },
       }),
     );
     vi.spyOn(byoaApi, "agentUrl").mockResolvedValue({
       connection: "url",
-      agentUrl: {
-        url: "https://agent.example/bonded",
-        verifiedAt: new Date().toISOString(),
-        version: "v1",
-      },
+      agentUrl: { url: "https://agent.example/bonded", verifiedAt: null, version: null },
     });
-    const renew = vi.spyOn(byoaApi, "newAgentUrlSecret").mockResolvedValue({
-      url: "https://agent.example/bonded",
-      verified: false,
-      verifiedAt: null,
-      version: null,
-      secret: "bonded_as_new",
-      codeHash: null,
-    });
-    signedIn();
-    show();
-    // The URL comes from the owner's own view.
-    expect((await screen.findAllByText("https://agent.example/bonded")).length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: "Lost the secret? Get a new one" }));
-    expect(screen.getByText(/The current secret stops working at once/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Make a new secret" }));
-    await waitFor(() =>
-      expect(renew).toHaveBeenCalledWith(
-        { kind: "agent", agentId: "12" },
-        expect.objectContaining({ session: "bonded_ss_owner" }),
-        "https://agent.example/bonded",
+    vi.spyOn(byoaApi, "reverifyAgentUrl").mockRejectedValue(
+      new ApiError(
+        422,
+        "Your URL answered 401: its handler refused Bonded's call. Check that its owner is the wallet you saved this URL with, that its server's clock is right, and that it can reach Bonded's keys.",
       ),
     );
-    expect(await screen.findByText("bonded_as_new")).toBeTruthy();
-    // It must be verified again with the new secret.
-    expect(screen.getByText("Not verified yet")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Verify it now" })).toBeTruthy();
+    signedIn();
+    show();
+    fireEvent.click(await screen.findByRole("button", { name: "Verify it now" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/the wallet you're signed in with/);
   });
 });

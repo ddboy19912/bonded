@@ -8,7 +8,13 @@ import {
   StaticRunnerTokens,
   World,
 } from "@bonded/arena";
-import { type EpisodeMessage, episodeEnv } from "@bondedhq/shared";
+import {
+  type AgentUrlSigner,
+  agentUrlSigner,
+  type EpisodeMessage,
+  episodeEnv,
+  newAgentUrlSigningKey,
+} from "@bondedhq/shared";
 import type { BondedEpisode } from "@bondedhq/sdk";
 import { erc20Abi, type Hex } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
@@ -22,6 +28,8 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 export interface TestArena {
   sandbox: Sandbox;
   gateway: ArenaGateway;
+  /** Bonded's side of Agent URL calls: the key the gateway signs with (served at its keys path). */
+  signer: AgentUrlSigner;
   episode(mode?: "tools" | "chain"): Promise<OpenedEpisode>;
   stop(): Promise<void>;
 }
@@ -44,10 +52,15 @@ export const TASK = {
 
 export async function startArena(): Promise<TestArena> {
   const sandbox = await Sandbox.start();
+  const signer = await agentUrlSigner(await newAgentUrlSigningKey());
   const gateway = new ArenaGateway({
     tokens: new StaticRunnerTokens({}),
     // The Agent URL tests' agents are servers on this machine.
-    agentUrl: { allowLoopback: true, limits: { callsPerMinute: 10_000, callBurst: 1_000 } },
+    agentUrl: {
+      allowLoopback: true,
+      limits: { callsPerMinute: 10_000, callBurst: 1_000 },
+      signer,
+    },
   });
   await gateway.listen();
   const opened: GatewayEpisode[] = [];
@@ -60,6 +73,7 @@ export async function startArena(): Promise<TestArena> {
   return {
     sandbox,
     gateway,
+    signer,
     async episode(mode = "tools") {
       let sessionKey: Hex | undefined;
       let agent: `0x${string}` | undefined;

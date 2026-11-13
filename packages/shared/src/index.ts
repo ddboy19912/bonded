@@ -31,6 +31,7 @@ export * from "./self-serve.js";
 export * from "./observed-rates.js";
 export * from "./allowances.js";
 export * from "./agent-url.js";
+export * from "./webhook-signature.js";
 export * from "./problems.js";
 export * from "./report-fixes.js";
 export * from "./suggested-mandate.js";

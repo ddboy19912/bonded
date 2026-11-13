@@ -37,17 +37,17 @@ export type Hosting = "machine" | "online";
 export const HOSTING_TEXT: Record<Hosting, { title: string; line: string }> = {
   machine: {
     title: "On my computer or server",
-    line: "A small runner next to your agent connects out to Bonded and starts it for each episode. No open ports.",
+    line: "Run one command next to your agent. It connects out to Bonded, so there's nothing to deploy.",
   },
   online: {
-    title: "It's online at a URL",
-    line: "Bonded sends each episode to your agent's HTTPS address. Nothing to install.",
+    title: "On a host like Vercel",
+    line: "Add one file to your app and deploy. Bonded calls it for each test.",
   },
 };
 
 /** Under "Where do you run it?": the answer that fits when the owner isn't sure. */
 export const HOSTING_HINT =
-  "Not sure? Choose On my computer or server: it works for any agent you can start from a terminal.";
+  "Not sure? Choose On my computer or server. It works on Railway, Render and Fly too.";
 
 export const connectionFor = (h: Hosting): Connection => (h === "online" ? "url" : "runner");
 export const hostingFor = (c: Connection): Hosting => (c === "url" ? "online" : "machine");
@@ -88,8 +88,11 @@ export function initCommand(input: {
   token?: string | null;
   gatewayUrl?: string | null;
   apiUrl?: string | null;
+  /** The Agent URL handler's owner: the signed-in wallet, written into the route init adds. */
+  owner?: string | null;
 }): string {
-  if (input.connection === "url") return `npx ${RUNNER_PACKAGE} init --url`;
+  if (input.connection === "url")
+    return `npx ${RUNNER_PACKAGE} init --url${input.owner ? ` --owner ${input.owner}` : ""}`;
   return [
     ...(input.token ? [`BONDED_RUNNER_TOKEN=${input.token}`] : []),
     `npx ${RUNNER_PACKAGE} init`,
@@ -110,7 +113,7 @@ export const INIT_NOTE =
 
 /** What init's `--url` route is, per web framework. */
 export const INIT_URL_NOTE =
-  'It adds the route for your web framework: `app/api/bonded/route.ts` for Next.js, `app.post("/bonded", bondedNodeHandler)` for Express, `app.post("/bonded", (c) => bondedHandler(c.req.raw))` for Hono, or a small `node:http` server on `BONDED_AGENT_PORT` (8787). The handler reads `BONDED_AGENT_SECRET`.';
+  'It adds the route for your web framework: `app/api/bonded/route.ts` for Next.js, `app.post("/bonded", bondedNodeHandler)` for Express, `app.post("/bonded", (c) => bondedHandler(c.req.raw))` for Hono, or a small `node:http` server on `BONDED_AGENT_PORT` (8787). Its `owner` is your wallet, so there is no secret to set.';
 
 /**
  * Keeping the runner up between ratings: the score is renewed only while it is connected. The

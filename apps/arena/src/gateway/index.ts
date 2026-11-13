@@ -7,6 +7,7 @@ export {
   BONDED_OWN_HOSTS,
   DEFAULT_AGENT_URL_LIMITS,
   registrableDomain,
+  SIGNING_KEY_MISSING,
   verifyAgentUrl,
 } from "./agent-url.js";
 export {

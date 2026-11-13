@@ -8,8 +8,8 @@ import {
   runEpisode,
   verifyAgentUrl,
 } from "@bonded/arena";
-import { signBondedRequest } from "@bondedhq/sdk/agent-url";
-import { agentUrlCodeHash, agentUrlVerifyProof } from "@bondedhq/shared/agent-url";
+import { createTestSigner } from "@bondedhq/sdk/agent-url";
+import { agentUrlCodeHash } from "@bondedhq/shared/agent-url";
 import { createServer } from "node:http";
 import { MockLanguageModelV4 } from "ai/test";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -19,26 +19,36 @@ import { calls, messageFor, startArena, type TestArena } from "./arena.js";
 /**
  * Agent URL mode end to end: Bonded's side is played by signed POSTs (as the gateway sends them),
  * the episode is a real Arena Gateway episode, and the agent is an HTTP server: the TypeScript
- * one built on `createBondedHandler`, and the Python example (skipped without python3).
+ * one built on `createBondedHandler`, and the Python example (skipped without python3 or its
+ * `cryptography` package).
  */
-const SECRET = "bonded_as_e2e-test-secret-not-real";
+/** The wallet the test agents belong to: Bonded signs calls for it, and the agents check that. */
+const OWNER = "0x00000000000000000000000000000000000a11ce";
+/** Someone else's wallet: calls signed for it are refused. */
+const MALLORY = "0x000000000000000000000000000000000000bad0";
 const PYTHON_DIR = fileURLToPath(new URL("../../python-agent-url/", import.meta.url));
-const hasPython = spawnSync("python3", ["--version"]).status === 0;
+const hasPython = spawnSync("python3", ["-c", "import cryptography"]).status === 0;
+
+type Sign = (owner: string, body: string) => Promise<Record<string, string>>;
 
 let arena: TestArena;
+/** A stand-in for Bonded's key, for the POSTs this file sends itself. */
+let testSigner: Awaited<ReturnType<typeof createTestSigner>>;
 beforeAll(async () => {
+  testSigner = await createTestSigner();
   arena = await startArena();
 }, 180_000);
 afterAll(async () => {
   await arena?.stop();
 });
 
-async function post(url: string, message: unknown) {
+/** POSTs a message signed for OWNER, with the test signer's key unless `sign` is given. */
+async function post(url: string, message: unknown, sign: Sign = (o, b) => testSigner.sign(o, b)) {
   const body = JSON.stringify(message);
   const started = Date.now();
   const response = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json", ...(await signBondedRequest(SECRET, body)) },
+    headers: { "content-type": "application/json", ...(await sign(OWNER, body)) },
     body,
   });
   return {
@@ -79,7 +89,12 @@ describe("a TypeScript agent on createBondedHandler", () => {
         },
       ],
     });
-    const server = agentUrlServer({ secret: SECRET, model, version: "2026.10.1" });
+    const server = agentUrlServer({
+      owner: OWNER,
+      keys: testSigner.keys,
+      model,
+      version: "2026.10.1",
+    });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/bonded`;
     try {
@@ -89,7 +104,7 @@ describe("a TypeScript agent on createBondedHandler", () => {
         status: 200,
         body: {
           challenge: "challenge-from-a-test-0001",
-          proof: await agentUrlVerifyProof(SECRET, "challenge-from-a-test-0001"),
+          owner: OWNER,
           version: "2026.10.1",
         },
       });
@@ -141,7 +156,7 @@ async function deliveredEpisode(url: string) {
   const agent = new RemoteAgent({
     gateway: arena.gateway,
     sandbox: arena.sandbox,
-    transport: { kind: "url", url, secret: SECRET, registration: url },
+    transport: { kind: "url", url, owner: OWNER, registration: url },
     mode: "tools",
   });
   return runEpisode(arena.sandbox, { agent, attack: attack() });
@@ -149,19 +164,22 @@ async function deliveredEpisode(url: string) {
 
 describe("the gateway's own Agent URL calls, to createBondedHandler", () => {
   it("passes the gateway's verify challenge, and its version becomes the code hash", async () => {
-    const server = agentUrlServer({ secret: SECRET, model: readingModel(), version: "2026.10.2" });
+    const server = agentUrlServer({
+      owner: OWNER,
+      keys: arena.signer.keySet().keys,
+      model: readingModel(),
+      version: "2026.10.2",
+    });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/bonded`;
     try {
-      expect(await verifyAgentUrl(url, SECRET, { client: arena.gateway.agentUrls })).toEqual({
+      expect(await verifyAgentUrl(url, OWNER, { client: arena.gateway.agentUrls })).toEqual({
         ok: true,
         version: "2026.10.2",
         codeHash: agentUrlCodeHash("2026.10.2"),
       });
-      // The wrong secret: the handler refuses the gateway's call.
-      const wrong = await verifyAgentUrl(url, "bonded_as_not-this-agents-secret-000", {
-        client: arena.gateway.agentUrls,
-      });
+      // Saved from another wallet: the gateway signs for that wallet, and the handler refuses.
+      const wrong = await verifyAgentUrl(url, MALLORY, { client: arena.gateway.agentUrls });
       expect(wrong.ok).toBe(false);
     } finally {
       server.closeAllConnections();
@@ -169,21 +187,22 @@ describe("the gateway's own Agent URL calls, to createBondedHandler", () => {
     }
   });
 
-  it("refuses an echo server that sends the challenge back without the proof", async () => {
-    // What a URL that doesn't hold the secret can do: reflect the body it was sent.
+  it("refuses an echo server that sends the challenge back without its owner", async () => {
+    // What a URL that isn't set up for the owner can do: reflect the body it was sent. The owner
+    // isn't in the body, so the answer can't name it.
     const echo = createServer((req, res) => {
       let body = "";
       req.on("data", (chunk: Buffer) => (body += chunk.toString()));
       req.on("end", () => {
         const { challenge } = JSON.parse(body) as { challenge: string };
         res.writeHead(200, { "content-type": "application/json" });
-        res.end(JSON.stringify({ challenge, proof: "0".repeat(64), version: "echo" }));
+        res.end(JSON.stringify({ challenge, version: "echo" }));
       });
     });
     await new Promise<void>((resolve) => echo.listen(0, "127.0.0.1", resolve));
     try {
       const url = `http://127.0.0.1:${(echo.address() as AddressInfo).port}/`;
-      const result = await verifyAgentUrl(url, SECRET, { client: arena.gateway.agentUrls });
+      const result = await verifyAgentUrl(url, OWNER, { client: arena.gateway.agentUrls });
       expect(result.ok).toBe(false);
     } finally {
       echo.closeAllConnections();
@@ -192,7 +211,11 @@ describe("the gateway's own Agent URL calls, to createBondedHandler", () => {
   });
 
   it("accepts the gateway's signed episode delivery, and the episode ends on /done", async () => {
-    const server = agentUrlServer({ secret: SECRET, model: readingModel() });
+    const server = agentUrlServer({
+      owner: OWNER,
+      keys: arena.signer.keySet().keys,
+      model: readingModel(),
+    });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/bonded`;
     try {
@@ -221,12 +244,15 @@ describe.skipIf(!hasPython)("the Python example (examples/python-agent-url)", ()
     expect(run.status).toBe(0);
   });
 
-  it("is rated against a real gateway episode, with requests the SDK signs", async () => {
+  it("is rated against a real gateway episode, checking calls with the gateway's published keys", async () => {
+    const gatewaySign: Sign = (owner, body) => arena.signer.sign(owner, body);
     const agent: ChildProcess = spawn("python3", ["-B", "agent.py"], {
       cwd: PYTHON_DIR,
       env: {
         PATH: process.env.PATH,
-        BONDED_AGENT_SECRET: SECRET,
+        BONDED_AGENT_OWNER: OWNER,
+        // Where it fetches Bonded's keys: the gateway serves the key it signs with.
+        BONDED_API_URL: arena.gateway.url,
         PORT: "0",
         HOST: "127.0.0.1",
         AGENT_VERSION: "py-1",
@@ -245,18 +271,18 @@ describe.skipIf(!hasPython)("the Python example (examples/python-agent-url)", ()
       });
       const url = `http://127.0.0.1:${port}/`;
       expect(
-        await post(url, { type: "verify", challenge: "challenge-from-a-test-0002" }),
+        await post(url, { type: "verify", challenge: "challenge-from-a-test-0002" }, gatewaySign),
       ).toMatchObject({
         status: 200,
-        body: {
-          challenge: "challenge-from-a-test-0002",
-          proof: await agentUrlVerifyProof(SECRET, "challenge-from-a-test-0002"),
-          version: "py-1",
-        },
+        body: { challenge: "challenge-from-a-test-0002", owner: OWNER, version: "py-1" },
       });
+      // A key the gateway doesn't publish: refused.
+      expect(
+        (await post(url, { type: "verify", challenge: "challenge-from-a-test-0003" })).status,
+      ).toBe(401);
 
       const { episode, toolbox, gatewayEpisode, balance } = await arena.episode();
-      expect((await post(url, messageFor(episode))).status).toBe(202);
+      expect((await post(url, messageFor(episode), gatewaySign)).status).toBe(202);
       const done = await gatewayEpisode.done;
       expect(done.finalMessage).toMatch(/swapped/);
       const seen = calls(toolbox);
@@ -266,7 +292,7 @@ describe.skipIf(!hasPython)("the Python example (examples/python-agent-url)", ()
       expect(await balance("tNVDA")).toBeGreaterThan(0n);
 
       // And the gateway's own calls: its verify challenge, and a signed episode it delivers.
-      expect(await verifyAgentUrl(url, SECRET, { client: arena.gateway.agentUrls })).toEqual({
+      expect(await verifyAgentUrl(url, OWNER, { client: arena.gateway.agentUrls })).toEqual({
         ok: true,
         version: "py-1",
         codeHash: agentUrlCodeHash("py-1"),

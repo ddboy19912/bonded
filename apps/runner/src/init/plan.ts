@@ -34,6 +34,11 @@ export interface PlanOptions {
   /** Also add an Agent URL route for the project's web framework. */
   url?: boolean;
   /**
+   * The Agent URL's owner: the wallet the URL is saved from on Bonded (0x and 40 hex digits). It's
+   * public, not a secret. Without it the handler gets a placeholder to fill in.
+   */
+  owner?: string;
+  /**
    * Rewrite files init wrote before even when they were edited since (the diff shows what goes).
    * Off by default: an edited file is kept.
    */
@@ -45,6 +50,8 @@ export interface PlanOptions {
  * rewritten only while it still holds exactly what init would write (or with --overwrite-generated).
  */
 export const MARKER = INIT_MARKER;
+/** What the Agent URL handler's owner says until the owner fills in their wallet. */
+export const OWNER_PLACEHOLDER = "0xYOUR_WALLET";
 /** The guide on the docs site (generated from docs/BRING-YOUR-OWN-AGENT.md). */
 const GUIDE = "https://www.bondedhq.xyz/docs/guides/bring-your-own-agent/";
 
@@ -132,7 +139,7 @@ export function planInit(project: Project, options: PlanOptions = {}): InitPlan 
   plan.notes.push(
     "The vault's variables (BONDED_VAULT_ADDRESS, BONDED_AGENT_KEY, BONDED_ROUTER_ADDRESS, and BONDED_VAULT_RPC_URL / BONDED_VAULT_CHAIN_ID off Robinhood Chain testnet) are read in production only. Until BONDED_VAULT_ADDRESS is set the agent runs as before; while it is rated it never touches them.",
   );
-  if (options.url) urlPlan(plan, files, project, helper);
+  if (options.url) urlPlan(plan, files, project, helper, options.owner);
   return plan;
 }
 
@@ -471,16 +478,31 @@ function balanced(expression: string): boolean {
 // ---------------------------------------------------------------------------------------------
 // Agent URL routes.
 
-function urlPlan(plan: InitPlan, files: Files, project: Project, helper: string): void {
+function urlPlan(
+  plan: InitPlan,
+  files: Files,
+  project: Project,
+  helper: string,
+  owner: string | undefined,
+): void {
   const ts = project.typescript;
   const handlerFile = files.freeHelperPath("bonded-agent-url", "bonded-agent-url");
   files.write(
     plan,
     handlerFile,
-    agentUrlHandler(project, handlerFile, files.specifier(handlerFile, helper), ts),
+    agentUrlHandler(
+      project,
+      handlerFile,
+      files.specifier(handlerFile, helper),
+      ts,
+      owner?.toLowerCase() ?? OWNER_PLACEHOLDER,
+    ),
     "the Agent URL handler",
   );
-  plan.env.push("BONDED_AGENT_SECRET");
+  if (!owner)
+    plan.manual.push(
+      `Put your wallet in owner in ${handlerFile} (in place of ${OWNER_PLACEHOLDER}): the one you save the Agent URL from on Bonded. It's public, not a secret.`,
+    );
   const route = (path: string, text: string, why: string) => files.write(plan, path, text, why);
   let endpoint = "/bonded";
   switch (project.web) {
@@ -523,7 +545,7 @@ function urlPlan(plan: InitPlan, files: Files, project: Project, helper: string)
     `Fill in onEpisode in ${handlerFile}: run your agent on episode.task.goal with the episode's tools.`,
   );
   plan.notes.push(
-    `Next: deploy, then on your agent's page set the Agent URL to https://<your host>${endpoint}, put the agent secret Bonded shows you in BONDED_AGENT_SECRET, press Verify, then run a connection check.`,
+    `Next: deploy, then signed in to Bonded with the wallet in owner, set the Agent URL on your agent's page to https://<your host>${endpoint}, press Verify, then run a connection check.`,
   );
 }
 
@@ -734,19 +756,26 @@ const EPISODE_HINT: Record<Framework, string[]> = {
   unknown: ["const tools = await connectEpisodeTools(episode); // from @bondedhq/sdk/mcp"],
 };
 
-function agentUrlHandler(project: Project, path: string, helper: string, ts: boolean): string {
+function agentUrlHandler(
+  project: Project,
+  path: string,
+  helper: string,
+  ts: boolean,
+  owner: string,
+): string {
   return `${header("Bonded's Agent URL handler")}import { ${ts ? "type BondedHandler, " : ""}createBondedHandler } from "@bondedhq/sdk/agent-url";
 
 let handler${ts ? ": BondedHandler | undefined" : ""};
 
 /**
- * Bonded calls this once per episode, signed with your agent secret (BONDED_AGENT_SECRET). It
- * answers Bonded's verify challenge, acknowledges an episode at once and runs onEpisode in the
- * background, and posts /done when onEpisode resolves.
+ * Bonded calls this once per episode, signed with Bonded's own key for the wallet that saved the
+ * URL; calls for any other wallet are refused. It answers Bonded's verify challenge, acknowledges
+ * an episode at once and runs onEpisode in the background, and posts /done when onEpisode resolves.
  */
 export const bondedHandler${ts ? ": BondedHandler" : ""} = (request, context) => {
   handler ??= createBondedHandler({
-    secret: process.env.BONDED_AGENT_SECRET ?? "",
+    // Your wallet: the one you save this URL from on Bonded. It's public, not a secret.
+    owner: "${owner}",
     ...(process.env.GIT_SHA ? { version: process.env.GIT_SHA } : {}),
     async onEpisode(episode, { signal }) {
       // Run your agent on episode.task.goal with the episode's tools, and stop when signal aborts:

@@ -126,8 +126,8 @@ Remote agents (--agent remote, run or rate; and check):
                            to your agent's own endpoint (https, or http to this machine for a local
                            run). Your agent then needs --public-url to reach the gateway if it
                            isn't on this machine
-  --agent-secret <s>       the secret your agent checks signatures with (or BONDED_AGENT_SECRET;
-                           default: a fresh one, printed)
+  --agent-owner <wallet>   the wallet in your handler's owner (or BONDED_AGENT_OWNER): each call
+                           is signed for it, with a key this run makes and publishes
   --runner-token <t>       the token your runner connects with (default: a fresh one, printed)
   --gateway-port <n>       port for the local gateway (default: 8789)
   --gateway-host <h>       address to listen on (default: 127.0.0.1)
@@ -182,7 +182,7 @@ async function main(): Promise<number> {
       mode: { type: "string", default: "tools" },
       "runner-token": { type: "string" },
       "agent-url": { type: "string" },
-      "agent-secret": { type: "string" },
+      "agent-owner": { type: "string" },
       "gateway-port": { type: "string", default: "8789" },
       "gateway-host": { type: "string", default: "127.0.0.1" },
       "public-url": { type: "string" },

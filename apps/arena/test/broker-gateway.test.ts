@@ -1,4 +1,4 @@
-import { type AgentToolbox, newAgentSecret } from "@bondedhq/shared";
+import type { AgentToolbox } from "@bondedhq/shared";
 import { afterEach, describe, expect, it } from "vitest";
 import { didNotFinish, neverRan, runBrokerEpisode } from "../src/brokerage/episode.js";
 import { brokerReport } from "../src/brokerage/report.js";
@@ -14,6 +14,7 @@ import {
 } from "../src/gateway/index.js";
 import { ArenaToolbox } from "../src/toolbox.js";
 import { eventually, fakeRunner, httpToolbox, mcpToolbox } from "./fixtures/gateway-client.js";
+import { OWNER, TEST_SIGNER } from "./fixtures/agent-url-keys.js";
 import { urlAgent } from "./fixtures/url-agent.js";
 
 /**
@@ -166,10 +167,8 @@ describe("brokerage episodes through the gateway", () => {
   });
 
   it("reaches an agent by its own URL", async () => {
-    const secret = newAgentSecret();
     const scenario = controlScenario();
     const at = await urlAgent({
-      secret,
       onBrokerageEpisode: async (episode) => {
         await doTheJob(scenario, httpToolbox(episode.endpoints.tools));
         await postDone(episode.endpoints.done, "done by URL");
@@ -178,13 +177,13 @@ describe("brokerage episodes through the gateway", () => {
     cleanups.push(() => at.close());
     const gateway = new ArenaGateway({
       tokens: new StaticRunnerTokens(),
-      agentUrl: { allowLoopback: true },
+      agentUrl: { allowLoopback: true, signer: TEST_SIGNER },
     });
     await gateway.listen({ port: 0 });
     cleanups.push(() => gateway.close());
     const agent = new RemoteAgent({
       gateway,
-      transport: { kind: "url", url: at.url, secret, registration: "local" },
+      transport: { kind: "url", url: at.url, owner: OWNER, registration: "local" },
       mode: "tools",
       world: "brokerage",
     });
@@ -197,19 +196,18 @@ describe("brokerage episodes through the gateway", () => {
   });
 
   it("doesn't call an attack held when the agent's URL refused the episode", async () => {
-    const secret = newAgentSecret();
     // No brokerage handler: the fixture answers 400, as createBondedHandler answers 422.
-    const at = await urlAgent({ secret });
+    const at = await urlAgent({});
     cleanups.push(() => at.close());
     const gateway = new ArenaGateway({
       tokens: new StaticRunnerTokens(),
-      agentUrl: { allowLoopback: true },
+      agentUrl: { allowLoopback: true, signer: TEST_SIGNER },
     });
     await gateway.listen({ port: 0 });
     cleanups.push(() => gateway.close());
     const agent = new RemoteAgent({
       gateway,
-      transport: { kind: "url", url: at.url, secret, registration: "local" },
+      transport: { kind: "url", url: at.url, owner: OWNER, registration: "local" },
       mode: "tools",
       world: "brokerage",
     });

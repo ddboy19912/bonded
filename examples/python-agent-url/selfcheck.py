@@ -1,14 +1,16 @@
-"""Self-check for agent.py, standard library only: python3 selfcheck.py
+"""Self-check for agent.py: python3 selfcheck.py (needs `pip install cryptography`).
 
-Starts a stand-in for an episode's gateway (GET /tools, POST /tools/<name>, POST /done) and the
-agent's server, then sends what Bonded sends: a verify challenge, an episode and a cancel, plus
-requests Bonded never sends (bad, stale and replayed signatures). Exits non-zero on any failure.
+Plays Bonded with a key made here: a stand-in gateway serves its public key (GET
+/.well-known/bonded-agent-keys.json) and an episode's tools (GET /tools, POST /tools/<name>,
+POST /done), and every call to the agent is signed with it the way Bonded signs. It sends what
+Bonded sends: a verify challenge, an episode and a cancel, plus requests Bonded never sends
+(another owner, an unknown key, bad, stale and replayed signatures). Exits non-zero on any failure.
 """
 
 from __future__ import annotations
 
+import base64
 import hashlib
-import hmac
 import json
 import os
 import sys
@@ -18,10 +20,41 @@ import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from agent import Agent, make_server, verify_proof  # noqa: E402
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
-SECRET = "bonded_as_selfcheck-secret-not-real"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from agent import KEYS_PATH, Agent, BondedKeys, make_server  # noqa: E402
+
+OWNER = "0x00000000000000000000000000000000000a11ce"
+MALLORY = "0x000000000000000000000000000000000000bad0"
+
+
+def b64url(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
+class Signer:
+    """Bonded's side: an Ed25519 key, its id the first 12 characters of base64url(SHA-256(public key))."""
+
+    def __init__(self):
+        self.key = Ed25519PrivateKey.generate()
+        raw = self.key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+        self.public = {"kid": b64url(hashlib.sha256(raw).digest())[:12], "alg": "Ed25519", "x": b64url(raw)}
+
+    def headers(self, owner: str, body: bytes, timestamp: int | None = None) -> dict[str, str]:
+        ts = int(time.time()) if timestamp is None else timestamp
+        kid = self.public["kid"]
+        signature = self.key.sign(f"v2.{kid}.{ts}.{owner.lower()}.".encode() + body)
+        return {
+            "bonded-timestamp": str(ts),
+            "bonded-owner": owner.lower(),
+            "bonded-signature": f"v2={kid}:{b64url(signature)}",
+        }
+
+
+BONDED = Signer()
+key_fetches: list[str] = []
 TOOLS = [
     {"name": "read_inbox", "description": "", "inputSchema": {"type": "object", "properties": {}}, "writes": False},
     {"name": "get_prices", "description": "", "inputSchema": {"type": "object", "properties": {}}, "writes": False},
@@ -34,6 +67,9 @@ done = threading.Event()
 
 class Gateway(BaseHTTPRequestHandler):
     def do_GET(self):  # noqa: N802
+        if self.path == KEYS_PATH:
+            key_fetches.append(self.path)
+            return self._reply({"keys": [BONDED.public]})
         self._reply({"tools": TOOLS})
 
     def do_POST(self):  # noqa: N802
@@ -62,12 +98,11 @@ def serve(server):
     return f"http://127.0.0.1:{server.server_address[1]}"
 
 
-def post(url, message, secret=SECRET, timestamp=None, raw=None):
+def post(url, message, signer=None, owner=OWNER, timestamp=None, raw=None, headers=None):
     body = raw if raw is not None else json.dumps(message).encode()
-    ts = str(int(time.time()) if timestamp is None else timestamp)
-    sig = hmac.new(secret.encode(), ts.encode() + b"." + body, hashlib.sha256).hexdigest()
+    signed = headers if headers is not None else (signer or BONDED).headers(owner, body, timestamp)
     request = urllib.request.Request(url, data=body, method="POST", headers={
-        "content-type": "application/json", "bonded-timestamp": ts, "bonded-signature": f"v1={sig}",
+        "content-type": "application/json", **signed,
     })
     try:
         with urllib.request.urlopen(request, timeout=10) as response:
@@ -84,17 +119,23 @@ def expect(condition, what):
 
 def main():
     gateway = serve(ThreadingHTTPServer(("127.0.0.1", 0), Gateway))
-    agent = serve(make_server(Agent(SECRET, version="selfcheck-1"), "127.0.0.1", 0))
+    # The agent fetches the keys from the stand-in, as it would from Bonded's API.
+    agent = serve(make_server(Agent(OWNER, BondedKeys(gateway), version="selfcheck-1"), "127.0.0.1", 0))
 
     challenge = "selfcheck-challenge-0001"
     status, body = post(agent, {"type": "verify", "challenge": challenge})
-    expect(status == 200 and body["challenge"] == challenge and body["version"] == "selfcheck-1", "answers a verify challenge")
-    expected = hmac.new(SECRET.encode(), b"verify." + challenge.encode(), hashlib.sha256).hexdigest()
-    expect(body["proof"] == expected == verify_proof(SECRET, challenge), "proves it holds the secret")
+    expect(status == 200 and body == {"challenge": challenge, "owner": OWNER, "version": "selfcheck-1"}, "answers a verify challenge with its owner")
+    expect(key_fetches == [KEYS_PATH], "fetched Bonded's keys")
     expect(post(agent, {"type": "verify", "challenge": "short"})[0] == 400, "refuses a challenge Bonded never sends")
 
-    expect(post(agent, {"type": "verify", "challenge": "x" * 20}, secret="bonded_as_wrong")[0] == 401, "refuses a bad signature")
-    expect(post(agent, {"type": "verify", "challenge": "x" * 20}, timestamp=int(time.time()) - 600)[0] == 401, "refuses a stale timestamp")
+    verify = {"type": "verify", "challenge": "x" * 20}
+    expect(post(agent, verify, owner=MALLORY)[0] == 401, "refuses a call for another owner")
+    expect(post(agent, verify, signer=Signer())[0] == 401, "refuses a key Bonded doesn't publish")
+    expect(len(key_fetches) == 1, "fetches the keys again at most once a minute")
+    forged = BONDED.headers(OWNER, b"{}")
+    expect(post(agent, verify, headers=forged)[0] == 401, "refuses a signature over another body")
+    expect(post(agent, verify, headers={})[0] == 401, "refuses an unsigned call")
+    expect(post(agent, verify, timestamp=int(time.time()) - 600)[0] == 401, "refuses a stale timestamp")
     ts = int(time.time())
     raw = json.dumps({"type": "verify", "challenge": "r" * 20}).encode()
     expect(post(agent, None, timestamp=ts, raw=raw)[0] == 200, "accepts a request once")

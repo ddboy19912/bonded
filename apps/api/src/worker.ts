@@ -51,7 +51,6 @@ import {
   type RemoteAgentFactory,
 } from "./remote-agent.js";
 import { DbHeldOutLedger } from "./runners.js";
-import { SECRET_KEY_MISSING, agentUrlContext, type SecretBox } from "./secrets.js";
 import type { AgentConnection } from "./connections.js";
 import type { Notifier, RatingNotificationType } from "./notifications.js";
 import {
@@ -191,8 +190,6 @@ export interface WorkerOptions {
    * config, a remote rating is refused: the new owner must register it again.
    */
   ownerOf?: (agentId: string) => Promise<string>;
-  /** Decrypts Agent URL secrets (AGENT_URL_SECRET_KEY): needed to rate an agent by its URL. */
-  secrets?: SecretBox;
   /** Tells owners when a rating of their agent finishes, fails or is refused. */
   notifier?: Notifier;
 }
@@ -358,17 +355,7 @@ async function runLocked(
           "the agent's URL isn't set and verified; verify it and rate again",
           true,
         );
-      if (!options.secrets) throw new RatingRefused(SECRET_KEY_MISSING, true);
-      let secret: string;
-      try {
-        secret = options.secrets.decrypt(live.ciphertext, agentUrlContext(live.id));
-      } catch {
-        throw new RatingRefused(
-          "the agent's URL secret can't be used; set the Agent URL again",
-          true,
-        );
-      }
-      reach = { kind: "url", url: live.url, secret, registration: row.agent_id };
+      reach = { kind: "url", url: live.url, owner: live.createdBy, registration: row.agent_id };
     } else if (connection === "runner") reach = { kind: "runner", key: row.agent_id };
     // Reported code must still be what runs: a runner restarted with other code (or a URL that
     // now reports another version) isn't what this rating was queued for.

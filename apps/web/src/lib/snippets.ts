@@ -102,6 +102,9 @@ const kit = await AgentKit.from({
  * The same helpers inside an Agent URL handler: they take the episode Bonded POSTed (BONDED_*
  * isn't set there), so each one is called with `episode`.
  */
+/** In the handler's code until the wallet is known. */
+export const OWNER_PLACEHOLDER = "0xYourWallet";
+
 function urlSnippets(): Snippet[] {
   const lead = "// Inside onEpisode(episode) in your handler (the first tab).\n";
   return [
@@ -162,7 +165,7 @@ export const BROKERAGE_RUNNER_NOTE =
   "Stock trading needs `@bondedhq/runner` 0.1.4 or later, and `@bondedhq/sdk` 0.1.7 or later if you use it.";
 
 /** Told under the brokerage Agent URL snippets. */
-export const BROKERAGE_URL_NOTE = "Stock trading needs `@bondedhq/sdk` 0.1.7 or later.";
+export const BROKERAGE_URL_NOTE = "This handler needs `@bondedhq/sdk` 0.2.0 or later.";
 
 /**
  * Snippets for a stock-trading (brokerage) preview. The episode has no vault or chain: its tools
@@ -170,7 +173,7 @@ export const BROKERAGE_URL_NOTE = "Stock trading needs `@bondedhq/sdk` 0.1.7 or 
  * would not work here: a handler with only `onEpisode` answers 422 to a brokerage episode, and
  * the helpers called with no argument read a vault episode.
  */
-function brokerageSnippets(connection: Connection): Snippet[] {
+function brokerageSnippets(connection: Connection, owner: string): Snippet[] {
   if (connection === "runner")
     return [
       {
@@ -240,7 +243,7 @@ import { bondedAiSdkTools } from "@bondedhq/sdk/ai-sdk";
 import { generateText, stepCountIs } from "ai";
 
 export const POST = createBondedHandler({
-  secret: process.env.BONDED_AGENT_SECRET!,
+  owner: "${owner}", // the wallet you sign in to Bonded with (not a secret)
   version: process.env.GIT_SHA,
   // A stock-trading preview sends brokerage episodes. Without this the handler answers 422.
   async onBrokerageEpisode(episode, { signal }) {
@@ -299,8 +302,10 @@ export function snippets(
   gatewayUrl?: string | null,
   /** What the preview tests the agent on (default vault). */
   world: PreviewWorld = "vault",
+  /** The wallet an Agent URL handler names as its owner (a placeholder until it is known). */
+  owner: string = OWNER_PLACEHOLDER,
 ): Snippet[] {
-  if (world === "brokerage") return brokerageSnippets(connection);
+  if (world === "brokerage") return brokerageSnippets(connection, owner);
   const chain = (s: Snippet): Snippet =>
     mode === "chain" ? { ...s, note: [s.note, CHAIN_NOTE].filter(Boolean).join(" ") } : s;
   if (connection === "runner")
@@ -346,7 +351,7 @@ import { bondedAiSdkTools } from "@bondedhq/sdk/ai-sdk";
 import { generateText, stepCountIs } from "ai";
 
 export const POST = createBondedHandler({
-  secret: process.env.BONDED_AGENT_SECRET!,
+  owner: "${owner}", // the wallet you sign in to Bonded with (not a secret)
   version: process.env.GIT_SHA,
   async onEpisode(episode, { signal }) {
     const tools = await bondedAiSdkTools(episode);
@@ -370,10 +375,10 @@ export const POST = createBondedHandler({
       id: "python",
       label: "Python",
       language: "sh",
-      code: `# A whole Agent URL endpoint, standard library only:
-# examples/python-agent-url/agent.py in the Bonded repository.
-BONDED_AGENT_SECRET=bonded_as_... PORT=8080 python3 agent.py`,
-      note: 'It checks `bonded-signature` (HMAC-SHA256 of the timestamp, a dot and the raw body), answers `verify` with the challenge and its proof (HMAC-SHA256 of `"verify." + the challenge`, keyed with your secret), and replies 202 to an episode before working in the background.',
+      code: `# A whole Agent URL endpoint: examples/python-agent-url/agent.py in the Bonded repository.
+pip install cryptography
+BONDED_AGENT_OWNER=${owner} PORT=8080 python3 agent.py`,
+      note: "It checks each call is signed by Bonded for your wallet, answers the ownership check, and replies 202 to an episode before working in the background.",
       imports: [],
     },
   ];

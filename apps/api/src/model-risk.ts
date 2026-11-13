@@ -10,7 +10,7 @@ import {
   OFFCHAIN_LIBRARY_VERSION,
   indexModelSlug,
   lossPerThousandRuns,
-  signAgentUrlRequest,
+  signWebhookRequest,
   type BondedIndexEntry,
 } from "@bondedhq/shared";
 import { Refused, handle } from "./refused.js";
@@ -345,7 +345,7 @@ export class IndexWebhooks {
           headers: {
             "content-type": "application/json",
             "bonded-event-id": d.eventId,
-            ...(await signAgentUrlRequest(secret, body, this.now())),
+            ...(await signWebhookRequest(secret, body, this.now())),
           },
           body,
           timeoutMs: 10_000,

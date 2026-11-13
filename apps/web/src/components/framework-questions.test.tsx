@@ -38,7 +38,7 @@ describe.each([
     expect(screen.getByText("Where do you run it?")).toBeTruthy();
     for (const f of FRAMEWORKS) expect(radio(FRAMEWORK_TEXT[f].title)).toBeTruthy();
     expect(screen.getByRole("radio", { name: /On my computer or server/ })).toBeTruthy();
-    expect(screen.getByRole("radio", { name: /It's online at a URL/ })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: /On a host like Vercel/ })).toBeTruthy();
     expect(screen.getByText(HOSTING_HINT)).toBeTruthy();
   });
 
@@ -51,7 +51,7 @@ describe.each([
 
   it("answers where it runs, and marks the current answer", () => {
     const { onHosting } = show({ hosting: "online" });
-    expect(screen.getByRole("radio", { name: /It's online at a URL/ })).toHaveProperty(
+    expect(screen.getByRole("radio", { name: /On a host like Vercel/ })).toHaveProperty(
       "checked",
       true,
     );

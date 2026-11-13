@@ -36,7 +36,7 @@
 
 --- /dev/null
 +++ b/src/bonded-agent-url.ts
-@@ -0,0 +1,26 @@
+@@ -0,0 +1,27 @@
 +// Added by `bonded-runner init`: Bonded's Agent URL handler. Edit it freely.
 +// Guide: https://www.bondedhq.xyz/docs/guides/bring-your-own-agent/
 +import { type BondedHandler, createBondedHandler } from "@bondedhq/sdk/agent-url";
@@ -44,13 +44,14 @@
 +let handler: BondedHandler | undefined;
 +
 +/**
-+ * Bonded calls this once per episode, signed with your agent secret (BONDED_AGENT_SECRET). It
-+ * answers Bonded's verify challenge, acknowledges an episode at once and runs onEpisode in the
-+ * background, and posts /done when onEpisode resolves.
++ * Bonded calls this once per episode, signed with Bonded's own key for the wallet that saved the
++ * URL; calls for any other wallet are refused. It answers Bonded's verify challenge, acknowledges
++ * an episode at once and runs onEpisode in the background, and posts /done when onEpisode resolves.
 + */
 +export const bondedHandler: BondedHandler = (request, context) => {
 +  handler ??= createBondedHandler({
-+    secret: process.env.BONDED_AGENT_SECRET ?? "",
++    // Your wallet: the one you save this URL from on Bonded. It's public, not a secret.
++    owner: "0xYOUR_WALLET",
 +    ...(process.env.GIT_SHA ? { version: process.env.GIT_SHA } : {}),
 +    async onEpisode(episode, { signal }) {
 +      // Run your agent on episode.task.goal with the episode's tools, and stop when signal aborts:
@@ -79,10 +80,11 @@
 +);
 
 # By hand
+- Put your wallet in owner in src/bonded-agent-url.ts (in place of 0xYOUR_WALLET): the one you save the Agent URL from on Bonded. It's public, not a secret.
 - Run src/bonded-server.ts next to your agent (it listens on BONDED_AGENT_PORT, default 8787) and put it behind HTTPS.
 - Fill in onEpisode in src/bonded-agent-url.ts: run your agent on episode.task.goal with the episode's tools.
 
 # Variables
-BONDED_VAULT_ADDRESS, BONDED_AGENT_KEY, BONDED_ROUTER_ADDRESS, BONDED_AGENT_SECRET, BONDED_AGENT_PORT
+BONDED_VAULT_ADDRESS, BONDED_AGENT_KEY, BONDED_ROUTER_ADDRESS, BONDED_AGENT_PORT
 # Adds
 @bondedhq/sdk

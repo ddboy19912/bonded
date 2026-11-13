@@ -1,20 +1,28 @@
 import { createServer, type Server } from "node:http";
 import type { LanguageModel } from "ai";
-import { createBondedHandler, toNodeHandler } from "@bondedhq/sdk/agent-url";
+import {
+  type AgentUrlPublicKey,
+  createBondedHandler,
+  toNodeHandler,
+} from "@bondedhq/sdk/agent-url";
 import { runAiSdkAgent } from "./ai-sdk.js";
 
 /**
- * Agent URL mode: no runner. Bonded POSTs each episode to this server; the handler checks the
- * signature, answers at once, and runs the agent in the background. When `onEpisode` resolves the
+ * Agent URL mode: no runner. Bonded POSTs each episode to this server; the handler checks that
+ * Bonded signed the call for `owner`, answers at once, and runs the agent in the background. When `onEpisode` resolves the
  * handler posts `/done` with the usage it returns.
  */
 export function agentUrlServer(options: {
-  secret: string;
+  /** The wallet the URL is saved from on Bonded: calls for any other wallet are refused. */
+  owner: string;
+  /** Bonded's public keys, given directly (tests); fetched from Bonded's API without them. */
+  keys?: AgentUrlPublicKey[];
   model: LanguageModel;
   version?: string;
 }): Server {
   const handler = createBondedHandler({
-    secret: options.secret,
+    owner: options.owner,
+    ...(options.keys ? { keys: options.keys } : {}),
     ...(options.version ? { version: options.version } : {}),
     async onEpisode(episode, { signal }) {
       const { text, usage } = await runAiSdkAgent({

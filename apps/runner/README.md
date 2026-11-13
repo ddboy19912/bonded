@@ -111,7 +111,9 @@ with empty values, to `.env`; it never reads or changes a value there.
 line `app.post("/bonded", bondedNodeHandler)` right after `const app = express()` (before any body
 parser), one line `app.post("/bonded", (c) => bondedHandler(c.req.raw))` after `new Hono()`, or a
 small `node:http` server (`src/bonded-server.ts`). The handler is in `src/bonded-agent-url.ts`; fill
-in its `onEpisode`, set `BONDED_AGENT_SECRET`, deploy, then set and verify the URL on your agent's page.
+in its `onEpisode` and its `owner`, the wallet you save the URL from on Bonded (`--owner <wallet>`
+writes it for you; it's public, not a secret). Deploy, then set and verify the URL on your agent's
+page. Bonded signs every call with its own key, so there's nothing secret to set.
 
 **Connect straight away.** With your runner token (`BONDED_RUNNER_TOKEN`, or `--token`) and
 `--gateway`, `init` then starts the runner with the command after `--` (or your `start` script)
@@ -137,6 +139,7 @@ BONDED_RUNNER_TOKEN=... npx @bondedhq/runner init --yes --gateway https://arena-
 | `--yes`, `-y` | Apply without asking |
 | `--framework <name>` | Skip detection: `eliza`, `agentkit`, `langchain`, `ai-sdk`, `mcp`, `unknown` |
 | `--url` | Also add an Agent URL route |
+| `--owner <wallet>` | With `--url`: the wallet you save the URL from, written into the handler |
 | `--env` | Append the new variables' names to `.env` |
 | `--skip-install` | Don't add `@bondedhq/sdk` |
 | `--overwrite-generated` | Rewrite files init wrote before, even if you edited them |

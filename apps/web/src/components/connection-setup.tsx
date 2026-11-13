@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { RemoteMode } from "@bondedhq/shared";
+import { useAccount } from "wagmi";
 import { runnerCommand, runnerDockerCommand, runnerView } from "../lib/byoa";
 import {
   byoaApi,
@@ -32,7 +33,6 @@ import { ApiError } from "../lib/api";
 import { Badge, Button, Choice, ErrorText, Input, linkClass } from "./ui";
 import { InlineCode } from "./code-block";
 import { Collapsible } from "./collapsible";
-import { CopyButton } from "./copy-button";
 import { CopyBlock, Tabs } from "./copy";
 
 /** The one-line explanations of each choice, shared by every place that offers them. */
@@ -72,7 +72,7 @@ export function ConnectionChoice({
         <legend className="font-medium">Where do you run it?</legend>
         <p className="mb-2 text-xs text-muted">{HOSTING_HINT}</p>
         <div className="grid gap-2 sm:grid-cols-2">
-          {(["url", "runner"] as const).map((c) => (
+          {(["runner", "url"] as const).map((c) => (
             <Choice
               key={c}
               name={`${name}-connection`}
@@ -459,9 +459,9 @@ export function ConnectRunner({
 }
 
 /**
- * Agent URL, in two steps: save the address (Bonded makes the agent's secret, shown once), give
- * the agent the secret, then verify: Bonded sends a signed challenge, and the agent answers with
- * it and a proof made with the secret.
+ * Agent URL: deploy the handler (the owner's wallet is already in the code), then save the URL,
+ * which verifies it at once: Bonded sends a challenge signed for this wallet, and the handler
+ * answers naming it. No secret: Bonded signs every call with its own key.
  */
 export function ConnectUrl({
   subject,
@@ -481,19 +481,41 @@ export function ConnectUrl({
   /** What the agent is tested on: a stock-trading preview's handler needs `onBrokerageEpisode`. */
   world?: PreviewWorld;
 }) {
+  const { address } = useAccount();
   const [url, setUrl] = useState(status.agentUrl?.url ?? initialUrl ?? "");
   const [touched, setTouched] = useState(false);
   const saved = status.agentUrl;
+  // The wallet that saved the URL here (before the saved record is read back).
+  const [savedOwner, setSavedOwner] = useState<string>();
+  // The wallet the handler names as its owner: the one that saved the URL, or this one.
+  const owner = savedOwner ?? saved?.owner ?? address?.toLowerCase();
   const [editing, setEditing] = useState(!saved);
-  const [busy, setBusy] = useState<"save" | "verify" | "secret">();
+  const [busy, setBusy] = useState<"save" | "verify">();
   const [error, setError] = useState<unknown>(null);
-  // The secret, from this page's own save: it is never shown again.
-  const [secret, setSecret] = useState<string>();
   const [verified, setVerified] = useState<{
     version: string | null;
     codeHash: ConnectionStatus["codeHash"];
   }>();
+  // Saved by this page and not verified since: the saved record may still say it was verified.
+  const [fresh, setFresh] = useState(false);
+  // The URL this page just saved: shown and verified until the saved record catches up with it.
+  const [savedUrl, setSavedUrl] = useState<string>();
   const invalid = agentUrlError(url);
+  const verify = async (target: string) => {
+    setBusy("verify");
+    setError(null);
+    try {
+      const r = await byoaApi.reverifyAgentUrl(subject, auth, target);
+      setVerified({ version: r.version, codeHash: r.codeHash });
+      setFresh(false);
+    } catch (e) {
+      setError(e);
+    } finally {
+      setBusy(undefined);
+      await onChanged();
+    }
+  };
+  // Saving verifies at once: the handler is already deployed with this wallet in it.
   const save = async () => {
     setTouched(true);
     if (invalid) return;
@@ -501,57 +523,35 @@ export function ConnectUrl({
     setError(null);
     try {
       const r = await byoaApi.registerAgentUrl(subject, auth, url.trim());
-      setSecret(r.secret);
+      setSavedOwner(r.owner);
+      setSavedUrl(url.trim());
       setVerified(undefined);
+      setFresh(true);
       setEditing(false);
-      await onChanged();
     } catch (e) {
       setError(e);
-    } finally {
       setBusy(undefined);
+      return;
     }
+    await verify(url.trim());
   };
-  const verify = async () => {
-    const target = saved?.url ?? url.trim();
-    setBusy("verify");
-    setError(null);
-    try {
-      const r = await byoaApi.reverifyAgentUrl(subject, auth, target);
-      setVerified({ version: r.version, codeHash: r.codeHash });
-      await onChanged();
-    } catch (e) {
-      setError(e);
-    } finally {
-      setBusy(undefined);
-    }
-  };
-  // A new secret for the saved URL: the old one stops working at once, so it needs verifying (and
-  // checking) again.
-  const renew = async () => {
-    const target = saved?.url ?? url.trim();
-    setBusy("secret");
-    setError(null);
-    try {
-      const r = await byoaApi.newAgentUrlSecret(subject, auth, target);
-      setSecret(r.secret);
-      setVerified(undefined);
-      setRenewed(true);
-      await onChanged();
-    } catch (e) {
-      setError(e);
-    } finally {
-      setBusy(undefined);
-    }
-  };
-  const [renewed, setRenewed] = useState(false);
   const failure = error instanceof ApiError && error.status < 500 ? error.message : undefined;
   const advice = failure ? problemAdvice(failure, "url") : undefined;
-  // After a new secret the URL must be verified again, whatever the record said before.
-  const isVerified = Boolean(verified) || (!renewed && Boolean(saved?.verifiedAt));
+  const isVerified = Boolean(verified) || (!fresh && Boolean(saved?.verifiedAt));
   const codeHash = verified?.codeHash ?? status.codeHash;
   const version = verified?.version ?? saved?.version ?? null;
-  const shownUrl = saved?.url ?? (secret ? url.trim() : undefined);
+  const shownUrl = savedUrl ?? saved?.url ?? (fresh ? url.trim() : undefined);
   const signing = Boolean(busy) && !auth.session;
+  const verifyButton = (label: string, kind?: "secondary") => (
+    <Button
+      size="sm"
+      {...(kind ? { kind } : {})}
+      loading={busy === "verify"}
+      onClick={() => void verify(shownUrl ?? url.trim())}
+    >
+      {busy === "verify" && signing ? "Sign in your wallet…" : label}
+    </Button>
+  );
   return (
     <div className="flex flex-col gap-4 text-sm">
       {editing ? (
@@ -564,7 +564,7 @@ export function ConnectUrl({
         >
           <Input
             label="Your agent's URL"
-            hint="Public https. Bonded POSTs each episode here, signed with your agent's secret."
+            hint="Public https, where the handler below is deployed."
             value={url}
             onChange={setUrl}
             placeholder="https://my-agent.example.com/bonded"
@@ -574,10 +574,10 @@ export function ConnectUrl({
             <Button
               type="submit"
               size="sm"
-              loading={busy === "save"}
+              loading={Boolean(busy)}
               disabled={Boolean(url) && Boolean(invalid)}
             >
-              {busy === "save" && signing ? "Sign in your wallet…" : "Save and get its secret"}
+              {busy && signing ? "Sign in your wallet…" : "Save and verify"}
             </Button>
             {saved && (
               <Button size="sm" kind="ghost" onClick={() => setEditing(false)}>
@@ -585,10 +585,6 @@ export function ConnectUrl({
               </Button>
             )}
           </div>
-          <p className="text-xs text-muted">
-            Saving calls nothing yet. Next you give your agent its secret, then Bonded checks the
-            URL is yours.{saved ? " Saving a new URL makes a new secret." : ""}
-          </p>
         </form>
       ) : isVerified ? (
         <div className="flex flex-col gap-3 border-l-2 border-safe/60 pl-4">
@@ -607,22 +603,14 @@ export function ConnectUrl({
             {codeHash && ` Code hash from ${codeSourceLabel(codeHash)}.`}
           </p>
           <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              kind="secondary"
-              loading={busy === "verify"}
-              onClick={() => void verify()}
-            >
-              {busy === "verify" && signing ? "Sign in your wallet…" : "Verify again"}
-            </Button>
+            {verifyButton("Verify again", "secondary")}
             <Button size="sm" kind="ghost" onClick={() => setEditing(true)}>
               Change the URL
             </Button>
           </div>
-          <NewSecret busy={busy === "secret"} signing={signing} onConfirm={() => void renew()} />
         </div>
       ) : (
-        <div className="flex flex-col gap-4 border-l-2 border-warn/60 pl-4">
+        <div className="flex flex-col gap-3 border-l-2 border-warn/60 pl-4">
           <p className="flex min-w-0 flex-wrap items-center gap-2">
             <Badge tone="warn" dot>
               Not verified yet
@@ -631,49 +619,13 @@ export function ConnectUrl({
               <span className="min-w-0 font-mono text-xs break-all text-soft">{shownUrl}</span>
             )}
           </p>
-          {secret ? (
-            <ol className="flex flex-col gap-4">
-              <li className="flex flex-col gap-2">
-                <p className="font-semibold">1. Add the secret to your agent</p>
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <code className="min-w-0 flex-1 rounded-lg bg-black/40 px-3 py-2 font-mono text-xs break-all text-soft">
-                    {secret}
-                  </code>
-                  <CopyButton text={secret} />
-                </div>
-                <p className="text-xs text-muted">
-                  Set it as <InlineCode>BONDED_AGENT_SECRET</InlineCode> where your agent runs, then
-                  redeploy. It's shown once.
-                </p>
-              </li>
-              <li className="flex flex-col gap-2">
-                <p className="font-semibold">2. Verify</p>
-                <VerifyButtons
-                  busy={busy === "verify"}
-                  signing={signing}
-                  onVerify={() => void verify()}
-                  onChange={() => setEditing(true)}
-                />
-              </li>
-            </ol>
-          ) : (
-            <>
-              <p className="text-xs text-muted">
-                Your agent needs the secret shown when you saved this URL.
-              </p>
-              <VerifyButtons
-                busy={busy === "verify"}
-                signing={signing}
-                onVerify={() => void verify()}
-                onChange={() => setEditing(true)}
-              />
-              <NewSecret
-                busy={busy === "secret"}
-                signing={signing}
-                onConfirm={() => void renew()}
-              />
-            </>
-          )}
+          <p className="text-xs text-muted">Deploy the handler below to this URL, then verify.</p>
+          <div className="flex flex-wrap items-center gap-2">
+            {verifyButton("Verify it now")}
+            <Button size="sm" kind="ghost" onClick={() => setEditing(true)}>
+              Change the URL
+            </Button>
+          </div>
         </div>
       )}
       {failure ? (
@@ -691,69 +643,21 @@ export function ConnectUrl({
         <ErrorText error={error} />
       )}
       {!isVerified && world !== "brokerage" && (
-        <InitCommand framework={framework} connection="url" mode={status.mode} />
+        <InitCommand
+          framework={framework}
+          connection="url"
+          mode={status.mode}
+          owner={owner ?? null}
+        />
       )}
-      <Snippets connection="url" mode={status.mode} framework={framework} world={world} />
-    </div>
-  );
-}
-
-function VerifyButtons({
-  busy,
-  signing,
-  onVerify,
-  onChange,
-}: {
-  busy: boolean;
-  signing: boolean;
-  onVerify: () => void;
-  onChange: () => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Button size="sm" loading={busy} onClick={onVerify}>
-        {busy && signing ? "Sign in your wallet…" : "Verify it now"}
-      </Button>
-      <Button size="sm" kind="ghost" onClick={onChange}>
-        Change the URL
-      </Button>
-    </div>
-  );
-}
-
-/** "Get a new secret", with what it costs said first: the old one stops at once. */
-function NewSecret({
-  busy,
-  signing,
-  onConfirm,
-}: {
-  busy: boolean;
-  signing: boolean;
-  onConfirm: () => void;
-}) {
-  const [asking, setAsking] = useState(false);
-  if (!asking)
-    return (
-      <div>
-        <button type="button" className={`${linkClass} text-xs`} onClick={() => setAsking(true)}>
-          Lost the secret? Get a new one
-        </button>
-      </div>
-    );
-  return (
-    <div role="alert" className="flex flex-col gap-2 border-l-2 border-breach/70 pl-4 text-xs">
-      <p>
-        The current secret stops working at once: until your agent has the new one, it can't answer
-        Bonded. Then verify the URL and run a connection check again.
-      </p>
-      <div className="flex flex-wrap gap-2">
-        <Button size="sm" kind="danger" loading={busy} onClick={onConfirm}>
-          {busy && signing ? "Sign in your wallet…" : "Make a new secret"}
-        </Button>
-        <Button size="sm" kind="ghost" onClick={() => setAsking(false)}>
-          Keep the current one
-        </Button>
-      </div>
+      <Snippets
+        connection="url"
+        mode={status.mode}
+        framework={framework}
+        world={world}
+        {...(owner ? { owner } : {})}
+        open={!isVerified}
+      />
     </div>
   );
 }
@@ -765,6 +669,8 @@ export function Snippets({
   gatewayUrl,
   framework,
   world = "vault",
+  owner,
+  open,
 }: {
   connection: Connection;
   mode: RemoteMode;
@@ -773,8 +679,12 @@ export function Snippets({
   framework?: Framework | undefined;
   /** What the agent is tested on: a stock-trading preview gets the brokerage snippets. */
   world?: PreviewWorld;
+  /** The wallet an Agent URL handler names as its owner, written into the code. */
+  owner?: string;
+  /** Start open (the code is the next thing to do). */
+  open?: boolean;
 }) {
-  const list = snippets(connection, mode, gatewayUrl, world);
+  const list = snippets(connection, mode, gatewayUrl, world, owner);
   const preferred = framework ? snippetIdFor(framework, connection) : undefined;
   const [picked, setSelected] = useState<string>();
   const selected = picked ?? (list.some((s) => s.id === preferred) ? preferred! : list[0]!.id);
@@ -783,6 +693,7 @@ export function Snippets({
     <Collapsible
       className="border-t border-line pt-4"
       contentClassName="pt-4"
+      defaultOpen={Boolean(open)}
       summary={
         connection === "url"
           ? "Code for your agent: the handler and frameworks"

@@ -266,17 +266,23 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 **What to do:** Serve a valid certificate for the host name (not self-signed, not expired).
 
-### agent-secret
+### url-owner
 
-**Message:** Your URL refused Bonded's signed call: it isn't using the agent secret Bonded gave you.
+**Message:** Your URL is set up for another wallet than the one you're signed in with.
 
-**What to do:** Set the agent secret from the Agent URL page in your agent and check the bonded-signature header with it.
+**What to do:** Copy the handler code from the page again (it has the wallet you're signed in with) and redeploy, or sign in with the wallet in your code.
+
+### url-refused
+
+**Message:** Your URL refused Bonded's call (401 or 403).
+
+**What to do:** A handler refuses a call for another wallet, a call whose time is more than 5 minutes off its server's clock, or one signed with a key it couldn't fetch. Check owner in your handler, the server's clock, and that it can reach Bonded's keys, then verify again.
 
 ### verify-answer
 
 **Message:** Your URL answered the verify check, but not correctly.
 
-**What to do:** Answer verify with 200 and JSON { challenge, proof } (proof = HMAC-SHA256 of "verify." + challenge with your secret).
+**What to do:** Answer verify with 200 and JSON { challenge, owner }, where owner is your wallet. createBondedHandler does it for you.
 
 ### url-not-public
 

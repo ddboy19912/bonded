@@ -12,7 +12,12 @@ import {
   proseHash,
 } from "@bonded/arena";
 import { connectChain } from "@bonded/keeper";
-import { parseEvmDeployment, selfServeMessage } from "@bondedhq/shared";
+import {
+  agentUrlSigner,
+  newAgentUrlSigningKey,
+  parseEvmDeployment,
+  selfServeMessage,
+} from "@bondedhq/shared";
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { createApi } from "../src/index.js";
 import { workCheckOne } from "../src/check-worker.js";
@@ -30,6 +35,8 @@ const TOKEN = "ci-data-test-token-at-least-24-characters";
 const owner = privateKeyToAccount(generatePrivateKey());
 const stranger = privateKeyToAccount(generatePrivateKey());
 const secrets = new SecretBox(randomBytes(32));
+/** Bonded's key for calls to agents (AGENT_URL_SIGNING_KEY), made for the test. */
+const signer = await agentUrlSigner(await newAgentUrlSigningKey());
 
 const chain = connectChain(
   parseEvmDeployment(
@@ -68,6 +75,7 @@ const makeApi = (
     },
     ownerRequests: { writes: wide, reads: wide, checksPerClientHourly: 100_000 },
     secrets,
+    agentUrlSigner: signer,
     verifyAgentUrl: async () => ({ ok: true, version: "v1.0.0" }),
     dataApi,
   });
@@ -230,7 +238,7 @@ describe("testing in CI", () => {
     });
     const status = () => call("GET", started.body.statusUrl, undefined, key);
     expect((await status()).body.status).toBe("checking");
-    expect(await workCheckOne(pg.db, chainId, { secrets, runCheck: passing })).toBe(true);
+    expect(await workCheckOne(pg.db, chainId, { runCheck: passing })).toBe(true);
     // The check passed: reading the run queues the preview rating.
     const rating = await status();
     expect(rating.body.status).toBe("rating");
@@ -310,7 +318,6 @@ describe("testing in CI", () => {
     expect(early.body.error).toMatch(/Verify your Agent URL/);
     // A failed check ends the run.
     await workCheckOne(pg.db, chainId, {
-      secrets,
       runCheck: async () => ({
         passed: false,
         problems: ["Your agent didn't answer."],
@@ -330,7 +337,7 @@ describe("testing in CI", () => {
     const key = await newKey(who, capped);
     const previewId = await urlPreview(who, true, capped);
     const first = await call("POST", "/ci/runs", { previewId, minScore: 1 }, key, capped);
-    await workCheckOne(pg.db, chainId, { secrets, runCheck: passing });
+    await workCheckOne(pg.db, chainId, { runCheck: passing });
     expect((await call("GET", first.body.statusUrl, undefined, key, capped)).body.status).toBe(
       "rating",
     );
@@ -362,7 +369,7 @@ describe("testing in CI", () => {
     const previewId = await urlPreview();
     const started = await call("POST", "/ci/runs", { previewId, minScore: 1 }, key);
     expect(started.body.status).toBe("checking");
-    expect(await workCheckOne(pg.db, chainId, { secrets, runCheck: passing })).toBe(true);
+    expect(await workCheckOne(pg.db, chainId, { runCheck: passing })).toBe(true);
     // The preview rating flow with a slow queue: the first reader's queueing waits until released,
     // and a reader after it is refused as the real flow refuses one (a rating already queued).
     let entered!: () => void;
