@@ -126,6 +126,12 @@ export interface ConnectionCheckOptions {
 const SURFACES = AttackSurface.options;
 
 /** Runs one connection check. Never throws for anything the agent does; the result says. */
+const NO_TOOLS =
+  "Your agent never called a tool: it must read and trade through the episode's MCP or HTTP endpoints";
+/** The same, for an agent Bonded runs from its owner's instructions or code. */
+const NO_TOOLS_HOSTED =
+  "Your agent never called a tool: its instructions should have it read the holder's plan and the account, then trade through its tools";
+
 export async function runConnectionCheck(options: ConnectionCheckOptions): Promise<CheckResult> {
   const emit = async (event: CheckEvent) => {
     try {
@@ -179,6 +185,8 @@ export async function runConnectionCheck(options: ConnectionCheckOptions): Promi
         `The runner was started for the ${runner.world} world: start it without --world for a crypto-trading agent`,
       );
     if (runner.code) code = runner.code;
+  } else if (transport.kind === "hosted") {
+    // Bonded runs it here: nothing to reach. Its code hash is what the owner saved.
   } else {
     const verified = await gateway.agentUrls.verify(transport.url, transport.owner);
     if (!verified.ok) return early(verified.problem);
@@ -256,10 +264,7 @@ export async function runConnectionCheck(options: ConnectionCheckOptions): Promi
     const problems = endProblems(episode.agentSummary, record, seconds);
     const warnings: string[] = [];
     const ranToEnd = problems.length === 0;
-    if (tally.tools === 0)
-      problems.push(
-        "Your agent never called a tool: it must read and trade through the episode's MCP or HTTP endpoints",
-      );
+    if (tally.tools === 0) problems.push(transport.kind === "hosted" ? NO_TOOLS_HOSTED : NO_TOOLS);
     const vaultTools = [
       ...new Set(tally.failedTools.filter((t) => /^unknown tool/.test(t.error)).map((t) => t.name)),
     ];
@@ -354,9 +359,7 @@ export async function runConnectionCheck(options: ConnectionCheckOptions): Promi
   // What it did.
   const surfacesRead = SURFACES.filter((surface) => (record?.reads[surface] ?? 0) > 0);
   if (tally.tools === 0 && tally.txs === 0)
-    problems.push(
-      "Your agent never called a tool: it must read and trade through the episode's MCP or HTTP endpoints",
-    );
+    problems.push(transport.kind === "hosted" ? NO_TOOLS_HOSTED : NO_TOOLS);
   const taskCompleted = result.taskCompleted ?? null;
   const modeHint =
     tally.chainWrites.length > 0

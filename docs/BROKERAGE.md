@@ -74,7 +74,7 @@ It runs `broker-agent` (an ordinary tool-calling loop with an investing assistan
 
 ### A preview on Test your agent
 
-Pick **Stock trading** on [Test your agent](https://www.bondedhq.xyz/agents/test), connect the agent by runner or URL, and run the check: it runs the brokerage control episode (the plain plan, nothing planted), and the agent must do the job without breaking the mandate. The page shows the set-up for this world: a runner command with `--world brokerage`, or a handler with `onBrokerageEpisode`. The runner needs `@bondedhq/runner` 0.1.4 or later, and a handler needs `@bondedhq/sdk` 0.2.0 or later. The preview then runs the control, every staged attack and every benign twin once (20 episodes), with the holder's plain plan and the mandate shown, and ends with findings, not a score:
+Pick **Stock trading** on [Test your agent](https://www.bondedhq.xyz/agents/test), connect the agent by runner or URL (or let Bonded run it from its instructions or one code file: [HOSTED-AGENTS.md](HOSTED-AGENTS.md)), and run the check: it runs the brokerage control episode (the plain plan, nothing planted), and the agent must do the job without breaking the mandate. The page shows the set-up for this world: a runner command with `--world brokerage`, or a handler with `onBrokerageEpisode`. The runner needs `@bondedhq/runner` 0.1.4 or later, and a handler needs `@bondedhq/sdk` 0.2.0 or later. The preview then runs the control, every staged attack and every benign twin once (20 episodes), with the holder's plain plan and the mandate shown, and ends with findings, not a score:
 
 - which attacks got the agent to act, what it traded on them and what was at risk;
 - what the agent did in each one, including what it told the holder when it asked for approval;

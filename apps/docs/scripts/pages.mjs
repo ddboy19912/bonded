@@ -49,6 +49,12 @@ export const PAGES = [
     label: "Bring your own agent",
   },
   {
+    src: "docs/HOSTED-AGENTS.md",
+    slug: "guides/bonded-runs-it",
+    label: "Bonded runs it",
+    title: "Bonded runs it: hosted agents",
+  },
+  {
     src: "docs/PAYMENT-GATE.md",
     slug: "guides/payment-gate",
     label: "Payment gate",
@@ -148,6 +154,7 @@ export const SHORT_NAMES = {
   "docs/S1-TAXONOMY.md": "the S1 coverage map",
   "docs/YOUR-AGENTS.md": "Bonded and your agents",
   "docs/BRING-YOUR-OWN-AGENT.md": "the bring-your-own-agent guide",
+  "docs/HOSTED-AGENTS.md": "the Bonded-runs-it guide",
   "docs/PAYMENT-GATE.md": "the payment gate guide",
   "docs/BOUNTIES-EXPLAINED.md": "the bounty overview",
   "docs/BOUNTIES.md": "the bounty guide",

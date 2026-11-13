@@ -23,9 +23,12 @@ export function Estimate({
   subject,
   enabled,
   session,
+  hosted = false,
 }: {
   subject: Subject;
   enabled: boolean;
+  /** Bonded runs the agent and pays for its model: no cost for the owner to estimate. */
+  hosted?: boolean;
   /** The owner's session: the API shows an estimate only to the owner. */
   session?: string;
 }) {
@@ -46,7 +49,11 @@ export function Estimate({
       ) : estimate.data ? (
         <>
           <p>{estimateLines(estimate.data).time}</p>
-          <p className="text-muted">{estimateLines(estimate.data).cost}</p>
+          <p className="text-muted">
+            {hosted
+              ? "Bonded pays for your agent's model calls: there's nothing for you to pay."
+              : estimateLines(estimate.data).cost}
+          </p>
           <p className="text-xs text-muted">
             An estimate, from your last connection check. Attacked episodes can take longer.
           </p>

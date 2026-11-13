@@ -19,8 +19,41 @@ import type { AgentHealth, InboxPage, ServiceStatus, VaultActivityRecord } from 
  */
 
 /** How Bonded reaches the agent: the runner next to it, or a POST to its HTTPS Agent URL. */
-export type Connection = "runner" | "url";
+/** Their runner, their Agent URL, or (a stock-trading preview) Bonded runs the agent itself. */
+export type Connection = "runner" | "url" | "hosted";
 export const CONNECTIONS: readonly Connection[] = ["url", "runner"];
+
+/** A model a hosted agent may run on (HOSTED_MODELS in @bondedhq/shared). */
+export interface HostedModelOption {
+  id: string;
+  label: string;
+}
+
+/** What a hosted preview runs, without its text (the page's summary of it). */
+export interface HostedInfo {
+  kind: "instructions" | "code";
+  model: string;
+  language: "js" | "ts" | null;
+  codeHash: string;
+  savedAt: string;
+}
+
+/** What a hosted preview runs, with its text: its owner's only. */
+export type HostedAgent =
+  | { kind: "instructions"; model: string; instructions: string; codeHash: string; savedAt: string }
+  | {
+      kind: "code";
+      model: string;
+      language: "js" | "ts";
+      code: string;
+      codeHash: string;
+      savedAt: string;
+    };
+
+/** What the owner saves: instructions on a model, or one code file. */
+export type HostedAgentInput =
+  | { kind: "instructions"; model: string; instructions: string }
+  | { kind: "code"; model: string; language: "js" | "ts"; code: string };
 
 /** What a connection belongs to: a preview (no vault, no bond), or an agent on chain. */
 export type Subject = { kind: "preview"; id: string } | { kind: "agent"; agentId: string };
@@ -295,6 +328,8 @@ export interface PreviewRecord {
   passingCheck?: CheckSummary | null;
   /** Bonded can reach the agent now. */
   ready?: boolean;
+  /** A hosted preview: what is saved for Bonded to run (null until something is). */
+  hosted?: HostedInfo | null;
   /** The code hash the owner declared, if any (the rest is reported). */
   declaredCodeHash?: string | null;
   /** Waiting to start: how many previews or official ratings are ahead of it. */
@@ -334,6 +369,10 @@ export interface PreviewAllowance {
   queued: number;
   /** What a preview runs, for the page to say before it starts. */
   plan?: { episodes: number; budgetSeconds: number } | null;
+  /** The same for a stock-trading preview. */
+  brokeragePlan?: { episodes: number; budgetSeconds: number } | null;
+  /** The models Bonded can run an agent on. */
+  hostedModels?: HostedModelOption[];
 }
 
 /** The signed-in wallet's preview session. */
@@ -505,6 +544,19 @@ export const byoaApi = {
       headers: { "Content-Type": "application/json", ...bearer(session).headers },
       body: JSON.stringify(input),
     }),
+  /**
+   * PUT /previews/:id/hosted-agent: save what Bonded runs for a hosted preview. A code file is
+   * loaded on the server first, so a broken one is refused with the reason (422).
+   */
+  saveHostedAgent: (session: string, id: string, input: HostedAgentInput) =>
+    request<HostedInfo>(`${subjectPath({ kind: "preview", id })}/hosted-agent`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...bearer(session).headers },
+      body: JSON.stringify(input),
+    }),
+  /** GET /previews/:id/hosted-agent: what is saved, with its text. */
+  hostedAgent: (session: string, id: string) =>
+    request<HostedAgent>(`${subjectPath({ kind: "preview", id })}/hosted-agent`, bearer(session)),
   /** GET /previews/:id. */
   preview: (session: string, id: string): Promise<PreviewRecord> =>
     request<PreviewRecord>(subjectPath({ kind: "preview", id }), bearer(session)).then(

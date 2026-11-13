@@ -34,11 +34,13 @@ import { Badge, Button, Choice, ErrorText, Input, linkClass } from "./ui";
 import { InlineCode } from "./code-block";
 import { Collapsible } from "./collapsible";
 import { CopyBlock, Tabs } from "./copy";
+import { ConnectHosted } from "./connect-hosted";
 
 /** The one-line explanations of each choice, shared by every place that offers them. */
 export const CONNECTION_TEXT: Record<Connection, { title: string; line: string }> = {
   url: HOSTING_TEXT.online,
   runner: HOSTING_TEXT.machine,
+  hosted: HOSTING_TEXT.bonded,
 };
 export const MODE_TEXT: Record<RemoteMode, { title: string; line: string }> = {
   tools: {
@@ -750,6 +752,18 @@ export function ConnectStep(props: {
     props.subject.kind === "agent"
       ? `agent:${props.subject.agentId}`
       : `preview:${props.subject.id}`;
+  if (props.connection === "hosted")
+    return props.subject.kind === "preview" && props.auth.session ? (
+      <ConnectHosted
+        key={k}
+        previewId={props.subject.id}
+        session={props.auth.session}
+        saved={props.status.hosted}
+        onChanged={props.onChanged}
+      />
+    ) : (
+      <p className="text-sm text-muted">Sign in to give Bonded your agent.</p>
+    );
   return props.connection === "url" ? (
     <ConnectUrl
       key={k}

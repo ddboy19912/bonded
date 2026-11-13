@@ -45,6 +45,11 @@ pnpm demo -- --byo    # also: your own agent (examples/byo-agent) connected thro
                       # running connection checks and previews asked for in the web app
                       # (Agent URLs may be plain http on this machine).
 
+node apps/api/scripts/demo-hosted.mjs   # after pnpm build: Test your agent on this machine, for
+                      # "Bonded runs it" (docs/HOSTED-AGENTS.md). A local chain, API, gateway,
+                      # check and preview workers, and the web app at http://localhost:5180.
+                      # Needs OPENROUTER_API_KEY in the shell: Bonded's key runs the agent's model.
+
 pnpm demo:local       # contracts only: deploy everything to a local chain, then run
                       # register → vault → bond → cover → breach → claim (the claim pays 4,500)
 

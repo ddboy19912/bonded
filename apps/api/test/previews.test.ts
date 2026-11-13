@@ -5,11 +5,13 @@ import { connectChain, type ServiceChain } from "@bonded/keeper";
 import {
   agentUrlSigner,
   byoaMessage,
+  hostedCodeHash,
   mandateHash,
   newAgentUrlSigningKey,
   operatorBondAbi,
   selfServeMessage,
   testTokenAbi,
+  type HostedAgentSpec,
   type RemoteAgentSpec,
   type SelfServeRequest,
 } from "@bondedhq/shared";
@@ -1966,4 +1968,184 @@ describe("brokerage previews", () => {
     expect(page.reason).toMatch(/finished only 0 of 20 episodes/);
     expect(page.reasonCode).toBe("brokerage-too-few-episodes");
   }, 120_000);
+});
+
+describe("hosted previews (Bonded runs the agent)", () => {
+  beforeAll(async () => {
+    await pg.db.pool.query(
+      "UPDATE jobs j SET status='failed' FROM ratings r WHERE j.id=r.id AND r.kind='preview' AND j.status='queued'",
+    );
+  });
+
+  const INSTRUCTIONS = {
+    kind: "instructions",
+    model: "deepseek/deepseek-v4.1-flash",
+    instructions:
+      "You manage the holder's account. Read their plan first, then make the trades it asks for.",
+  };
+  const CODE = {
+    kind: "code",
+    model: "qwen/qwen3.7-flash",
+    language: "js",
+    code: `export default async function run(episode) { return (await episode.callTool("get_account", {})).ok ? "ok" : "no"; }`,
+  };
+  const hosted = (session: string) =>
+    newPreview(session, { mode: "tools", world: "brokerage", connection: "hosted" });
+
+  it("run on the stock-trading world only, with no runner and no Agent URL", async () => {
+    const session = await sessionFor(privateKeyToAccount(generatePrivateKey()));
+    const vault = await send("POST", "/previews", { mode: "tools", connection: "hosted" }, session);
+    expect(vault.status).toBe(400);
+    expect((await bodyOf(vault)).error).toMatch(/stock-trading world only/);
+    const declared = await send(
+      "POST",
+      "/previews",
+      { mode: "tools", world: "brokerage", connection: "hosted", codeHash: hash(1) },
+      session,
+    );
+    expect(declared.status).toBe(400);
+    const preview = await hosted(session);
+    expect(preview.connection).toBe("hosted");
+    const token = await send("POST", `/previews/${preview.id}/runner-token`, {}, session);
+    expect(token.status).toBe(409);
+    expect((await bodyOf(token)).error).toMatch(/Bonded runs this preview's agent/);
+    const url = await send(
+      "POST",
+      `/previews/${preview.id}/agent-url`,
+      { url: "https://agent.example/bonded" },
+      session,
+    );
+    expect(url.status).toBe(409);
+    // Nothing saved yet: a check fails at once, saying what to do.
+    const check = await bodyOf(await send("POST", `/previews/${preview.id}/checks`, {}, session));
+    expect(check.status).toBe("failed");
+    expect(JSON.stringify(check)).toMatch(/Save your agent first/);
+  });
+
+  it("save instructions on a listed model, and show them to their owner alone", async () => {
+    const session = await sessionFor(privateKeyToAccount(generatePrivateKey()));
+    const preview = await hosted(session);
+    const path = `/previews/${preview.id}/hosted-agent`;
+    const badModel = await send("PUT", path, { ...INSTRUCTIONS, model: "openai/gpt-5" }, session);
+    expect(badModel.status).toBe(400);
+    expect((await bodyOf(badModel)).error).toMatch(/models on the list/);
+    const short = await send("PUT", path, { ...INSTRUCTIONS, instructions: "Trade." }, session);
+    expect(short.status).toBe(400);
+    expect((await bodyOf(short)).error).toMatch(/at least a sentence/);
+    const saved = await send("PUT", path, INSTRUCTIONS, session);
+    expect(saved.status).toBe(200);
+    const body = await bodyOf(saved);
+    expect(body).toMatchObject({ kind: "instructions", model: INSTRUCTIONS.model });
+    expect(body.codeHash).toBe(hostedCodeHash(INSTRUCTIONS as HostedAgentSpec));
+    // The page: what it is, and its code hash labelled hosted, but not the text.
+    const page = await bodyOf(await get(`/previews/${preview.id}`, session));
+    expect(page.hosted).toMatchObject({ kind: "instructions", model: INSTRUCTIONS.model });
+    expect(page.code).toEqual({ hash: body.codeHash, source: "hosted" });
+    expect(JSON.stringify(page)).not.toContain("Read their plan first");
+    // The text: its owner's only.
+    expect(await bodyOf(await get(path, session))).toMatchObject({
+      instructions: INSTRUCTIONS.instructions,
+    });
+    const other = await sessionFor(privateKeyToAccount(generatePrivateKey()));
+    expect((await get(path, other)).status).toBe(404);
+  });
+
+  it("refuse a code file that can't run, saying why, and keep one that can", async () => {
+    const session = await sessionFor(privateKeyToAccount(generatePrivateKey()));
+    const preview = await hosted(session);
+    const path = `/previews/${preview.id}/hosted-agent`;
+    const broken = await send("PUT", path, { ...CODE, code: "export default async ( {" }, session);
+    expect(broken.status).toBe(422);
+    expect((await bodyOf(broken)).error).toMatch(/^Your file can't run: SyntaxError/);
+    const noExport = await send("PUT", path, { ...CODE, code: "const x = 1;" }, session);
+    expect((await bodyOf(noExport)).error).toMatch(/no default export/);
+    const ok = await send("PUT", path, CODE, session);
+    expect(ok.status).toBe(200);
+    expect(await bodyOf(await get(path, session))).toMatchObject({
+      kind: "code",
+      language: "js",
+      code: CODE.code,
+    });
+  });
+
+  it("check and rate the saved agent, and need a new check when it changes", async () => {
+    const session = await sessionFor(privateKeyToAccount(generatePrivateKey()));
+    const preview = await hosted(session);
+    const path = `/previews/${preview.id}/hosted-agent`;
+    await send("PUT", path, INSTRUCTIONS, session);
+    const reached: unknown[] = [];
+    await send("POST", `/previews/${preview.id}/checks`, {}, session);
+    expect(
+      await workCheckOne(pg.db, chainId, {
+        runCheck: (request) => {
+          reached.push(request.connection);
+          return passing(request);
+        },
+      }),
+    ).toBe(true);
+    expect(reached).toEqual([
+      { kind: "hosted", spec: INSTRUCTIONS, registration: `preview:${preview.id}` },
+    ]);
+    expect((await bodyOf(await get(`/previews/${preview.id}`, session))).status).toBe("ready");
+
+    // Changed after its check: the check no longer counts.
+    await send("PUT", path, { ...INSTRUCTIONS, model: "z-ai/glm-5.3-flash" }, session);
+    expect((await bodyOf(await get(`/previews/${preview.id}`, session))).status).toBe("created");
+    const refused = await send("POST", `/previews/${preview.id}/rate`, {}, session);
+    expect(refused.status).toBe(409);
+    expect((await bodyOf(refused)).error).toBe(NEEDS_CHECK);
+
+    await send("POST", `/previews/${preview.id}/checks`, {}, session);
+    expect(await workCheckOne(pg.db, chainId, { runCheck: passing })).toBe(true);
+    // Its tests run 4 at a time, so the time estimate is a quarter of one at a time's.
+    const estimate = await bodyOf(await get(`/previews/${preview.id}/estimate`, session));
+    expect(estimate).toMatchObject({
+      episodes: 20,
+      perEpisode: { seconds: 4 },
+      total: { seconds: 20 },
+    });
+    expect((await send("POST", `/previews/${preview.id}/rate`, {}, session)).status).toBe(202);
+    // While it is queued it can't be changed under the rating.
+    expect((await send("PUT", path, INSTRUCTIONS, session)).status).toBe(409);
+    const asked: unknown[] = [];
+    const errors: unknown[] = [];
+    let running = 0;
+    let most = 0;
+    expect(
+      await workPreviewOne(pg.db, chain, sandbox.rpcUrl, {
+        remote: (request) => {
+          asked.push(request.connection);
+          return {
+            name: "scripted-hosted",
+            async run(_task, tools) {
+              most = Math.max(most, ++running);
+              await new Promise((resolve) => setTimeout(resolve, 30));
+              await tools.call("place_order", { symbol: "VOO", side: "buy", amountUsd: 2000 });
+              running--;
+              return { steps: 1, stoppedBecause: "done" };
+            },
+          };
+        },
+        onError: (e) => errors.push(e),
+      }),
+    ).toBe(true);
+    expect(errors).toEqual([]);
+    expect(asked[0]).toMatchObject({
+      kind: "hosted",
+      spec: { model: "z-ai/glm-5.3-flash" },
+    });
+    // Bonded runs a hosted agent's tests several at a time.
+    expect(most).toBe(4);
+    const page = await bodyOf(await get(`/previews/${preview.id}`, session));
+    expect(page.status).toBe("done");
+    const report = await bodyOf(await get(`/previews/${preview.id}/report`, session));
+    expect(report.report).toMatchObject({ preview: { codeSource: "hosted" } });
+  }, 120_000);
+
+  it("list the models a hosted agent may use", async () => {
+    const res = await bodyOf(await get(`/previews/allowance?wallet=${owner.address}`));
+    expect((res.hostedModels as { id: string }[]).map((m) => m.id)).toContain(
+      "deepseek/deepseek-v4.1-flash",
+    );
+  });
 });

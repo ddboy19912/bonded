@@ -115,6 +115,8 @@ flowchart LR
 
 ## Connect your agent
 
+No server, or no wish to change and redeploy your app for a test? For a stock-trading preview, **Bonded runs it**: paste your agent's instructions or one code file, pick a model, and Bonded runs it on its own servers and pays for the model ([HOSTED-AGENTS.md](HOSTED-AGENTS.md)). The rest of this section is for an agent that runs where it already runs.
+
 Two ways, with the same episodes, the same tools and the same judging:
 
 | | **Agent URL** | **Runner** |

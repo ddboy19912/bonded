@@ -518,6 +518,8 @@ export class ArenaGateway {
   });
   private server: Server | undefined;
   private base: string | undefined;
+  /** Where this process reaches its own listener (hosted agents call their endpoints here). */
+  private local: string | undefined;
   private upgradesInFlight = 0;
   private readonly malformed: UpgradeWindow = { start: 0, counts: new Map() };
   private readonly failures: UpgradeWindow = { start: 0, counts: new Map() };
@@ -562,6 +564,8 @@ export class ArenaGateway {
     const address = server.address();
     const port = typeof address === "object" && address ? address.port : options.port;
     this.base ??= `http://${host.includes(":") ? `[${host}]` : host}:${port}`;
+    const loopback = host === "0.0.0.0" || host === "::" ? "127.0.0.1" : host;
+    this.local = `http://${loopback.includes(":") ? `[${loopback}]` : loopback}:${port}`;
     this.refuseOwnUrl(this.base);
     return this.base;
   }
@@ -569,6 +573,14 @@ export class ArenaGateway {
   /** The configured web3_clientVersion for fresh (non-fork) sandboxes. */
   get clientVersion(): string | undefined {
     return this.options.clientVersion;
+  }
+
+  /**
+   * Where this process reaches the gateway itself: the address it listens on, or the base URL
+   * when it isn't listening (mounted in another server).
+   */
+  get localUrl(): string {
+    return this.local ?? this.url;
   }
 
   /** The base URL episode endpoints are built from. */
@@ -944,9 +956,13 @@ export class ArenaGateway {
           message.protocol > RUNNER_PROTOCOL_VERSION
         )
           return session.close(RUNNER_CLOSE.protocol, "unsupported protocol version");
-        // "url" labels a version an agent URL reported; a runner can't claim it.
-        if (message.codeSource === "url")
-          return session.close(RUNNER_CLOSE.protocol, "a runner can't report codeSource url");
+        // "url" labels a version an agent URL reported, and "hosted" an agent Bonded runs itself; a
+        // runner can't claim either.
+        if (message.codeSource === "url" || message.codeSource === "hosted")
+          return session.close(
+            RUNNER_CLOSE.protocol,
+            `a runner can't report codeSource ${message.codeSource}`,
+          );
         clearTimeout(helloTimer);
         session.hello = message;
         session.lastSeen = Date.now();

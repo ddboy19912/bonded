@@ -12,6 +12,7 @@ import type {
   PreviewRecord,
   PreviewSession,
   RatingProgress,
+  HostedInfo,
 } from "./byoa-api";
 
 /**
@@ -34,6 +35,8 @@ export interface ConnectionStatus {
   passing?: CheckSummary | null;
   /** The API's word on whether Bonded can reach the agent now, when it gives one. */
   ready?: boolean;
+  /** A hosted preview: what is saved for Bonded to run. */
+  hosted?: HostedInfo | null;
   codeHash: CodeHashInfo | null;
   gatewayUrl: string | null;
 }
@@ -69,6 +72,7 @@ export function statusFromPreview(p: PreviewRecord): ConnectionStatus {
     lastCheck: p.lastCheck,
     ...(p.passingCheck !== undefined ? { passing: p.passingCheck } : {}),
     ...(p.ready !== undefined ? { ready: p.ready } : {}),
+    ...(p.hosted !== undefined ? { hosted: p.hosted } : {}),
     codeHash: p.codeHash,
     gatewayUrl: p.gatewayUrl,
   };
@@ -77,6 +81,7 @@ export function statusFromPreview(p: PreviewRecord): ConnectionStatus {
 /** Bonded can reach the agent through its chosen connection right now. */
 export function isConnected(s: ConnectionStatus, connection = s.connection): boolean {
   if (s.ready !== undefined && connection === s.connection) return s.ready;
+  if (connection === "hosted") return Boolean(s.hosted);
   return connection === "url"
     ? Boolean(s.agentUrl?.verifiedAt)
     : s.runner?.connected === true && !s.problem;
@@ -141,9 +146,13 @@ export function queueLine(ahead: number): string {
 export function problemAdvice(problem: string, connection: Connection): string | undefined {
   const p = problem.toLowerCase();
   if (p.includes("never called a tool"))
-    return connection === "url"
-      ? "Make sure your handler uses the endpoints in the episode it receives (MCP or HTTP tools), not a fixed address."
-      : "Make sure your agent reads BONDED_MCP_URL or BONDED_TOOLS_URL and calls the tools there. The framework snippets above do it in one call.";
+    return connection === "hosted"
+      ? "Tell your agent, in its instructions, to read the holder's plan and the account first and to trade through its tools. In a code file, call episode.callTool (or pass episode.tools to the model)."
+      : connection === "url"
+        ? "Make sure your handler uses the endpoints in the episode it receives (MCP or HTTP tools), not a fixed address."
+        : "Make sure your agent reads BONDED_MCP_URL or BONDED_TOOLS_URL and calls the tools there. The framework snippets above do it in one call.";
+  if (connection === "hosted" && p.includes("the agent failed"))
+    return "Fix the error it names in your file, save it again, and run the check. What your file printed is under the result.";
   if (p.includes("exited with code") || p.includes("crashed"))
     return "Run your agent command on its own to see the error, fix it, then run the check again.";
   if (p.includes("didn't make the trade") || p.includes("did not make the trade"))
@@ -252,6 +261,8 @@ export function codeSourceLabel(info: CodeHashInfo): string {
       return `the git commit of your agent's folder${detail}, with uncommitted changes${byRunner}`;
     case "unpinned":
       return `your agent's command and entry file, not pinned to a version (set a git commit or image digest)${byRunner}`;
+    case "hosted":
+      return "what you saved for Bonded to run: its instructions or code, and the model";
     case "url":
     case "url-version": // the older name
       return info.detail

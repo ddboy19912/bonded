@@ -1,4 +1,5 @@
 import CodeMirror from "@uiw/react-codemirror";
+import { javascript } from "@codemirror/lang-javascript";
 import { yaml } from "@codemirror/lang-yaml";
 import { createTheme } from "@uiw/codemirror-themes";
 import { tags as t } from "@lezer/highlight";
@@ -28,19 +29,26 @@ const aurora = createTheme({
   ],
 });
 
-/** A YAML editor with line numbers and syntax colours, for attack specs. */
+/**
+ * A code editor with line numbers and syntax colours: YAML for attack specs (the default), or
+ * JavaScript and TypeScript for an agent Bonded runs.
+ */
 export function CodeEditor({
   value,
   onChange,
   placeholder,
   invalid,
   label,
+  language = "yaml",
+  minHeight = "300px",
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   invalid?: boolean;
   label: string;
+  language?: "yaml" | "js" | "ts";
+  minHeight?: string;
 }) {
   return (
     <div className={`overflow-hidden ${invalid ? "ring-1 ring-breach/50" : ""}`}>
@@ -48,9 +56,9 @@ export function CodeEditor({
         value={value}
         onChange={onChange}
         theme={aurora}
-        extensions={[yaml()]}
+        extensions={[language === "yaml" ? yaml() : javascript({ typescript: language === "ts" })]}
         placeholder={placeholder}
-        minHeight="300px"
+        minHeight={minHeight}
         maxHeight="480px"
         aria-label={label}
         basicSetup={{ foldGutter: false, highlightActiveLineGutter: true, autocompletion: false }}

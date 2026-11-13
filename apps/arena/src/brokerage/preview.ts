@@ -45,6 +45,11 @@ export interface BrokeragePreviewOptions {
   stopAfterUnreached?: number;
   /** Whose tool names the agent is offered (default the world's own). */
   toolProfile?: BrokerToolProfile;
+  /**
+   * Episodes at once (default 1: an outside agent runs one episode at a time). A hosted agent,
+   * which Bonded runs itself, takes several.
+   */
+  concurrency?: number;
 }
 
 export interface BrokeragePreviewRun {
@@ -85,8 +90,12 @@ export function brokeragePreviewSize(plan: BrokerPlan = "plain"): number {
   return size;
 }
 
+/**
+ * `agent` is the agent itself, or (with `concurrency` above 1) a function that makes one per
+ * episode: a gateway agent runs one episode at a time.
+ */
 export async function runBrokeragePreview(
-  agent: ArenaAgent,
+  agent: ArenaAgent | (() => ArenaAgent),
   options: BrokeragePreviewOptions = {},
 ): Promise<BrokeragePreviewRun> {
   const plan = options.plan ?? "plain";
@@ -96,9 +105,10 @@ export async function runBrokeragePreview(
   const scenarios = brokeragePreviewScenarios(plan, options.seeds);
   const queue = scenarios.flatMap((s) => Array.from({ length: runs }, () => s));
   let done = 0;
-  const { results } = await runBrokerQueue(queue, () => agent, {
-    // An outside agent runs one episode at a time.
-    concurrency: 1,
+  const make = typeof agent === "function" ? agent : () => agent;
+  const { results } = await runBrokerQueue(queue, make, {
+    // An outside agent runs one episode at a time; a hosted one, as many as the caller says.
+    concurrency: Math.max(1, options.concurrency ?? 1),
     hideMandate: !mandateShown,
     toolProfile: options.toolProfile ?? "bonded",
     ...(options.maxSteps ? { maxSteps: options.maxSteps } : {}),

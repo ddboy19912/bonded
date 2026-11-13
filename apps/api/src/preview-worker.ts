@@ -11,7 +11,12 @@ import {
   runBrokeragePreview,
 } from "@bonded/arena";
 import { json, previewKey, type Database, type PreviewOutcome } from "@bonded/db";
-import type { AgentMode, AttackSpec, ChatClient } from "@bondedhq/shared";
+import {
+  HOSTED_PREVIEW_CONCURRENCY,
+  type AgentMode,
+  type AttackSpec,
+  type ChatClient,
+} from "@bondedhq/shared";
 import type { ServiceChain } from "@bonded/keeper";
 import type { Hex } from "viem";
 import { ratingLibrary } from "./library.js";
@@ -29,7 +34,7 @@ import {
   previewRatingPlan,
   type RemoteRatingPolicy,
 } from "./remote-policy.js";
-import type { AgentConnection } from "./connections.js";
+import { hostedSpecOf, type AgentConnection } from "./connections.js";
 import type { Notifier } from "./notifications.js";
 import { PREVIEW_LABEL } from "./previews.js";
 
@@ -118,7 +123,7 @@ async function runPreview(
     preview_id: string;
     owner: string;
     mode: AgentMode;
-    connection: "runner" | "url";
+    connection: "runner" | "url" | "hosted";
     world: "vault" | "brokerage";
     tool_names: "bonded" | "alpaca";
   };
@@ -131,34 +136,44 @@ async function runPreview(
    * its findings would say nothing.
    */
   const runBrokerageJob = async (reach: AgentConnection): Promise<PreviewOutcome> => {
-    const agent = remoteAgentFor(
-      options.remote,
-      {
-        agentKey: key,
-        chainId: chain.deployment.chainId,
-        agentId: key,
-        mode: "tools",
-        world: "brokerage",
-        codeHash: (row.code_hash ?? `0x${"0".repeat(64)}`) as Hex,
-        connection: reach,
-      },
-      undefined,
-    );
+    // A gateway agent runs one episode at a time: a hosted agent's tests, run several at once,
+    // each get their own.
+    const agentFor = () =>
+      remoteAgentFor(
+        options.remote,
+        {
+          agentKey: key,
+          chainId: chain.deployment.chainId,
+          agentId: key,
+          mode: "tools",
+          world: "brokerage",
+          codeHash: (row.code_hash ?? `0x${"0".repeat(64)}`) as Hex,
+          connection: reach,
+        },
+        undefined,
+      );
+    const agent = agentFor();
     await check();
     await db.markRunning(job);
     const started = Date.now();
+    // A hosted agent's tests run several at a time, each up to its own deadline, under the
+    // preview's ceiling: Bonded runs the agent, so its pace is Bonded's model, not an operator's.
+    const hosted = row.connection === "hosted";
     const budget =
       options.budgetMs ??
-      Math.min(
-        policy.previewBudgetCeilingMs,
-        brokeragePreviewSize("plain") * policy.episodeBudgetMs,
-      );
+      (hosted
+        ? policy.previewBudgetCeilingMs
+        : Math.min(
+            policy.previewBudgetCeilingMs,
+            brokeragePreviewSize("plain") * policy.episodeBudgetMs,
+          ));
     let agentMs = 0;
-    const run = await runBrokeragePreview(agent, {
+    const run = await runBrokeragePreview(hosted ? agentFor : agent, {
       plan: "plain",
       mandateShown: true,
       // The tools under the names the agent was built for (Bonded's own, or its broker's).
       toolProfile: row.tool_names ?? "bonded",
+      ...(hosted ? { concurrency: HOSTED_PREVIEW_CONCURRENCY } : {}),
       beforeEpisode: async (index, total) => {
         if (index === 0)
           await db.setRatingProgress(job, { done: 0, total, startedAt: new Date(started) });
@@ -228,7 +243,9 @@ async function runPreview(
       const now = await db.currentConnection(key, row.connection);
       if (now.code?.hash.toLowerCase() !== String(row.code_hash).toLowerCase())
         throw new RatingRefused(
-          "the agent now reports different code than when this preview was queued; run a connection check and rate again",
+          row.connection === "hosted"
+            ? "the agent was changed after this preview was queued; run a connection check and rate again"
+            : "the agent now reports different code than when this preview was queued; run a connection check and rate again",
           true,
         );
     }
@@ -412,8 +429,14 @@ async function runPreview(
 async function reachFor(
   db: Database,
   key: string,
-  connection: "runner" | "url",
+  connection: "runner" | "url" | "hosted",
 ): Promise<AgentConnection> {
+  if (connection === "hosted") {
+    const saved = await db.hostedAgent(key);
+    if (!saved)
+      throw new RatingRefused("the preview has no agent saved; save it and rate again", true);
+    return { kind: "hosted", spec: hostedSpecOf(saved), registration: key };
+  }
   if (connection === "runner") {
     if (!(await db.runnerIsConnected(key)))
       throw new RatingRefused(

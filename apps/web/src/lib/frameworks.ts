@@ -32,9 +32,16 @@ export const FRAMEWORK_LOGO: Record<Framework, string> = {
   python: "/brand/frameworks/python.svg",
 };
 
-/** Where the agent runs, in the owner's words, and the connection each answer means. */
-export type Hosting = "machine" | "online";
+/**
+ * Where the agent runs, in the owner's words, and the connection each answer means. "bonded":
+ * nowhere yet, so Bonded runs it (a hosted preview, stock trading only).
+ */
+export type Hosting = "bonded" | "machine" | "online";
 export const HOSTING_TEXT: Record<Hosting, { title: string; line: string }> = {
+  bonded: {
+    title: "Bonded runs it",
+    line: "Paste its instructions or one code file. Nothing to install or deploy.",
+  },
   machine: {
     title: "On my computer or server",
     line: "Run one command next to your agent. It connects out to Bonded, so there's nothing to deploy.",
@@ -48,9 +55,14 @@ export const HOSTING_TEXT: Record<Hosting, { title: string; line: string }> = {
 /** Under "Where do you run it?": the answer that fits when the owner isn't sure. */
 export const HOSTING_HINT =
   "Not sure? Choose On my computer or server. It works on Railway, Render and Fly too.";
+/** The same, when Bonded can run it: the quickest way to a first result. */
+export const HOSTING_HINT_HOSTED =
+  "Not sure? Choose Bonded runs it: you paste what your agent is told, and the check starts at once.";
 
-export const connectionFor = (h: Hosting): Connection => (h === "online" ? "url" : "runner");
-export const hostingFor = (c: Connection): Hosting => (c === "url" ? "online" : "machine");
+export const connectionFor = (h: Hosting): Connection =>
+  h === "online" ? "url" : h === "bonded" ? "hosted" : "runner";
+export const hostingFor = (c: Connection): Hosting =>
+  c === "url" ? "online" : c === "hosted" ? "bonded" : "machine";
 
 /** The snippet tab that matches each framework (lib/snippets.ts ids). */
 export function snippetIdFor(framework: Framework, connection: Connection): string {
