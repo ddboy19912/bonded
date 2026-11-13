@@ -79,13 +79,15 @@ globalThis.__bondedEpisode = (json) => {
 };
 `;
 
-let engine: Promise<QuickJSWASMModule> | undefined;
-/** The engine is compiled once per process; every run gets its own runtime and memory. */
+/**
+ * A fresh engine for every run: its own WebAssembly instance and memory. One run can't leave
+ * anything behind for the next, and a run that ends mid-way (out of time, a cap, an abort) is
+ * simply dropped with its instance, never torn down handle by handle (QuickJS aborts its whole
+ * instance if a runtime is freed with objects still alive, which would end every later run too).
+ */
 function quickjs(): Promise<QuickJSWASMModule> {
   // The package's types describe its CommonJS build; under ESM its default export is the variant.
-  return (engine ??= newQuickJSWASMModuleFromVariant(
-    RELEASE_SYNC as unknown as QuickJSSyncVariant,
-  ));
+  return newQuickJSWASMModuleFromVariant(RELEASE_SYNC as unknown as QuickJSSyncVariant);
 }
 
 /** What a code agent's run came to. `logs` is what it printed, kept whatever happened. */
@@ -133,6 +135,8 @@ class Sandbox {
   /** Set when the run must end (a cap, an engine error): the run rejects with it. */
   private failure: ((error: Error) => void) | undefined;
   readonly failed: Promise<never>;
+  /** The run is over: late callbacks from the model or tools touch nothing. */
+  closed = false;
 
   constructor(
     module: QuickJSWASMModule,
@@ -184,7 +188,7 @@ class Sandbox {
 
   /** Runs the engine's pending jobs (promise callbacks) until there are none. */
   pump(): void {
-    if (!this.ctx.alive) return;
+    if (this.closed) return;
     const result = this.slice(() => this.runtime.executePendingJobs(-1));
     if (result.error) {
       const error = this.describe(result.error);
@@ -224,14 +228,14 @@ class Sandbox {
       const deferred = ctx.newPromise();
       impl(arg).then(
         (value) => {
-          if (!ctx.alive) return;
+          if (this.closed) return;
           const h = ctx.newString(value);
           deferred.resolve(h);
           h.dispose();
           this.pump();
         },
         (error: unknown) => {
-          if (!ctx.alive) return;
+          if (this.closed) return;
           // A cap, or the model account refusing: the run ends here, whatever the code catches.
           if (error instanceof HostedLimitError || modelAccountStop(error))
             this.fail(error as Error);
@@ -267,13 +271,14 @@ class Sandbox {
     return where ? `${message} ${where.replace(/^at\s+/, "at ")}` : message;
   }
 
+  /**
+   * Ends the run. The engine's instance is the run's own (quickjs()), so nothing is freed handle
+   * by handle: callbacks still in flight see `closed` and do nothing, and the whole instance goes
+   * to the garbage collector with this sandbox.
+   */
   dispose(): void {
-    try {
-      if (this.ctx.alive) this.ctx.dispose();
-      if (this.runtime.alive) this.runtime.dispose();
-    } catch {
-      // Something still held a handle: the memory goes with the runtime either way.
-    }
+    this.closed = true;
+    this.fail(new Error("the episode ended"));
   }
 }
 

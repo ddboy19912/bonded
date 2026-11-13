@@ -1,7 +1,8 @@
 import type { ChatClient, ChatRequest, ChatResponse } from "@bondedhq/shared";
 import { LlmError } from "@bondedhq/shared";
 import { afterEach, describe, expect, it } from "vitest";
-import { runBrokerEpisode } from "../src/brokerage/episode.js";
+import { didNotFinish, runBrokerEpisode } from "../src/brokerage/episode.js";
+import { runBrokeragePreview } from "../src/brokerage/preview.js";
 import { controlScenario } from "../src/brokerage/scenarios.js";
 import { runConnectionCheck } from "../src/check.js";
 import {
@@ -270,6 +271,58 @@ export default async function run() {
     expect(result.agentSummary.finalMessage).toMatch(/not the agent's fault/);
     const remote = (result.agentSummary as { remote?: { bondedProblem?: string } }).remote;
     expect(remote?.bondedProblem).toMatch(/credits/);
+  });
+});
+
+describe("a hosted preview", () => {
+  it("runs its tests four at a time, each on its own gateway agent, and finishes them all", async () => {
+    const g = await gateway();
+    const spec = {
+      kind: "code",
+      model: "deepseek/deepseek-v4.1-flash",
+      language: "js",
+      code: DO_THE_JOB,
+    } as const;
+    const run = await runBrokeragePreview(() => hostedRemote(g, spec), { concurrency: 4 });
+    expect(run.results).toHaveLength(run.scenarios.length);
+    expect(run.results.filter(didNotFinish)).toEqual([]);
+  }, 120_000);
+
+  it("leaves nothing behind when a run is cut off mid-call: the next one runs", async () => {
+    const g = await gateway();
+    const never: ChatClient = { complete: () => new Promise(() => {}) };
+    const stuck = new RemoteAgent({
+      gateway: g,
+      transport: {
+        kind: "hosted",
+        agent: hostedAgent(
+          {
+            kind: "code",
+            model: "deepseek/deepseek-v4.1-flash",
+            language: "js",
+            code: `import OpenAI from "openai"; export default async () => { await new OpenAI().chat.completions.create({ messages: [] }); };`,
+          },
+          { client: never },
+        ),
+        registration: "preview:test",
+      },
+      mode: "tools",
+      world: "brokerage",
+      episodeTimeoutMs: 500,
+    });
+    expect((await runBrokerEpisode(stuck, controlScenario())).agentSummary.finalMessage).toMatch(
+      /timed out/,
+    );
+    const next = await runBrokerEpisode(
+      hostedRemote(g, {
+        kind: "code",
+        model: "deepseek/deepseek-v4.1-flash",
+        language: "js",
+        code: DO_THE_JOB,
+      }),
+      controlScenario(),
+    );
+    expect(next.missed).toEqual([]);
   });
 });
 

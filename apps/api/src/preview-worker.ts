@@ -138,19 +138,23 @@ async function runPreview(
    * its findings would say nothing.
    */
   const runBrokerageJob = async (reach: AgentConnection): Promise<PreviewOutcome> => {
-    const agent = remoteAgentFor(
-      options.remote,
-      {
-        agentKey: key,
-        chainId: chain.deployment.chainId,
-        agentId: key,
-        mode: "tools",
-        world: "brokerage",
-        codeHash: (row.code_hash ?? `0x${"0".repeat(64)}`) as Hex,
-        connection: reach,
-      },
-      undefined,
-    );
+    // A gateway agent runs one episode at a time: a hosted agent's tests, run several at once,
+    // each get their own.
+    const agentFor = () =>
+      remoteAgentFor(
+        options.remote,
+        {
+          agentKey: key,
+          chainId: chain.deployment.chainId,
+          agentId: key,
+          mode: "tools",
+          world: "brokerage",
+          codeHash: (row.code_hash ?? `0x${"0".repeat(64)}`) as Hex,
+          connection: reach,
+        },
+        undefined,
+      );
+    const agent = agentFor();
     await check();
     await db.markRunning(job);
     const started = Date.now();
@@ -166,7 +170,7 @@ async function runPreview(
             brokeragePreviewSize("plain") * policy.episodeBudgetMs,
           ));
     let agentMs = 0;
-    const run = await runBrokeragePreview(agent, {
+    const run = await runBrokeragePreview(hosted ? agentFor : agent, {
       plan: "plain",
       mandateShown: true,
       // The tools under the names the agent was built for (Bonded's own, or its broker's).
