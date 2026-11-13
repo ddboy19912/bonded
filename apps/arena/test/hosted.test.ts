@@ -409,6 +409,84 @@ export default async function run() {
     expect(worstLag).toBeLessThan(200);
   });
 
+  it("can't get past the token cap with calls made at once", async () => {
+    const g = await gateway();
+    // Slow answers, so all five are in flight at once.
+    const asked: unknown[] = [];
+    const slow: ChatClient = {
+      complete: async (request) => {
+        asked.push(request);
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        return say("hi");
+      },
+    };
+    const agent = hostedRemote(
+      g,
+      {
+        kind: "code",
+        model: "deepseek/deepseek-v4.1-flash",
+        language: "js",
+        code: `
+import OpenAI from "openai";
+const ai = new OpenAI();
+export default async () => {
+  const ask = () => ai.chat.completions.create({ messages: [{ role: "user", content: "x".repeat(4000) }], max_tokens: 2000 }).then(() => "ok", (e) => e.message);
+  return (await Promise.all([ask(), ask(), ask(), ask(), ask()])).join(" | ");
+};`,
+      },
+      // Room for two requests of ~1,000 tokens that may answer 2,000 each, not five.
+      { client: slow, limits: { tokens: 7_000 } },
+    );
+    const result = await runBrokerEpisode(agent, controlScenario());
+    expect(asked.length).toBe(2);
+    expect(result.agentSummary.stoppedBecause).toBe("error");
+    expect(result.agentSummary.finalMessage).toMatch(/more than 7,000 model tokens/);
+  });
+
+  it("counts what a call cut off mid-flight may have cost", async () => {
+    const budget = new HostedBudget(10);
+    const g = await gateway();
+    const never: ChatClient = {
+      complete: (_r, options) =>
+        new Promise((_resolve, reject) =>
+          options?.signal?.addEventListener("abort", () => reject(new Error("aborted"))),
+        ),
+    };
+    const agent = new RemoteAgent({
+      gateway: g,
+      transport: {
+        kind: "hosted",
+        agent: hostedAgent(
+          {
+            kind: "instructions",
+            model: "deepseek/deepseek-v4.1-flash",
+            instructions: "Run the account as the holder's plan says.",
+          },
+          { client: never, budget },
+        ),
+        registration: "preview:test",
+      },
+      mode: "tools",
+      world: "brokerage",
+      episodeTimeoutMs: 500,
+    });
+    await runBrokerEpisode(agent, controlScenario());
+    await new Promise((resolve) => setTimeout(resolve, 2_500));
+    expect(budget.spentToday).toBeGreaterThan(0);
+  });
+
+  it("checks body sizes on both sides of the thread, with the same limits", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const worker = await readFile(new URL("../src/hosted/code-worker.ts", import.meta.url), "utf8");
+    const { MAX_CHAT_BODY, MAX_TOOL_ARGS } = await import("../src/hosted/code-agent.js");
+    expect(worker).toContain(
+      `MAX_CHAT_BODY = ${MAX_CHAT_BODY.toLocaleString("en-US").replaceAll(",", "_")}`,
+    );
+    expect(worker).toContain(
+      `MAX_TOOL_ARGS = ${MAX_TOOL_ARGS.toLocaleString("en-US").replaceAll(",", "_")}`,
+    );
+  });
+
   it("can't hand oversized arguments out of the sandbox", async () => {
     const g = await gateway();
     const agent = hostedRemote(g, {

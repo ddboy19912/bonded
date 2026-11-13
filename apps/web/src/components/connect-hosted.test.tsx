@@ -113,6 +113,24 @@ describe("Bonded runs it", () => {
     expect(screen.getByRole("combobox", { name: "Model" }).textContent).toBe("Qwen3.7 Flash");
   });
 
+  it("says when what's saved can't be read, and offers to try again", async () => {
+    const stored = vi
+      .spyOn(byoaApi, "hostedAgent")
+      .mockRejectedValueOnce(new ApiError(503, "Bonded is busy"))
+      .mockResolvedValue({
+        kind: "instructions",
+        model: "qwen/qwen3.7-flash",
+        instructions: "Read the plan first. Trade only what it asks for.",
+        codeHash: SAVED.codeHash,
+        savedAt: SAVED.savedAt,
+      });
+    show({ ...SAVED, kind: "instructions", model: "qwen/qwen3.7-flash", language: null });
+    fireEvent.click(screen.getByRole("button", { name: "Change it" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(stored).toHaveBeenCalledTimes(2));
+    expect(await screen.findByLabelText("Your agent's instructions")).toBeTruthy();
+  });
+
   it("names what is saved in plain words", () => {
     expect(hostedSummary(SAVED)).toBe("A TypeScript file on GLM-5.3 Flash");
     expect(hostedSummary({ ...SAVED, language: "js" })).toBe("A JavaScript file on GLM-5.3 Flash");

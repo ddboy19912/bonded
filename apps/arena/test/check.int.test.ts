@@ -215,6 +215,19 @@ describe("a connection check", () => {
     const closed = await new Promise<number>((resolve) => liar.socket.once("close", resolve));
     expect(closed).toBe(4002);
     expect(gateway.runner("check-chain")).toBeUndefined();
+    // Nor that Bonded ran its code ("hosted").
+    const pretender = await fakeRunner({
+      gateway: gateway.url,
+      token: TOKENS.chain,
+      mode: "chain",
+      // Not a source a runner's hello type allows: sent anyway, as a lying runner would.
+      hello: { codeHash: `0x${"ef".repeat(32)}`, codeSource: "hosted" as "url" },
+    });
+    cleanup.push(() => pretender.close());
+    expect(await new Promise<number>((resolve) => pretender.socket.once("close", resolve))).toBe(
+      4002,
+    );
+    expect(gateway.runner("check-chain")).toBeUndefined();
   });
 
   it("says when the agent never called a tool", async () => {

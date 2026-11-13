@@ -46,6 +46,8 @@ export const HOSTED_LIMITS: HostedLimits = {
 export class HostedBudget {
   private day = "";
   private spent = 0;
+  /** What calls in flight may still cost, counted before they're made (see `reserve`). */
+  private reserved = 0;
   constructor(readonly dailyUsd: number) {}
   private roll(now: number) {
     const day = new Date(now).toISOString().slice(0, 10);
@@ -54,16 +56,32 @@ export class HostedBudget {
       this.spent = 0;
     }
   }
+  /** Throws when the day's spending, with what calls in flight may still cost, has reached it. */
   check(now = Date.now()): void {
     this.roll(now);
-    if (this.spent >= this.dailyUsd)
+    if (this.spent + this.reserved >= this.dailyUsd)
       throw new HostedBudgetError(
         "Bonded's daily budget for running agents is used up; run it again tomorrow",
       );
   }
-  record(usd: number, now = Date.now()): void {
+  /**
+   * Admits one call that may cost up to `usd`, counting it at once, so calls made at the same
+   * time (several tests, or one file's parallel calls) can't all pass the check before any cost
+   * is known. Settle it with `settle` when the call ends.
+   */
+  reserve(usd: number, now = Date.now()): void {
+    this.check(now);
+    this.reserved += usd;
+  }
+  /** A reserved call ended: its reservation goes, and what it cost is spent. */
+  settle(reservedUsd: number, spentUsd: number, now = Date.now()): void {
     this.roll(now);
-    this.spent += usd;
+    this.reserved = Math.max(0, this.reserved - reservedUsd);
+    this.spent += spentUsd;
+  }
+  /** Spending with no reservation (a cost found out after the fact). */
+  record(usd: number, now = Date.now()): void {
+    this.settle(0, usd, now);
   }
   get spentToday(): number {
     return this.spent;
@@ -120,6 +138,8 @@ export class HostedEpisode {
   private modelCalls = 0;
   private toolCalls = 0;
   private costReported = false;
+  /** Tokens calls still in flight may use (their request and the most they may answer). */
+  private reservedTokens = 0;
   private finished = false;
 
   constructor(
@@ -215,29 +235,50 @@ export class HostedEpisode {
         `the agent made more than ${limits.modelCalls} model calls in one episode`,
       );
     const budget = this.options.budget ?? HOSTED_BUDGET;
-    budget.check();
-    if (this.usage.inputTokens + this.usage.outputTokens > limits.tokens)
-      throw new HostedLimitError(
+    // The token cap holds before a call is made, counting calls still in flight: the request's
+    // own size (about 4 characters a token) and the most it may answer.
+    const tooMany = () =>
+      new HostedLimitError(
         `the agent used more than ${limits.tokens.toLocaleString("en-US")} model tokens in one episode`,
       );
-    const response = await this.options.client.complete(
-      {
-        model: this.options.model,
-        messages: request.messages,
-        ...(request.tools?.length ? { tools: request.tools } : {}),
-        ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
-        max_tokens: Math.min(
-          request.max_tokens ?? limits.maxTokensPerCall,
-          limits.maxTokensPerCall,
-        ),
-      },
-      { signal: this.signal },
+    const left =
+      limits.tokens - this.usage.inputTokens - this.usage.outputTokens - this.reservedTokens;
+    const inputEstimate = Math.ceil(
+      JSON.stringify({ messages: request.messages, tools: request.tools ?? [] }).length / 4,
     );
+    if (inputEstimate >= left) throw tooMany();
+    const maxTokens = Math.min(
+      request.max_tokens ?? limits.maxTokensPerCall,
+      limits.maxTokensPerCall,
+      left - inputEstimate,
+    );
+    const costEstimate = costOf(inputEstimate, maxTokens);
+    budget.reserve(costEstimate);
+    this.reservedTokens += inputEstimate + maxTokens;
+    let response: ChatResponse;
+    try {
+      response = await this.options.client.complete(
+        {
+          model: this.options.model,
+          messages: request.messages,
+          ...(request.tools?.length ? { tools: request.tools } : {}),
+          ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
+          max_tokens: maxTokens,
+        },
+        { signal: this.signal },
+      );
+    } catch (error) {
+      // Sent but never answered (cancelled, timed out): what it may have cost is counted.
+      budget.settle(costEstimate, costEstimate);
+      throw error;
+    } finally {
+      this.reservedTokens -= inputEstimate + maxTokens;
+    }
     const input = response.usage?.prompt_tokens ?? 0;
     const output = response.usage?.completion_tokens ?? 0;
     this.usage.inputTokens += input;
     this.usage.outputTokens += output;
-    budget.record(response.usage?.cost ?? costOf(input, output));
+    budget.settle(costEstimate, response.usage?.cost ?? costOf(input, output));
     if (response.usage?.cost !== undefined) {
       this.usage.costUsd = (this.usage.costUsd ?? 0) + response.usage.cost;
       this.costReported = true;

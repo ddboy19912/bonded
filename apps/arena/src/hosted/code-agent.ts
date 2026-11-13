@@ -23,9 +23,13 @@ import { HostedBudgetError, HostedLimitError, type HostedEpisode } from "./episo
  * gateway and the API. docs/HOSTED-AGENTS.md is the owner-facing guide.
  */
 
-/** The most the sandbox may hand out in one model request, and in one tool call's arguments. */
-const MAX_CHAT_BODY = 1_000_000;
-const MAX_TOOL_ARGS = 64_000;
+/**
+ * The most the sandbox may hand out in one model request, and in one tool call's arguments. The
+ * thread checks them before sending (code-worker.ts); this side checks again, since what arrives
+ * from the thread is never trusted. Kept equal (a test compares them).
+ */
+export const MAX_CHAT_BODY = 1_000_000;
+export const MAX_TOOL_ARGS = 64_000;
 
 export interface SandboxLimits {
   memoryBytes: number;

@@ -105,9 +105,11 @@ export function ConnectHosted({
     enabled: Boolean(saved),
     staleTime: Infinity,
   });
+  // Once the owner has typed, what is saved never overwrites it.
+  const [dirty, setDirty] = useState(false);
   useEffect(() => {
     const h = stored.data;
-    if (!h) return;
+    if (!h || dirty) return;
     setKind(h.kind);
     setModel(h.model);
     if (h.kind === "instructions") setInstructions(h.instructions);
@@ -151,6 +153,7 @@ export function ConnectHosted({
 
   const upload = async (picked: File | undefined) => {
     if (!picked) return;
+    setDirty(true);
     setCode(await picked.text());
     setLanguage(/\.(ts|mts|cts)$/i.test(picked.name) ? "ts" : "js");
     setKind("code");
@@ -178,6 +181,21 @@ export function ConnectHosted({
         <div>
           <Button size="sm" kind="secondary" onClick={() => setEditing(true)}>
             Change it
+          </Button>
+        </div>
+      </div>
+    );
+
+  // Editing what is saved: wait for it, or say it couldn't be read, rather than show an empty form.
+  if (saved && !dirty && stored.isPending)
+    return <p className="text-sm text-muted">Loading what you saved…</p>;
+  if (saved && !dirty && stored.isError)
+    return (
+      <div className="flex flex-col gap-2 text-sm">
+        <ErrorText error={stored.error} />
+        <div>
+          <Button size="sm" kind="secondary" onClick={() => void stored.refetch()}>
+            Try again
           </Button>
         </div>
       </div>
@@ -223,7 +241,7 @@ export function ConnectHosted({
           <textarea
             id="hosted-instructions"
             value={instructions}
-            onChange={(e) => setInstructions(e.target.value)}
+            onChange={(e) => (setDirty(true), setInstructions(e.target.value))}
             rows={9}
             placeholder={INSTRUCTIONS_EXAMPLE}
             aria-invalid={touched && instructionsProblem ? true : undefined}
@@ -298,7 +316,7 @@ export function ConnectHosted({
           >
             <CodeEditor
               value={code}
-              onChange={setCode}
+              onChange={(v) => (setDirty(true), setCode(v))}
               label="Your agent's file"
               language={language}
               minHeight="320px"

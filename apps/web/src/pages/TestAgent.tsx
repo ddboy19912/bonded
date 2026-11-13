@@ -656,7 +656,7 @@ export function TestAgent() {
                   Previews run one at a time, after official ratings.
                 </dd>
               </div>
-              {(p?.connection ?? connection) === "hosted" ? (
+              {(changing ? connection : (p?.connection ?? connection)) === "hosted" ? (
                 <div>
                   <dt className="font-medium">Bonded pays for the model</dt>
                   <dd className="mt-0.5 text-muted">

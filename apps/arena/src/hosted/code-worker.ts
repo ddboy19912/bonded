@@ -47,6 +47,13 @@ export type CodeWorkerReply =
   | { t: "reply"; id: number; ok: true; value: string }
   | { t: "reply"; id: number; ok: false; error: string };
 
+/**
+ * The most the sandbox may hand out in one model request, and in one tool call's arguments. Kept
+ * equal to code-agent.ts's, which checks again on its side (a test compares them).
+ */
+export const MAX_CHAT_BODY = 1_000_000;
+export const MAX_TOOL_ARGS = 64_000;
+
 /** The file's name in errors and stack traces. */
 const FILE = "agent.js";
 
@@ -93,6 +100,14 @@ port.on("message", (m: CodeWorkerReply) => {
   else waiting.reject(new Error(m.error));
 });
 function host(fn: "chat" | "tool", body: string): Promise<string> {
+  if (fn === "chat" && body.length > MAX_CHAT_BODY)
+    return Promise.reject(
+      new Error(`a model request may be at most ${MAX_CHAT_BODY / 1_000_000} MB`),
+    );
+  if (fn === "tool" && body.length > MAX_TOOL_ARGS)
+    return Promise.reject(
+      new Error(`a tool call's arguments may be at most ${MAX_TOOL_ARGS / 1000} KB`),
+    );
   const id = ++nextId;
   return new Promise((resolve, reject) => {
     pending.set(id, { resolve, reject });

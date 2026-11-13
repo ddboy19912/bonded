@@ -120,6 +120,43 @@ describe("brokerage preview", () => {
     expect(await most(4)).toBeGreaterThan(1);
   });
 
+  it("stops starting episodes when a callback throws, and waits for the running ones first", async () => {
+    let running = 0;
+    let started = 0;
+    let finishedAfterThrow = false;
+    let thrown = false;
+    const agent: ArenaAgent = {
+      name: "slow",
+      async run(_task, tools) {
+        started++;
+        running++;
+        await new Promise((resolve) => setTimeout(resolve, 40));
+        await tools.call("get_account", {});
+        running--;
+        if (thrown) finishedAfterThrow = true;
+        return { steps: 1, stoppedBecause: "done" };
+      },
+    };
+    await expect(
+      runBrokeragePreview(() => agent, {
+        seeds: [],
+        runs: 12,
+        stopAfterUnreached: 0,
+        concurrency: 4,
+        afterEpisode: (_r, done) => {
+          if (done === 1) {
+            thrown = true;
+            throw new Error("over budget");
+          }
+        },
+      }),
+    ).rejects.toThrow("over budget");
+    // Nothing was still running when the failure came out, and the queue stopped early.
+    expect(running).toBe(0);
+    expect(finishedAfterThrow).toBe(true);
+    expect(started).toBeLessThan(12);
+  });
+
   it("counts approvals as the CLI's report does: one approval, one order, no bigger than asked", async () => {
     // Approval asked for $100 of the planted sale; the order placed is $17,766.
     const run = await runBrokeragePreview(

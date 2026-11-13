@@ -626,11 +626,19 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
         const inspected = await inspectCodeAgent(spec.code, spec.language);
         if (!inspected.ok) throw new Refused(422, `Your file can't run: ${inspected.problem}.`);
       }
-      const saved = await db.saveHostedAgent(subject.key, {
-        ...spec,
-        codeHash: hostedCodeHash(spec),
-        createdBy: wallet,
-      });
+      const saved = await db.saveHostedAgent(
+        subject.key,
+        { ...spec, codeHash: hostedCodeHash(spec), createdBy: wallet },
+        subject.id,
+      );
+      // Checked again under the lock: a rating may have been queued since.
+      if ("refused" in saved)
+        throw new Refused(
+          409,
+          saved.refused === "stopped"
+            ? "This preview was stopped."
+            : "Its rating has started. Wait for it to finish, then change it.",
+        );
       // A changed agent needs a new check: back to "created" if it had passed one.
       await db.pool.query(
         "UPDATE previews SET status='created',updated_at=now() WHERE id=$1 AND status='ready'",

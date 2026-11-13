@@ -57,8 +57,10 @@ export async function runBrokerQueue(
   let stoppedByCap = false;
   let stoppedEarly: string | undefined;
   let unreached = 0;
+  /** The first callback or episode failure: no worker starts another episode after it. */
+  let failure: { error: unknown } | undefined;
   const worker = async () => {
-    while (next < queue.length && stoppedEarly === undefined) {
+    while (next < queue.length && stoppedEarly === undefined && !failure) {
       if (options.cap?.exceeded) {
         stoppedByCap = true;
         return;
@@ -78,9 +80,16 @@ export async function runBrokerQueue(
         stoppedEarly = `the agent failed ${unreached} episodes in a row without making a tool call (${result.agentSummary.finalMessage ?? "no reason given"})`;
     }
   };
+  // Every worker is waited for before a failure comes out, so none is still running an episode
+  // when the caller moves on.
   await Promise.all(
-    Array.from({ length: Math.max(1, Math.min(options.concurrency, queue.length)) }, worker),
+    Array.from({ length: Math.max(1, Math.min(options.concurrency, queue.length)) }, () =>
+      worker().catch((error: unknown) => {
+        failure ??= { error };
+      }),
+    ),
   );
+  if (failure) throw failure.error;
   return { results, stoppedByCap, ...(stoppedEarly !== undefined ? { stoppedEarly } : {}) };
 }
 

@@ -71,20 +71,28 @@ export function ConnectionCheck({
     void onFinished();
   }, [result, checkId, onFinished]);
 
+  // The check being shown: anything a stream or poll of an earlier one says late is ignored.
+  const followed = useRef<string | undefined>(undefined);
   const follow = (id: string) => {
     const session = auth.session;
     if (!session) return;
+    followed.current = id;
     stop.current = byoaApi.checkEvents(
       id,
       session,
-      (event) => setEvents((list) => [...list, event]),
+      (event) => {
+        if (followed.current === id) setEvents((list) => [...list, event]);
+      },
       // The stream dropped: read the check instead, every 2 seconds, until it has a result.
       () => {
+        if (followed.current !== id) return;
         clearInterval(poll.current);
         poll.current = setInterval(() => {
           byoaApi
             .check(id, session)
-            .then((record) => setEvents(record.events))
+            .then((record) => {
+              if (followed.current === id) setEvents(record.events);
+            })
             .catch(() => {});
         }, 2000);
       },

@@ -2800,9 +2800,18 @@ export class Database {
       codeHash: string;
       createdBy: string;
     },
-  ): Promise<HostedAgentRecord> {
+    /** The preview it belongs to: refused when that is rating or stopped by the time it saves. */
+    previewId?: string,
+  ): Promise<HostedAgentRecord | { refused: string }> {
     return this.transaction(async (c) => {
       await this.lockSubject(c, ownerKey);
+      if (previewId) {
+        const status = (
+          await c.query("SELECT status FROM previews WHERE id=$1 FOR UPDATE", [previewId])
+        ).rows[0]?.status as string | undefined;
+        if (status && ["queued", "starting", "running", "stopped"].includes(status))
+          return { refused: status };
+      }
       await c.query("DELETE FROM hosted_agents WHERE owner_key=$1", [ownerKey]);
       const r = await c.query(
         `INSERT INTO hosted_agents(id,owner_key,kind,model,instructions,language,code,code_hash,created_by)

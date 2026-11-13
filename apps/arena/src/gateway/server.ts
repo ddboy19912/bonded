@@ -948,9 +948,13 @@ export class ArenaGateway {
           message.protocol > RUNNER_PROTOCOL_VERSION
         )
           return session.close(RUNNER_CLOSE.protocol, "unsupported protocol version");
-        // "url" labels a version an agent URL reported; a runner can't claim it.
-        if (message.codeSource === "url")
-          return session.close(RUNNER_CLOSE.protocol, "a runner can't report codeSource url");
+        // "url" labels a version an agent URL reported, and "hosted" an agent Bonded runs itself; a
+        // runner can't claim either.
+        if (message.codeSource === "url" || message.codeSource === "hosted")
+          return session.close(
+            RUNNER_CLOSE.protocol,
+            `a runner can't report codeSource ${message.codeSource}`,
+          );
         clearTimeout(helloTimer);
         session.hello = message;
         session.lastSeen = Date.now();

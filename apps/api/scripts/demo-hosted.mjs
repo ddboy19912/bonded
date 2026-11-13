@@ -41,7 +41,13 @@ const stops = [];
 async function stop(code = 0) {
   if (stopping) return;
   stopping = true;
-  for (const fn of stops.reverse()) await Promise.resolve(fn()).catch(() => {});
+  for (const fn of stops.reverse()) {
+    try {
+      await fn();
+    } catch {
+      // Keep stopping the rest.
+    }
+  }
   process.exit(code);
 }
 process.once("SIGINT", () => void stop(0));
@@ -87,8 +93,17 @@ try {
     gatewayUrl: started.url,
     selfServe: { remote: { ...DEFAULT_REMOTE_POLICY, previewPerWalletDaily: 20 } },
   });
-  const server = serve({ fetch: app.fetch, port: API_PORT });
+  // This machine only: the demo's API has a fixed operator token.
+  const server = serve({ fetch: app.fetch, port: API_PORT, hostname: "127.0.0.1" });
   stops.push(() => new Promise((resolve) => server.close(() => resolve())));
+  await new Promise((resolve, reject) => {
+    server.once("listening", resolve);
+    server.once("error", reject);
+  });
+  server.on("error", (error) => {
+    console.error(error);
+    void stop(1);
+  });
   stops.push(() => app.close?.());
 
   // Checks and previews asked for in the web app, one at a time, as on the hosted service.
