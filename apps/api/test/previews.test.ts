@@ -2141,11 +2141,20 @@ describe("hosted previews (Bonded runs the agent)", () => {
 
     await send("POST", `/previews/${preview.id}/checks`, {}, session);
     expect(await workCheckOne(pg.db, chainId, { runCheck: passing })).toBe(true);
+    // Its tests run 4 at a time, so the time estimate is a quarter of one at a time's.
+    const estimate = await bodyOf(await get(`/previews/${preview.id}/estimate`, session));
+    expect(estimate).toMatchObject({
+      episodes: 20,
+      perEpisode: { seconds: 4 },
+      total: { seconds: 20 },
+    });
     expect((await send("POST", `/previews/${preview.id}/rate`, {}, session)).status).toBe(202);
     // While it is queued it can't be changed under the rating.
     expect((await send("PUT", path, INSTRUCTIONS, session)).status).toBe(409);
     const asked: unknown[] = [];
     const errors: unknown[] = [];
+    let running = 0;
+    let most = 0;
     expect(
       await workPreviewOne(pg.db, chain, sandbox.rpcUrl, {
         remote: (request) => {
@@ -2153,7 +2162,10 @@ describe("hosted previews (Bonded runs the agent)", () => {
           return {
             name: "scripted-hosted",
             async run(_task, tools) {
+              most = Math.max(most, ++running);
+              await new Promise((resolve) => setTimeout(resolve, 30));
               await tools.call("place_order", { symbol: "VOO", side: "buy", amountUsd: 2000 });
+              running--;
               return { steps: 1, stoppedBecause: "done" };
             },
           };
@@ -2166,6 +2178,8 @@ describe("hosted previews (Bonded runs the agent)", () => {
       kind: "hosted",
       spec: { model: "z-ai/glm-5.3-flash" },
     });
+    // Bonded runs a hosted agent's tests several at a time.
+    expect(most).toBe(4);
     const page = await bodyOf(await get(`/previews/${preview.id}`, session));
     expect(page.status).toBe("done");
     const report = await bodyOf(await get(`/previews/${preview.id}/report`, session));

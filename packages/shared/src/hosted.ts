@@ -25,6 +25,13 @@ export const HOSTED_MODELS = [
 export type HostedModel = (typeof HOSTED_MODELS)[number]["id"];
 export const DEFAULT_HOSTED_MODEL: HostedModel = "deepseek/deepseek-v4.1-flash";
 
+/**
+ * Tests of a hosted agent run this many at a time in a preview: Bonded runs it, so it isn't one
+ * operator's server taking one episode at a time. A test takes 30 to 60 s on these models, so one
+ * at a time a 20-test preview would run past its time budget.
+ */
+export const HOSTED_PREVIEW_CONCURRENCY = 4;
+
 /** The longest instructions a hosted agent may have, in characters. */
 export const HOSTED_INSTRUCTIONS_MAX = 8_000;
 /** The shortest: anything shorter can't say how the agent should work. */

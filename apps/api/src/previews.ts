@@ -15,6 +15,7 @@ import {
 import { brokeragePreviewSize, inspectCodeAgent } from "@bonded/arena";
 import {
   HOSTED_MODELS,
+  HOSTED_PREVIEW_CONCURRENCY,
   HostedAgentSpec,
   REMOTE_KIND,
   SELF_SERVE_MAX_AGE_SECONDS,
@@ -1062,7 +1063,13 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
           kind === "preview"
             ? previewPlan(subject.world).episodes
             : expectedRating(policy.repeats, policy).maxEpisodes;
-        return c.json(costEstimate(check, episodes));
+        return c.json(
+          costEstimate(
+            check,
+            episodes,
+            subject.connection === "hosted" ? HOSTED_PREVIEW_CONCURRENCY : 1,
+          ),
+        );
       }),
     );
 
@@ -1520,7 +1527,11 @@ export type PreviewSubject = Subject;
 export type PreviewRatingFlow = ReturnType<typeof ownerRoutes>["previewRating"];
 
 /** The cost estimate for `episodes` episodes, extrapolated from one check (see the route). */
-export function costEstimate(check: ConnectionCheckRecord, episodes: number) {
+/**
+ * What a rating will take, from a passing check. `atOnce`: episodes run at the same time (a hosted
+ * agent's preview runs several), which divides the time, not the cost.
+ */
+export function costEstimate(check: ConnectionCheckRecord, episodes: number, atOnce = 1) {
   const result = (check.result ?? {}) as Partial<ConnectionCheckResult>;
   const seconds = Math.max(1, Math.round((result.durationMs ?? 0) / 1000));
   const usage = result.usage;
@@ -1536,7 +1547,7 @@ export function costEstimate(check: ConnectionCheckRecord, episodes: number) {
       ...(usage ? { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens } : {}),
     },
     total: {
-      seconds: seconds * episodes,
+      seconds: Math.ceil(episodes / Math.max(1, atOnce)) * seconds,
       ...(cost !== undefined ? { costUsd: round(cost * episodes) } : {}),
       ...(usage
         ? {

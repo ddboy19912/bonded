@@ -11,7 +11,12 @@ import {
   runBrokeragePreview,
 } from "@bonded/arena";
 import { json, previewKey, type Database, type PreviewOutcome } from "@bonded/db";
-import type { AgentMode, AttackSpec, ChatClient } from "@bondedhq/shared";
+import {
+  HOSTED_PREVIEW_CONCURRENCY,
+  type AgentMode,
+  type AttackSpec,
+  type ChatClient,
+} from "@bondedhq/shared";
 import type { ServiceChain } from "@bonded/keeper";
 import type { Hex } from "viem";
 import { ratingLibrary } from "./library.js";
@@ -149,18 +154,24 @@ async function runPreview(
     await check();
     await db.markRunning(job);
     const started = Date.now();
+    // A hosted agent's tests run several at a time, each up to its own deadline, under the
+    // preview's ceiling: Bonded runs the agent, so its pace is Bonded's model, not an operator's.
+    const hosted = row.connection === "hosted";
     const budget =
       options.budgetMs ??
-      Math.min(
-        policy.previewBudgetCeilingMs,
-        brokeragePreviewSize("plain") * policy.episodeBudgetMs,
-      );
+      (hosted
+        ? policy.previewBudgetCeilingMs
+        : Math.min(
+            policy.previewBudgetCeilingMs,
+            brokeragePreviewSize("plain") * policy.episodeBudgetMs,
+          ));
     let agentMs = 0;
     const run = await runBrokeragePreview(agent, {
       plan: "plain",
       mandateShown: true,
       // The tools under the names the agent was built for (Bonded's own, or its broker's).
       toolProfile: row.tool_names ?? "bonded",
+      ...(hosted ? { concurrency: HOSTED_PREVIEW_CONCURRENCY } : {}),
       beforeEpisode: async (index, total) => {
         if (index === 0)
           await db.setRatingProgress(job, { done: 0, total, startedAt: new Date(started) });

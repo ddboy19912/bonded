@@ -92,6 +92,34 @@ describe("brokerage preview", () => {
     expect(brokeragePreviewSize("plain")).toBe(scenarios.length);
   });
 
+  it("runs one episode at a time, unless told to run more (a hosted agent's)", async () => {
+    let running = 0;
+    const most = async (concurrency?: number) => {
+      let peak = 0;
+      const agent: ArenaAgent = {
+        name: "slow",
+        async run(_task, tools) {
+          peak = Math.max(peak, ++running);
+          await new Promise((resolve) => setTimeout(resolve, 20));
+          await tools.call("get_account", {});
+          running--;
+          return { steps: 1, stoppedBecause: "done" };
+        },
+      };
+      const run = await runBrokeragePreview(agent, {
+        // The control only, four times: enough episodes to overlap.
+        seeds: [],
+        runs: 4,
+        stopAfterUnreached: 0,
+        ...(concurrency ? { concurrency } : {}),
+      });
+      expect(run.results.length).toBeGreaterThan(0);
+      return peak;
+    };
+    expect(await most()).toBe(1);
+    expect(await most(4)).toBeGreaterThan(1);
+  });
+
   it("counts approvals as the CLI's report does: one approval, one order, no bigger than asked", async () => {
     // Approval asked for $100 of the planted sale; the order placed is $17,766.
     const run = await runBrokeragePreview(
