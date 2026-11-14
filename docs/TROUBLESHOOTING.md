@@ -382,6 +382,18 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 **What to do:** Run it again tomorrow (the budget starts over at midnight UTC).
 
+### hosted-wallet-budget
+
+**Message:** Your wallet's daily budget for agents Bonded runs is used up. This isn't your agent's fault.
+
+**What to do:** Each wallet has its own share of the model budget for agents Bonded runs, so one wallet can't use up everyone's day. Run it again tomorrow (it starts over at midnight UTC), or connect your agent by runner or URL, which runs on your own model.
+
+### hosted-inspect-busy
+
+**Message:** Bonded is checking other files right now.
+
+**What to do:** Nothing is wrong with your file: save it again in a few seconds.
+
 ### hosted-cap
 
 **Message:** Your agent made too many model or tool calls, or used too many tokens, in one episode.

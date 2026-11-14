@@ -38,55 +38,118 @@ export const HOSTED_LIMITS: HostedLimits = {
 };
 
 /**
- * What every hosted agent in this process may spend on Bonded's model key in a day (UTC), in
- * dollars: HOSTED_DAILY_USD, $10 by default. Per-test caps bound one agent; this bounds all of
- * them together, so many wallets can't run up the bill. Past it, hosted tests stop with a
- * sentence that says it's Bonded's limit, not the agent's failure.
+ * Where hosted spending is kept across processes and restarts: what everyone, and one owner, spent
+ * on a day (UTC, YYYY-MM-DD). The API keeps it in Postgres (`hosted_spend`); without a store a
+ * budget counts in memory only, which is what tests use.
+ */
+export interface HostedSpendStore {
+  hostedSpend(day: string, owner: string): Promise<{ total: number; owner: number }>;
+  addHostedSpend(day: string, owner: string, usd: number): Promise<void>;
+}
+
+/**
+ * What hosted agents may spend on Bonded's model key in a day (UTC), in dollars: in all
+ * (HOSTED_DAILY_USD, $10 by default) and for one owner's wallet (HOSTED_WALLET_DAILY_USD, $1 by
+ * default), so a few wallets can't spend everyone's day. Per-test caps bound one agent; this bounds
+ * them together. With a store (`attachStore`) spending is kept in the database, so a deploy or a
+ * second process doesn't start the day over; calls in flight are reserved in memory. Past either
+ * limit, hosted tests stop with a sentence that says it's Bonded's limit, not the agent's failure.
  */
 export class HostedBudget {
   private day = "";
+  /** What this process recorded today (all of it, without a store). */
   private spent = 0;
+  private readonly spentBy = new Map<string, number>();
   /** What calls in flight may still cost, counted before they're made (see `reserve`). */
   private reserved = 0;
-  constructor(readonly dailyUsd: number) {}
-  private roll(now: number) {
+  private readonly reservedBy = new Map<string, number>();
+  private store: HostedSpendStore | undefined;
+
+  constructor(
+    readonly dailyUsd: number,
+    readonly options: { perWalletUsd?: number; store?: HostedSpendStore } = {},
+  ) {
+    this.store = options.store;
+  }
+
+  /** Keep spending in `store` from now on (the API's database), shared by every process. */
+  attachStore(store: HostedSpendStore): void {
+    this.store = store;
+  }
+
+  private roll(now: number): string {
     const day = new Date(now).toISOString().slice(0, 10);
     if (day !== this.day) {
       this.day = day;
       this.spent = 0;
+      this.spentBy.clear();
     }
+    return day;
   }
-  /** Throws when the day's spending, with what calls in flight may still cost, has reached it. */
-  check(now = Date.now()): void {
-    this.roll(now);
-    if (this.spent + this.reserved >= this.dailyUsd)
+
+  private async spending(day: string, owner: string): Promise<{ total: number; owner: number }> {
+    if (this.store) return this.store.hostedSpend(day, owner);
+    return { total: this.spent, owner: this.spentBy.get(owner) ?? 0 };
+  }
+
+  /**
+   * Throws when the day's spending, with what calls in flight may still cost, has reached the
+   * daily limit, or `owner`'s share of it.
+   */
+  async check(owner = "", now = Date.now()): Promise<void> {
+    const day = this.roll(now);
+    const spent = await this.spending(day, owner);
+    if (spent.total + this.reserved >= this.dailyUsd)
       throw new HostedBudgetError(
         "Bonded's daily budget for running agents is used up; run it again tomorrow",
       );
+    const share = this.options.perWalletUsd;
+    if (owner && share !== undefined && spent.owner + (this.reservedBy.get(owner) ?? 0) >= share)
+      throw new HostedBudgetError(
+        `Your wallet's daily budget for agents Bonded runs (${usdText(share)}) is used up; run it again tomorrow`,
+      );
   }
+
   /**
    * Admits one call that may cost up to `usd`, counting it at once, so calls made at the same
    * time (several tests, or one file's parallel calls) can't all pass the check before any cost
    * is known. Settle it with `settle` when the call ends.
    */
-  reserve(usd: number, now = Date.now()): void {
-    this.check(now);
+  async reserve(usd: number, owner = "", now = Date.now()): Promise<void> {
+    await this.check(owner, now);
     this.reserved += usd;
+    this.reservedBy.set(owner, (this.reservedBy.get(owner) ?? 0) + usd);
   }
+
   /** A reserved call ended: its reservation goes, and what it cost is spent. */
-  settle(reservedUsd: number, spentUsd: number, now = Date.now()): void {
-    this.roll(now);
+  async settle(reservedUsd: number, spentUsd: number, owner = "", now = Date.now()): Promise<void> {
+    const day = this.roll(now);
     this.reserved = Math.max(0, this.reserved - reservedUsd);
+    this.reservedBy.set(owner, Math.max(0, (this.reservedBy.get(owner) ?? 0) - reservedUsd));
     this.spent += spentUsd;
+    this.spentBy.set(owner, (this.spentBy.get(owner) ?? 0) + spentUsd);
+    try {
+      await this.store?.addHostedSpend(day, owner, spentUsd);
+    } catch (error) {
+      // The call was made either way: its cost stays counted in this process.
+      console.error(
+        `hosted spending couldn't be saved: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
+
   /** Spending with no reservation (a cost found out after the fact). */
-  record(usd: number, now = Date.now()): void {
-    this.settle(0, usd, now);
+  record(usd: number, owner = "", now = Date.now()): Promise<void> {
+    return this.settle(0, usd, owner, now);
   }
+
+  /** What this process recorded today. */
   get spentToday(): number {
     return this.spent;
   }
 }
+
+const usdText = (usd: number) => `$${usd.toFixed(2)}`;
 
 /** Bonded's own spending limit stopped a hosted test: not the agent's failure. */
 export class HostedBudgetError extends Error {
@@ -96,9 +159,17 @@ export class HostedBudgetError extends Error {
   }
 }
 
-const daily = Number(process.env.HOSTED_DAILY_USD ?? 10);
-/** The process-wide budget hosted agents share (HOSTED_DAILY_USD). */
-export const HOSTED_BUDGET = new HostedBudget(Number.isFinite(daily) && daily >= 0 ? daily : 10);
+const dollars = (value: string | undefined, fallback: number) => {
+  const n = Number(value ?? fallback);
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+};
+/**
+ * The budget hosted agents share (HOSTED_DAILY_USD, HOSTED_WALLET_DAILY_USD). The API attaches its
+ * database with `attachStore` when it starts.
+ */
+export const HOSTED_BUDGET = new HostedBudget(dollars(process.env.HOSTED_DAILY_USD, 10), {
+  perWalletUsd: dollars(process.env.HOSTED_WALLET_DAILY_USD, 1),
+});
 
 /**
  * What a model call costs when the provider doesn't say: a high per-token price for the listed
@@ -152,6 +223,8 @@ export class HostedEpisode {
       fetch?: typeof fetch;
       /** The shared daily budget (default HOSTED_BUDGET). */
       budget?: HostedBudget;
+      /** The owner's wallet, for its share of the daily budget. */
+      owner?: string;
     },
   ) {}
 
@@ -253,7 +326,8 @@ export class HostedEpisode {
       left - inputEstimate,
     );
     const costEstimate = costOf(inputEstimate, maxTokens);
-    budget.reserve(costEstimate);
+    const owner = this.options.owner ?? "";
+    await budget.reserve(costEstimate, owner);
     this.reservedTokens += inputEstimate + maxTokens;
     let response: ChatResponse;
     try {
@@ -269,7 +343,7 @@ export class HostedEpisode {
       );
     } catch (error) {
       // Sent but never answered (cancelled, timed out): what it may have cost is counted.
-      budget.settle(costEstimate, costEstimate);
+      await budget.settle(costEstimate, costEstimate, owner);
       throw error;
     } finally {
       this.reservedTokens -= inputEstimate + maxTokens;
@@ -278,7 +352,7 @@ export class HostedEpisode {
     const output = response.usage?.completion_tokens ?? 0;
     this.usage.inputTokens += input;
     this.usage.outputTokens += output;
-    budget.settle(costEstimate, response.usage?.cost ?? costOf(input, output));
+    await budget.settle(costEstimate, response.usage?.cost ?? costOf(input, output), owner);
     if (response.usage?.cost !== undefined) {
       this.usage.costUsd = (this.usage.costUsd ?? 0) + response.usage.cost;
       this.costReported = true;

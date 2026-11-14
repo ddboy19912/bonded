@@ -43,6 +43,9 @@ const model = z.enum(HOSTED_MODELS.map((m) => m.id) as [HostedModel, ...HostedMo
   error: "Pick one of the models on the list.",
 });
 
+/** A NUL character can't be stored (Postgres text): refused as the owner's input, not a 503. */
+const NO_NUL = "Remove the NUL characters (\\0): they can't be saved.";
+
 export const HostedInstructions = z.strictObject({
   kind: z.literal("instructions"),
   model,
@@ -53,7 +56,8 @@ export const HostedInstructions = z.strictObject({
     .max(
       HOSTED_INSTRUCTIONS_MAX,
       `Keep the instructions under ${HOSTED_INSTRUCTIONS_MAX} characters.`,
-    ),
+    )
+    .refine((text) => !text.includes("\u0000"), NO_NUL),
 });
 
 export const HostedCode = z.strictObject({
@@ -63,7 +67,8 @@ export const HostedCode = z.strictObject({
   code: z
     .string()
     .min(1, "The file is empty.")
-    .max(HOSTED_CODE_MAX, `Keep the file under ${HOSTED_CODE_MAX / 1000} KB.`),
+    .max(HOSTED_CODE_MAX, `Keep the file under ${HOSTED_CODE_MAX / 1000} KB.`)
+    .refine((text) => !text.includes("\u0000"), NO_NUL),
 });
 
 /** What the owner gives Bonded to run. */

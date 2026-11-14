@@ -12,7 +12,13 @@ import {
   type PreviewWorld,
   type RatedCode,
 } from "@bonded/db";
-import { brokeragePreviewSize, inspectCodeAgent } from "@bonded/arena";
+import {
+  brokeragePreviewSize,
+  HOSTED_BUDGET,
+  HostedBudgetError,
+  INSPECT_BUSY,
+  inspectCodeAgent,
+} from "@bonded/arena";
 import {
   HOSTED_MODELS,
   HOSTED_PREVIEW_CONCURRENCY,
@@ -332,7 +338,18 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
   /** Why the subject can't be reached right now, in words for its owner, or undefined. */
   async function connectionProblem(subject: Subject): Promise<string | undefined> {
     const { current } = await connectionNow(subject);
-    if (current.ready) return undefined;
+    if (current.ready) {
+      // A hosted agent runs on Bonded's model key: past the day's budget, or the owner's share of
+      // it, nothing starts, so a check or rating isn't spent on tests that would stop at once.
+      if (subject.connection === "hosted")
+        try {
+          await HOSTED_BUDGET.check(subject.owner);
+        } catch (error) {
+          if (error instanceof HostedBudgetError) return error.message;
+          throw error;
+        }
+      return undefined;
+    }
     if (subject.connection === "hosted")
       return "Save your agent first: its instructions, or its code file.";
     if (subject.connection === "url")
@@ -626,7 +643,10 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
       const spec = parsed.data;
       if (spec.kind === "code") {
         const inspected = await inspectCodeAgent(spec.code, spec.language);
-        if (!inspected.ok) throw new Refused(422, `Your file can't run: ${inspected.problem}.`);
+        if (!inspected.ok)
+          throw inspected.busy
+            ? new Refused(503, INSPECT_BUSY)
+            : new Refused(422, `Your file can't run: ${inspected.problem}.`);
       }
       const saved = await db.saveHostedAgent(
         subject.key,

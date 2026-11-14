@@ -183,11 +183,25 @@ async function runPreview(
         await db.setRatingProgress(job, { done, total, startedAt: new Date(started) });
         agentMs +=
           (episode.agentSummary as { remote?: { durationMs?: number } }).remote?.durationMs ?? 0;
-        if (bondedUrlFailure(episode))
+        if (bondedUrlFailure(episode)) {
+          // An agent Bonded runs stopped on Bonded's side: its budget (no retry helps until
+          // tomorrow) or its model account (worth retrying). Neither is the agent's.
+          if (hosted) {
+            if (/daily budget/i.test(episode.agentSummary.finalMessage ?? ""))
+              throw new RatingRefused(
+                `stopped: Bonded's daily budget for running agents ran out in episode ${done} of ${total}, not because of the agent; rate it again tomorrow`,
+                true,
+              );
+            throw new RatingRefused(
+              `stopped: Bonded couldn't run the agent's model in episode ${done} of ${total}, not because of the agent; it will be retried`,
+              false,
+            );
+          }
           throw new RatingRefused(
             `stopped: Bonded couldn't reach the agent's URL in episode ${done} of ${total}, not because of the agent; it will be retried`,
             false,
           );
+        }
         const elapsed = Date.now() - started;
         if (elapsed > budget)
           throw agentMs > elapsed / 2
@@ -238,7 +252,7 @@ async function runPreview(
   try {
     // Setting up (the sandbox, the held-out set): "starting", then "running".
     await db.markStarting(job);
-    const reach = await reachFor(db, key, row.connection);
+    const reach = await reachFor(db, key, row.connection, row.owner);
     if (row.code_source && row.code_source !== "declared") {
       const now = await db.currentConnection(key, row.connection);
       if (now.code?.hash.toLowerCase() !== String(row.code_hash).toLowerCase())
@@ -430,12 +444,13 @@ async function reachFor(
   db: Database,
   key: string,
   connection: "runner" | "url" | "hosted",
+  owner: string,
 ): Promise<AgentConnection> {
   if (connection === "hosted") {
     const saved = await db.hostedAgent(key);
     if (!saved)
       throw new RatingRefused("the preview has no agent saved; save it and rate again", true);
-    return { kind: "hosted", spec: hostedSpecOf(saved), registration: key };
+    return { kind: "hosted", spec: hostedSpecOf(saved), registration: key, owner };
   }
   if (connection === "runner") {
     if (!(await db.runnerIsConnected(key)))

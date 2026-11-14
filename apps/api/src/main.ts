@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import { serve } from "@hono/node-server";
-import { ArenaGateway, assertHeldOutOffMetaApi, loadDotEnv } from "@bonded/arena";
+import { ArenaGateway, assertHeldOutOffMetaApi, HOSTED_BUDGET, loadDotEnv } from "@bonded/arena";
 import { Database, GateBudgetStore, GateStore, GateWatchStore } from "@bonded/db";
 import {
   GateAnchorJob,
@@ -151,6 +151,8 @@ const ownHosts = [
 const allowLoopback = process.env.AGENT_URL_ALLOW_LOOPBACK === "1";
 const db = new Database(required("DATABASE_URL"));
 await db.migrate();
+// Agents Bonded runs share one daily budget across deploys and processes (0038).
+HOSTED_BUDGET.attachStore(db);
 if (role === "migrate") {
   await db.close();
 } else {

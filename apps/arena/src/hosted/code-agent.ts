@@ -103,6 +103,68 @@ function workerEntry(): { url: URL; execArgv: string[] } {
 /** The thread's own heap: the engine's memory is capped inside it, this is the room around it. */
 const THREAD_RESOURCES = { maxOldGenerationSizeMb: 128, maxYoungGenerationSizeMb: 32 };
 
+/**
+ * How many sandbox threads may run at once in this process. Each may take up to about 160 MB for
+ * up to 10 s, so without a limit, parallel saves of a file that holds memory could run the
+ * process out of it. Saving a file (inspection) gets a few slots and is refused at once when they
+ * are busy; test runs wait for a slot.
+ */
+export class ThreadSlots {
+  private used = 0;
+  private readonly waiting: (() => void)[] = [];
+  constructor(readonly max: number) {}
+
+  /** Takes a slot if one is free. */
+  tryTake(): boolean {
+    if (this.used >= this.max) return false;
+    this.used++;
+    return true;
+  }
+
+  /** Waits for a slot; false if `signal` aborts first. */
+  take(signal?: AbortSignal): Promise<boolean> {
+    if (this.tryTake()) return Promise.resolve(true);
+    if (signal?.aborted) return Promise.resolve(false);
+    return new Promise((resolve) => {
+      const onAbort = () => {
+        const i = this.waiting.indexOf(grant);
+        if (i >= 0) this.waiting.splice(i, 1);
+        resolve(false);
+      };
+      const grant = () => {
+        signal?.removeEventListener("abort", onAbort);
+        this.used++;
+        resolve(true);
+      };
+      this.waiting.push(grant);
+      signal?.addEventListener("abort", onAbort, { once: true });
+    });
+  }
+
+  /** Gives a slot back, to the next waiting run if there is one. */
+  give(): void {
+    this.used = Math.max(0, this.used - 1);
+    this.waiting.shift()?.();
+  }
+
+  get inUse(): number {
+    return this.used;
+  }
+}
+
+const slotCount = (value: string | undefined, fallback: number) => {
+  const n = Number(value ?? fallback);
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+};
+/** Files being checked on save (HOSTED_INSPECT_THREADS, 2 by default). */
+export const INSPECT_SLOTS = new ThreadSlots(slotCount(process.env.HOSTED_INSPECT_THREADS, 2));
+/** Code agents running tests (HOSTED_RUN_THREADS, 8 by default: two previews' worth). */
+export const RUN_SLOTS = new ThreadSlots(slotCount(process.env.HOSTED_RUN_THREADS, 8));
+
+/** Told when every inspection slot is busy: nothing is wrong with the file. */
+export const INSPECT_BUSY =
+  "Bonded is checking other files right now; save it again in a few seconds";
+
 /** Thrown by a call to end the thread with this outcome, whatever the code would do with it. */
 class Stop extends Error {
   readonly bonded: boolean;
@@ -210,18 +272,25 @@ export async function inspectCodeAgent(
   code: string,
   language: "js" | "ts",
   limits: Partial<SandboxLimits> = {},
-): Promise<{ ok: true } | { ok: false; problem: string }> {
+  slots: ThreadSlots = INSPECT_SLOTS,
+): Promise<{ ok: true } | { ok: false; problem: string; busy?: true }> {
   let js: string;
   try {
     js = javascriptOf(code, language);
   } catch (error) {
     return { ok: false, problem: error instanceof Error ? error.message : String(error) };
   }
-  const outcome = await runThread(
-    { mode: "inspect", js, limits: { ...SANDBOX_LIMITS, cpuMs: 1_000, ...limits } },
-    { timeoutMs: 10_000 },
-  );
-  return outcome.ok ? { ok: true } : { ok: false, problem: outcome.error };
+  // Busy: refused at once rather than queued, so waiting saves can't pile up either.
+  if (!slots.tryTake()) return { ok: false, problem: INSPECT_BUSY, busy: true };
+  try {
+    const outcome = await runThread(
+      { mode: "inspect", js, limits: { ...SANDBOX_LIMITS, cpuMs: 1_000, ...limits } },
+      { timeoutMs: 10_000 },
+    );
+    return outcome.ok ? { ok: true } : { ok: false, problem: outcome.error };
+  } finally {
+    slots.give();
+  }
 }
 
 /**
@@ -232,6 +301,7 @@ export async function runCodeAgent(
   episode: HostedEpisode,
   source: { code: string; language: "js" | "ts" },
   limits: Partial<SandboxLimits> = {},
+  slots: ThreadSlots = RUN_SLOTS,
 ): Promise<CodeAgentOutcome> {
   let js: string;
   let tools: ToolDefinition[];
@@ -298,6 +368,26 @@ export async function runCodeAgent(
     return JSON.stringify(await episode.callTool(name, args));
   };
 
+  // A slot first: tests wait for one rather than all running at once. The episode's deadline still
+  // runs meanwhile, so a long wait ends the test as the episode ending.
+  if (!(await slots.take(episode.signal)))
+    return { ok: false, error: "the episode ended", logs: [] };
+  try {
+    return await runThreadWith(js, episodeJson, limits, episode, chat, tool);
+  } finally {
+    slots.give();
+  }
+}
+
+/** The run's thread, answering the code's model and tool calls. */
+function runThreadWith(
+  js: string,
+  episodeJson: string,
+  limits: Partial<SandboxLimits>,
+  episode: HostedEpisode,
+  chat: (body: string) => Promise<string>,
+  tool: (body: string) => Promise<string>,
+): Promise<CodeAgentOutcome> {
   return runThread(
     { mode: "run", js, episodeJson, limits: { ...SANDBOX_LIMITS, ...limits } },
     {

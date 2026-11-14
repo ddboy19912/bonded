@@ -489,6 +489,20 @@ export const PROBLEMS: readonly ProblemEntry[] = [
     /daily budget for running agents/i,
   ),
   entry(
+    "hosted-wallet-budget",
+    "check",
+    "Your wallet's daily budget for agents Bonded runs is used up. This isn't your agent's fault.",
+    "Each wallet has its own share of the model budget for agents Bonded runs, so one wallet can't use up everyone's day. Run it again tomorrow (it starts over at midnight UTC), or connect your agent by runner or URL, which runs on your own model.",
+    /wallet's daily budget for agents bonded runs/i,
+  ),
+  entry(
+    "hosted-inspect-busy",
+    "check",
+    "Bonded is checking other files right now.",
+    "Nothing is wrong with your file: save it again in a few seconds.",
+    /checking other files right now/i,
+  ),
+  entry(
     "hosted-cap",
     "check",
     "Your agent made too many model or tool calls, or used too many tokens, in one episode.",

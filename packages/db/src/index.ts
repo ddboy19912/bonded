@@ -676,6 +676,7 @@ export class Database {
       "0035_preview_tool_names.sql",
       "0036_agent_url_signed_calls.sql",
       "0037_hosted_agents.sql",
+      "0038_hosted_spend.sql",
     ];
     await this.transaction(async (c) => {
       await c.query("SELECT pg_advisory_xact_lock(7001)");
@@ -2831,6 +2832,28 @@ export class Database {
       );
       return hostedAgentRow(r.rows[0]);
     });
+  }
+  /**
+   * What agents Bonded runs spent on its model key on `day` (UTC, YYYY-MM-DD): by everyone, and by
+   * `owner`'s wallet (0038). The hosted budget reads it before each model call.
+   */
+  async hostedSpend(day: string, owner: string): Promise<{ total: number; owner: number }> {
+    const r = await this.pool.query(
+      `SELECT coalesce(sum(spent_usd),0)::float8 AS total,
+              coalesce(sum(spent_usd) FILTER (WHERE owner=$2),0)::float8 AS owner
+       FROM hosted_spend WHERE day=$1::date`,
+      [day, owner.toLowerCase()],
+    );
+    return { total: Number(r.rows[0].total), owner: Number(r.rows[0].owner) };
+  }
+  /** Adds what one model call cost to the day's spending, everyone's and the owner's. */
+  async addHostedSpend(day: string, owner: string, usd: number): Promise<void> {
+    if (!(usd > 0)) return;
+    await this.pool.query(
+      `INSERT INTO hosted_spend(day,owner,spent_usd) VALUES($1::date,$2,$3)
+       ON CONFLICT (day,owner) DO UPDATE SET spent_usd=hosted_spend.spent_usd+EXCLUDED.spent_usd`,
+      [day, owner.toLowerCase(), usd],
+    );
   }
   /** What a hosted preview runs now, if its owner saved anything. */
   async hostedAgent(ownerKey: string): Promise<HostedAgentRecord | undefined> {
