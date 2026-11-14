@@ -372,6 +372,49 @@ export type PreviewWorld = "vault" | "brokerage";
  */
 export type PreviewToolNames = "bonded" | "alpaca";
 
+/** An account (0039): an email address, proved with a one-time code, and its passkeys. */
+export interface AccountRecord {
+  id: string;
+  email: string;
+  /** Its owner id, in a wallet's format: what owner columns and sessions hold for it. */
+  ownerId: string;
+  createdAt: Date;
+  lastSignInAt: Date | null;
+}
+
+/** A passkey (WebAuthn credential) an account added. */
+export interface PasskeyRecord {
+  id: string;
+  accountId: string;
+  publicKey: Uint8Array;
+  counter: number;
+  transports: string[];
+  name: string;
+  createdAt: Date;
+  lastUsedAt: Date | null;
+}
+
+/** Why a sign-in code wasn't accepted. */
+export type EmailCodeRefusal = "expired" | "wrong" | "too-many-tries";
+
+const accountRow = (row: Record<string, unknown>): AccountRecord => ({
+  id: row.id as string,
+  email: row.email as string,
+  ownerId: row.owner_id as string,
+  createdAt: row.created_at as Date,
+  lastSignInAt: (row.last_sign_in_at as Date | null) ?? null,
+});
+const passkeyRow = (row: Record<string, unknown>): PasskeyRecord => ({
+  id: row.id as string,
+  accountId: row.account_id as string,
+  publicKey: new Uint8Array(row.public_key as Buffer),
+  counter: Number(row.counter),
+  transports: (row.transports as string[]) ?? [],
+  name: row.name as string,
+  createdAt: row.created_at as Date,
+  lastUsedAt: (row.last_used_at as Date | null) ?? null,
+});
+
 /** A preview (migration 0020). */
 export interface PreviewRecord {
   id: string;
@@ -677,6 +720,7 @@ export class Database {
       "0036_agent_url_signed_calls.sql",
       "0037_hosted_agents.sql",
       "0038_hosted_spend.sql",
+      "0039_accounts.sql",
     ];
     await this.transaction(async (c) => {
       await c.query("SELECT pg_advisory_xact_lock(7001)");
@@ -2355,6 +2399,182 @@ export class Database {
       return { expiresAt: r.rows[0].expires_at as Date };
     });
   }
+  // Accounts: sign-in without a wallet (0039, docs/ACCOUNTS.md).
+
+  /**
+   * Keeps a new sign-in code's hash for `email`, unless the address already asked for
+   * `perEmailHourly` codes in the last hour. Older unused codes for it stop working.
+   */
+  async createEmailCode(
+    email: string,
+    codeHash: string,
+    options: { ttlMs: number; perEmailHourly: number },
+  ): Promise<{ id: string } | { refused: "too-many" }> {
+    const address = email.toLowerCase();
+    return this.transaction(async (c) => {
+      await c.query("SELECT pg_advisory_xact_lock(7015, hashtext($1))", [address]);
+      const n = (
+        await c.query(
+          "SELECT count(*)::int AS n FROM email_codes WHERE email=$1 AND created_at > now() - interval '1 hour'",
+          [address],
+        )
+      ).rows[0].n as number;
+      if (n >= options.perEmailHourly) return { refused: "too-many" as const };
+      await c.query("UPDATE email_codes SET used_at=now() WHERE email=$1 AND used_at IS NULL", [
+        address,
+      ]);
+      const id = randomUUID();
+      await c.query(
+        `INSERT INTO email_codes(id,email,code_hash,expires_at)
+         VALUES($1,$2,$3,now()+make_interval(secs => $4))`,
+        [id, address, codeHash, options.ttlMs / 1000],
+      );
+      return { id };
+    });
+  }
+
+  /**
+   * Uses `email`'s latest code if `codeHash` matches it: once, before it expires, and before
+   * `maxAttempts` wrong tries. A wrong try is counted.
+   */
+  async useEmailCode(
+    email: string,
+    codeHash: string,
+    maxAttempts: number,
+  ): Promise<{ id: string } | { refused: EmailCodeRefusal }> {
+    const address = email.toLowerCase();
+    return this.transaction(async (c) => {
+      const row = (
+        await c.query(
+          `SELECT id,code_hash,attempts FROM email_codes
+           WHERE email=$1 AND used_at IS NULL AND expires_at > now()
+           ORDER BY created_at DESC LIMIT 1 FOR UPDATE`,
+          [address],
+        )
+      ).rows[0];
+      if (!row) return { refused: "expired" as const };
+      if ((row.attempts as number) >= maxAttempts) return { refused: "too-many-tries" as const };
+      if (row.code_hash !== codeHash) {
+        await c.query("UPDATE email_codes SET attempts=attempts+1 WHERE id=$1", [row.id]);
+        return {
+          refused:
+            (row.attempts as number) + 1 >= maxAttempts
+              ? ("too-many-tries" as const)
+              : ("wrong" as const),
+        };
+      }
+      await c.query("UPDATE email_codes SET used_at=now() WHERE id=$1", [row.id]);
+      return { id: row.id as string };
+    });
+  }
+
+  /** The account for `email`, made with `ownerIdOf(id)` the first time; its sign-in is noted. */
+  async accountForEmail(email: string, ownerIdOf: (id: string) => string): Promise<AccountRecord> {
+    const address = email.toLowerCase();
+    const id = randomUUID();
+    const r = await this.pool.query(
+      `INSERT INTO accounts(id,email,owner_id,last_sign_in_at) VALUES($1,$2,$3,now())
+       ON CONFLICT (email) DO UPDATE SET last_sign_in_at=now() RETURNING *`,
+      [id, address, ownerIdOf(id).toLowerCase()],
+    );
+    return accountRow(r.rows[0]);
+  }
+
+  async accountById(id: string): Promise<AccountRecord | undefined> {
+    const r = await this.pool.query("SELECT * FROM accounts WHERE id=$1", [id]);
+    return r.rows[0] ? accountRow(r.rows[0]) : undefined;
+  }
+
+  /** The account whose owner id this is: a session's "wallet" when it is an account's. */
+  async accountByOwner(ownerId: string): Promise<AccountRecord | undefined> {
+    const r = await this.pool.query("SELECT * FROM accounts WHERE owner_id=$1", [
+      ownerId.toLowerCase(),
+    ]);
+    return r.rows[0] ? accountRow(r.rows[0]) : undefined;
+  }
+
+  async markAccountSignIn(id: string): Promise<void> {
+    await this.pool.query("UPDATE accounts SET last_sign_in_at=now() WHERE id=$1", [id]);
+  }
+
+  async passkeysOf(accountId: string): Promise<PasskeyRecord[]> {
+    const r = await this.pool.query(
+      "SELECT * FROM passkeys WHERE account_id=$1 ORDER BY created_at",
+      [accountId],
+    );
+    return r.rows.map(passkeyRow);
+  }
+
+  async passkey(id: string): Promise<PasskeyRecord | undefined> {
+    const r = await this.pool.query("SELECT * FROM passkeys WHERE id=$1", [id]);
+    return r.rows[0] ? passkeyRow(r.rows[0]) : undefined;
+  }
+
+  /** Adds a passkey; false if that credential is already registered (to anyone). */
+  async addPasskey(p: {
+    id: string;
+    accountId: string;
+    publicKey: Uint8Array;
+    counter: number;
+    transports: string[];
+    name: string;
+  }): Promise<boolean> {
+    const r = await this.pool.query(
+      `INSERT INTO passkeys(id,account_id,public_key,counter,transports,name)
+       VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO NOTHING`,
+      [p.id, p.accountId, Buffer.from(p.publicKey), p.counter, p.transports, p.name],
+    );
+    return (r.rowCount ?? 0) > 0;
+  }
+
+  /** A passkey was used: its new signature counter. */
+  async passkeyUsed(id: string, counter: number): Promise<void> {
+    await this.pool.query("UPDATE passkeys SET counter=$2,last_used_at=now() WHERE id=$1", [
+      id,
+      counter,
+    ]);
+  }
+
+  async deletePasskey(accountId: string, id: string): Promise<boolean> {
+    const r = await this.pool.query("DELETE FROM passkeys WHERE id=$1 AND account_id=$2", [
+      id,
+      accountId,
+    ]);
+    return (r.rowCount ?? 0) > 0;
+  }
+
+  async createPasskeyChallenge(p: {
+    challenge: string;
+    purpose: "register" | "sign-in";
+    accountId?: string;
+    ttlMs: number;
+  }): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO passkey_challenges(id,challenge,purpose,account_id,expires_at)
+       VALUES($1,$2,$3,$4,now()+make_interval(secs => $5))`,
+      [randomUUID(), p.challenge, p.purpose, p.accountId ?? null, p.ttlMs / 1000],
+    );
+  }
+
+  /**
+   * Uses a challenge once, if it is live and for this purpose (and, to add a passkey, this
+   * account). Returns its id, or undefined.
+   */
+  async usePasskeyChallenge(
+    challenge: string,
+    purpose: "register" | "sign-in",
+    accountId?: string,
+  ): Promise<string | undefined> {
+    const r = await this.pool.query(
+      `UPDATE passkey_challenges SET used_at=now()
+       WHERE challenge=$1 AND purpose=$2 AND used_at IS NULL AND expires_at > now()
+         AND account_id IS NOT DISTINCT FROM $3
+       RETURNING id`,
+      [challenge, purpose, accountId ?? null],
+    );
+    return r.rows[0]?.id as string | undefined;
+  }
+
   /** The wallet of a live session on this chain, or undefined. */
   async session(
     tokenHash: string,

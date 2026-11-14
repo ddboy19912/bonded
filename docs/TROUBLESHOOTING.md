@@ -14,6 +14,84 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 **What to do:** Sign in with your wallet again; sessions last 12 hours.
 
+### account-email-off
+
+**Message:** Email sign-in isn't available right now.
+
+**What to do:** Bonded can't send sign-in emails at the moment. Try again later, or connect a wallet instead.
+
+### account-email-not-sent
+
+**Message:** The sign-in email couldn't be sent.
+
+**What to do:** Try again in a minute. If it keeps failing, check the address for typos.
+
+### account-too-many-codes
+
+**Message:** Too many codes for this address.
+
+**What to do:** An address can ask for 5 codes an hour. Use the latest code you were sent, or try again in an hour.
+
+### account-code-wrong
+
+**Message:** That code isn't right.
+
+**What to do:** Use the 6-digit code from the latest email: asking for a new code makes the older ones stop working.
+
+### account-code-tries
+
+**Message:** Too many wrong codes.
+
+**What to do:** After 5 wrong tries a code stops working. Ask for a new one.
+
+### account-code-expired
+
+**Message:** That code has expired.
+
+**What to do:** A code works once, for 10 minutes. Ask for a new one.
+
+### account-sign-in-used
+
+**Message:** That sign-in was already used.
+
+**What to do:** Each code or passkey answer opens one session. Sign in again.
+
+### account-wallet-session
+
+**Message:** This session is a wallet's, not an email account's.
+
+**What to do:** Passkeys belong to email accounts. Sign in with your email to add one.
+
+### passkey-not-added
+
+**Message:** That passkey couldn't be added.
+
+**What to do:** Try again, and finish the prompt your browser or phone shows. Passkeys work on www.bondedhq.xyz only.
+
+### passkey-already-added
+
+**Message:** That passkey is already added.
+
+**What to do:** Nothing to do: you can already sign in with it.
+
+### passkey-not-on-account
+
+**Message:** That passkey isn't on this account.
+
+**What to do:** Check which account you're signed in to: a passkey can only be removed from its own.
+
+### passkey-unknown
+
+**Message:** That passkey isn't registered with Bonded.
+
+**What to do:** It may have been removed, or made for another account. Sign in with your email instead, then add a new passkey.
+
+### passkey-failed
+
+**Message:** That passkey sign-in didn't check out.
+
+**What to do:** Try again. If it keeps failing, sign in with your email: the passkey may have been made on another site.
+
 ### not-signed-in
 
 **Message:** You aren't signed in.

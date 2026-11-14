@@ -20,10 +20,10 @@ async function agent(id: number, config: unknown = remote, enabled = true) {
 }
 const hello = { runnerVersion: "0.1.0", mode: "tools" };
 /**
- * The migrations' numbers: 0001 to 0038 (0034 the preview's world, 0035 its tool names, 0036 drops
- * Agent URL secrets, 0037 hosted agents, 0038 their daily spending).
+ * The migrations' numbers: 0001 to 0039 (0034 the preview's world, 0035 its tool names, 0036 drops
+ * Agent URL secrets, 0037 hosted agents, 0038 their daily spending, 0039 email and passkey accounts).
  */
-const MIGRATIONS = [...Array.from({ length: 38 }, (_, i) => i + 1)];
+const MIGRATIONS = [...Array.from({ length: 39 }, (_, i) => i + 1)];
 
 beforeAll(async () => {
   pg = await postgres();
@@ -31,7 +31,7 @@ beforeAll(async () => {
 }, 120_000);
 afterAll(() => pg?.stop());
 
-describe("migrations 0014 to 0038", () => {
+describe("migrations 0014 to 0039", () => {
   it("apply once, in order, and again is a no-op", async () => {
     const versions = (
       await db.pool.query("SELECT version FROM schema_migrations ORDER BY version")
