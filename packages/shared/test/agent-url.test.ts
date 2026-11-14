@@ -354,6 +354,9 @@ describe("the published keys", () => {
       fallback: builtIn,
     });
     expect(await store.get()).toEqual(builtIn);
+    expect(await store.get(builtIn[0]!.kid)).toEqual(builtIn);
+    // A key the built-in set doesn't have (a newer one) is "can't fetch", not a bad signature.
+    await expect(store.get("a-newer-kid")).rejects.toThrow(/503/);
     // Once the published set is fetched it is the only one trusted: a failed fetch for a new key
     // id keeps the set while it is fresh...
     up = true;
