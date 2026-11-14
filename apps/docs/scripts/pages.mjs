@@ -49,6 +49,12 @@ export const PAGES = [
     label: "Bring your own agent",
   },
   {
+    src: "docs/ACCOUNTS.md",
+    slug: "guides/signing-in",
+    label: "Signing in without a wallet",
+    title: "Signing in without a wallet",
+  },
+  {
     src: "docs/HOSTED-AGENTS.md",
     slug: "guides/bonded-runs-it",
     label: "Bonded runs it",
@@ -161,6 +167,7 @@ export const SHORT_NAMES = {
   "docs/YOUR-AGENTS.md": "Bonded and your agents",
   "docs/BRING-YOUR-OWN-AGENT.md": "the bring-your-own-agent guide",
   "docs/HOSTED-AGENTS.md": "the Bonded-runs-it guide",
+  "docs/ACCOUNTS.md": "signing in without a wallet",
   "docs/APPROVAL-IN-TESTS.md": "how approval works in a test",
   "docs/PAYMENT-GATE.md": "the payment gate guide",
   "docs/BOUNTIES-EXPLAINED.md": "the bounty overview",
