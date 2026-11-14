@@ -20,6 +20,7 @@ import {
   SESSIONS_PER_WALLET_HOURLY,
   type SessionWallet,
 } from "./sessions.js";
+import { signInCodeEmail } from "./emails.js";
 
 /**
  * Sign-in without a wallet (docs/ACCOUNTS.md), for teams that aren't crypto-native: an email
@@ -171,15 +172,7 @@ export function accountRoutes(
         throw new Refused(429, "Too many codes for this address. Try again in an hour.");
       if (options.email)
         await options.email
-          .send({
-            to: email,
-            subject: `Your Bonded sign-in code: ${code}`,
-            text: [
-              `Your Bonded sign-in code is ${code}.`,
-              "",
-              "It works once, for 10 minutes. If you didn't ask for it, ignore this email: nobody can sign in without the code.",
-            ].join("\n"),
-          })
+          .send({ to: email, ...signInCodeEmail(code, EMAIL_CODE_TTL_MS / 60_000) })
           .catch(() => {
             throw new Refused(503, "The sign-in email couldn't be sent. Try again in a minute.");
           });

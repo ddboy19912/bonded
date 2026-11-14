@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NOTIFICATION_TYPES } from "@bondedhq/shared";
 import { Link } from "react-router";
-import { useAccount } from "wagmi";
 import { ago } from "../lib/format";
 import { inboxLines, inboxSeenAt, markInboxSeen, type InboxItem } from "../lib/health";
 import { byoaApi } from "../lib/byoa-api";
@@ -13,7 +12,6 @@ import { useInbox } from "../components/inbox-bell";
 import { InfoPanel } from "../components/overlay";
 import { NoticeIcon } from "../components/notice-icon";
 import { FixLink } from "../components/problem";
-import { ConnectButton } from "../components/wallet";
 import {
   Badge,
   Button,
@@ -28,6 +26,7 @@ import {
   buttonClass,
   linkClass,
 } from "../components/ui";
+import { SignInButton } from "../components/sign-in";
 
 /** Which notifications the owner gets: each type can be turned off (webhook, email and this list). */
 export function MuteSettings({ session }: { session: string }) {
@@ -90,7 +89,6 @@ export function MuteSettings({ session }: { session: string }) {
 
 /** The owner's notifications: score expiring, runner offline, breaches, claims, cover, gas. */
 export function Inbox() {
-  const { isConnected } = useAccount();
   const owner = useOwnerSession();
   const inbox = useInbox(owner.session?.session);
   const queryClient = useQueryClient();
@@ -100,8 +98,14 @@ export function Inbox() {
   const [seenBefore] = useState(() => inboxSeenAt());
   const marked = useRef(new Set<string>());
   const session = owner.session?.session;
-  // Older pages, loaded with "Load more" from the `next` cursor.
-  const [older, setOlder] = useState<{ items: InboxItem[]; next: string | null }>();
+  // Older pages, loaded with "Load more" from the `next` cursor. Kept with the session they were
+  // loaded for, so after a sign-out and another account's sign-in none of them show.
+  const [loaded, setOlder] = useState<{
+    session: string;
+    items: InboxItem[];
+    next: string | null;
+  }>();
+  const older = loaded && loaded.session === session ? loaded : undefined;
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreError, setMoreError] = useState<unknown>(null);
   const firstPage = inbox.data?.items ?? [];
@@ -134,7 +138,12 @@ export function Inbox() {
     setMoreError(null);
     try {
       const page = await byoaApi.inbox(session, { before: next });
-      setOlder((o) => ({ items: [...(o?.items ?? []), ...page.items], next: page.next ?? null }));
+      // A page that comes back after the session changed belongs to nobody on screen now.
+      setOlder((o) => ({
+        session,
+        items: [...(o?.session === session ? o.items : []), ...page.items],
+        next: page.next ?? null,
+      }));
     } catch (e) {
       setMoreError(e);
     } finally {
@@ -241,23 +250,20 @@ export function Inbox() {
         )
       }
     >
-      {!isConnected ? (
-        <EmptyState title="Connect your wallet" action={<ConnectButton />}>
-          Notifications are for the agents your wallet owns.
-        </EmptyState>
-      ) : !owner.session ? (
+      {!owner.session ? (
         <EmptyState
           title="Sign in to see them"
           action={
-            <div className="flex flex-col items-center gap-2">
-              <Button loading={owner.signingIn} onClick={() => void owner.signIn()}>
-                {owner.signingIn ? "Sign in your wallet…" : "Sign in"}
-              </Button>
-              <ErrorText error={owner.error} />
-            </div>
+            <SignInButton
+              wallet={{
+                signIn: () => void owner.signIn(),
+                signingIn: owner.signingIn,
+                error: owner.error,
+              }}
+            />
           }
         >
-          One signature, no gas.
+          Notifications are for your agents and previews.
         </EmptyState>
       ) : inbox.isPending ? (
         <Card>

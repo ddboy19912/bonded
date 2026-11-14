@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { findCodeBlock, getCodeBlock, queryCodeBlock } from "../test/code";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -6,7 +6,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { deployment } from "../config";
 import { ApiError, api } from "../lib/api";
 import { byoaApi, type PreviewRecord } from "../lib/byoa-api";
-import { saveSession } from "../lib/connect";
+import { saveAccountSession, saveSession } from "../lib/connect";
 import {
   connectedRunner,
   finishedRun,
@@ -25,7 +25,21 @@ vi.mock("wagmi", () => ({
 }));
 vi.mock("../components/wallet", () => ({
   ConnectButton: () => <button type="button">Connect wallet</button>,
+  useOpenConnect: () => () => {},
 }));
+beforeAll(() => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: true,
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+});
+/** Opens the sign-in modal from step 1. */
+const openSignIn = () => {
+  fireEvent.click(within(current()).getByRole("button", { name: "Sign in" }));
+  return screen.getByRole("dialog");
+};
 
 function Search() {
   return <span data-testid="search">{useLocation().search}</span>;
@@ -91,11 +105,15 @@ afterEach(() => {
 });
 
 describe("Test your agent", () => {
-  it("starts by asking for a wallet, and shows the whole path", () => {
+  it("starts with one Sign in button, and shows the whole path", () => {
     wallet.address = undefined;
     show();
-    expect(within(current()).getByRole("button", { name: "Connect wallet" })).toBeTruthy();
-    expect(within(current()).getByText(/won't send anything or pay gas/)).toBeTruthy();
+    expect(within(current()).getByText(/work email, a passkey or a crypto wallet/)).toBeTruthy();
+    const modal = openSignIn();
+    expect(within(modal).getByRole("button", { name: /Continue with email/ })).toBeTruthy();
+    expect(within(modal).getByRole("button", { name: /Use a crypto wallet/ })).toBeTruthy();
+    expect(within(modal).getByText(/won't send anything or pay gas/)).toBeTruthy();
+    fireEvent.keyDown(modal, { key: "Escape" });
     for (const title of [
       "Tell us about your agent",
       "Connect it",
@@ -121,12 +139,62 @@ describe("Test your agent", () => {
     expect(screen.queryByText(/minutes|min at the most/)).toBeNull();
   });
 
+  it("signs in with an email code, with no wallet at all, as the account", async () => {
+    wallet.address = undefined;
+    const ACCOUNT = "0x00000000000000000000000000000000000000c7";
+    const code = vi.spyOn(byoaApi, "emailCode").mockResolvedValue({ sent: true });
+    const made = vi.spyOn(byoaApi, "emailSession").mockResolvedValue({
+      session: "acct-sess",
+      wallet: ACCOUNT,
+      expiresAt: iso(3_600_000),
+      account: { email: "dana@fund.example" },
+    });
+    show();
+    const modal = openSignIn();
+    fireEvent.click(within(modal).getByRole("button", { name: /Continue with email/ }));
+    fireEvent.change(within(modal).getByLabelText("Your work email"), {
+      target: { value: "dana@fund.example" },
+    });
+    fireEvent.click(within(modal).getByRole("button", { name: "Email me a code" }));
+    await waitFor(() => expect(code).toHaveBeenCalledWith("dana@fund.example"));
+    expect(
+      await within(modal).findByText("Enter the code we sent to dana@fund.example."),
+    ).toBeTruthy();
+    fireEvent.change(within(modal).getByLabelText("Sign-in code"), {
+      target: { value: "12 34 56" },
+    });
+    fireEvent.click(within(modal).getByRole("button", { name: "Sign in" }));
+    await waitFor(() => expect(made).toHaveBeenCalledWith("dana@fund.example", "123456"));
+    await waitFor(() =>
+      expect(within(current()).getByText("Tell us about your agent")).toBeTruthy(),
+    );
+    expect(screen.getByText("dana@fund.example")).toBeTruthy();
+    // The account's previews and daily allowance are its own.
+    await waitFor(() =>
+      expect(byoaApi.previewAllowance).toHaveBeenCalledWith(ACCOUNT, expect.any(String)),
+    );
+  });
+
+  it("keeps an email account signed in across a reload, and signs it out", async () => {
+    wallet.address = undefined;
+    saveAccountSession(deployment.chainId, {
+      session: "acct-sess",
+      wallet: "0x00000000000000000000000000000000000000c7",
+      expiresAt: iso(3_600_000),
+      account: { email: "dana@fund.example" },
+    });
+    show();
+    expect(await screen.findByText("dana@fund.example")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    expect(await within(current()).findByRole("button", { name: "Sign in" })).toBeTruthy();
+  });
+
   it("signs in once, then asks the framework and where it runs, with the mode under Advanced", async () => {
     const signIn = vi
       .spyOn(byoaApi, "signIn")
       .mockResolvedValue({ session: "sess", wallet: WALLET, expiresAt: iso(3_600_000) });
     show();
-    fireEvent.click(within(current()).getByRole("button", { name: "Sign in" }));
+    fireEvent.click(within(openSignIn()).getByRole("button", { name: /Sign in with your wallet/ }));
     await waitFor(() => expect(signIn).toHaveBeenCalledWith(expect.any(Function), WALLET));
     await waitFor(() =>
       expect(within(current()).getByText("Tell us about your agent")).toBeTruthy(),
