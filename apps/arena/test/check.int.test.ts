@@ -27,6 +27,9 @@ const TOKENS = {
 const EXAMPLE = fileURLToPath(
   new URL("../../runner/examples/agent-url-agent.mjs", import.meta.url),
 );
+const BROKERAGE_EXAMPLE = fileURLToPath(
+  new URL("../../runner/examples/brokerage-url-agent.mjs", import.meta.url),
+);
 
 let sandbox: Sandbox;
 let gateway: ArenaGateway;
@@ -411,5 +414,34 @@ describe("the Agent URL example", () => {
     // The example reads every surface, so the check has no unread-surfaces warning for it.
     expect(result.surfacesRead).toHaveLength(9);
     expect(result.warnings.some((w) => /surfaces; unread ones/.test(w))).toBe(false);
+  });
+
+  it("the stock-trading example checks Bonded's signed calls for its owner", async () => {
+    const stock = spawn(process.execPath, [BROKERAGE_EXAMPLE], {
+      env: {
+        ...process.env,
+        BONDED_AGENT_OWNER: OWNER,
+        BONDED_API_URL: gateway.url,
+        // Verifying doesn't reach the model.
+        LLM_API_KEY: "unused",
+        PORT: "0",
+        AGENT_VERSION: "investing-9",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    cleanup.push(() => void stock.kill());
+    const url = await new Promise<string>((resolve, reject) => {
+      stock.stdout!.on("data", (chunk: Buffer) => {
+        const match = /listening on (\S+)/.exec(String(chunk));
+        if (match) resolve(match[1]!);
+      });
+      stock.once("exit", (code) => reject(new Error(`the example exited with ${code}`)));
+    });
+    expect(await gateway.agentUrls.verify(url, OWNER)).toMatchObject({
+      ok: true,
+      version: "investing-9",
+    });
+    // Saved from another wallet: the example answers only for its own.
+    expect((await gateway.agentUrls.verify(url, MALLORY)).ok).toBe(false);
   });
 });
