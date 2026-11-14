@@ -8,6 +8,8 @@ Most teams testing a trading or payments agent don't use crypto. They can sign i
 2. **Passkey.** Once signed in, you can add a passkey. From then on, "Sign in with a passkey" is one tap, with no code to wait for and nothing to phish. You can add several (a laptop and a phone) and remove any of them.
 3. **The same session.** Either way you get the same kind of session a wallet gets, for 12 hours. Everything you can do with a wallet session you can do with it: previews, connection checks, Bonded running your agent, Agent URLs, the payment gate and notifications.
 
+The sign-in screen on the website comes with the next web update. Until then, each step works through the API (see "For developers" below).
+
 ## Your account id
 
 Each account has an id in a wallet's format: `0x` and 40 hex characters, derived from the account and the same every time. It is what Bonded records as the owner of your previews, and what Bonded's signed calls to your Agent URL name as the owner (`BONDED_AGENT_OWNER` in the examples).

@@ -384,4 +384,64 @@ describe("passkeys", () => {
     const after = await bodyOf(await call(app, "GET", "/account", undefined, session as string));
     expect(after.passkeys).toEqual([]);
   });
+
+  it("never lowers a passkey's counter: a slower sign-in can't put back an older number", async () => {
+    const account = await pg.db.accountForEmail(freshEmail(), accountOwnerId);
+    const id = b64u(randomBytes(16));
+    await pg.db.addPasskey({
+      id,
+      accountId: account.id,
+      publicKey: new Uint8Array([1, 2, 3]),
+      counter: 10,
+      transports: [],
+      name: "Passkey",
+    });
+    // Two sign-ins read counter 10 and verify 11 and 12; the one with 12 is saved first.
+    await pg.db.passkeyUsed(id, 12);
+    await pg.db.passkeyUsed(id, 11);
+    const kept = await pg.db.passkey(id);
+    expect(kept?.counter).toBe(12);
+    expect(kept?.lastUsedAt).not.toBeNull();
+  });
+});
+
+describe("clean-up", () => {
+  it("forgets sign-in codes and passkey challenges after a day, and keeps recent ones", async () => {
+    const email = freshEmail();
+    const recent = await pg.db.createEmailCode(email, "recent-hash", {
+      ttlMs: 600_000,
+      perEmailHourly: 5,
+    });
+    await pg.db.pool.query(
+      `INSERT INTO email_codes(id,email,code_hash,created_at,expires_at)
+       VALUES(gen_random_uuid(),$1,'old-hash',now()-interval '2 days',now()-interval '2 days')`,
+      [email],
+    );
+    const liveChallenge = b64u(randomBytes(32));
+    const oldChallenge = b64u(randomBytes(32));
+    await pg.db.createPasskeyChallenge({
+      challenge: liveChallenge,
+      purpose: "sign-in",
+      ttlMs: 300_000,
+    });
+    await pg.db.pool.query(
+      `INSERT INTO passkey_challenges(id,challenge,purpose,created_at,expires_at)
+       VALUES(gen_random_uuid(),$1,'sign-in',now()-interval '2 days',now()-interval '2 days')`,
+      [oldChallenge],
+    );
+    const pruned = await pg.db.pruneOwnerAuth();
+    expect(pruned.emailCodes).toBeGreaterThanOrEqual(1);
+    expect(pruned.passkeyChallenges).toBeGreaterThanOrEqual(1);
+    const codes = await pg.db.pool.query("SELECT id,code_hash FROM email_codes WHERE email=$1", [
+      email,
+    ]);
+    expect(codes.rows).toEqual([{ id: "id" in recent ? recent.id : "", code_hash: "recent-hash" }]);
+    const challenges = await pg.db.pool.query(
+      "SELECT challenge FROM passkey_challenges WHERE challenge = ANY($1)",
+      [[liveChallenge, oldChallenge]],
+    );
+    expect(challenges.rows).toEqual([{ challenge: liveChallenge }]);
+    // The live challenge still works once.
+    expect(await pg.db.usePasskeyChallenge(liveChallenge, "sign-in")).toBeDefined();
+  });
 });
