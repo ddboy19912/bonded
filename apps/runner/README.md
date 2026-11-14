@@ -220,13 +220,13 @@ listed in chain mode.
   ```
 
   [`examples/brokerage-url-agent.mjs`](examples/brokerage-url-agent.mjs) is the same agent in
-  Agent URL mode: a small Node server that checks each call's signature and works the episode.
-  Run it behind HTTPS (for a quick try, `cloudflared tunnel --url http://127.0.0.1:8080`), choose
-  "It's online at a URL" on Test your agent, save the tunnel's URL and start the server with the
-  secret the page shows:
+  Agent URL mode: a small Node server that checks each call is signed by Bonded for your wallet
+  and works the episode. Start it with the wallet you sign in to Bonded with (public, not a
+  secret), run it behind HTTPS (for a quick try, `cloudflared tunnel --url http://127.0.0.1:8080`),
+  choose "On a host like Vercel" on Test your agent and save the tunnel's URL:
 
   ```sh
-  BONDED_AGENT_SECRET=<the secret> OPENROUTER_API_KEY=<your key> PORT=8080 node brokerage-url-agent.mjs
+  BONDED_AGENT_OWNER=0xYourWallet OPENROUTER_API_KEY=<your key> PORT=8080 node brokerage-url-agent.mjs
   ```
 
   Both share the model loop in [`examples/investing-agent.mjs`](examples/investing-agent.mjs), so
