@@ -1,4 +1,3 @@
-import { SignInButton } from "../sign-in";
 import type { ReactNode } from "react";
 import {
   Empty,
@@ -8,6 +7,7 @@ import {
   EmptyTitle,
 } from "@/components/shadcn/empty";
 import { useOwnerSession } from "../../lib/owner-session";
+import { SignInButton } from "../sign-in";
 
 /**
  * Shows its children to the signed-in owner, and asks for the wallet and sign-in until then, in

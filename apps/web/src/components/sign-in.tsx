@@ -73,7 +73,7 @@ export function SignInButton({
       wallet?.signIn();
     }
   }, [awaitingWallet, isConnected, wallet]);
-  const useWallet = () => {
+  const chooseWallet = () => {
     setOpen(false);
     if (isConnected) wallet?.signIn();
     else {
@@ -92,7 +92,7 @@ export function SignInButton({
         open={open}
         onOpenChange={setOpen}
         onSignedIn={onSignedIn}
-        onWallet={useWallet}
+        onWallet={chooseWallet}
         walletConnected={isConnected}
       />
     </div>

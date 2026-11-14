@@ -1,4 +1,3 @@
-import { SignInButton } from "../components/sign-in";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -72,6 +71,7 @@ import {
   Unavailable,
   linkClass,
 } from "../components/ui";
+import { SignInButton } from "../components/sign-in";
 
 const FINISHED = ["done", "failed", "refused", "stopped"];
 const PREVIEW_STATUS: Record<PreviewRecord["status"], string> = {

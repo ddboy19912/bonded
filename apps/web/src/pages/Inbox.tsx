@@ -1,4 +1,3 @@
-import { SignInButton } from "../components/sign-in";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NOTIFICATION_TYPES } from "@bondedhq/shared";
@@ -27,6 +26,7 @@ import {
   buttonClass,
   linkClass,
 } from "../components/ui";
+import { SignInButton } from "../components/sign-in";
 
 /** Which notifications the owner gets: each type can be turned off (webhook, email and this list). */
 export function MuteSettings({ session }: { session: string }) {

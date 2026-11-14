@@ -33,7 +33,7 @@ export function useOwnerSession(path: "/previews/session" | "/self/session" = "/
     return () => window.removeEventListener(SESSION_EVENT, reload);
     // `current` reads the address; it is the only input.
   }, [address]);
-  /** Signs in with the connected wallet (email accounts sign in with `SignInPanel`). */
+  /** Signs in with the connected wallet (email accounts sign in through `SignInButton`'s modal). */
   const signIn = async () => {
     if (!address) return;
     setSigningIn(true);
