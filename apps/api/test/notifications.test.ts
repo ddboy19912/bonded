@@ -102,6 +102,12 @@ describe("the email sender", () => {
       subject: "s",
       text: "t",
     });
+    // An HTML version goes alongside the text, when there is one.
+    await ok.send({ to: "me@example.com", subject: "s", text: "t", html: "<p>t</p>" });
+    expect(JSON.parse(calls[1]!.init.body as string)).toMatchObject({
+      text: "t",
+      html: "<p>t</p>",
+    });
     const refused = new ResendEmail(
       "key",
       "a@b.c",

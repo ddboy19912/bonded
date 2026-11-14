@@ -228,7 +228,7 @@ describe("email sign-in", () => {
   });
 
   it("sends the code by email, and never puts it in the answer", async () => {
-    const sentMail: { to: string; subject: string; text: string }[] = [];
+    const sentMail: { to: string; subject: string; text: string; html?: string }[] = [];
     const email: EmailSender = { send: async (m) => void sentMail.push(m) };
     const app = api({ email });
     const address = freshEmail();
@@ -237,7 +237,8 @@ describe("email sign-in", () => {
     expect(sentMail).toHaveLength(1);
     expect(sentMail[0]!.to).toBe(address);
     const code = /\b(\d{6})\b/.exec(sentMail[0]!.text)![1]!;
-    expect(sentMail[0]!.subject).toContain(code);
+    expect(sentMail[0]!.subject).toBe(`${code} is your Bonded sign-in code`);
+    expect(sentMail[0]!.html).toContain(`>${code}</div>`);
     const made = await call(app, "POST", "/account/email/session", { email: address, code });
     expect(made.status).toBe(201);
   });

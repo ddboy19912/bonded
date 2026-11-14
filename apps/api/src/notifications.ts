@@ -117,7 +117,8 @@ export function gateNotification(
 
 /** A provider-agnostic email sender. */
 export interface EmailSender {
-  send(message: { to: string; subject: string; text: string }): Promise<void>;
+  /** `html`, when given, is the same message for clients that show HTML; `text` is always sent. */
+  send(message: { to: string; subject: string; text: string; html?: string }): Promise<void>;
 }
 
 /** Resend's HTTP API (https://resend.com/docs/api-reference/emails/send-email). */
@@ -127,7 +128,7 @@ export class ResendEmail implements EmailSender {
     private readonly from: string,
     private readonly fetchImpl: typeof fetch = fetch,
   ) {}
-  async send(message: { to: string; subject: string; text: string }) {
+  async send(message: { to: string; subject: string; text: string; html?: string }) {
     const r = await this.fetchImpl("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${this.apiKey}`, "Content-Type": "application/json" },
@@ -136,6 +137,7 @@ export class ResendEmail implements EmailSender {
         to: [message.to],
         subject: message.subject,
         text: message.text,
+        ...(message.html ? { html: message.html } : {}),
       }),
       signal: AbortSignal.timeout(10_000),
     });
