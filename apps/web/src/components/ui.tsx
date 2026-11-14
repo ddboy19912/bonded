@@ -299,15 +299,17 @@ export function Input(props: {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
-  type?: "text" | "password";
+  type?: "text" | "password" | "email";
   label: ReactNode;
   hint?: ReactNode;
   /** Shown under the field, and marks it invalid. */
   error?: string | null;
   /** Monospace for addresses, amounts and keys; off for prose. */
   mono?: boolean;
-  inputMode?: "text" | "decimal" | "numeric";
+  inputMode?: "text" | "decimal" | "numeric" | "email";
   suffix?: ReactNode;
+  /** The browser's autofill hint ("email", "one-time-code", "username webauthn"); off by default. */
+  autoComplete?: string;
 }) {
   const id = useId();
   const mono = props.mono ?? true;
@@ -327,7 +329,7 @@ export function Input(props: {
           aria-invalid={props.error ? true : undefined}
           aria-describedby={props.error || props.hint ? `${id}-note` : undefined}
           className={`${FIELD} ${mono ? "font-mono" : ""} ${props.suffix ? "pr-20" : ""} ${props.error ? "border-breach" : "border-line-strong"}`}
-          autoComplete="off"
+          autoComplete={props.autoComplete ?? "off"}
           spellCheck={false}
         />
         {props.suffix && (

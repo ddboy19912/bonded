@@ -376,6 +376,44 @@ export function loadSession(
   }
 }
 
+/**
+ * An email account's session (email code or passkey), kept apart from wallets' sessions: there is
+ * at most one, and it needs no wallet connected. Same storage rules as a wallet's.
+ */
+const accountKey = (chainId: number) => `bonded:account-session:${chainId}`;
+
+export function saveAccountSession(chainId: number, s: PreviewSession) {
+  try {
+    sessionStorage.setItem(accountKey(chainId), JSON.stringify(s));
+  } catch {
+    // Storage can be off (private windows); the user signs in again next time.
+  }
+  announce();
+}
+
+export function loadAccountSession(
+  chainId: number,
+  nowMs = Date.now(),
+): PreviewSession | undefined {
+  try {
+    const raw = sessionStorage.getItem(accountKey(chainId));
+    if (!raw) return undefined;
+    const s = JSON.parse(raw) as PreviewSession;
+    return s.account && Date.parse(s.expiresAt) > nowMs ? s : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function clearAccountSession(chainId: number) {
+  try {
+    sessionStorage.removeItem(accountKey(chainId));
+  } catch {
+    // Nothing to clear.
+  }
+  announce();
+}
+
 export function clearSession(chainId: number, wallet: string) {
   try {
     sessionStorage.removeItem(sessionKey(chainId, wallet));

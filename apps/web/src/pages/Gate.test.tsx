@@ -306,14 +306,16 @@ afterEach(() => {
 });
 
 describe("the payment gate's rules page", () => {
-  it("asks for a wallet, then a sign-in", async () => {
+  it("asks to sign in: with an email, or a wallet, then its signature", async () => {
     wallet.address = undefined;
     show();
+    // No wallet needed: an email works too.
+    expect(screen.getByLabelText("Your work email")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Connect wallet" })).toBeTruthy();
     cleanup();
     wallet.address = WALLET;
     show();
-    expect(screen.getByRole("button", { name: "Sign in" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Sign in with your wallet" })).toBeTruthy();
     expect(gateApi.accounts).not.toHaveBeenCalled();
   });
 
