@@ -61,6 +61,12 @@ export const PAGES = [
     title: "Bonded runs it: hosted agents",
   },
   {
+    src: "docs/APPROVAL-IN-TESTS.md",
+    slug: "guides/approval-in-tests",
+    label: "Approval in tests",
+    title: "How approval works in a test",
+  },
+  {
     src: "docs/PAYMENT-GATE.md",
     slug: "guides/payment-gate",
     label: "Payment gate",
@@ -162,6 +168,7 @@ export const SHORT_NAMES = {
   "docs/BRING-YOUR-OWN-AGENT.md": "the bring-your-own-agent guide",
   "docs/HOSTED-AGENTS.md": "the Bonded-runs-it guide",
   "docs/ACCOUNTS.md": "signing in without a wallet",
+  "docs/APPROVAL-IN-TESTS.md": "how approval works in a test",
   "docs/PAYMENT-GATE.md": "the payment gate guide",
   "docs/BOUNTIES-EXPLAINED.md": "the bounty overview",
   "docs/BOUNTIES.md": "the bounty guide",
