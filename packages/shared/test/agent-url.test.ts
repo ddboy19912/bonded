@@ -85,6 +85,10 @@ describe("Agent URL signatures", () => {
     expect((await agentUrlSigner(KEY)).kid).toBe(signer.kid);
     expect(JSON.stringify(two.keySet())).not.toContain(KEY);
     await expect(agentUrlSigner("not-a-key")).rejects.toThrow(/PKCS#8/);
+    // A 32-byte hex key, the AGENT_URL_SECRET_KEY format, says so and how to make the right one.
+    await expect(agentUrlSigner("ab".repeat(32))).rejects.toThrow(
+      /64 hex characters.*agent-url-key/,
+    );
     await expect(agentUrlSigner(" ")).rejects.toThrow(/no agent URL signing key/);
   });
 

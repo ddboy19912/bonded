@@ -96,15 +96,30 @@ const gatewayUrl = () => {
 };
 /** Sizes, caps and budgets for operator-run agents' ratings: the one configured policy. */
 const remotePolicy = remotePolicyFromEnv();
+/**
+ * Reads a key from the environment; if it's malformed, logs which variable and why before the
+ * service stops (the crash log names only the error's kind). These messages never include the
+ * value.
+ */
+const startupKey = async <T>(name: string, read: () => T | Promise<T>): Promise<T> => {
+  try {
+    return await read();
+  } catch (error) {
+    console.error(`${name} is malformed: ${error instanceof Error ? error.message : "unreadable"}`);
+    throw error;
+  }
+};
 // Agent URL and webhook secrets are stored encrypted with AGENT_URL_SECRET_KEY; without it, Agent
 // URL mode and webhooks are refused (a malformed key stops the service here).
-const secrets = secretBoxFromEnv();
+const secrets = await startupKey("AGENT_URL_SECRET_KEY", () => secretBoxFromEnv());
 // Signs every call to an agent's URL (AGENT_URL_SIGNING_KEY: base64url PKCS#8 Ed25519 keys,
 // comma-separated, the signing one first; `pnpm --filter @bonded/api agent-url-key` makes one).
 // The API verifies URLs and publishes the public keys; the gateway signs episodes. Without it,
 // Agent URL mode is refused (a malformed key stops the service here).
 const signingKey = process.env.AGENT_URL_SIGNING_KEY?.trim();
-const agentUrlSigning = signingKey ? await agentUrlSigner(signingKey) : undefined;
+const agentUrlSigning = signingKey
+  ? await startupKey("AGENT_URL_SIGNING_KEY", () => agentUrlSigner(signingKey))
+  : undefined;
 // Notification email, only when RESEND_API_KEY and EMAIL_FROM are both set.
 const email = emailFromEnv();
 // The chains Watch mode reads wallets on: each on its public node, unless GATE_WATCH_RPC_URLS

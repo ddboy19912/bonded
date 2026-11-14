@@ -210,7 +210,11 @@ export async function agentUrlSigner(privateKeys: string): Promise<AgentUrlSigne
           ["sign"],
         );
       } catch {
-        throw new Error("an agent URL signing key isn't a base64url PKCS#8 Ed25519 key");
+        throw new Error(
+          /^[0-9a-fA-F]{64}$/.test(text)
+            ? "an agent URL signing key is 64 hex characters, like AGENT_URL_SECRET_KEY; it must be a base64url PKCS#8 Ed25519 key (make one with `pnpm --filter @bonded/api agent-url-key`)"
+            : "an agent URL signing key isn't a base64url PKCS#8 Ed25519 key (make one with `pnpm --filter @bonded/api agent-url-key`)",
+        );
       }
       const jwk = await globalThis.crypto.subtle.exportKey("jwk", key);
       const x = jwk.x!;
