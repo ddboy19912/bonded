@@ -1,8 +1,8 @@
 # Agent URL without a secret: Bonded-signed calls (plan)
 
-Status: built and merged (2026-11-13). The production key was set on 2026-11-14 and its public
-key is built into the SDK; the npm release and a run against a deployed agent are still to do
-(Section 6). Nothing here changes the on-chain attestation format or any library
+Status: built and merged (2026-11-13). The production key was set on 2026-11-14, its public key
+is built into the SDK, and SDK 0.2.0, shared 0.2.0 and runner 0.1.5 are on npm (2026-11-14). A run
+against a deployed agent is still to do (Section 6). Nothing here changes the on-chain attestation format or any library
 version: this is how the gateway talks to an agent, not how a rating is scored.
 
 ## 1. The problem
@@ -176,7 +176,7 @@ tests); item 6 is running them against a deployed agent once item 7 is done.
    remove the secret column, routes and encryption context for agent URLs (`previews.ts`,
    `self-serve.ts`, `secrets.ts`).
 4. **SDK:** `owner` option and the `v2` check against the fetched keys; remove `secret`. Then
-   the npm release (SDK 0.2.0, shared 0.2.0, runner 0.1.5).
+   the npm release (SDK 0.2.0, shared 0.2.0, runner 0.1.5): published 2026-11-14.
 5. **Web, docs, runner `init`, Python example:** snippets fill in the signed-in wallet; the
    connect step is "paste URL, verify"; every mention of `BONDED_AGENT_SECRET` goes.
 6. **End-to-end tests** from Section 5.1, run against the deployed test agent before merging.

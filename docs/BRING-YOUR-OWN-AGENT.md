@@ -41,7 +41,7 @@ As of 2026-10-10, on Robinhood Chain testnet:
 | Piece | Status | Where |
 |---|---|---|
 | The **Test your agent** page: previews, Agent URL mode, connection checks, estimates, progress and webhooks | Live on the hosted service | https://www.bondedhq.xyz/agents/test |
-| `@bondedhq/runner` 0.1.4 and `@bondedhq/sdk` 0.1.7 (with `@bondedhq/shared` and `@bondedhq/solana`, which they depend on) | On npm. Agent URL handlers with `owner` (no secret) need `@bondedhq/sdk` 0.2.0 and `@bondedhq/shared` 0.2.0, and `init --owner` needs `@bondedhq/runner` 0.1.5: not published yet | `npx @bondedhq/runner …`, `npm install @bondedhq/sdk` |
+| `@bondedhq/runner` 0.1.5 and `@bondedhq/sdk` 0.2.0 (with `@bondedhq/shared` and `@bondedhq/solana`, which they depend on) | On npm. SDK 0.2.0 and shared 0.2.0 carry Agent URL handlers with `owner` (no secret) and Bonded's built-in signing key; runner 0.1.5 carries `init --owner` | `npx @bondedhq/runner …`, `npm install @bondedhq/sdk` |
 | Official ratings of your own agent, Mandate Vaults, cover, and self-serve ratings of Bonded's built-in agent designs | Live | Onboarding at https://www.bondedhq.xyz/agents/new |
 | The health panel, owner alerts and in-app notifications, vault trading status, the suggested mandate, the before/after comparison, the actionable report and `GET /status` | Live | The service's status: https://www.bondedhq.xyz/status |
 | The Arena Gateway your runner connects to | Live | `https://arena-worker-production.up.railway.app` (the page fills it in for you) |
