@@ -1,3 +1,4 @@
+import { PasskeyOffer, SignInPanel } from "../components/sign-in-panel";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -15,9 +16,12 @@ import {
 } from "../lib/byoa-api";
 import {
   PREVIEW_STEPS,
+  SESSION_EVENT,
+  clearAccountSession,
   clearSession,
   duration,
   isConnected,
+  loadAccountSession,
   loadSession,
   passingCheck,
   previewBefore,
@@ -40,7 +44,6 @@ import {
 import { ProblemText } from "../components/problem";
 import { short, when } from "../lib/format";
 import { DOCS_BYOA } from "../lib/routes";
-import { ConnectButton } from "../components/wallet";
 import {
   CONNECTION_TEXT,
   ConnectStep,
@@ -85,7 +88,7 @@ const PREVIEW_STATUS: Record<PreviewRecord["status"], string> = {
 };
 
 const STEP_TITLES: Record<PreviewStep, string> = {
-  "sign-in": "Connect your wallet and sign in",
+  "sign-in": "Sign in",
   choose: "Tell us about your agent",
   connect: "Connect it",
   check: "Check the connection",
@@ -105,10 +108,19 @@ export function TestAgent() {
   const queryClient = useQueryClient();
   const [params, setParams] = useSearchParams();
   const previewId = params.get("preview") ?? undefined;
-  const [session, setSession] = useState<PreviewSession | undefined>(() =>
-    loadSession(deployment.chainId, address),
-  );
-  useEffect(() => setSession(loadSession(deployment.chainId, address)), [address]);
+  // An email account's session (email code or passkey) first: it needs no wallet.
+  const storedSession = () =>
+    loadAccountSession(deployment.chainId) ?? loadSession(deployment.chainId, address);
+  const [session, setSession] = useState<PreviewSession | undefined>(storedSession);
+  useEffect(() => {
+    const reload = () => setSession(storedSession());
+    reload();
+    window.addEventListener(SESSION_EVENT, reload);
+    return () => window.removeEventListener(SESSION_EVENT, reload);
+    // `storedSession` reads the address; it is the only input.
+  }, [address]);
+  /** Whose previews these are: the session's owner (an account or a wallet), else the wallet. */
+  const owner = session?.wallet ?? address;
   const [signingIn, setSigningIn] = useState(false);
   const [signInError, setSignInError] = useState<unknown>(null);
   const [expired, setExpired] = useState(false);
@@ -158,9 +170,9 @@ export function TestAgent() {
   // preview exists, or while changing one), else the open preview's.
   const allowanceWorld = changing || !preview.data ? world : (preview.data.world ?? "vault");
   const allowance = useQuery({
-    queryKey: ["preview-allowance", address, allowanceWorld],
-    queryFn: () => byoaApi.previewAllowance(address!, allowanceWorld),
-    enabled: Boolean(address),
+    queryKey: ["preview-allowance", owner, allowanceWorld],
+    queryFn: () => byoaApi.previewAllowance(owner!, allowanceWorld),
+    enabled: Boolean(owner),
     refetchInterval: 60_000,
   });
   const previewKey = ["preview", previewId, session?.session];
@@ -205,11 +217,12 @@ export function TestAgent() {
     (e) => e instanceof ApiError && e.status === 401,
   );
   useEffect(() => {
-    if (!authError || !address) return;
-    clearSession(deployment.chainId, address);
+    if (!authError || !session) return;
+    if (session.account) clearAccountSession(deployment.chainId);
+    else clearSession(deployment.chainId, session.wallet);
     setSession(undefined);
     setExpired(true);
-  }, [authError, address]);
+  }, [authError, session]);
 
   const signIn = async () => {
     if (!address) return;
@@ -227,7 +240,8 @@ export function TestAgent() {
     }
   };
   const signOut = () => {
-    if (address) clearSession(deployment.chainId, address);
+    if (session?.account) clearAccountSession(deployment.chainId);
+    else if (address) clearSession(deployment.chainId, address);
     setSession(undefined);
     setParams({});
   };
@@ -299,7 +313,8 @@ export function TestAgent() {
   const computed: PreviewStep = changing
     ? "choose"
     : previewStep({
-        signedIn: Boolean(walletConnected && session),
+        // An email account needs no wallet; a wallet's session needs its wallet connected.
+        signedIn: Boolean(session && (session.account || walletConnected)),
         preview: previewId ? p : undefined,
         runFinished,
       });
@@ -325,7 +340,7 @@ export function TestAgent() {
     <Page
       title="Test your agent"
       back={{ to: "/agents", label: "All agents" }}
-      intro="See how your agent scores against Bonded's red team. It's free, with no vault, no bond and no tokens: just a wallet to sign in."
+      intro="See how your agent holds up against Bonded's red team. It's free: sign in with your work email."
     >
       {blockedLine && !p?.ratingId && (
         <Note tone="warn" title={blockedLine}>
@@ -346,39 +361,31 @@ export function TestAgent() {
               state={stateOf("sign-in")}
               summary={
                 session && (
-                  <span className="flex flex-wrap items-center gap-x-3">
-                    Signed in as <span className="font-mono">{short(session.wallet)}</span>
-                    <button type="button" className={linkClass} onClick={signOut}>
-                      Sign out
-                    </button>
+                  <span className="flex flex-col gap-2">
+                    <span className="flex flex-wrap items-center gap-x-3">
+                      Signed in as{" "}
+                      {session.account ? (
+                        <span>{session.account.email}</span>
+                      ) : (
+                        <span className="font-mono">{short(session.wallet)}</span>
+                      )}
+                      <button type="button" className={linkClass} onClick={signOut}>
+                        Sign out
+                      </button>
+                    </span>
+                    {session.account && <PasskeyOffer session={session} />}
                   </span>
                 )
               }
             >
-              {!walletConnected ? (
-                <div className="flex flex-col items-start gap-4 text-sm">
-                  <p className="text-muted">
-                    Your wallet is how Bonded knows the preview is yours. You won't send anything or
-                    pay gas.
-                  </p>
-                  <ConnectButton />
-                </div>
-              ) : (
-                <div className="flex flex-col items-start gap-4 text-sm">
-                  {expired && (
-                    <p className="text-warn" role="status">
-                      Your sign-in expired. Sign in again to carry on where you were.
-                    </p>
-                  )}
-                  <p className="text-muted">
-                    One signature, no gas. It proves the wallet is yours; nothing goes on chain.
-                  </p>
-                  <Button loading={signingIn} onClick={() => void signIn()}>
-                    {signingIn ? "Sign in your wallet…" : "Sign in"}
-                  </Button>
-                  <ErrorText error={signInError} />
-                </div>
-              )}
+              <SignInPanel
+                expired={expired}
+                onSignedIn={(s) => {
+                  setSession(s);
+                  setExpired(false);
+                }}
+                wallet={{ signIn: () => void signIn(), signingIn, error: signInError }}
+              />
             </FlowStep>
 
             <FlowStep
@@ -651,7 +658,7 @@ export function TestAgent() {
                 </dd>
               </div>
               <div>
-                <dt className="font-medium">Free, a few a day per wallet</dt>
+                <dt className="font-medium">Free, a few a day per account</dt>
                 <dd className="mt-0.5 text-muted">
                   Previews run one at a time, after official ratings.
                 </dd>

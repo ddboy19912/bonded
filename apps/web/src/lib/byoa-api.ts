@@ -1,3 +1,9 @@
+import type {
+  AuthenticationResponseJSON,
+  PublicKeyCredentialCreationOptionsJSON,
+  PublicKeyCredentialRequestOptionsJSON,
+  RegistrationResponseJSON,
+} from "@simplewebauthn/browser";
 import type { RemoteMode } from "@bondedhq/shared";
 import { apiUrl, deployment } from "../config";
 import { request, type RunnerRecord } from "./api";
@@ -378,8 +384,18 @@ export interface PreviewAllowance {
 /** The signed-in wallet's preview session. */
 export interface PreviewSession {
   session: string;
+  /** The wallet, or an email account's owner id (wallet-format, no key behind it). */
   wallet: string;
   expiresAt: string;
+  /** Set when the session is an email account's, not a wallet's. */
+  account?: { email: string };
+}
+
+/** GET /account: the signed-in email account. */
+export interface AccountInfo {
+  email: string;
+  wallet: string;
+  passkeys: { id: string; name: string; createdAt: string; lastUsedAt: string | null }[];
 }
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -494,6 +510,56 @@ export function streamEvents<T>(
 
 export const byoaApi = {
   /** POST /previews/session: sign in with the wallet once; the session authorises its previews. */
+  /** POST /account/email/code: a 6-digit code to this address. */
+  emailCode: (email: string) =>
+    request<{ sent: true; code?: string }>("/account/email/code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    }),
+  /** POST /account/email/session: the code for a session. */
+  emailSession: (email: string, code: string) =>
+    request<PreviewSession>("/account/email/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, code }),
+    }),
+  /** POST /account/passkey/options: a challenge to sign in with a passkey. */
+  passkeySignInOptions: () =>
+    request<PublicKeyCredentialRequestOptionsJSON>("/account/passkey/options", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    }),
+  /** POST /account/passkey/session: the browser's signed answer for a session. */
+  passkeySession: (response: AuthenticationResponseJSON) =>
+    request<PreviewSession>("/account/passkey/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ response }),
+    }),
+  /** GET /account: the email account behind a session. */
+  account: (session: string) => request<AccountInfo>("/account", bearer(session)),
+  /** POST /account/passkeys/options: options to add a passkey to the signed-in account. */
+  passkeyAddOptions: (session: string) =>
+    request<PublicKeyCredentialCreationOptionsJSON>("/account/passkeys/options", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...bearer(session).headers },
+      body: "{}",
+    }),
+  /** POST /account/passkeys: the browser's answer, kept as a new passkey. */
+  passkeyAdd: (session: string, response: RegistrationResponseJSON, name?: string) =>
+    request<{ id: string; name: string }>("/account/passkeys", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...bearer(session).headers },
+      body: JSON.stringify({ response, ...(name ? { name } : {}) }),
+    }),
+  /** DELETE /account/passkeys/:id. */
+  passkeyRemove: (session: string, id: string) =>
+    request<{ removed: true }>(`/account/passkeys/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      ...bearer(session),
+    }),
   signIn: async (
     sign: Signer,
     wallet: string,

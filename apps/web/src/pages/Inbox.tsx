@@ -1,8 +1,8 @@
+import { SignInPanel } from "../components/sign-in-panel";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NOTIFICATION_TYPES } from "@bondedhq/shared";
 import { Link } from "react-router";
-import { useAccount } from "wagmi";
 import { ago } from "../lib/format";
 import { inboxLines, inboxSeenAt, markInboxSeen, type InboxItem } from "../lib/health";
 import { byoaApi } from "../lib/byoa-api";
@@ -13,7 +13,6 @@ import { useInbox } from "../components/inbox-bell";
 import { InfoPanel } from "../components/overlay";
 import { NoticeIcon } from "../components/notice-icon";
 import { FixLink } from "../components/problem";
-import { ConnectButton } from "../components/wallet";
 import {
   Badge,
   Button,
@@ -90,7 +89,6 @@ export function MuteSettings({ session }: { session: string }) {
 
 /** The owner's notifications: score expiring, runner offline, breaches, claims, cover, gas. */
 export function Inbox() {
-  const { isConnected } = useAccount();
   const owner = useOwnerSession();
   const inbox = useInbox(owner.session?.session);
   const queryClient = useQueryClient();
@@ -241,23 +239,21 @@ export function Inbox() {
         )
       }
     >
-      {!isConnected ? (
-        <EmptyState title="Connect your wallet" action={<ConnectButton />}>
-          Notifications are for the agents your wallet owns.
-        </EmptyState>
-      ) : !owner.session ? (
+      {!owner.session ? (
         <EmptyState
           title="Sign in to see them"
           action={
-            <div className="flex flex-col items-center gap-2">
-              <Button loading={owner.signingIn} onClick={() => void owner.signIn()}>
-                {owner.signingIn ? "Sign in your wallet…" : "Sign in"}
-              </Button>
-              <ErrorText error={owner.error} />
-            </div>
+            <SignInPanel
+              wallet={{
+                signIn: () => void owner.signIn(),
+                signingIn: owner.signingIn,
+                error: owner.error,
+              }}
+            />
           }
         >
-          One signature, no gas.
+          Notifications are for your agents and previews: sign in with your work email, a passkey or
+          a wallet.
         </EmptyState>
       ) : inbox.isPending ? (
         <Card>

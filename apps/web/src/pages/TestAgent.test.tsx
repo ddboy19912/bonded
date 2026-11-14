@@ -6,7 +6,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { deployment } from "../config";
 import { ApiError, api } from "../lib/api";
 import { byoaApi, type PreviewRecord } from "../lib/byoa-api";
-import { saveSession } from "../lib/connect";
+import { saveAccountSession, saveSession } from "../lib/connect";
 import {
   connectedRunner,
   finishedRun,
@@ -121,12 +121,60 @@ describe("Test your agent", () => {
     expect(screen.queryByText(/minutes|min at the most/)).toBeNull();
   });
 
+  it("signs in with an email code, with no wallet at all, as the account", async () => {
+    wallet.address = undefined;
+    const ACCOUNT = "0x00000000000000000000000000000000000000c7";
+    const code = vi.spyOn(byoaApi, "emailCode").mockResolvedValue({ sent: true });
+    const made = vi.spyOn(byoaApi, "emailSession").mockResolvedValue({
+      session: "acct-sess",
+      wallet: ACCOUNT,
+      expiresAt: iso(3_600_000),
+      account: { email: "dana@fund.example" },
+    });
+    show();
+    const step = current();
+    // A wallet is the other way in, not the only one.
+    expect(within(step).getByRole("button", { name: "Connect wallet" })).toBeTruthy();
+    fireEvent.change(within(step).getByLabelText("Your work email"), {
+      target: { value: "dana@fund.example" },
+    });
+    fireEvent.click(within(step).getByRole("button", { name: "Email me a code" }));
+    await waitFor(() => expect(code).toHaveBeenCalledWith("dana@fund.example"));
+    fireEvent.change(await within(step).findByLabelText(/The code we sent to dana@fund.example/), {
+      target: { value: "12 34 56" },
+    });
+    fireEvent.click(within(step).getByRole("button", { name: "Sign in" }));
+    await waitFor(() => expect(made).toHaveBeenCalledWith("dana@fund.example", "123456"));
+    await waitFor(() =>
+      expect(within(current()).getByText("Tell us about your agent")).toBeTruthy(),
+    );
+    expect(screen.getByText("dana@fund.example")).toBeTruthy();
+    // The account's previews and daily allowance are its own.
+    await waitFor(() =>
+      expect(byoaApi.previewAllowance).toHaveBeenCalledWith(ACCOUNT, expect.any(String)),
+    );
+  });
+
+  it("keeps an email account signed in across a reload, and signs it out", async () => {
+    wallet.address = undefined;
+    saveAccountSession(deployment.chainId, {
+      session: "acct-sess",
+      wallet: "0x00000000000000000000000000000000000000c7",
+      expiresAt: iso(3_600_000),
+      account: { email: "dana@fund.example" },
+    });
+    show();
+    expect(await screen.findByText("dana@fund.example")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    expect(await screen.findByLabelText("Your work email")).toBeTruthy();
+  });
+
   it("signs in once, then asks the framework and where it runs, with the mode under Advanced", async () => {
     const signIn = vi
       .spyOn(byoaApi, "signIn")
       .mockResolvedValue({ session: "sess", wallet: WALLET, expiresAt: iso(3_600_000) });
     show();
-    fireEvent.click(within(current()).getByRole("button", { name: "Sign in" }));
+    fireEvent.click(within(current()).getByRole("button", { name: "Sign in with your wallet" }));
     await waitFor(() => expect(signIn).toHaveBeenCalledWith(expect.any(Function), WALLET));
     await waitFor(() =>
       expect(within(current()).getByText("Tell us about your agent")).toBeTruthy(),
@@ -549,7 +597,9 @@ describe("Test your agent", () => {
     vi.spyOn(byoaApi, "preview").mockRejectedValue(new ApiError(401, "session expired"));
     show("/agents/test?preview=p1");
     expect(await screen.findByText(/Your sign-in expired/)).toBeTruthy();
-    expect(within(current()).getByRole("button", { name: "Sign in" })).toBeTruthy();
+    expect(
+      within(current()).getByRole("button", { name: "Sign in with your wallet" }),
+    ).toBeTruthy();
   });
 
   it("lists the wallet's earlier previews to reopen", async () => {
