@@ -51,6 +51,10 @@ describe("describeError", () => {
   });
   it("keeps the API's own message for request errors", () => {
     expect(describeError(new ApiError(401, "unauthorized"))).toMatch(/operator token/);
+    // Any other 401 says what went wrong itself, such as a passkey that didn't check out.
+    expect(
+      describeError(new ApiError(401, "That passkey sign-in didn't check out. Try again.")),
+    ).toBe("That passkey sign-in didn't check out. Try again.");
     expect(describeError(new ApiError(409, "agent has no valid score"))).toBe(
       "agent has no valid score",
     );

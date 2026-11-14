@@ -98,8 +98,14 @@ export function Inbox() {
   const [seenBefore] = useState(() => inboxSeenAt());
   const marked = useRef(new Set<string>());
   const session = owner.session?.session;
-  // Older pages, loaded with "Load more" from the `next` cursor.
-  const [older, setOlder] = useState<{ items: InboxItem[]; next: string | null }>();
+  // Older pages, loaded with "Load more" from the `next` cursor. Kept with the session they were
+  // loaded for, so after a sign-out and another account's sign-in none of them show.
+  const [loaded, setOlder] = useState<{
+    session: string;
+    items: InboxItem[];
+    next: string | null;
+  }>();
+  const older = loaded && loaded.session === session ? loaded : undefined;
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreError, setMoreError] = useState<unknown>(null);
   const firstPage = inbox.data?.items ?? [];
@@ -132,7 +138,12 @@ export function Inbox() {
     setMoreError(null);
     try {
       const page = await byoaApi.inbox(session, { before: next });
-      setOlder((o) => ({ items: [...(o?.items ?? []), ...page.items], next: page.next ?? null }));
+      // A page that comes back after the session changed belongs to nobody on screen now.
+      setOlder((o) => ({
+        session,
+        items: [...(o?.session === session ? o.items : []), ...page.items],
+        next: page.next ?? null,
+      }));
     } catch (e) {
       setMoreError(e);
     } finally {

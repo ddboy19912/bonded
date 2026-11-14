@@ -155,6 +155,32 @@ describe("SignInButton", () => {
   });
 });
 
+describe("SignInButton, a late answer", () => {
+  it("drops a sign-in that answers after the modal was closed", async () => {
+    vi.spyOn(byoaApi, "emailCode").mockResolvedValue({ sent: true });
+    let answer!: (s: PreviewSession) => void;
+    vi.spyOn(byoaApi, "emailSession").mockReturnValue(
+      new Promise<PreviewSession>((resolve) => (answer = resolve)),
+    );
+    const signedIn = vi.fn();
+    render(<SignInButton onSignedIn={signedIn} />);
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    fireEvent.click(screen.getByRole("button", { name: /Continue with email/ }));
+    fireEvent.change(screen.getByLabelText("Your work email"), {
+      target: { value: "dana@fund.example" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Email me a code" }));
+    fireEvent.change(await screen.findByLabelText("Sign-in code"), { target: { value: "123456" } });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    answer(SESSION);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(signedIn).not.toHaveBeenCalled();
+    expect(loadAccountSession(deployment.chainId)).toBeUndefined();
+  });
+});
+
 describe("HeaderSignIn", () => {
   it("shows Sign in, the email account once signed in, and signs it out", async () => {
     render(<HeaderSignIn />);
@@ -172,5 +198,26 @@ describe("HeaderSignIn", () => {
     wallet.connected = true;
     render(<HeaderSignIn />);
     expect(screen.getByRole("button", { name: "Wallet 0xa1" })).toBeTruthy();
+  });
+
+  it("offers a wallet to an email account, keeping the account signed in", () => {
+    saveAccountSession(deployment.chainId, SESSION);
+    render(<HeaderSignIn />);
+    fireEvent.click(screen.getByRole("button", { name: "dana@fund.example" }));
+    fireEvent.click(screen.getByRole("button", { name: "Connect a wallet" }));
+    return waitFor(() => {
+      expect(wallet.openConnect).toHaveBeenCalled();
+      expect(loadAccountSession(deployment.chainId)).toEqual(SESSION);
+    });
+  });
+
+  it("keeps showing the email account, and its sign-out, once a wallet connects too", () => {
+    wallet.connected = true;
+    saveAccountSession(deployment.chainId, SESSION);
+    render(<HeaderSignIn />);
+    expect(screen.getByRole("button", { name: "Wallet 0xa1" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "dana@fund.example" }));
+    expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Connect a wallet" })).toBeNull();
   });
 });

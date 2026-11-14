@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getCodeBlock, queryCodeBlock } from "../test/code";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 import type { ReactNode } from "react";
 import { deployment } from "../config";
 import { ApiError, api } from "../lib/api";
 import { byoaApi } from "../lib/byoa-api";
-import { saveSession } from "../lib/connect";
+import { saveAccountSession, saveSession } from "../lib/connect";
 import { actionableRun, finishedRun, health, iso, preview, status } from "../test/byoa-fixtures";
 import { PreviewReport } from "./preview-report";
 import { HealthPanel } from "./health-panel";
@@ -23,7 +23,10 @@ vi.mock("wagmi", () => ({
   useAccount: () => ({ address: WALLET, isConnected: true }),
   useSignMessage: () => ({ signMessageAsync: async () => "0x5151" }),
 }));
-vi.mock("./wallet", () => ({ ConnectButton: () => <button type="button">Connect wallet</button> }));
+vi.mock("./wallet", () => ({
+  ConnectButton: () => <button type="button">Connect wallet</button>,
+  useOpenConnect: () => () => {},
+}));
 
 function wrap(node: ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -322,6 +325,51 @@ describe("status and notifications", () => {
     expect(read).toHaveBeenLastCalledWith("sess", { ids: ["n1"] });
     // No more pages: no button.
     expect(screen.queryByRole("button", { name: "Load more" })).toBeNull();
+  });
+
+  it("shows none of an earlier account's older pages after another account signs in", async () => {
+    signedIn();
+    const item = (n: number) => ({
+      id: `n${n}`,
+      kind: "low-gas",
+      type: "low_gas",
+      code: "low-gas",
+      message: `Notice ${n}.`,
+      action: null,
+      createdAt: iso(-60_000 * (30 - n)),
+      agentId: "12",
+      subject: "46630:12",
+      read: true,
+    });
+    vi.spyOn(byoaApi, "inbox").mockImplementation(async (s, page = {}) =>
+      s === "other"
+        ? { items: [item(9)], unread: 0, next: null }
+        : page.before
+          ? { items: [item(1)], unread: 0, next: null }
+          : { items: [item(2)], unread: 0, next: "n2" },
+    );
+    vi.spyOn(byoaApi, "ownerNotifications").mockResolvedValue({
+      webhook: null,
+      email: null,
+      emailAvailable: false,
+      muted: [],
+      types: ["low_gas"],
+    });
+    wrap(<Inbox />);
+    fireEvent.click(await screen.findByRole("button", { name: "Load more" }));
+    expect(await screen.findByText("Notice 1.")).toBeTruthy();
+    // Someone else signs in with an email on the same page.
+    act(() =>
+      saveAccountSession(deployment.chainId, {
+        session: "other",
+        wallet: "0x00000000000000000000000000000000000000c7",
+        expiresAt: iso(3_600_000),
+        account: { email: "dana@fund.example" },
+      }),
+    );
+    expect(await screen.findByText("Notice 9.")).toBeTruthy();
+    expect(screen.queryByText("Notice 1.")).toBeNull();
+    expect(screen.queryByText("Notice 2.")).toBeNull();
   });
 
   it("drops the bell's count once the page marks them read, and keeps them new for this visit", async () => {

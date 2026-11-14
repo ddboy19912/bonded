@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   browserSupportsWebAuthn,
   startAuthentication,
@@ -125,13 +125,24 @@ export function SignInDialog({
   // page doesn't move on (and close this) underneath it.
   const [pending, setPending] = useState<PreviewSession>();
 
+  // Each opening (and closing) is a new attempt: an answer that arrives for an earlier one, after
+  // the modal closed or someone else signed in, is dropped rather than saved.
+  const attempt = useRef(0);
   useEffect(() => {
+    attempt.current += 1;
     if (!open) return;
     setView("choose");
     setError(null);
     setCode("");
     setPending(undefined);
+    setBusy(undefined);
   }, [open]);
+  useEffect(
+    () => () => {
+      attempt.current += 1;
+    },
+    [],
+  );
 
   const complete = (s: PreviewSession) => {
     saveAccountSession(deployment.chainId, s);
@@ -143,46 +154,55 @@ export function SignInDialog({
     if (!next && pending) complete(pending);
     else onOpenChange(next);
   };
-  const run = async (what: NonNullable<typeof busy>, step: () => Promise<void>) => {
+  /** Runs one step; `live()` says whether it still belongs to the open attempt. */
+  const run = async (
+    what: NonNullable<typeof busy>,
+    step: (live: () => boolean) => Promise<void>,
+  ) => {
+    const mine = attempt.current;
+    const live = () => attempt.current === mine;
     setBusy(what);
     setError(null);
     try {
-      await step();
+      await step(live);
     } catch (e) {
-      setError(e);
+      if (live()) setError(e);
     } finally {
-      setBusy(undefined);
+      if (live()) setBusy(undefined);
     }
   };
   const sendCode = () =>
-    run("code", async () => {
+    run("code", async (live) => {
       const to = email.trim();
       await byoaApi.emailCode(to);
+      if (!live()) return;
       setSentTo(to);
       setCode("");
       setView("code");
     });
   const signInWithCode = () =>
-    run("session", async () => {
+    run("session", async (live) => {
       const s = await byoaApi.emailSession(sentTo, code);
+      if (!live()) return;
       if (passkeysWork()) {
         setPending(s);
         setView("offer");
       } else complete(s);
     });
   const signInWithPasskey = () =>
-    run("passkey", async () => {
+    run("passkey", async (live) => {
       const optionsJSON = await byoaApi.passkeySignInOptions();
       const response = await startAuthentication({ optionsJSON });
-      complete(await byoaApi.passkeySession(response));
+      const s = await byoaApi.passkeySession(response);
+      if (live()) complete(s);
     });
   const addPasskey = () =>
-    run("add", async () => {
+    run("add", async (live) => {
       const s = pending!;
       const optionsJSON = await byoaApi.passkeyAddOptions(s.session);
       const response = await startRegistration({ optionsJSON });
       await byoaApi.passkeyAdd(s.session, response);
-      complete(s);
+      if (live()) complete(s);
     });
 
   const back = (to: View) => (
@@ -361,20 +381,22 @@ function Option({
 }
 
 /**
- * The header's sign-in: the wallet's own button once one is connected, the email account when
- * signed in with one, and otherwise "Sign in", which opens the same modal as every page.
+ * The header's sign-in: the email account when signed in with one (with its Sign out, and a way to
+ * connect a wallet too), the wallet's own button once one is connected, and otherwise "Sign in",
+ * which opens the same modal as every page.
  */
 export function HeaderSignIn() {
   const { isConnected } = useAccount();
   const owner = useOwnerSession();
+  const openConnect = useOpenConnect();
   const [open, setOpen] = useState(false);
-  if (isConnected) return <ConnectButton />;
-  if (!owner.email) return <SignInButton />;
+  if (!owner.email) return isConnected ? <ConnectButton /> : <SignInButton />;
   return (
     <>
       <Button kind="secondary" onClick={() => setOpen(true)}>
         <span className="max-w-[16ch] truncate">{owner.email}</span>
       </Button>
+      {isConnected && <ConnectButton />}
       <ResponsiveModal
         open={open}
         onOpenChange={setOpen}
@@ -382,8 +404,10 @@ export function HeaderSignIn() {
         description={`As ${owner.email}.`}
       >
         <p className="text-sm text-muted">
-          Your email works for testing agents, the payment gate and notifications. Vaults, cover and
-          bonds need a crypto wallet as well.
+          Your email works for testing agents, the payment gate and notifications.{" "}
+          {isConnected
+            ? "Your connected wallet is used for vaults, cover and bonds."
+            : "Vaults, cover and bonds need a crypto wallet as well."}
         </p>
         <ModalActions>
           <Button
@@ -395,6 +419,17 @@ export function HeaderSignIn() {
           >
             Sign out
           </Button>
+          {!isConnected && (
+            <Button
+              onClick={() => {
+                setOpen(false);
+                // After the modal has closed, so the wallet's own window gets the focus.
+                setTimeout(openConnect, 0);
+              }}
+            >
+              Connect a wallet
+            </Button>
+          )}
         </ModalActions>
       </ResponsiveModal>
     </>
