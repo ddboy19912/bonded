@@ -14,3 +14,8 @@ onlyBuiltDependencies:
 # for the web app and breaks the types between Vite and Vitest. One version for everyone.
 overrides:
   "@types/node": "^22.19.0"
+  # One copy of the ASN.1 schema registry: @phala/dcap-qvl (TEE quotes) would otherwise keep 2.10.0
+  # beside @simplewebauthn/server's 2.11.1, and a schema registered in one copy isn't found by the
+  # other (passkey signatures failed with "Cannot get schema for 'ECDSASigValue'").
+  "@peculiar/asn1-schema": "2.11.1"
+  "@peculiar/asn1-x509": "2.11.1"

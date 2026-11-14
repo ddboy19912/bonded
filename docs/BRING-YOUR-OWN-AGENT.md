@@ -886,7 +886,7 @@ Your settings are yours (by wallet), for all your previews and agents. The page 
 ## The HTTP API
 
 Everything the pages do is plain HTTP, for scripts. The hosted API is `https://api-production-ba50.up.railway.app` (for example `curl https://api-production-ba50.up.railway.app/status`). Two ways to authenticate:
-- **A session**: sign `Bonded: start preview` (built by `selfServeMessage` in `@bondedhq/shared`: the title, `chain <id>`, `wallet <address>` and `time <unix seconds>`, each on its own line, valid for 10 minutes) and exchange it at `POST /previews/session` (or `/self/session`) for a session token (`bonded_ss_...`, shown once, 12 hours, 20 a wallet an hour; `DELETE` ends it). Send it as `Authorization: Bearer bonded_ss_...`.
+- **A session**: sign `Bonded: start preview` (built by `selfServeMessage` in `@bondedhq/shared`: the title, `chain <id>`, `wallet <address>` and `time <unix seconds>`, each on its own line, valid for 10 minutes) and exchange it at `POST /previews/session` (or `/self/session`) for a session token (`bonded_ss_...`, shown once, 12 hours, 20 a wallet an hour; `DELETE` ends it). Send it as `Authorization: Bearer bonded_ss_...`. Without a wallet, the same session comes from an email code or a passkey: see [ACCOUNTS.md](ACCOUNTS.md).
 - **A signed request**, for a registered agent's writes: an EIP-191 `personal_sign` of a short message such as `Bonded: create runner token`, `chain 46630`, `agent 12`, `time <unix seconds>`, with `timestamp` and `signature` in the body. Each signature can be used once. A session from the agent's owner works too.
 
 | Endpoint | What it does |

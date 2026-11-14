@@ -1,3 +1,4 @@
+import { accountRoutes, type WebAuthnConfig, webAuthnFromEnv } from "./accounts.js";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -149,6 +150,13 @@ export function createApi(options: {
   verifyAgentUrl?: AgentUrlVerifier;
   /** Sends notification emails, when configured (RESEND_API_KEY and EMAIL_FROM). */
   email?: EmailSender;
+  /** Where passkeys are valid (WEBAUTHN_RP_ID, WEBAUTHN_ORIGINS; bondedhq.xyz by default). */
+  webauthn?: WebAuthnConfig;
+  /**
+   * Tests and local scripts only, never production: email sign-in sends no email and answers
+   * with the code itself.
+   */
+  showEmailCodes?: boolean;
   /** Bonded's own hosts, which an Agent URL or webhook may not use (beyond the web origins). */
   ownDomains?: readonly string[];
   /** Agent URLs and webhooks may be plain http on this machine: local demos and tests only. */
@@ -253,6 +261,11 @@ export function createApi(options: {
     /^\/(self\/notifications|previews\/[0-9a-f-]{36}\/(notifications|hosted-agent)|self\/agents\/\d{1,78}\/notifications)$/;
   const PUBLIC_DELETE =
     /^\/(self\/agents\/\d{1,78}\/(runner-token|agent-url)|self\/session|previews\/session|previews\/[0-9a-f-]{36}\/(runner-token|agent-url))$/;
+  // Sign-in without a wallet (accounts.ts): a code, a passkey or the account's own session
+  // authenticates each of these.
+  const ACCOUNT_POST =
+    /^\/account\/(email\/code|email\/session|passkeys\/options|passkeys|passkey\/options|passkey\/session)$/;
+  const ACCOUNT_DELETE = /^\/account\/passkeys\/[A-Za-z0-9_-]{1,1024}$/;
   const hasToken = (header: string | undefined) => {
     const token = Buffer.from(header ?? "");
     const expected = Buffer.from(`Bearer ${options.apiToken}`);
@@ -261,9 +274,9 @@ export function createApi(options: {
   app.use("*", async (c, next) => {
     const open =
       c.req.method === "POST"
-        ? PUBLIC_POST.test(c.req.path)
+        ? PUBLIC_POST.test(c.req.path) || ACCOUNT_POST.test(c.req.path)
         : c.req.method === "DELETE"
-          ? PUBLIC_DELETE.test(c.req.path)
+          ? PUBLIC_DELETE.test(c.req.path) || ACCOUNT_DELETE.test(c.req.path)
           : c.req.method === "PUT"
             ? PUBLIC_PUT.test(c.req.path)
             : true;
@@ -306,6 +319,16 @@ export function createApi(options: {
     chainId: chain.deployment.chainId,
     now: ownerNow,
     writes,
+  });
+  // Sign-in without a wallet: email codes and passkeys, on the same sessions.
+  accountRoutes(app, {
+    db,
+    chainId: chain.deployment.chainId,
+    wallet,
+    writes,
+    webauthn: options.webauthn ?? webAuthnFromEnv(),
+    ...(options.email ? { email: options.email } : {}),
+    ...(options.showEmailCodes ? { showCodes: true } : {}),
   });
   const vaultStatus = new AgentStatusReader(db, chain, {
     ...(options.vaultStatusCacheMs !== undefined ? { ttlMs: options.vaultStatusCacheMs } : {}),
