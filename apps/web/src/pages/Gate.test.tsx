@@ -47,6 +47,7 @@ vi.mock("wagmi", () => ({
 }));
 vi.mock("../components/wallet", () => ({
   ConnectButton: () => <button type="button">Connect wallet</button>,
+  useOpenConnect: () => () => {},
 }));
 
 // A throwaway receipt key, made for this run.
@@ -309,13 +310,15 @@ describe("the payment gate's rules page", () => {
   it("asks to sign in: with an email, or a wallet, then its signature", async () => {
     wallet.address = undefined;
     show();
-    // No wallet needed: an email works too.
-    expect(screen.getByLabelText("Your work email")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Connect wallet" })).toBeTruthy();
+    // One button; no wallet needed: an email works too.
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(screen.getByRole("button", { name: /Continue with email/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Use a crypto wallet/ })).toBeTruthy();
     cleanup();
     wallet.address = WALLET;
     show();
-    expect(screen.getByRole("button", { name: "Sign in with your wallet" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(screen.getByRole("button", { name: /Sign in with your wallet/ })).toBeTruthy();
     expect(gateApi.accounts).not.toHaveBeenCalled();
   });
 

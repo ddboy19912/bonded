@@ -1,4 +1,4 @@
-import { SignInPanel } from "../components/sign-in-panel";
+import { SignInButton } from "../components/sign-in";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NOTIFICATION_TYPES } from "@bondedhq/shared";
@@ -243,7 +243,7 @@ export function Inbox() {
         <EmptyState
           title="Sign in to see them"
           action={
-            <SignInPanel
+            <SignInButton
               wallet={{
                 signIn: () => void owner.signIn(),
                 signingIn: owner.signingIn,
@@ -252,8 +252,7 @@ export function Inbox() {
             />
           }
         >
-          Notifications are for your agents and previews: sign in with your work email, a passkey or
-          a wallet.
+          Notifications are for your agents and previews.
         </EmptyState>
       ) : inbox.isPending ? (
         <Card>

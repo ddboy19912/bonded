@@ -212,8 +212,8 @@ export function TxLink({ hash }: { hash: string }) {
   );
 }
 
-type ButtonKind = "primary" | "secondary" | "ghost" | "danger" | "light";
-type ButtonSize = "sm" | "md" | "lg";
+export type ButtonKind = "primary" | "secondary" | "ghost" | "danger" | "light";
+export type ButtonSize = "sm" | "md" | "lg";
 
 const BUTTON_KIND: Record<ButtonKind, string> = {
   primary: "btn-brand text-on-brand hover:brightness-110",

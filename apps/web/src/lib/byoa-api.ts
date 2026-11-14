@@ -6,7 +6,7 @@ import type {
 } from "@simplewebauthn/browser";
 import type { RemoteMode } from "@bondedhq/shared";
 import { apiUrl, deployment } from "../config";
-import { request, type RunnerRecord } from "./api";
+import { ApiError, request, type RunnerRecord } from "./api";
 import { byoaMessage, type ByoaAction } from "./byoa-messages";
 import { createRunnerToken, requestRating, revokeRunnerToken, type Signer } from "./self-serve";
 import { withCodes, type ApiMessage, type CheckIssue } from "./troubleshooting";
@@ -477,6 +477,30 @@ async function write<T>(
   });
 }
 
+/**
+ * A sign-in call that needs no session (email code or passkey). An API without these routes
+ * yet answers 404, or 401 from its token gate: said plainly, not as a token problem.
+ */
+async function openAccountCall<T>(path: string, body: unknown): Promise<T> {
+  try {
+    return await request<T>(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    if (
+      e instanceof ApiError &&
+      (e.status === 404 || (e.status === 401 && e.message === "unauthorized"))
+    )
+      throw new Error(
+        "Email and passkey sign-in isn't switched on here yet. Use a crypto wallet for now.",
+        { cause: e },
+      );
+    throw e;
+  }
+}
+
 const bearer = (session: string) => ({ headers: { Authorization: `Bearer ${session}` } });
 const maybeBearer = (session?: string) => (session ? bearer(session) : undefined);
 
@@ -512,32 +536,16 @@ export const byoaApi = {
   /** POST /previews/session: sign in with the wallet once; the session authorises its previews. */
   /** POST /account/email/code: a 6-digit code to this address. */
   emailCode: (email: string) =>
-    request<{ sent: true; code?: string }>("/account/email/code", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
-    }),
+    openAccountCall<{ sent: true; code?: string }>("/account/email/code", { email }),
   /** POST /account/email/session: the code for a session. */
   emailSession: (email: string, code: string) =>
-    request<PreviewSession>("/account/email/session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, code }),
-    }),
+    openAccountCall<PreviewSession>("/account/email/session", { email, code }),
   /** POST /account/passkey/options: a challenge to sign in with a passkey. */
   passkeySignInOptions: () =>
-    request<PublicKeyCredentialRequestOptionsJSON>("/account/passkey/options", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: "{}",
-    }),
+    openAccountCall<PublicKeyCredentialRequestOptionsJSON>("/account/passkey/options", {}),
   /** POST /account/passkey/session: the browser's signed answer for a session. */
   passkeySession: (response: AuthenticationResponseJSON) =>
-    request<PreviewSession>("/account/passkey/session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ response }),
-    }),
+    openAccountCall<PreviewSession>("/account/passkey/session", { response }),
   /** GET /account: the email account behind a session. */
   account: (session: string) => request<AccountInfo>("/account", bearer(session)),
   /** POST /account/passkeys/options: options to add a passkey to the signed-in account. */

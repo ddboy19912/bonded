@@ -1,4 +1,4 @@
-import { PasskeyOffer, SignInPanel } from "../components/sign-in-panel";
+import { SignInButton } from "../components/sign-in";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -373,19 +373,27 @@ export function TestAgent() {
                         Sign out
                       </button>
                     </span>
-                    {session.account && <PasskeyOffer session={session} />}
                   </span>
                 )
               }
             >
-              <SignInPanel
-                expired={expired}
-                onSignedIn={(s) => {
-                  setSession(s);
-                  setExpired(false);
-                }}
-                wallet={{ signIn: () => void signIn(), signingIn, error: signInError }}
-              />
+              <div className="flex flex-col items-start gap-3 text-sm">
+                {expired && (
+                  <p className="text-warn" role="status">
+                    Your sign-in expired. Sign in again to carry on where you were.
+                  </p>
+                )}
+                <p className="text-muted">
+                  Use your work email, a passkey or a crypto wallet. It's free.
+                </p>
+                <SignInButton
+                  onSignedIn={(s) => {
+                    setSession(s);
+                    setExpired(false);
+                  }}
+                  wallet={{ signIn: () => void signIn(), signingIn, error: signInError }}
+                />
+              </div>
             </FlowStep>
 
             <FlowStep

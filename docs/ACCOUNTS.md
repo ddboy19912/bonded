@@ -36,6 +36,6 @@ It is **not a wallet**. Nobody holds a key for it, so nothing on chain can be do
 
 **Settings:**
 - Email uses the same sender as notifications: `RESEND_API_KEY` and `EMAIL_FROM` on the api service. Without them, email sign-in answers 503.
-- Passkeys use `WEBAUTHN_RP_ID` (default `bondedhq.xyz`) and `WEBAUTHN_ORIGINS` (default `https://www.bondedhq.xyz,https://bondedhq.xyz`). Passkeys don't work on Vercel preview addresses, which are other sites.
+- Passkeys use `WEBAUTHN_RP_ID` (default `bondedhq.xyz`) and `WEBAUTHN_ORIGINS` (default `https://www.bondedhq.xyz,https://bondedhq.xyz`). Passkeys don't work on Vercel preview addresses, which are other sites, so the web app offers a passkey only on `bondedhq.xyz` and its subdomains (`VITE_PASSKEY_RP_ID` to change it, kept equal to `WEBAUTHN_RP_ID`).
 
 **Where it lives:** `apps/api/src/accounts.ts`, migration 0039 (`accounts`, `email_codes`, `passkeys`, `passkey_challenges`), and `apps/api/test/accounts.test.ts`, which tests passkeys with a software authenticator.

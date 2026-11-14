@@ -29,6 +29,9 @@ export function describeError(error: unknown): string {
     return "No browser wallet found. Install a wallet such as MetaMask or Rabby, then reload the page.";
   if (has(error, (e) => e.name === "SwitchChainError" || e.code === 4902))
     return "Your wallet couldn't switch to Robinhood Chain testnet. Add the network in your wallet (chain id 46630), then try again.";
+  // A passkey prompt the person closed, or that timed out.
+  if (has(error, (e) => e.name === "NotAllowedError"))
+    return "The passkey request was cancelled or timed out. Try again, or use email.";
   if (isRpcUnavailable(error))
     return "Can't reach Robinhood Chain testnet right now. Check your connection and try again in a minute.";
   if (error instanceof ApiError) {

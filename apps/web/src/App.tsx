@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import { useAccount } from "wagmi";
 import { isAddress } from "viem";
-import { ConnectButton } from "./components/wallet";
+import { HeaderSignIn } from "./components/sign-in";
 import { InboxBell } from "./components/inbox-bell";
 import { StatusIndicator } from "./components/status-indicator";
 import { Logo, buttonClass } from "./components/ui";
@@ -263,7 +263,7 @@ export function AppLayout() {
             <Search />
             <div className="ml-auto flex shrink-0 items-center gap-2">
               <InboxBell />
-              <ConnectButton />
+              <HeaderSignIn />
             </div>
           </div>
         </header>

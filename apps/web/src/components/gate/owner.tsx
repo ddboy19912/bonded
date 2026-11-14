@@ -1,4 +1,4 @@
-import { SignInPanel } from "../sign-in-panel";
+import { SignInButton } from "../sign-in";
 import type { ReactNode } from "react";
 import {
   Empty,
@@ -28,10 +28,10 @@ export function SignedIn({
       <Empty>
         <EmptyHeader>
           <EmptyTitle>Sign in to see your gate accounts</EmptyTitle>
-          <EmptyDescription>With your work email, a passkey or a wallet.</EmptyDescription>
+          <EmptyDescription>With your work email, a passkey or a crypto wallet.</EmptyDescription>
         </EmptyHeader>
-        <EmptyContent>
-          <SignInPanel
+        <EmptyContent className="items-center">
+          <SignInButton
             wallet={{
               signIn: () => void owner.signIn(),
               signingIn: owner.signingIn,

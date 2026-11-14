@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ConnectButton as RainbowKitConnectButton } from "@rainbow-me/rainbowkit";
+import { ConnectButton as RainbowKitConnectButton, useConnectModal } from "@rainbow-me/rainbowkit";
 import { useWriteContract } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
 import type { Abi, Hex } from "viem";
@@ -17,6 +17,12 @@ export function ConnectButton() {
       showBalance={false}
     />
   );
+}
+
+/** Opens the wallet picker (RainbowKit's connect modal), for the sign-in modal's wallet option. */
+export function useOpenConnect(): () => void {
+  const { openConnectModal } = useConnectModal();
+  return () => openConnectModal?.();
 }
 
 export interface Call {
