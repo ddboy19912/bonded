@@ -2527,12 +2527,15 @@ export class Database {
     return (r.rowCount ?? 0) > 0;
   }
 
-  /** A passkey was used: its new signature counter. */
+  /**
+   * A passkey was used: its new signature counter. The counter never goes down, so of two
+   * sign-ins at once, the one that finishes last can't put back the lower number.
+   */
   async passkeyUsed(id: string, counter: number): Promise<void> {
-    await this.pool.query("UPDATE passkeys SET counter=$2,last_used_at=now() WHERE id=$1", [
-      id,
-      counter,
-    ]);
+    await this.pool.query(
+      "UPDATE passkeys SET counter=GREATEST(counter,$2),last_used_at=now() WHERE id=$1",
+      [id, counter],
+    );
   }
 
   async deletePasskey(accountId: string, id: string): Promise<boolean> {
@@ -2591,16 +2594,34 @@ export class Database {
   }
   /**
    * Delete what owner sign-ins leave behind once it can't matter: used signatures after a day
-   * (a signature is accepted for 10 minutes) and sessions a day after they expired.
+   * (a signature is accepted for 10 minutes), sessions a day after they expired, and an account's
+   * sign-in codes and passkey challenges after a day (a code lasts 10 minutes and the hourly limit
+   * counts an hour of them; a challenge lasts 5 minutes).
    */
-  async pruneOwnerAuth(): Promise<{ signatures: number; sessions: number }> {
+  async pruneOwnerAuth(): Promise<{
+    signatures: number;
+    sessions: number;
+    emailCodes: number;
+    passkeyChallenges: number;
+  }> {
     const a = await this.pool.query(
       "DELETE FROM used_signatures WHERE created_at < now() - interval '1 day'",
     );
     const b = await this.pool.query(
       "DELETE FROM owner_sessions WHERE expires_at < now() - interval '1 day'",
     );
-    return { signatures: a.rowCount ?? 0, sessions: b.rowCount ?? 0 };
+    const c = await this.pool.query(
+      "DELETE FROM email_codes WHERE created_at < now() - interval '1 day'",
+    );
+    const d = await this.pool.query(
+      "DELETE FROM passkey_challenges WHERE expires_at < now() - interval '1 day'",
+    );
+    return {
+      signatures: a.rowCount ?? 0,
+      sessions: b.rowCount ?? 0,
+      emailCodes: c.rowCount ?? 0,
+      passkeyChallenges: d.rowCount ?? 0,
+    };
   }
   /** End a session. */
   async revokeSession(tokenHash: string): Promise<boolean> {
