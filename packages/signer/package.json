@@ -1,6 +1,6 @@
 {
   "name": "@bondedhq/signer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "An x402 signer the agent can't get around: run it on your own server with the wallet key in your KMS, and it signs each x402 payment only if it fits the payee's budget on Bonded's payment gate. Bonded never holds the key.",
   "license": "MIT",
   "keywords": [
