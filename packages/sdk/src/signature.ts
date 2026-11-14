@@ -37,10 +37,14 @@ export const SIGNATURE_TOLERANCE_SECONDS = AGENT_URL_TOLERANCE_SECONDS;
 export const BONDED_AGENT_KEYS_URL = `https://www.bondedhq.xyz${AGENT_URL_KEYS_PATH}`;
 /**
  * Bonded's production keys, built in: used only when BONDED_AGENT_KEYS_URL can't be reached and
- * no key set was fetched before, so a handler still starts then. Empty until the production key
- * exists (docs/AGENT-URL-SIGNED-CALLS.md, Section 6); add its public key here before a release.
+ * no key set was fetched before, so a handler still starts then. The same set the keys address
+ * publishes (docs/AGENT-URL-SIGNED-CALLS.md, Section 6): on a key rotation, add the new public key
+ * here before a release.
  */
-export const BONDED_AGENT_KEYS: AgentUrlPublicKey[] = [];
+export const BONDED_AGENT_KEYS: AgentUrlPublicKey[] = [
+  // The first production key, made 2026-11-14.
+  { kid: "ind7eq0xdV0-", alg: "Ed25519", x: "tWhxWPMrq6BKcQs838cUlF_5SecIG1NBy8L_IRIkSBg" },
+];
 /** Where another Bonded deployment (a local Arena, a staging API) publishes its keys. */
 export const keysUrlOf = (apiUrl: string) => `${apiUrl.replace(/\/+$/, "")}${AGENT_URL_KEYS_PATH}`;
 

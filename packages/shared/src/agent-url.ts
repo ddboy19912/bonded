@@ -450,7 +450,15 @@ export class AgentUrlKeys {
       } catch (error) {
         // A set older than maxAgeMs is no longer trusted: a key taken off it must stop working.
         if (fresh) return this.cached!.keys;
-        if (!this.cached && this.options.fallback?.length) return this.options.fallback;
+        // The built-in keys stand in only for a call they can check: a key id they don't have (a
+        // newer key) is "can't fetch, try again", not a bad signature.
+        const fallback = this.options.fallback ?? [];
+        if (
+          !this.cached &&
+          fallback.length &&
+          (kid === undefined || fallback.some((k) => k.kid === kid))
+        )
+          return fallback;
         throw error;
       }
     }

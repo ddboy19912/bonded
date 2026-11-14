@@ -1,7 +1,8 @@
 # Agent URL without a secret: Bonded-signed calls (plan)
 
-Status: built in the `agent-url-signed-calls` branch (2026-11-12); the key setup and a run
-against a deployed agent are still to do (Section 6). Nothing here changes the on-chain attestation format or any library
+Status: built and merged (2026-11-13). The production key was set on 2026-11-14 and its public
+key is built into the SDK; the npm release and a run against a deployed agent are still to do
+(Section 6). Nothing here changes the on-chain attestation format or any library
 version: this is how the gateway talks to an agent, not how a rating is scored.
 
 ## 1. The problem
@@ -181,7 +182,8 @@ tests); item 6 is running them against a deployed agent once item 7 is done.
 6. **End-to-end tests** from Section 5.1, run against the deployed test agent before merging.
 7. **Key setup (the founder):** `pnpm --filter @bonded/api agent-url-key`, then set
    `AGENT_URL_SIGNING_KEY` on the api service in Railway (the arena-worker takes the same value).
-   The API publishes the public key. It needs production access.
+   The API publishes the public key. It needs production access. Done 2026-11-14 (key id
+   `ind7eq0xdV0-`); its public key is in `BONDED_AGENT_KEYS` (`packages/sdk/src/signature.ts`).
 
 ## 7. Decisions
 

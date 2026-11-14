@@ -3,6 +3,7 @@ import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   AGENT_URL_KEYS_PATH,
+  BONDED_AGENT_KEYS,
   BONDED_AGENT_KEYS_URL,
   type BondedHandlerOptions,
   createBondedHandler,
@@ -10,7 +11,7 @@ import {
   toNodeHandler,
 } from "../src/agent-url.js";
 import type { BondedEpisode } from "../src/index.js";
-import { checkAgentUrlVerifyAnswer } from "@bondedhq/shared/agent-url";
+import { AgentUrlKeySet, checkAgentUrlVerifyAnswer } from "@bondedhq/shared/agent-url";
 
 /** A verify challenge as the gateway sends it (16 to 128 characters). */
 const CHALLENGE = "challenge-0123456789abcdef";
@@ -186,6 +187,17 @@ describe("createBondedHandler", () => {
       expect(BONDED_AGENT_KEYS_URL).toBe(fetched[0]);
     } finally {
       console.error = original;
+    }
+  });
+
+  it("builds in Bonded's production key: a valid Ed25519 key whose id matches it", async () => {
+    expect(BONDED_AGENT_KEYS.length).toBeGreaterThan(0);
+    AgentUrlKeySet.parse({ keys: BONDED_AGENT_KEYS });
+    for (const { kid, x } of BONDED_AGENT_KEYS) {
+      const raw = Buffer.from(x, "base64url");
+      await globalThis.crypto.subtle.importKey("raw", raw, { name: "Ed25519" }, false, ["verify"]);
+      const digest = await globalThis.crypto.subtle.digest("SHA-256", raw);
+      expect(Buffer.from(digest).toString("base64url").slice(0, 12)).toBe(kid);
     }
   });
 
