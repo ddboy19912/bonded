@@ -38,7 +38,13 @@ export type AgentConnection =
       /** What it is registered to ("<chain>:<agent id>" or "preview:<id>"): its own rate limit. */
       registration: string;
     }
-  | { kind: "hosted"; spec: HostedAgentSpec; registration: string };
+  | {
+      kind: "hosted";
+      spec: HostedAgentSpec;
+      registration: string;
+      /** The owner's wallet: its share of Bonded's daily budget for running agents. */
+      owner: string;
+    };
 
 /** What a saved hosted agent runs, as the arena's spec. */
 export function hostedSpecOf(saved: HostedAgentRecord): HostedAgentSpec {
@@ -61,7 +67,7 @@ export function transportOf(connection: AgentConnection): AgentTransport {
   return connection.kind === "hosted"
     ? {
         kind: "hosted",
-        agent: hostedAgent(connection.spec),
+        agent: hostedAgent(connection.spec, { owner: connection.owner }),
         registration: connection.registration,
       }
     : connection;

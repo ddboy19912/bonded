@@ -208,13 +208,20 @@ export async function workCheckOne(
 /** How to reach the checked agent now, or the problem in words for its owner. */
 async function connectionFor(
   db: Database,
-  check: { subject: string; connection: string; credentialId: string | null },
+  check: { subject: string; connection: string; credentialId: string | null; owner: string },
 ): Promise<{ reach: AgentConnection } | { problem: string }> {
   if (check.connection === "hosted") {
     const saved = await db.hostedAgent(check.subject);
     if (!saved || saved.id !== check.credentialId)
       return { problem: "Your agent changed since the check was asked for. Run it again." };
-    return { reach: { kind: "hosted", spec: hostedSpecOf(saved), registration: check.subject } };
+    return {
+      reach: {
+        kind: "hosted",
+        spec: hostedSpecOf(saved),
+        registration: check.subject,
+        owner: check.owner,
+      },
+    };
   }
   if (check.connection === "runner") {
     const now = await db.currentConnection(check.subject, "runner");

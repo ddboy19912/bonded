@@ -90,22 +90,24 @@ Anyone can sign in and save a file, so the file is treated as hostile.
 | Reach the server: files, processes, environment variables, Bonded's keys, the network | It runs in QuickJS compiled to WebAssembly, a separate engine whose memory is its own. It is handed two functions and nothing else: the model and the episode's tools. A bug in QuickJS stays inside that memory; getting out would take a bug in Node's WebAssembly itself |
 | Other users' tests | Each test runs in a fresh engine instance. Its tools are behind that one episode's unguessable address, and the episode ends when the test does |
 | Hold the worker: endless loops, huge memory | Each test runs on a thread of its own, which Bonded ends at the deadline or a cap whatever the code is doing, so it never holds the thread that serves the gateway and the API. On top: 250 ms per stretch of code, 10 s in all, 64 MB in the engine and a capped heap for the thread |
+| Run the process out of memory with many threads at once | A process runs only so many sandbox threads at a time. Saving a file gets 2 (`HOSTED_INSPECT_THREADS`), and a save is refused at once with "save it again in a few seconds" when both are busy. Tests get 8 (`HOSTED_RUN_THREADS`, two previews' worth), and wait their turn |
 | Flood the host with data | A model request may be 1 MB and a tool call's arguments 64 KB; console output is cut at 200 lines |
-| Use Bonded's model key as free AI | Per test: 40 calls and 150,000 tokens. Across everyone: a daily budget (`HOSTED_DAILY_USD`, $10 by default) after which hosted tests stop for the day, saying it's Bonded's limit. On top, the existing caps: 10 checks an hour per wallet, 30 an hour in all, and 20 previews a day in all |
+| Use Bonded's model key as free AI | Per test: 40 calls and 150,000 tokens. Each wallet: a daily share (`HOSTED_WALLET_DAILY_USD`, $1 by default), so a few wallets can't spend everyone's day. Across everyone: a daily budget (`HOSTED_DAILY_USD`, $10 by default). Both are kept in the database (`hosted_spend`, migration 0038), so a deploy or a second process doesn't start the day over. Past either, a check or rating is refused before it starts, and a test already running stops, saying it's Bonded's limit. On top, the existing caps: 10 checks an hour per wallet, 30 an hour in all, and 20 previews a day in all |
 | Cheat the test | It can only call the episode's tools; the broker ledger judges what it did, as for any agent |
 
 What remains, honestly:
 
 - **The thread shares the worker's process.** A thread is a strong wall for CPU and memory, not a separate operating-system process: an escape from WebAssembly and from the thread would land in the worker. A separate process or container per test is the next step if hosted code ever handles more than test accounts.
 - **What the model is asked is the owner's choice.** Within the caps, someone could use a test to ask the model anything. The daily budget bounds the cost; the model provider's own policies apply to the content.
-- **Saving a file runs its top-level code once** on its own thread in the API process, with a 1-second limit, to check it can run.
+- **Saving a file runs its top-level code once** on its own thread in the API process, with a 1-second limit, to check it can run. At most two such threads run at once.
+- **Calls in flight are reserved per process.** Spending lands in the database when a call ends, so two processes can each admit calls up to the limit at the same moment: the overshoot is bounded by the calls in flight, a few cents.
 
 ## How it works
 
 - **The same test as any agent.** Bonded's gateway opens the episode exactly as for a runner or an Agent URL, and the hosted agent reaches its tools through the same endpoints (on Bonded's own machine). The broker ledger judges every order and withdrawal the same way. Nothing about the test changes with how the agent is connected.
 - **The sandbox.** A code file runs on its own thread (`apps/arena/src/hosted/code-worker.ts`) in QuickJS compiled to WebAssembly: a separate JavaScript engine with its own memory, which can reach nothing of the server's. Its two functions, the model and the tools, are calls back to Bonded's thread (`code-agent.ts`), which makes them and enforces the caps where the code can't reach. A fresh thread and engine run every test.
 - **The code hash.** Bonded knows exactly what ran, so a hosted agent's code hash is keccak256 of `"hosted:"` and the kind, the model and the instructions or code (`hostedCodeHash`), labelled "hosted". One changed character or a new model is a new hash.
-- **Whose failure.** If the model account refuses (a key or credit problem on Bonded's side), the test says so and isn't counted against your agent. Your code throwing, or going past a limit, is your agent's.
+- **Whose failure.** If the model account refuses (a key or credit problem on Bonded's side), the test says so and isn't counted against your agent. If Bonded's daily budget runs out mid-preview, the preview stops saying so, and isn't retried the same day. Your code throwing, or going past a limit, is your agent's.
 
 Where it lives: `packages/shared/src/hosted.ts` (models, limits, the spec and code hash), `apps/arena/src/hosted/` (the runtime), the `hosted` transport in `apps/arena/src/gateway/remote-agent.ts`, `PUT /previews/:id/hosted-agent` in `apps/api/src/previews.ts`, the `hosted_agents` table (migration 0037) and `ConnectHosted` in `apps/web/src/components/connect-hosted.tsx`.
 

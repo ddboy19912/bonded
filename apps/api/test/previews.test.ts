@@ -1,6 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { randomBytes } from "node:crypto";
-import { ANVIL_KEYS, Sandbox, createAgentVault, type AgentVault } from "@bonded/arena";
+import {
+  ANVIL_KEYS,
+  createAgentVault,
+  HOSTED_BUDGET,
+  INSPECT_SLOTS,
+  Sandbox,
+  type AgentVault,
+} from "@bonded/arena";
 import { connectChain, type ServiceChain } from "@bonded/keeper";
 import {
   agentUrlSigner,
@@ -2059,6 +2066,19 @@ describe("hosted previews (Bonded runs the agent)", () => {
     expect((await bodyOf(broken)).error).toMatch(/^Your file can't run: SyntaxError/);
     const noExport = await send("PUT", path, { ...CODE, code: "const x = 1;" }, session);
     expect((await bodyOf(noExport)).error).toMatch(/no default export/);
+    // A NUL character can't be stored: the owner is told, rather than a 503.
+    const nul = await send("PUT", path, { ...CODE, code: `${CODE.code}\u0000` }, session);
+    expect(nul.status).toBe(400);
+    expect((await bodyOf(nul)).error).toMatch(/NUL characters/);
+    // Every inspection slot busy: refused at once with "try again", the file is fine.
+    const held = [INSPECT_SLOTS.tryTake(), INSPECT_SLOTS.tryTake()];
+    try {
+      const busy = await send("PUT", path, CODE, session);
+      expect(busy.status).toBe(503);
+      expect((await bodyOf(busy)).error).toMatch(/checking other files right now/);
+    } finally {
+      for (const took of held) if (took) INSPECT_SLOTS.give();
+    }
     const ok = await send("PUT", path, CODE, session);
     expect(ok.status).toBe(200);
     expect(await bodyOf(await get(path, session))).toMatchObject({
@@ -2066,6 +2086,43 @@ describe("hosted previews (Bonded runs the agent)", () => {
       language: "js",
       code: CODE.code,
     });
+  });
+
+  it("stop before a check or rating once the wallet's share of Bonded's budget is spent", async () => {
+    const account = privateKeyToAccount(generatePrivateKey());
+    const session = await sessionFor(account);
+    const preview = await hosted(session);
+    await send("PUT", `/previews/${preview.id}/hosted-agent`, INSTRUCTIONS, session);
+    // This wallet spent more than its share today (the in-memory budget the tests run with).
+    await HOSTED_BUDGET.record(5, account.address.toLowerCase());
+    const check = await bodyOf(await send("POST", `/previews/${preview.id}/checks`, {}, session));
+    expect(check.status).toBe("failed");
+    expect(JSON.stringify(check)).toMatch(/Your wallet's daily budget for agents Bonded runs/);
+    // Another wallet's agents still run.
+    const other = await sessionFor(privateKeyToAccount(generatePrivateKey()));
+    const theirs = await hosted(other);
+    await send("PUT", `/previews/${theirs.id}/hosted-agent`, INSTRUCTIONS, other);
+    const fine = await bodyOf(await send("POST", `/previews/${theirs.id}/checks`, {}, other));
+    // Not refused: it goes in the lane like any check (taken off it here, for the next test).
+    await pg.db.pool.query(
+      "UPDATE connection_checks SET status='failed',finished_at=now() WHERE subject=$1",
+      [`preview:${theirs.id}`],
+    );
+    expect(fine.status).not.toBe("failed");
+    expect(JSON.stringify(fine)).not.toMatch(/daily budget/);
+  });
+
+  it("keep the day's spending in the database, by wallet", async () => {
+    const day = "2026-11-15";
+    const before = await pg.db.hostedSpend(day, "0xAbC");
+    await pg.db.addHostedSpend(day, "0xABC", 0.25);
+    await pg.db.addHostedSpend(day, "0xabc", 0.5);
+    await pg.db.addHostedSpend(day, "0xdef", 1);
+    await pg.db.addHostedSpend(day, "0xdef", 0);
+    const after = await pg.db.hostedSpend(day, "0xAbC");
+    expect(after.owner - before.owner).toBeCloseTo(0.75);
+    expect(after.total - before.total).toBeCloseTo(1.75);
+    expect((await pg.db.hostedSpend("2026-11-16", "0xabc")).owner).toBe(0);
   });
 
   it("check and rate the saved agent, and need a new check when it changes", async () => {
@@ -2084,7 +2141,13 @@ describe("hosted previews (Bonded runs the agent)", () => {
       }),
     ).toBe(true);
     expect(reached).toEqual([
-      { kind: "hosted", spec: INSTRUCTIONS, registration: `preview:${preview.id}` },
+      {
+        kind: "hosted",
+        spec: INSTRUCTIONS,
+        registration: `preview:${preview.id}`,
+        // The owner's wallet: its share of Bonded's daily budget.
+        owner: expect.stringMatching(/^0x[0-9a-f]{40}$/),
+      },
     ]);
     expect((await bodyOf(await get(`/previews/${preview.id}`, session))).status).toBe("ready");
 

@@ -16,7 +16,16 @@ import {
 } from "./episode.js";
 import { runInstructionsAgent } from "./instructions-agent.js";
 
-export { inspectCodeAgent, javascriptOf, runCodeAgent, SANDBOX_LIMITS } from "./code-agent.js";
+export {
+  INSPECT_BUSY,
+  INSPECT_SLOTS,
+  RUN_SLOTS,
+  inspectCodeAgent,
+  javascriptOf,
+  runCodeAgent,
+  SANDBOX_LIMITS,
+  ThreadSlots,
+} from "./code-agent.js";
 export type { CodeAgentOutcome, SandboxLimits } from "./code-agent.js";
 export {
   HOSTED_BUDGET,
@@ -25,6 +34,7 @@ export {
   HostedBudgetError,
   HostedEpisode,
   HostedLimitError,
+  type HostedSpendStore,
   type HostedLimits,
   type HostedTool,
   type HostedToolResult,
@@ -60,6 +70,8 @@ export interface HostedAgentOptions {
   sandbox?: Partial<SandboxLimits>;
   /** The shared daily spending limit (default HOSTED_BUDGET, from HOSTED_DAILY_USD). */
   budget?: HostedBudget;
+  /** The owner's wallet: its share of the daily budget (HOSTED_WALLET_DAILY_USD). */
+  owner?: string;
   /** For tests: the HTTP client used for the episode's endpoints. */
   fetch?: typeof fetch;
 }
@@ -81,6 +93,7 @@ export function hostedAgent(
         ...(options.limits ? { limits: options.limits } : {}),
         ...(options.fetch ? { fetch: options.fetch } : {}),
         ...(options.budget ? { budget: options.budget } : {}),
+        ...(options.owner ? { owner: options.owner.toLowerCase() } : {}),
       });
       const failed = (error: unknown, logs: string[] = []): HostedRunResult => {
         const text = error instanceof Error ? error.message : String(error);

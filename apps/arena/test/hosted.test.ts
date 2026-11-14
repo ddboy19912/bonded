@@ -16,6 +16,7 @@ import {
   hostedAgent,
   type HostedAgentOptions,
   inspectCodeAgent,
+  ThreadSlots,
 } from "../src/hosted/index.js";
 
 /**
@@ -369,7 +370,7 @@ export default async function run() {
     expect(model.requests).toHaveLength(2);
     expect(second.agentSummary.finalMessage).toMatch(/not the agent's fault/);
     // A new day starts the budget over.
-    expect(() => budget.check(Date.now() + 86_400_000)).not.toThrow();
+    await expect(budget.check("", Date.now() + 86_400_000)).resolves.toBeUndefined();
   });
 
   it("runs on its own thread: a busy loop never holds this one, and the deadline ends it at once", async () => {
@@ -600,5 +601,92 @@ describe("a hosted agent made of instructions", () => {
     expect(result.problems).toEqual([
       "Your agent never called a tool: its instructions should have it read the holder's plan and the account, then trade through its tools",
     ]);
+  });
+});
+
+describe("Bonded's daily budget, shared and per wallet", () => {
+  const ALICE = "0x00000000000000000000000000000000000000a1";
+  const BOB = "0x00000000000000000000000000000000000000b2";
+
+  /** A store kept in a map, as the API's database keeps it, shared by "processes". */
+  function memoryStore() {
+    const rows = new Map<string, number>();
+    return {
+      rows,
+      async hostedSpend(day: string, owner: string) {
+        let total = 0;
+        for (const [key, usd] of rows) if (key.startsWith(`${day}|`)) total += usd;
+        return { total, owner: rows.get(`${day}|${owner}`) ?? 0 };
+      },
+      async addHostedSpend(day: string, owner: string, usd: number) {
+        rows.set(`${day}|${owner}`, (rows.get(`${day}|${owner}`) ?? 0) + usd);
+      },
+    };
+  }
+
+  it("gives each wallet its own share, so one wallet can't spend everyone's day", async () => {
+    const budget = new HostedBudget(10, { perWalletUsd: 1 });
+    await budget.reserve(0.1, ALICE);
+    await budget.settle(0.1, 1.2, ALICE);
+    await expect(budget.reserve(0.1, ALICE)).rejects.toThrow(
+      /Your wallet's daily budget for agents Bonded runs \(\$1\.00\) is used up/,
+    );
+    // Another wallet still runs.
+    await expect(budget.reserve(0.1, BOB)).resolves.toBeUndefined();
+  });
+
+  it("keeps spending in the store: a restart or a second process doesn't start the day over", async () => {
+    const store = memoryStore();
+    const first = new HostedBudget(1, { perWalletUsd: 1, store });
+    await first.reserve(0.1, ALICE);
+    await first.settle(0.1, 0.7, ALICE);
+    // A new process (a deploy) with the same store: the day's $0.70 is still spent.
+    const second = new HostedBudget(1, { perWalletUsd: 1 });
+    second.attachStore(store);
+    await second.reserve(0.1, BOB);
+    await second.settle(0.1, 0.4, BOB);
+    await expect(second.check(ALICE)).rejects.toThrow(/Bonded's daily budget/);
+    expect(store.rows.size).toBe(2);
+  });
+
+  it("counts a call's cost in this process even when the store can't save it", async () => {
+    const budget = new HostedBudget(10, {
+      store: {
+        hostedSpend: async () => ({ total: 0, owner: 0 }),
+        addHostedSpend: async () => {
+          throw new Error("database down");
+        },
+      },
+    });
+    await budget.record(0.5, ALICE);
+    expect(budget.spentToday).toBe(0.5);
+  });
+});
+
+describe("sandbox threads", () => {
+  it("refuses a file at once when every inspection slot is busy, and takes it again after", async () => {
+    const slots = new ThreadSlots(1);
+    expect(slots.tryTake()).toBe(true);
+    const busy = await inspectCodeAgent("export default async function run() {}", "js", {}, slots);
+    expect(busy).toMatchObject({ ok: false, busy: true });
+    slots.give();
+    const ok = await inspectCodeAgent("export default async function run() {}", "js", {}, slots);
+    expect(ok).toEqual({ ok: true });
+    expect(slots.inUse).toBe(0);
+  });
+
+  it("makes test runs wait for a slot, in turn, and lets a cancelled wait go", async () => {
+    const slots = new ThreadSlots(1);
+    expect(await slots.take()).toBe(true);
+    const order: string[] = [];
+    const second = slots.take().then((got) => order.push(`second ${got}`));
+    const cancelled = new AbortController();
+    const third = slots.take(cancelled.signal).then((got) => order.push(`third ${got}`));
+    cancelled.abort();
+    await third;
+    slots.give();
+    await second;
+    expect(order).toEqual(["third false", "second true"]);
+    expect(slots.inUse).toBe(1);
   });
 });
