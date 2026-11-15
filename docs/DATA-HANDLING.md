@@ -9,7 +9,7 @@ This page says what Bonded keeps when you test an agent, how long it keeps it, a
 | Test traces | Each tool call your agent made in a test and the answer it got, as streamed live during previews, ratings and connection checks | 30 days, then deleted automatically |
 | Reports and scores | The report after a preview or rating, including the parts of a trace that show each finding | Until you ask Bonded to delete them |
 | What you give Bonded to run | For "Bonded runs it": the instructions or code file you paste, and the model you pick | While that agent is set up. Changing it replaces the old one |
-| Your account | Your email address, and your passkeys' public keys. The private key never leaves your device | While you have an account |
+| Your account | Your email address, and your passkeys' public keys. Bonded never receives a passkey's private key | While you have an account |
 | Sign-in codes and passkey challenges | One-time values used to sign you in | Deleted a day after they're made |
 | Sessions | What keeps you signed in for 12 hours | Deleted a day after they expire |
 | Inbox notifications | The notices on your inbox page | 90 days |
@@ -28,7 +28,7 @@ Tests run on simulated accounts, testnets and payment test modes. Bonded never n
 
 ## Deleting your data
 
-Ask Bonded and it deletes your traces, reports, the instructions or code you gave it, and your account within 7 days. Deletion is done by hand for now: there is no button for it yet.
+Ask Bonded and it deletes your traces, reports, the instructions or code you gave it, and your account within 7 days.
 
 Design partners: your pilot terms say the same, and add that Bonded deletes your reports and anything you gave it to run within 30 days of the pilot ending.
 
