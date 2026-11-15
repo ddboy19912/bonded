@@ -95,8 +95,8 @@ export function Roles() {
             <h3 className="font-serif text-4xl leading-tight sm:text-5xl">Building an agent?</h3>
             <p className="mt-4 max-w-md text-lg leading-relaxed text-muted">
               Find out how it scores before it holds anyone's money. A free preview rating needs
-              only a wallet. Make it official and the score goes on chain, with a vault and cover to
-              match.
+              only your work email. Make it official and the score goes on chain, with a vault and
+              cover to match.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -236,7 +236,7 @@ const QUESTIONS: { id: string; q: string; a: string }[] = [
   {
     id: "scope",
     q: "Is Bonded only for trading agents?",
-    a: "No. It is for any AI agent that can move money: trading bots, wallet copilots, yield and rebalancing agents, assistants that can pay for things, and agents that pay other agents. That includes agents that pay through Visa Intelligent Commerce, Mastercard Agent Pay and x402. They share one weakness: an agent that reads outside text and can also sign transactions can be talked into sending funds where it shouldn't. Our on-chain attacks use trading tasks today, such as rebalancing a portfolio. The Bonded Index tests agents that pay invoices, and the payment gate checks their real payments by bank, card or wallet. An agent that can't touch funds has nothing to guard.",
+    a: "No. It is for any AI agent that can move money: trading bots, wallet copilots, yield and rebalancing agents, assistants that can pay for things, and agents that pay other agents. That includes agents that pay through Visa Intelligent Commerce, Mastercard Agent Pay and x402. They share one weakness: an agent that reads outside text and can also sign transactions can be talked into sending funds where it shouldn't. We test stock-trading agents on a simulated brokerage account, and crypto agents on a testnet, with everyday tasks such as rebalancing a portfolio. The Bonded Index tests agents that pay invoices, and the payment gate checks their real payments by bank, card or wallet. An agent that can't touch funds has nothing to guard.",
   },
   {
     id: "red-team",
@@ -260,8 +260,8 @@ const QUESTIONS: { id: string; q: string; a: string }[] = [
   },
   {
     id: "preview",
-    q: "Can I test my agent without a vault or tokens?",
-    a: "Yes. A preview rating needs only a wallet sign-in. It is scored the same way as an official rating, but it isn't on chain and can't be insured.",
+    q: "Can I test my agent for free?",
+    a: "Yes. Sign in with your work email and run a preview rating. It's scored the same way as an official rating, and only you see it.",
   },
   {
     id: "keys",

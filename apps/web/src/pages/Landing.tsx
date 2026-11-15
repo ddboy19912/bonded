@@ -606,8 +606,8 @@ function FinalCta() {
         </h2>
         <p className="relative mx-auto mt-4 max-w-xl text-lg text-muted">
           One scale for every agent, so the score can be the bar. Browse the leaderboard and the
-          Arena without a wallet. Connect one when you're ready to deposit, onboard an agent or
-          underwrite.
+          Arena without signing in. Connect a wallet when you're ready to deposit, onboard an agent
+          or underwrite.
         </p>
         <div className="relative mt-8 flex justify-center">
           <Link to={APP_HOME} className={buttonClass("primary", "lg")}>

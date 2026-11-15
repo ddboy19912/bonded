@@ -54,7 +54,7 @@ As of 2026-10-10, on Robinhood Chain testnet:
 
 | | What it means | How |
 |---|---|---|
-| **Preview** | A full report of how your agent does under attack, free, with nothing to commit: no vault, no bond, no tokens, no on-chain registration | Sign in with a wallet on the **Test your agent** page and connect your agent. Labelled "Preview: not on chain, not insurable" |
+| **Preview** | A full report of how your agent does under attack, free, with nothing to commit: no vault, no bond, no tokens, no on-chain registration | Sign in on the **Test your agent** page (work email, passkey or wallet) and connect your agent. Labelled "Preview: private, not published" |
 | **Rate** | The Arena attacks your agent while it runs where it runs, and judges it only by what the episode's vault records. An official rating's signed score goes on chain | Bonded calls your agent's HTTPS endpoint (**Agent URL**), or a small runner next to your agent (`@bondedhq/runner`) starts it once per episode. Your agent reads and trades over MCP, plain HTTP, or (chain mode) a JSON-RPC endpoint |
 | **Protect** | Your agent's key can only act through a contract that checks every action against your mandate and records any breach on chain. That record pays claims | A Mandate Vault, or a `MandateModule` on your ERC-7579 smart account. `@bondedhq/sdk` and its plugins do the wiring |
 | **Bind** | How firmly the score is tied to the code that trades: **declared** (the code hash you or your runner report) or **TEE** (every episode proves it with an Intel TDX quote) | A code hash, which fills itself in, and optionally your TEE's URL and compose hash |
@@ -82,20 +82,20 @@ flowchart LR
 
 ## Test your agent for free
 
-The **Test your agent** page ([www.bondedhq.xyz/agents/test](https://www.bondedhq.xyz/agents/test), Robinhood Chain testnet) takes you from nothing to a preview report. You need a browser wallet (to sign in, not to pay: a preview costs you nothing on chain) and your agent, either reachable at a public HTTPS address or able to run next to the runner.
+The **Test your agent** page ([www.bondedhq.xyz/agents/test](https://www.bondedhq.xyz/agents/test), Robinhood Chain testnet) takes you from nothing to a preview report. You need a work email, a passkey or a browser wallet to sign in (not to pay: a preview costs you nothing on chain) and your agent, either reachable at a public HTTPS address or able to run next to the runner.
 
 ```mermaid
 flowchart LR
-  A["1. Sign in<br/>(one wallet signature)"] --> B["2. Choose<br/>Agent URL or runner,<br/>tools or chain mode"]
+  A["1. Sign in<br/>(work email, passkey<br/>or wallet)"] --> B["2. Choose<br/>Agent URL or runner,<br/>tools or chain mode"]
   B --> C["3. Connect<br/>verify the URL, or<br/>start the runner"]
   C --> D["4. Connection check<br/>one benign episode, live"]
   D --> E["5. Estimate<br/>time and your model cost"]
   E --> F["6. Preview rating<br/>progress: counts and ETA"]
-  F --> G["7. Report<br/>not on chain, not insurable"]
+  F --> G["7. Report<br/>private, not published"]
   G --> H["8. Make it official<br/>vault, bond, attested rating"]
 ```
 
-1. **Sign in.** Connect your wallet, press **Sign in** and sign one message (`Bonded: start preview`, the chain, your wallet and the time). It opens a session for 12 hours; nothing is sent on chain.
+1. **Sign in.** Press **Sign in** and use your work email (a one-time code) or a passkey. Or connect a wallet and sign one message (`Bonded: start preview`, the chain, your wallet and the time). Either way you stay signed in for 12 hours; nothing is sent on chain.
 2. **Answer two questions.** *Which framework is your agent built on?* (ElizaOS, Coinbase AgentKit, LangChain or LangGraph, the Vercel AI SDK, something else over MCP or HTTP, or Python) and *Where do you run it?* (on your computer or server: the runner, which is the default; on a host like Vercel: Agent URL). The snippets and the `init` command follow your answers. The mode (tools or chain) is under **Advanced (optional)**; then press **Continue**. A declared code hash and a TEE are set later, when you make it official (onboarding has its own **Advanced (optional)**).
    - **Runner** (the default): a small program next to your agent connects out to Bonded and starts your agent command once per episode. It works anywhere you can run a command: your laptop, a private network, or a host that keeps a process running (Railway, Render, Fly).
    - **Agent URL**: for an agent that only runs when it is called, on a host like Vercel. You add one file (the handler) to your app and deploy; Bonded calls that HTTPS endpoint once per episode.
@@ -108,7 +108,7 @@ flowchart LR
 4. **Check the connection.** Press **Run the connection check**: one benign episode with no attack, run straight away and streamed live: each tool call, each transaction, the agent's exit, then what to fix in plain sentences ([The connection check](#the-connection-check)). A preview can't start without a passing check of exactly this connection in the last 24 hours.
 5. **Read the estimate.** From the check: about how long the preview takes, and what your own model will cost, if your agent reported its usage when it finished ([Progress, estimates and notifications](#progress-estimates-and-notifications)).
 6. **Start the preview rating** (the **Start preview rating** button). It runs each published attack once (an official rating runs each three times), plus a fresh held-out set made for it alone, 6 controls and the 16 benign twins, shuffled ([Previews](#previews)). The page shows its state (waiting, "Setting up the sandbox", running), then progress (episodes done of the total, and an ETA) and can tell you by browser notification or webhook when it ends (email is off on the hosted service).
-7. **Read the report**: the score and tier, per-class results, what your agent read and didn't, liveness and the Task score ([Task score and benign twins](#task-score-and-benign-twins)). It is labelled "Preview: not on chain, not insurable". Above them, **Fix these first**: the three changes that address the most of its breaches. Below, for each breach, the exact text your agent read, what it did and what would have stopped it ([What the report shows](#what-the-report-shows)). Change your agent and press **Rate again**: the new report shows the two side by side ("54 → 81", with each attack class's breaches before and after).
+7. **Read the report**: the score and tier, per-class results, what your agent read and didn't, liveness and the Task score ([Task score and benign twins](#task-score-and-benign-twins)). It is labelled "Preview: private, not published". Above them, **Fix these first**: the three changes that address the most of its breaches. Below, for each breach, the exact text your agent read, what it did and what would have stopped it ([What the report shows](#what-the-report-shows)). Change your agent and press **Rate again**: the new report shows the two side by side ("54 → 81", with each attack class's breaches before and after).
 8. **Make it official** when you want a score on chain and cover: onboarding opens with your preview's choices filled in ([Official ratings](#official-ratings)).
 
 **How long it takes.** Connecting and checking take minutes. The preview itself is mostly your agent's time: the page shows the API's plan before you start (with today's library, up to 72 episodes and a budget of 40 seconds an episode, never more than 45 minutes), and the estimate in step 5 gives your own agent's figure from its check. An agent that runs past the budget is stopped ([Previews](#previews)).
@@ -657,7 +657,7 @@ A preview is a rating of your agent with nothing to commit: it belongs to your w
 
 One run of each attack against three for an official rating means fewer trials, so the bound on each breach rate is wider and the same agent scores lower in a preview than it would officially. The preview is a check of how your agent does, not a forecast of its official score.
 
-**What it is not.** The score and report are worked out exactly as for an official rating, but **never signed, posted or attested**, and they can't be used for a cover quote. The report and every page that shows it say "Preview: not on chain, not insurable". Only you (the account or wallet that started it) can see it. The [privacy page](https://www.bondedhq.xyz/privacy) says what Bonded keeps and for how long.
+**What it is not.** The score and report are worked out exactly as for an official rating, but **never signed, posted or attested**, and they can't be used for a cover quote. The report and every page that shows it say "Preview: private, not published". Only you (the account or wallet that started it) can see it. The [privacy page](https://www.bondedhq.xyz/privacy) says what Bonded keeps and for how long.
 
 **Limits** (each set by an environment variable on the service):
 

@@ -661,9 +661,7 @@ export function TestAgent() {
             <dl className="mt-4 flex flex-col gap-3 text-sm">
               <div>
                 <dt className="font-medium">{PREVIEW_LABEL}</dt>
-                <dd className="mt-0.5 text-muted">
-                  It isn't signed or posted, and no cover can be bought on it.
-                </dd>
+                <dd className="mt-0.5 text-muted">Only you see it. It isn't published anywhere.</dd>
               </div>
               <div>
                 <dt className="font-medium">Free, a few a day per account</dt>
@@ -880,7 +878,7 @@ function PreviewProblems({
           </Button>
         }
       >
-        It doesn't exist, or it belongs to another wallet.
+        It doesn't exist, or it belongs to another account.
       </EmptyState>
     );
   if (e && !(e instanceof ApiError && e.status === 401))

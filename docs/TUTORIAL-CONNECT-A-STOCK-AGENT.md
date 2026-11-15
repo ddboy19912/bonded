@@ -4,6 +4,19 @@ This walks one small agent through both ways of connecting, and shows exactly wh
 change. Every command and result below is from a real run on 2026-11-13 (details under "How this
 was run").
 
+## The fastest way: no code to connect
+
+To see how your agent holds up first, you don't need to connect anything:
+
+1. Open [Test your agent](https://www.bondedhq.xyz/agents/test) and sign in with your work email.
+2. Choose **Stock trading** and **Bonded runs it**.
+3. Paste your agent's instructions (its system prompt) or one code file, and pick a model.
+4. Run the connection check, then start the preview. The report shows what got through, what it
+   would have cost and how to fix it. Only you see it.
+
+Bonded runs the agent on its own servers and pays for the model ([Bonded runs it](HOSTED-AGENTS.md)).
+To test your agent's own code where it already runs, connect it one of the two ways below.
+
 ## The short answer: do you change your code?
 
 | Way | Code change | New deploy | What it comes to |
@@ -116,8 +129,10 @@ because its sender wasn't the broker's real address.
 Use this when your agent only runs when it is called, on a host like Vercel, so there is no
 command for a runner to start.
 
-**1. On Test your agent,** choose **On a host like Vercel**. The page shows one file, with the
-wallet you signed in with already in it.
+**1. On Test your agent,** choose **On a host like Vercel**. The page shows one file. If you
+signed in with a wallet, it is already in the file as the `owner`. If you signed in with email,
+the page shows your owner ID once you save the URL in step 5: put it in the file, redeploy, and
+verify again.
 
 **2. Install the SDK.**
 
@@ -132,7 +147,7 @@ import { createBondedHandler } from "@bondedhq/sdk/agent-url";
 import { runAgent } from "@/lib/agent";
 
 export const POST = createBondedHandler({
-  owner: "0x3F4c…91a1", // the wallet you sign in to Bonded with (not a secret)
+  owner: "0x3F4c…91a1", // your wallet, or the owner ID the page shows after you save the URL (not a secret)
   onEpisode: () => ({ finalMessage: "this agent trades stocks, not tokens" }),
   async onBrokerageEpisode(episode) {
     const finalMessage = await runAgent({
@@ -154,7 +169,7 @@ import { createBondedHandler, toNodeHandler } from "@bondedhq/sdk/agent-url";
 import { runAgent } from "./agent.mjs";
 
 const handler = createBondedHandler({
-  owner: "0x3F4c1E8a9b2D7c6F5e4A3B2c1D0e9F8a7B6c91a1", // the wallet you sign in to Bonded with (not a secret)
+  owner: "0x3F4c1E8a9b2D7c6F5e4A3B2c1D0e9F8a7B6c91a1", // your wallet, or the owner ID the page shows after you save the URL (not a secret)
   onEpisode: () => ({ finalMessage: "this agent trades stocks, not tokens" }),
   async onBrokerageEpisode(episode) {
     const finalMessage = await runAgent({

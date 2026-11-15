@@ -18,7 +18,7 @@ import { BreachEvidenceList, RatingCompareView, TopFixes } from "./report-action
 const TONE = { breach: "text-breach", warn: "text-warn", muted: "text-muted" } as const;
 
 /** The label every preview carries, wherever its score shows. */
-export const PREVIEW_LABEL = "Preview: not on chain, not insurable";
+export const PREVIEW_LABEL = "Preview: private, not published";
 
 /** What "Make it official" carries into onboarding. */
 export interface OfficialPrefill {

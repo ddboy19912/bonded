@@ -122,7 +122,7 @@ describe("Test your agent", () => {
       "Your preview report",
     ])
       expect(screen.getByRole("heading", { name: new RegExp(title) })).toBeTruthy();
-    expect(screen.getAllByText(/Preview: not on chain, not insurable/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Preview: private, not published/).length).toBeGreaterThan(0);
     // The page says this is a preview: nothing else on it does.
     expect(screen.getByRole("heading", { name: "This is a preview rating" })).toBeTruthy();
   });
@@ -598,7 +598,7 @@ describe("Test your agent", () => {
       }),
     );
     await waitFor(() => expect(within(current()).getByText("Your preview report")).toBeTruthy());
-    expect(await within(current()).findByText("Preview: not on chain, not insurable")).toBeTruthy();
+    expect(await within(current()).findByText("Preview: private, not published")).toBeTruthy();
     fireEvent.click(within(current()).getByRole("button", { name: "Make it official" }));
     expect(await screen.findByText("Onboarding")).toBeTruthy();
   });
