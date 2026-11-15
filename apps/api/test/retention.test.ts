@@ -42,6 +42,36 @@ it("keeps ratings history when events are pruned", async () => {
   expect((await db.pool.query("SELECT status FROM ratings")).rows).toEqual([{ status: "done" }]);
 });
 
+it("prunes connection checks' step logs older than the cutoff, and keeps the checks", async () => {
+  const check = "00000000-0000-0000-0000-0000000000c1";
+  await db.pool.query(
+    `INSERT INTO connection_checks(id,subject,chain_id,owner,mode,connection,status,result)
+     VALUES($1,'preview:p1',1,'0xowner','preview','hosted','passed','{"ok":true}')`,
+    [check],
+  );
+  for (let i = 0; i < 5; i++)
+    await db.pool.query("INSERT INTO connection_check_events(check_id,event) VALUES($1,$2)", [
+      check,
+      { step: i },
+    ]);
+  // The first three steps are 40 days old; the last two are current.
+  await db.pool.query(
+    `UPDATE connection_check_events SET created_at=now() - interval '40 days'
+     WHERE id IN (SELECT id FROM connection_check_events ORDER BY id LIMIT 3)`,
+  );
+
+  const deleted = await db.pruneCheckEvents(new Date(Date.now() - 30 * 86_400_000), 2);
+
+  expect(deleted).toBe(3);
+  const left = await db.pool.query("SELECT event FROM connection_check_events ORDER BY id");
+  expect(left.rows.map((r) => r.event)).toEqual([{ step: 3 }, { step: 4 }]);
+  // The check and its result stay.
+  expect(
+    (await db.pool.query("SELECT status,result FROM connection_checks WHERE id=$1", [check])).rows,
+  ).toEqual([{ status: "passed", result: { ok: true } }]);
+  await expect(db.pruneCheckEvents(new Date(), 0)).rejects.toThrow(RangeError);
+});
+
 it("rejects a batch size that could never finish", async () => {
   const cutoff = new Date(Date.now() - 30 * 86_400_000);
   for (const size of [0, -1, 1.5, Number.NaN])

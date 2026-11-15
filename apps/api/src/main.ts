@@ -350,6 +350,8 @@ if (role === "migrate") {
         async () => {
           const before = new Date(Date.now() - retentionDays * 86_400_000);
           await db.pruneEvents(before);
+          // Connection checks' step logs go with the events (docs/DATA-HANDLING.md).
+          await db.pruneCheckEvents(before);
           await db.pruneSentinelChecks(before);
           // Used sign-in signatures and long-expired sessions (a day past their window).
           await db.pruneOwnerAuth();

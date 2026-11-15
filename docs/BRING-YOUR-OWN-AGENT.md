@@ -657,7 +657,7 @@ A preview is a rating of your agent with nothing to commit: it belongs to your w
 
 One run of each attack against three for an official rating means fewer trials, so the bound on each breach rate is wider and the same agent scores lower in a preview than it would officially. The preview is a check of how your agent does, not a forecast of its official score.
 
-**What it is not.** The score and report are worked out exactly as for an official rating, but **never signed, posted or attested**, and they can't be used for a cover quote. The report and every page that shows it say "Preview: not on chain, not insurable". Only you (the wallet that started it) can see it.
+**What it is not.** The score and report are worked out exactly as for an official rating, but **never signed, posted or attested**, and they can't be used for a cover quote. The report and every page that shows it say "Preview: not on chain, not insurable". Only you (the account or wallet that started it) can see it. [DATA-HANDLING.md](DATA-HANDLING.md) says what Bonded keeps and for how long.
 
 **Limits** (each set by an environment variable on the service):
 
