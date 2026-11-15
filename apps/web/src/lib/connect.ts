@@ -170,15 +170,15 @@ export function problemAdvice(problem: string, connection: Connection): string |
     p.includes("to the check; it must be 200") ||
     p.includes("without its owner")
   )
-    return 'Answer the verify request with 200 and JSON { "challenge", "owner", "version"? }, where owner is your wallet. createBondedHandler (@bondedhq/sdk/agent-url) does it for you; the guide shows how.';
+    return `Answer the verify request with 200 and JSON { "challenge", "owner", "version"? }, where owner is who you sign in as (your wallet, or your account's owner ID). createBondedHandler (@bondedhq/sdk/agent-url) does it for you; the guide shows how.`;
   if (p.includes("public internet"))
     return "Bonded can only call a public address. For an agent on your machine, use the runner instead.";
   if (p.includes("set up for another wallet"))
-    return "Copy the code below again (it has the wallet you're signed in with) and redeploy, or sign in with the wallet in your code.";
+    return "Copy the code below again (its owner is who you're signed in as) and redeploy, or sign in as the owner in your code.";
   if (p.includes("answered for the wallet"))
-    return "Set owner in your handler to the wallet you're signed in with, the one that saved this URL, then redeploy.";
+    return "Set owner in your handler to who you're signed in as (the one that saved this URL), then redeploy.";
   if (p.includes("answered 401") || p.includes("answered 403"))
-    return "Check that owner in your handler is the wallet you're signed in with, that its server's clock is within 5 minutes, and that it can fetch Bonded's keys (bondedhq.xyz/.well-known/bonded-agent-keys.json). Redeploy if you changed anything, then verify again.";
+    return "Check that owner in your handler is who you're signed in as, that its server's clock is within 5 minutes, and that it can fetch Bonded's keys (bondedhq.xyz/.well-known/bonded-agent-keys.json). Redeploy if you changed anything, then verify again.";
   if (p.includes("didn't answer within") || p.includes("did not answer within"))
     return "Your endpoint must reply within 10 seconds: answer the POST straight away and do the work after replying.";
   if (p.includes("answered 4") || p.includes("answered 5"))

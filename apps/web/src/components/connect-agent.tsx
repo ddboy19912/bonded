@@ -54,12 +54,15 @@ export function ConnectAndCheck({
   headingLevel = "h3",
   showBadge = true,
   session,
+  signedInAs,
   framework = rememberedFramework(),
 }: {
   /** The owner's framework, for the code and the init command. */
   framework?: Framework | undefined;
   /** The owner's session: checks and the Agent URL then need no signature each time. */
   session?: string;
+  /** Who the session is for: the Agent URL's code names it as the owner. */
+  signedInAs?: string | undefined;
   agentId: string;
   status: ConnectionStatus;
   refresh: () => unknown;
@@ -154,6 +157,7 @@ export function ConnectAndCheck({
           onChanged={refresh}
           showBadge={showBadge}
           framework={framework}
+          signedInAs={signedInAs}
           {...(teeUrl !== undefined ? { teeUrl } : {})}
           {...(initialUrl ? { initialUrl } : {})}
         />
@@ -264,7 +268,9 @@ export function NewAgentConnection({
           ])
         }
         framework={framework}
-        {...(owner.session ? { session: owner.session.session } : {})}
+        {...(owner.session
+          ? { session: owner.session.session, signedInAs: owner.session.wallet }
+          : {})}
         {...(initialConnection ? { initialConnection } : {})}
         {...(initialUrl ? { initialUrl } : {})}
       />
@@ -491,7 +497,9 @@ export function ConnectAgent({
                   }
                   teeUrl={record.tee?.url ?? null}
                   showBadge={false}
-                  {...(owner.session ? { session: owner.session.session } : {})}
+                  {...(owner.session
+                    ? { session: owner.session.session, signedInAs: owner.session.wallet }
+                    : {})}
                 />
               </>
             )}

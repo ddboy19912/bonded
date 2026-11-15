@@ -492,6 +492,7 @@ export function TestAgent() {
                   framework={framework}
                   subject={subject}
                   auth={auth}
+                  signedInAs={session?.wallet}
                   status={status}
                   connection={status.connection}
                   world={p.world ?? "vault"}

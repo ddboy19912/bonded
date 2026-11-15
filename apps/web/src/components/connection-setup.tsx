@@ -461,9 +461,10 @@ export function ConnectRunner({
 }
 
 /**
- * Agent URL: deploy the handler (the owner's wallet is already in the code), then save the URL,
- * which verifies it at once: Bonded sends a challenge signed for this wallet, and the handler
- * answers naming it. No secret: Bonded signs every call with its own key.
+ * Agent URL: deploy the handler (the owner is already in the code: the wallet, or an email
+ * account's owner id), then save the URL, which verifies it at once: Bonded sends a challenge
+ * signed for that owner, and the handler answers naming it. No secret: Bonded signs every call
+ * with its own key.
  */
 export function ConnectUrl({
   subject,
@@ -473,11 +474,14 @@ export function ConnectUrl({
   initialUrl,
   framework,
   world = "vault",
+  signedInAs,
 }: {
   subject: Subject;
   auth: Auth;
   status: ConnectionStatus;
   onChanged: () => unknown;
+  /** Who the session is for: a wallet, or an email account's owner id (no wallet behind it). */
+  signedInAs?: string | undefined;
   initialUrl?: string;
   framework?: Framework | undefined;
   /** What the agent is tested on: a stock-trading preview's handler needs `onBrokerageEpisode`. */
@@ -487,10 +491,11 @@ export function ConnectUrl({
   const [url, setUrl] = useState(status.agentUrl?.url ?? initialUrl ?? "");
   const [touched, setTouched] = useState(false);
   const saved = status.agentUrl;
-  // The wallet that saved the URL here (before the saved record is read back).
+  // The owner that saved the URL here (before the saved record is read back).
   const [savedOwner, setSavedOwner] = useState<string>();
-  // The wallet the handler names as its owner: the one that saved the URL, or this one.
-  const owner = savedOwner ?? saved?.owner ?? address?.toLowerCase();
+  // Who the handler names as its owner: the one that saved the URL, else the signed-in session's
+  // (an email account's owner id, known before anything is saved), else the connected wallet.
+  const owner = savedOwner ?? saved?.owner ?? (signedInAs ?? address)?.toLowerCase();
   const [editing, setEditing] = useState(!saved);
   const [busy, setBusy] = useState<"save" | "verify">();
   const [error, setError] = useState<unknown>(null);
@@ -746,6 +751,8 @@ export function ConnectStep(props: {
   framework?: Framework | undefined;
   /** What the agent is tested on (default vault): the commands and code shown are for that world. */
   world?: PreviewWorld;
+  /** Who the session is for: the Agent URL's code names it as the owner. */
+  signedInAs?: string | undefined;
 }) {
   // Keyed by what it connects, so a token or secret made for one agent never shows on another.
   const k =
@@ -772,6 +779,7 @@ export function ConnectStep(props: {
       status={props.status}
       onChanged={props.onChanged}
       framework={props.framework}
+      signedInAs={props.signedInAs}
       {...(props.world ? { world: props.world } : {})}
       {...(props.initialUrl ? { initialUrl: props.initialUrl } : {})}
     />

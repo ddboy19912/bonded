@@ -102,7 +102,7 @@ const kit = await AgentKit.from({
  * The same helpers inside an Agent URL handler: they take the episode Bonded POSTed (BONDED_*
  * isn't set there), so each one is called with `episode`.
  */
-/** In the handler's code until the wallet is known. */
+/** In the handler's code until the owner (a wallet or an account's owner id) is known. */
 export const OWNER_PLACEHOLDER = "0xYourWallet";
 
 function urlSnippets(): Snippet[] {
@@ -243,7 +243,7 @@ import { bondedAiSdkTools } from "@bondedhq/sdk/ai-sdk";
 import { generateText, stepCountIs } from "ai";
 
 export const POST = createBondedHandler({
-  owner: "${owner}", // the wallet you sign in to Bonded with (not a secret)
+  owner: "${owner}", // your wallet, or your account's owner ID if you sign in with email (not a secret)
   version: process.env.GIT_SHA,
   // A stock-trading preview sends brokerage episodes. Without this the handler answers 422.
   async onBrokerageEpisode(episode, { signal }) {
@@ -302,7 +302,7 @@ export function snippets(
   gatewayUrl?: string | null,
   /** What the preview tests the agent on (default vault). */
   world: PreviewWorld = "vault",
-  /** The wallet an Agent URL handler names as its owner (a placeholder until it is known). */
+  /** Who an Agent URL handler names as its owner (a placeholder until it is known). */
   owner: string = OWNER_PLACEHOLDER,
 ): Snippet[] {
   if (world === "brokerage") return brokerageSnippets(connection, owner);
@@ -351,7 +351,7 @@ import { bondedAiSdkTools } from "@bondedhq/sdk/ai-sdk";
 import { generateText, stepCountIs } from "ai";
 
 export const POST = createBondedHandler({
-  owner: "${owner}", // the wallet you sign in to Bonded with (not a secret)
+  owner: "${owner}", // your wallet, or your account's owner ID if you sign in with email (not a secret)
   version: process.env.GIT_SHA,
   async onEpisode(episode, { signal }) {
     const tools = await bondedAiSdkTools(episode);
@@ -378,7 +378,7 @@ export const POST = createBondedHandler({
       code: `# A whole Agent URL endpoint: examples/python-agent-url/agent.py in the Bonded repository.
 pip install cryptography
 BONDED_AGENT_OWNER=${owner} PORT=8080 python3 agent.py`,
-      note: "It checks each call is signed by Bonded for your wallet, answers the ownership check, and replies 202 to an episode before working in the background.",
+      note: "It checks each call is signed by Bonded for you, answers the ownership check, and replies 202 to an episode before working in the background.",
       imports: [],
     },
   ];

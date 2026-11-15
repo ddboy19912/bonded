@@ -585,6 +585,6 @@ describe("ConnectAgent", () => {
     show();
     fireEvent.click(await screen.findByRole("button", { name: "Verify it now" }));
     const alert = await screen.findByRole("alert");
-    expect(alert.textContent).toMatch(/the wallet you're signed in with/);
+    expect(alert.textContent).toMatch(/who you're signed in as/);
   });
 });
