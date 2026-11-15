@@ -33,10 +33,17 @@ import { Inbox } from "./pages/Inbox";
 import { Gate } from "./pages/Gate";
 import { GateAccount } from "./pages/GateAccount";
 import { GateVerify } from "./pages/GateVerify";
+import { Privacy } from "./pages/Privacy";
 import "./index.css";
 
 const router = createBrowserRouter([
-  { element: <SiteLayout />, children: [{ path: "/", element: <Landing /> }] },
+  {
+    element: <SiteLayout />,
+    children: [
+      { path: "/", element: <Landing /> },
+      { path: "/privacy", element: <Privacy /> },
+    ],
+  },
   {
     element: <AppLayout />,
     children: [

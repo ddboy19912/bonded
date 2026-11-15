@@ -106,7 +106,10 @@ export default defineConfig({
         },
         { tag: "meta", attrs: { name: "twitter:site", content: "@bonded_hq" } },
       ],
-      social: [{ icon: "rocket", label: "Open the app", href: "/" }],
+      social: [
+        { icon: "rocket", label: "Open the app", href: "/" },
+        { icon: "email", label: "Contact", href: "mailto:hello@bondedhq.xyz" },
+      ],
       customCss: [
         "@fontsource-variable/manrope/index.css",
         "@fontsource/instrument-serif/400.css",

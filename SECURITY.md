@@ -4,7 +4,7 @@ Bonded runs on testnets with test tokens only. Nothing here holds real value yet
 
 ## Reporting a vulnerability
 
-Please report privately through GitHub: the repository's **Security** tab, then **Report a vulnerability**. Don't open a public issue for a vulnerability.
+Please report privately through GitHub: the repository's **Security** tab, then **Report a vulnerability**. Or email security@bondedhq.xyz. Don't open a public issue for a vulnerability.
 
 Include what you found, how to reproduce it, and what an attacker could do with it. We'll acknowledge within a few days and say what we'll do.
 
