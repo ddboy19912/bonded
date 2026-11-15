@@ -54,7 +54,7 @@ As of 2026-10-10, on Robinhood Chain testnet:
 
 | | What it means | How |
 |---|---|---|
-| **Preview** | A full report of how your agent does under attack, free, with nothing to commit: no vault, no bond, no tokens, no on-chain registration | Sign in with a wallet on the **Test your agent** page and connect your agent. Labelled "Preview: not on chain, not insurable" |
+| **Preview** | A full report of how your agent does under attack, free, with nothing to commit: no vault, no bond, no tokens, no on-chain registration | Sign in on the **Test your agent** page (work email, passkey or wallet) and connect your agent. Labelled "Preview: private, not published" |
 | **Rate** | The Arena attacks your agent while it runs where it runs, and judges it only by what the episode's vault records. An official rating's signed score goes on chain | Bonded calls your agent's HTTPS endpoint (**Agent URL**), or a small runner next to your agent (`@bondedhq/runner`) starts it once per episode. Your agent reads and trades over MCP, plain HTTP, or (chain mode) a JSON-RPC endpoint |
 | **Protect** | Your agent's key can only act through a contract that checks every action against your mandate and records any breach on chain. That record pays claims | A Mandate Vault, or a `MandateModule` on your ERC-7579 smart account. `@bondedhq/sdk` and its plugins do the wiring |
 | **Bind** | How firmly the score is tied to the code that trades: **declared** (the code hash you or your runner report) or **TEE** (every episode proves it with an Intel TDX quote) | A code hash, which fills itself in, and optionally your TEE's URL and compose hash |
@@ -91,7 +91,7 @@ flowchart LR
   C --> D["4. Connection check<br/>one benign episode, live"]
   D --> E["5. Estimate<br/>time and your model cost"]
   E --> F["6. Preview rating<br/>progress: counts and ETA"]
-  F --> G["7. Report<br/>not on chain, not insurable"]
+  F --> G["7. Report<br/>private, not published"]
   G --> H["8. Make it official<br/>vault, bond, attested rating"]
 ```
 
@@ -108,7 +108,7 @@ flowchart LR
 4. **Check the connection.** Press **Run the connection check**: one benign episode with no attack, run straight away and streamed live: each tool call, each transaction, the agent's exit, then what to fix in plain sentences ([The connection check](#the-connection-check)). A preview can't start without a passing check of exactly this connection in the last 24 hours.
 5. **Read the estimate.** From the check: about how long the preview takes, and what your own model will cost, if your agent reported its usage when it finished ([Progress, estimates and notifications](#progress-estimates-and-notifications)).
 6. **Start the preview rating** (the **Start preview rating** button). It runs each published attack once (an official rating runs each three times), plus a fresh held-out set made for it alone, 6 controls and the 16 benign twins, shuffled ([Previews](#previews)). The page shows its state (waiting, "Setting up the sandbox", running), then progress (episodes done of the total, and an ETA) and can tell you by browser notification or webhook when it ends (email is off on the hosted service).
-7. **Read the report**: the score and tier, per-class results, what your agent read and didn't, liveness and the Task score ([Task score and benign twins](#task-score-and-benign-twins)). It is labelled "Preview: not on chain, not insurable". Above them, **Fix these first**: the three changes that address the most of its breaches. Below, for each breach, the exact text your agent read, what it did and what would have stopped it ([What the report shows](#what-the-report-shows)). Change your agent and press **Rate again**: the new report shows the two side by side ("54 → 81", with each attack class's breaches before and after).
+7. **Read the report**: the score and tier, per-class results, what your agent read and didn't, liveness and the Task score ([Task score and benign twins](#task-score-and-benign-twins)). It is labelled "Preview: private, not published". Above them, **Fix these first**: the three changes that address the most of its breaches. Below, for each breach, the exact text your agent read, what it did and what would have stopped it ([What the report shows](#what-the-report-shows)). Change your agent and press **Rate again**: the new report shows the two side by side ("54 → 81", with each attack class's breaches before and after).
 8. **Make it official** when you want a score on chain and cover: onboarding opens with your preview's choices filled in ([Official ratings](#official-ratings)).
 
 **How long it takes.** Connecting and checking take minutes. The preview itself is mostly your agent's time: the page shows the API's plan before you start (with today's library, up to 72 episodes and a budget of 40 seconds an episode, never more than 45 minutes), and the estimate in step 5 gives your own agent's figure from its check. An agent that runs past the budget is stopped ([Previews](#previews)).
@@ -657,7 +657,7 @@ A preview is a rating of your agent with nothing to commit: it belongs to your w
 
 One run of each attack against three for an official rating means fewer trials, so the bound on each breach rate is wider and the same agent scores lower in a preview than it would officially. The preview is a check of how your agent does, not a forecast of its official score.
 
-**What it is not.** The score and report are worked out exactly as for an official rating, but **never signed, posted or attested**, and they can't be used for a cover quote. The report and every page that shows it say "Preview: not on chain, not insurable". Only you (the account or wallet that started it) can see it. The [privacy page](https://www.bondedhq.xyz/privacy) says what Bonded keeps and for how long.
+**What it is not.** The score and report are worked out exactly as for an official rating, but **never signed, posted or attested**, and they can't be used for a cover quote. The report and every page that shows it say "Preview: private, not published". Only you (the account or wallet that started it) can see it. The [privacy page](https://www.bondedhq.xyz/privacy) says what Bonded keeps and for how long.
 
 **Limits** (each set by an environment variable on the service):
 

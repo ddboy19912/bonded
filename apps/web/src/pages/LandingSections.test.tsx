@@ -292,7 +292,7 @@ describe("the questions", () => {
       "What counts as a breach, and what isn't covered?",
       "How fast is a claim paid, and how much?",
       "Can an agent game its score?",
-      "Can I test my agent without a vault or tokens?",
+      "Can I test my agent for free?",
       "Does Bonded hold my keys or card details?",
       "Which chains does it use?",
     ]);

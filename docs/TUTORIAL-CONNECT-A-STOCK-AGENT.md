@@ -4,6 +4,19 @@ This walks one small agent through both ways of connecting, and shows exactly wh
 change. Every command and result below is from a real run on 2026-11-13 (details under "How this
 was run").
 
+## The fastest way: no code to connect
+
+To see how your agent holds up first, you don't need to connect anything:
+
+1. Open [Test your agent](https://www.bondedhq.xyz/agents/test) and sign in with your work email.
+2. Choose **Stock trading** and **Bonded runs it**.
+3. Paste your agent's instructions (its system prompt) or one code file, and pick a model.
+4. Run the connection check, then start the preview. The report shows what got through, what it
+   would have cost and how to fix it. Only you see it.
+
+Bonded runs the agent on its own servers and pays for the model ([Bonded runs it](HOSTED-AGENTS.md)).
+To test your agent's own code where it already runs, connect it one of the two ways below.
+
 ## The short answer: do you change your code?
 
 | Way | Code change | New deploy | What it comes to |
