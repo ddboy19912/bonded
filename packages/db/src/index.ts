@@ -919,6 +919,24 @@ export class Database {
       if ((r.rowCount ?? 0) < batchSize) return deleted;
     }
   }
+  /**
+   * Delete connection checks' step logs (each tool call and its answer) made before `before`, in
+   * bounded batches like `pruneEvents`. The checks themselves and their results are kept.
+   */
+  async pruneCheckEvents(before: Date, batchSize = 10_000): Promise<number> {
+    if (!Number.isSafeInteger(batchSize) || batchSize < 1)
+      throw new RangeError("batchSize must be a positive integer");
+    let deleted = 0;
+    for (;;) {
+      const r = await this.pool.query(
+        `DELETE FROM connection_check_events WHERE id IN
+           (SELECT id FROM connection_check_events WHERE created_at < $1 ORDER BY id LIMIT $2)`,
+        [before, batchSize],
+      );
+      deleted += r.rowCount ?? 0;
+      if ((r.rowCount ?? 0) < batchSize) return deleted;
+    }
+  }
   /** Replace one chain's runnable set without deleting rating or attestation history. */
   async reconcileAgents(chainId: number, agents: { agentId: string; config: unknown }[]) {
     await this.transaction(async (c) => {
