@@ -93,7 +93,7 @@ URL**, give your agent its secret and verify the URL. Then pass that preview's i
 |---|---|---|
 | `POST /ci/runs` | Key | Start a run: `{ previewId, minScore, minTaskScore?, label? }`. Starts the preview's connection check, or its rating if a check of this connection passed in the last 24 hours. Returns `202` with the run |
 | `GET /ci/runs/:id` | Key | The run, moved on as far as it has got. Poll until `done` |
-| `GET /ci/runs/:id/report` | Key | The preview report once the rating is done (`202` before). Labelled "Preview: not on chain, not insurable" |
+| `GET /ci/runs/:id/report` | Key | The preview report once the rating is done (`202` before). Labelled "Preview: private, not published" |
 | `GET /ci/runs` | Key | The wallet's runs, newest first: `?limit=`, `?before=<runId>` |
 
 A run's `status` is `checking`, `rating`, then `passed`, `failed` (under the minimum) or `error`
