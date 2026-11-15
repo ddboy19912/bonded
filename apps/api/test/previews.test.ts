@@ -347,7 +347,7 @@ describe("previews", () => {
       declaredCodeHash: null,
       hasRunnerToken: false,
       lastCheck: null,
-      label: "Preview: not on chain, not insurable",
+      label: "Preview: private, not published",
       attested: false,
       insurable: false,
     });
@@ -730,7 +730,7 @@ describe("the preview worker", () => {
     expect(rating.codeHash).toBe(hash(0x5150));
     const report = await bodyOf(await get(`/previews/${preview.id}/report`, session));
     expect(report).toMatchObject({
-      label: "Preview: not on chain, not insurable",
+      label: "Preview: private, not published",
       attested: false,
     });
     expect((report.report as { preview: unknown }).preview).toMatchObject({
@@ -749,7 +749,7 @@ describe("the preview worker", () => {
     expect(sent[0]).toMatchObject({
       ratingId: runId,
       previewId: preview.id,
-      label: "Preview: not on chain, not insurable",
+      label: "Preview: private, not published",
     });
     // Progress: counts and an ETA, and the end.
     const progress = await sse(await get(`/ratings/${runId}/progress`, session));

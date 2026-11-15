@@ -98,3 +98,57 @@ export function signInCodeEmail(code: string, minutes = 10): EmailMessage {
     html: emailLayout({ title: subject, preheader: `${code}. ${lasts}`, body, footnote }),
   };
 }
+
+/**
+ * A notice about an agent, a rating or a gate account, in the shared frame: a heading, a few
+ * plain paragraphs, an optional score, a button to the page it's about, an optional "how to fix"
+ * link, and the id it's about in small type. Every argument is plain text or a URL.
+ */
+export function noticeEmailHtml({
+  title,
+  preheader,
+  heading,
+  paragraphs,
+  stat,
+  button,
+  link,
+  reference,
+  footnote,
+}: {
+  title: string;
+  preheader: string;
+  heading: string;
+  paragraphs: string[];
+  stat?: { label: string; value: string } | undefined;
+  button?: { label: string; href: string } | undefined;
+  link?: { label: string; href: string } | undefined;
+  reference?: string | undefined;
+  footnote: string;
+}): string {
+  const p = (s: string) =>
+    `<p style="margin:0 0 16px;font:15px/24px ${FONT};color:${BODY};">${escapeHtml(s)}</p>`;
+  const parts = [
+    `<h1 style="margin:0 0 16px;font:600 22px/30px ${FONT};color:${INK};">${escapeHtml(heading)}</h1>`,
+    ...paragraphs.map((s) => p(s)),
+  ];
+  if (stat)
+    parts.push(
+      `<div style="margin:8px 0 24px;background:#f0f4ff;border:1px solid #d6e0ff;border-radius:12px;padding:16px 20px;"><div style="font:13px/20px ${FONT};color:${MUTED};">${escapeHtml(stat.label)}</div><div style="font:600 30px/38px ${FONT};color:${BRAND};">${escapeHtml(stat.value)}</div></div>`,
+    );
+  if (button)
+    parts.push(
+      `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 0;"><tr><td style="border-radius:10px;background:${BRAND};"><a href="${escapeHtml(button.href)}" style="display:inline-block;padding:12px 22px;font:600 15px/20px ${FONT};color:#ffffff;text-decoration:none;border-radius:10px;">${escapeHtml(button.label)}</a></td></tr></table>`,
+    );
+  if (link)
+    parts.push(
+      `<p style="margin:16px 0 0;font:14px/22px ${FONT};"><a href="${escapeHtml(link.href)}" style="color:${BRAND};">${escapeHtml(link.label)}</a></p>`,
+    );
+  if (reference)
+    parts.push(
+      `<p style="margin:24px 0 0;font:12px/18px ${MONO};color:${MUTED};">${escapeHtml(reference)}</p>`,
+    );
+  return emailLayout({ title, preheader, body: parts.join("\n"), footnote });
+}
+
+/** Links in emails go to the public site. */
+export const siteUrl = (path: string) => `${SITE}${path}`;

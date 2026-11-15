@@ -13,6 +13,7 @@ import {
 } from "./secrets.js";
 import { outboundUrlProblem } from "./outbound.js";
 import { safeRequest } from "@bonded/arena";
+import { noticeEmailHtml, siteUrl, type EmailMessage } from "./emails.js";
 import {
   NOTIFICATION_TYPE_LIST,
   codedProblem,
@@ -46,7 +47,7 @@ export interface RatingNotification {
   securityScore?: number;
   tier?: string;
   reason?: string;
-  /** For previews: "Preview: not on chain, not insurable". */
+  /** For previews: "Preview: private, not published". */
   label?: string;
   at: string;
 }
@@ -507,22 +508,91 @@ export function inboxText(n: OwnerNotification): { title: string; text: string; 
   };
 }
 
-/** The email for a notification, in plain words. */
-export function emailText(n: OwnerNotification): { subject: string; text: string } {
-  if (!isRating(n))
+/** Why the email came, at the foot of every notification. */
+const NOTICE_FOOTNOTE =
+  "You get this because you asked Bonded to email you about your agents and payments. Change or stop these emails in your notification settings.";
+
+/** The page a notification is about, on the public site. */
+function noticePage(n: OwnerNotification): { label: string; href: string } {
+  if (isGate(n))
     return {
-      subject: `Bonded: ${n.message.replace(/\.$/, "")}`,
-      text: `${n.message}${n.fix ? `\n\n${n.fix}` : ""}\n\n${isGate(n) ? `Gate account ${n.gateAccountId}` : `Agent ${n.agentId}`}.`,
+      label: "Open the gate account",
+      href: siteUrl(`/gate/${encodeURIComponent(n.gateAccountId)}`),
     };
+  if (isRating(n) && n.previewId)
+    return {
+      label: "Open the report",
+      href: siteUrl(`/agents/test?preview=${encodeURIComponent(n.previewId)}`),
+    };
+  if (n.agentId)
+    return { label: "Open the agent", href: siteUrl(`/agents/${encodeURIComponent(n.agentId)}`) };
+  return { label: "Open your inbox", href: siteUrl("/inbox") };
+}
+
+/** A troubleshooting entry's address in the docs. */
+const fixUrl = (code: string) =>
+  siteUrl(`/docs/guides/troubleshooting/#${encodeURIComponent(code)}`);
+
+/** The email for a notification, in plain words, as text and as HTML. */
+export function emailText(n: OwnerNotification): EmailMessage {
+  const page = noticePage(n);
+  if (!isRating(n)) {
+    const subject = `Bonded: ${n.message.replace(/\.$/, "")}`;
+    const reference = isGate(n) ? `Gate account ${n.gateAccountId}` : `Agent ${n.agentId}`;
+    const link = n.code ? { label: "How to fix this", href: fixUrl(n.code) } : undefined;
+    return {
+      subject,
+      text: `${n.message}${n.fix ? `\n\n${n.fix}` : ""}\n\n${reference}.\n\n${page.label}: ${page.href}`,
+      html: noticeEmailHtml({
+        title: subject,
+        preheader: n.fix ?? n.message,
+        heading: n.message,
+        paragraphs: n.fix ? [n.fix] : [],
+        button: page,
+        link,
+        reference,
+        footnote: NOTICE_FOOTNOTE,
+      }),
+    };
+  }
   const what = n.previewId ? "Your preview rating" : `The rating of agent ${n.agentId}`;
+  const ended =
+    n.type === "rating_finished"
+      ? "finished"
+      : n.type === "rating_refused"
+        ? "was refused"
+        : "stopped";
   const outcome =
     n.type === "rating_finished"
       ? `finished${n.securityScore !== undefined ? ` with a Security score of ${n.securityScore}` : ""}${n.score !== undefined ? `; insurance score ${n.score}${n.tier ? ` (${n.tier})` : ""}` : ""}`
-      : n.type === "rating_refused"
-        ? `was refused${n.reason ? `: ${n.reason}` : ""}`
-        : `stopped${n.reason ? `: ${n.reason}` : ""}`;
+      : `${ended}${n.reason ? `: ${n.reason}` : ""}`;
+  const subject = `Bonded: ${what.toLowerCase().replace(/^the /, "")} ${ended}`;
+  const sentence = `${what} ${outcome}.`;
+  const heading = `${what} ${ended}`;
+  const reference = `Rating ${n.ratingId}`;
   return {
-    subject: `Bonded: ${what.toLowerCase().replace(/^the /, "")} ${n.type === "rating_finished" ? "finished" : n.type === "rating_refused" ? "was refused" : "stopped"}`,
-    text: `${what} ${outcome}.${n.label ? `\n\n${n.label}.` : ""}\n\nRating ${n.ratingId}.`,
+    subject,
+    text: `${sentence}${n.label ? `\n\n${n.label}.` : ""}\n\n${reference}.\n\n${page.label}: ${page.href}`,
+    html: noticeEmailHtml({
+      title: subject,
+      preheader: sentence,
+      heading,
+      paragraphs: [
+        n.type === "rating_finished"
+          ? "The report shows what got through and how to fix it."
+          : sentence,
+        ...(n.label ? [`${n.label}.`] : []),
+      ],
+      stat:
+        n.type === "rating_finished" && n.securityScore !== undefined
+          ? { label: "Security score", value: String(n.securityScore) }
+          : undefined,
+      button: page,
+      link: n.reason
+        ? { label: "How to fix this", href: fixUrl(codedProblem(n.reason).code) }
+        : undefined,
+      reference,
+      footnote: NOTICE_FOOTNOTE,
+    }),
   };
 }

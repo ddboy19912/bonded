@@ -80,7 +80,7 @@ export const sentence = (text: string) => {
 };
 
 /** Shown with every preview and its report. */
-export const PREVIEW_LABEL = "Preview: not on chain, not insurable";
+export const PREVIEW_LABEL = "Preview: private, not published";
 
 export interface OwnerRouteOptions {
   db: Database;
