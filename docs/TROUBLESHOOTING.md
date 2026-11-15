@@ -358,21 +358,21 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 ### url-owner
 
-**Message:** Your URL is set up for another wallet than the one you're signed in with.
+**Message:** Your URL is set up for another owner than the one you're signed in as.
 
-**What to do:** Copy the handler code from the page again (it has the wallet you're signed in with) and redeploy, or sign in with the wallet in your code.
+**What to do:** Copy the handler code from the page again (its owner is who you're signed in as) and redeploy, or sign in as the owner in your code.
 
 ### url-refused
 
 **Message:** Your URL refused Bonded's call (401 or 403).
 
-**What to do:** A handler refuses a call for another wallet, a call whose time is more than 5 minutes off its server's clock, or one signed with a key it couldn't fetch. Check owner in your handler, the server's clock, and that it can reach Bonded's keys, then verify again.
+**What to do:** A handler refuses a call for another owner, a call whose time is more than 5 minutes off its server's clock, or one signed with a key it couldn't fetch. Check owner in your handler, the server's clock, and that it can reach Bonded's keys, then verify again.
 
 ### verify-answer
 
 **Message:** Your URL answered the verify check, but not correctly.
 
-**What to do:** Answer verify with 200 and JSON { challenge, owner }, where owner is your wallet. createBondedHandler does it for you.
+**What to do:** Answer verify with 200 and JSON { challenge, owner }, where owner is who you sign in as (your wallet, or your account's owner ID). createBondedHandler does it for you.
 
 ### url-not-public
 

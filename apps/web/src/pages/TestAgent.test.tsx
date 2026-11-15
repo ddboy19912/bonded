@@ -499,6 +499,23 @@ describe("Test your agent", () => {
     expect(screen.getByRole("tab", { name: "Agent URL handler", selected: true })).toBeTruthy();
   });
 
+  it("puts an email account's owner id in the handler's code before the URL is saved", async () => {
+    wallet.address = undefined;
+    const ownerId = "0x00000000000000000000000000000000000000c7";
+    saveAccountSession(deployment.chainId, {
+      session: "acct-sess",
+      wallet: ownerId,
+      expiresAt: iso(3_600_000),
+      account: { email: "dana@fund.example" },
+    });
+    vi.spyOn(byoaApi, "preview").mockResolvedValue(preview());
+    show(`/agents/test?preview=${preview().id}`);
+    expect(await screen.findByLabelText("Your agent's URL")).toBeTruthy();
+    fireEvent.click(screen.getByText("Code for your agent: the handler and frameworks"));
+    expect(document.body.textContent).toContain(`owner: "${ownerId}"`);
+    expect(document.body.textContent).not.toContain("0xYourWallet");
+  });
+
   it("moves to the check once the URL is verified", async () => {
     withPreview(preview({ agentUrl: verifiedUrl }));
     await waitFor(() => expect(within(current()).getByText("Check the connection")).toBeTruthy());

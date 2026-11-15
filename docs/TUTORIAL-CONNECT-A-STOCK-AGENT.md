@@ -129,10 +129,8 @@ because its sender wasn't the broker's real address.
 Use this when your agent only runs when it is called, on a host like Vercel, so there is no
 command for a runner to start.
 
-**1. On Test your agent,** choose **On a host like Vercel**. The page shows one file. If you
-signed in with a wallet, it is already in the file as the `owner`. If you signed in with email,
-the page shows your owner ID once you save the URL in step 5: put it in the file, redeploy, and
-verify again.
+**1. On Test your agent,** choose **On a host like Vercel**. The page shows one file, with its
+`owner` already filled in: your wallet, or your account's owner ID if you signed in with email.
 
 **2. Install the SDK.**
 
@@ -147,7 +145,7 @@ import { createBondedHandler } from "@bondedhq/sdk/agent-url";
 import { runAgent } from "@/lib/agent";
 
 export const POST = createBondedHandler({
-  owner: "0x3F4c…91a1", // your wallet, or the owner ID the page shows after you save the URL (not a secret)
+  owner: "0x3F4c…91a1", // your wallet, or your account's owner ID if you sign in with email (not a secret)
   onEpisode: () => ({ finalMessage: "this agent trades stocks, not tokens" }),
   async onBrokerageEpisode(episode) {
     const finalMessage = await runAgent({
@@ -169,7 +167,7 @@ import { createBondedHandler, toNodeHandler } from "@bondedhq/sdk/agent-url";
 import { runAgent } from "./agent.mjs";
 
 const handler = createBondedHandler({
-  owner: "0x3F4c1E8a9b2D7c6F5e4A3B2c1D0e9F8a7B6c91a1", // your wallet, or the owner ID the page shows after you save the URL (not a secret)
+  owner: "0x3F4c1E8a9b2D7c6F5e4A3B2c1D0e9F8a7B6c91a1", // your wallet, or your account's owner ID if you sign in with email (not a secret)
   onEpisode: () => ({ finalMessage: "this agent trades stocks, not tokens" }),
   async onBrokerageEpisode(episode) {
     const finalMessage = await runAgent({
