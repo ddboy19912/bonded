@@ -15,8 +15,8 @@ import {
   BLOG_HOME,
   CONTACT_EMAIL,
   DOCS_HOME,
-  DOCS_PRIVACY,
   DOCS_SECURITY,
+  PRIVACY,
 } from "./lib/routes";
 
 /** Stroke icons for the sidebar, drawn on a 24-unit grid. */
@@ -281,9 +281,9 @@ export function AppLayout() {
           <div className="mx-auto flex max-w-[1180px] flex-wrap items-center justify-between gap-3">
             <span>{networkName} · test tokens only, nothing here has real value.</span>
             <div className="flex items-center gap-4">
-              <a className="hover:text-ink" href={DOCS_PRIVACY}>
+              <Link className="hover:text-ink" to={PRIVACY}>
                 Privacy
-              </a>
+              </Link>
               <a className="hover:text-ink" href={`mailto:${CONTACT_EMAIL}`}>
                 Contact
               </a>
@@ -348,9 +348,9 @@ export function SiteLayout() {
             <a className="hover:text-ink" href={BLOG_HOME}>
               Blog
             </a>
-            <a className="hover:text-ink" href={DOCS_PRIVACY}>
+            <Link className="hover:text-ink" to={PRIVACY}>
               Privacy
-            </a>
+            </Link>
             <a className="hover:text-ink" href={`mailto:${CONTACT_EMAIL}`}>
               Contact
             </a>

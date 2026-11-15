@@ -11,7 +11,8 @@ export const DOCS_HOME = "/docs/";
 /** The blog (apps/blog), built into this app's output under /blog the same way. */
 export const BLOG_HOME = "/blog/";
 export const DOCS_SECURITY = "/docs/security/policy/";
-export const DOCS_PRIVACY = "/docs/guides/your-data/";
+/** The privacy page, on the public site. */
+export const PRIVACY = "/privacy";
 /** The public contact address (forwards to the team inbox). */
 export const CONTACT_EMAIL = "hello@bondedhq.xyz";
 export const DOCS_BOUNTY_GUIDE = "/docs/guides/bounties/#try-it-locally-first";
