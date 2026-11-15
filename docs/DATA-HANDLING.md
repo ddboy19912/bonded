@@ -28,7 +28,7 @@ Tests run on simulated accounts, testnets and payment test modes. Bonded never n
 
 ## Deleting your data
 
-Ask Bonded and it deletes your traces, reports, the instructions or code you gave it, and your account within 7 days. Deletion is done by hand for now: there is no button for it yet.
+Ask Bonded and it deletes your traces, reports, the instructions or code you gave it, and your account within 7 days.
 
 Design partners: your pilot terms say the same, and add that Bonded deletes your reports and anything you gave it to run within 30 days of the pilot ending.
 
