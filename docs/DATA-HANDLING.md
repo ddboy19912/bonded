@@ -1,6 +1,6 @@
 # How Bonded handles your data
 
-This page says what Bonded keeps when you test an agent, how long it keeps it, and how to have it deleted. It covers previews, connection checks, ratings, sign-in and the payment gate.
+This is Bonded's privacy page. It says what Bonded keeps when you test an agent, how long it keeps it, who sees it, and how to have it deleted. Questions: hello@bondedhq.xyz.
 
 ## What Bonded keeps, and for how long
 
@@ -22,13 +22,26 @@ This page says what Bonded keeps when you test an agent, how long it keeps it, a
 - **AI model providers see the test's messages.** To run a test, the messages in it go to the model your agent uses (for "Bonded runs it", through Bonded's account with that model's provider). Some results are also judged by a model. Those providers' own terms apply.
 - **Nobody else.** Bonded uses your data only to run your tests and improve its testing. It doesn't sell it or share it.
 
+## Your email address
+
+If you sign in with email, Bonded uses your address to send your sign-in codes and the notifications you turn on. Nothing else: no newsletters and no marketing unless you ask for them.
+
+## Services that handle your data
+
+- **Vercel** hosts the website.
+- **Railway** runs Bonded's API and its database.
+- **Resend** sends Bonded's emails.
+- **AI model providers** run and judge the tests, as described above.
+
+The website has no analytics, advertising or tracking cookies. Your browser keeps your sign-in so you stay signed in, and nothing else.
+
 ## What Bonded never needs
 
 Tests run on simulated accounts, testnets and payment test modes. Bonded never needs your production credentials, real money or access to real customer accounts.
 
 ## Deleting your data
 
-Ask Bonded and it deletes your traces, reports, the instructions or code you gave it, and your account within 7 days.
+Email hello@bondedhq.xyz from the address you signed in with (or say which wallet is yours), and Bonded deletes your traces, reports, the instructions or code you gave it, and your account within 7 days.
 
 Design partners: your pilot terms say the same, and add that Bonded deletes your reports and anything you gave it to run within 30 days of the pilot ending.
 

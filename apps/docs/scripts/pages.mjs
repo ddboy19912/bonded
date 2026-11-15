@@ -69,8 +69,8 @@ export const PAGES = [
   {
     src: "docs/DATA-HANDLING.md",
     slug: "guides/your-data",
-    label: "Your data",
-    title: "How Bonded handles your data",
+    label: "Privacy and your data",
+    title: "Privacy: how Bonded handles your data",
   },
   {
     src: "docs/PAYMENT-GATE.md",

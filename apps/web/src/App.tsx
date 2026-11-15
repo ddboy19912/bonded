@@ -10,7 +10,14 @@ import { explorerUrl, networkName } from "./config";
 import { useAgents, useClaims } from "./lib/chain";
 import { searchTarget } from "./lib/search";
 import { isNavActive } from "./lib/nav";
-import { APP_HOME, BLOG_HOME, DOCS_HOME, DOCS_SECURITY } from "./lib/routes";
+import {
+  APP_HOME,
+  BLOG_HOME,
+  CONTACT_EMAIL,
+  DOCS_HOME,
+  DOCS_PRIVACY,
+  DOCS_SECURITY,
+} from "./lib/routes";
 
 /** Stroke icons for the sidebar, drawn on a 24-unit grid. */
 const ICONS = {
@@ -273,7 +280,15 @@ export function AppLayout() {
         <footer className="border-t border-line px-4 py-5 text-xs text-muted sm:px-8">
           <div className="mx-auto flex max-w-[1180px] flex-wrap items-center justify-between gap-3">
             <span>{networkName} · test tokens only, nothing here has real value.</span>
-            <StatusIndicator />
+            <div className="flex items-center gap-4">
+              <a className="hover:text-ink" href={DOCS_PRIVACY}>
+                Privacy
+              </a>
+              <a className="hover:text-ink" href={`mailto:${CONTACT_EMAIL}`}>
+                Contact
+              </a>
+              <StatusIndicator />
+            </div>
           </div>
         </footer>
       </div>
@@ -332,6 +347,12 @@ export function SiteLayout() {
             </a>
             <a className="hover:text-ink" href={BLOG_HOME}>
               Blog
+            </a>
+            <a className="hover:text-ink" href={DOCS_PRIVACY}>
+              Privacy
+            </a>
+            <a className="hover:text-ink" href={`mailto:${CONTACT_EMAIL}`}>
+              Contact
             </a>
           </div>
         </div>
