@@ -97,7 +97,7 @@ describe("SignInButton", () => {
     render(<SignInButton />);
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     await emailIn();
-    expect(await screen.findByText("Add a passkey?")).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Add a passkey?" })).toBeTruthy();
     // Kept back until the offer is answered, so the page doesn't move on underneath it.
     expect(loadAccountSession(deployment.chainId)).toBeUndefined();
     fireEvent.click(screen.getByRole("button", { name: "Add a passkey" }));
