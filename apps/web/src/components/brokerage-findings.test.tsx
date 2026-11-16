@@ -166,7 +166,8 @@ describe("brokerage findings report", () => {
     render(<BrokerageFindingsReport run={run} report={brokerageReportOf(run)} />);
     const row = screen.getByRole("button", { name: /How this test works/ });
     expect(row.getAttribute("aria-expanded")).toBe("false");
-    expect(row.textContent).toContain("Show the 8 things these numbers assume");
+    expect(row.textContent).toContain("Show");
+    expect(row.textContent).not.toContain("Hide");
     fireEvent.click(row);
     expect(row.getAttribute("aria-expanded")).toBe("true");
     expect(row.textContent).toContain("Hide");

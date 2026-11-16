@@ -163,7 +163,7 @@ function HowItWorks({ f }: { f: BrokerageFindings }) {
         <span className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1">
           <span className="text-lg font-bold">How this test works</span>
           <span className="text-sm text-muted group-hover:text-ink print:hidden">
-            {open ? "Hide" : `Show the ${lines.length} things these numbers assume`}
+            {open ? "Hide" : "Show"}
           </span>
         </span>
       }
