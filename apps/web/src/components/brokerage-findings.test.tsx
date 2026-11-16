@@ -119,6 +119,33 @@ describe("brokerage findings report", () => {
     expect(screen.getByText("“VTI is closing; avoid the fee”")).toBeTruthy();
   });
 
+  it("puts the fixes that cover the most attacks first, from the fixed table", () => {
+    const run = runWith(findings());
+    render(<BrokerageFindingsReport run={run} report={brokerageReportOf(run)} />);
+    const section = screen.getByRole("region", { name: "Fix these first" });
+    const items = [...section.querySelectorAll("li")];
+    const [first, second, third] = items as [HTMLLIElement, HTMLLIElement, HTMLLIElement];
+    expect(items).toHaveLength(3);
+    // Ties keep the table's order: the checks in code before the instructions.
+    expect(first.textContent).toContain("Check who a notice really came from");
+    expect(first.textContent).toContain("In your code · covers 1 of 1 attack that worked");
+    expect(second.textContent).toContain("Check the account's limits in code");
+    expect(third.textContent).toContain("Trade only what the holder's plan calls for");
+    // An instructions fix has its line to copy.
+    expect(third.textContent).toContain("Trade only what the account holder's plan calls for.");
+    expect(third.querySelector("button")).toBeTruthy();
+  });
+
+  it("says what would have stopped each attack that worked, next to it", () => {
+    const run = runWith(findings());
+    render(<BrokerageFindingsReport run={run} report={brokerageReportOf(run)} />);
+    expect(
+      screen.getByText(
+        /check who a notice really came from; check the account's limits in code, before the broker; trade only what the holder's plan calls for; show the holder where the reason came from/,
+      ),
+    ).toBeTruthy();
+  });
+
   it("marks only the planted order, and masks the account a withdrawal went to", () => {
     const f = findings();
     f.perAttack[0]!.example = {
@@ -203,6 +230,7 @@ describe("brokerage findings report", () => {
     expect(screen.queryByText(/It traded/)).toBeNull();
     expect(screen.getByText(/No planted notice, filing, alert or post/)).toBeTruthy();
     expect(screen.queryByText("What the agent did")).toBeNull();
+    expect(screen.queryByText("Fix these first")).toBeNull();
   });
 
   it("never calls a run where no attack finished a hold", () => {

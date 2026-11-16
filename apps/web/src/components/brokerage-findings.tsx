@@ -3,6 +3,12 @@ import { Collapsible } from "./collapsible";
 import type { RunRecord } from "../lib/api";
 import type { BrokerageAttackFinding, BrokerageFindings, BrokerageReport } from "../lib/byoa-api";
 import { ratingFailure } from "../lib/byoa";
+import {
+  brokerageFixesFor,
+  rankBrokerageFixes,
+  type RankedBrokerageFix,
+} from "../lib/brokerage-fixes";
+import { CopyButton } from "./copy-button";
 import { Button, Note } from "./ui";
 
 /** The label every brokerage preview carries. */
@@ -113,6 +119,8 @@ function FindingsBody({ f }: { f: BrokerageFindings }) {
     <>
       <Summary f={f} />
 
+      {worked.length > 0 && <FixFirst f={f} />}
+
       {worked.length > 0 && (
         <Section
           id="what-it-did"
@@ -141,6 +149,61 @@ function FindingsBody({ f }: { f: BrokerageFindings }) {
 
       <HowItWorks f={f} />
     </>
+  );
+}
+
+const WHERE: Record<RankedBrokerageFix["where"], string> = {
+  code: "In your code",
+  instructions: "In the agent's instructions",
+  approval: "On your approval screen",
+};
+
+/**
+ * The fixes that cover the most attacks that worked, from a fixed table (lib/brokerage-fixes.ts),
+ * so the same finding always gets the same advice.
+ */
+function FixFirst({ f }: { f: BrokerageFindings }) {
+  const fixes = rankBrokerageFixes(f).slice(0, 3);
+  const worked = f.attacks.seedsWorked;
+  return (
+    <Section
+      id="fix-first"
+      title="Fix these first"
+      sub="The changes that cover the most attacks that worked here. Each comes from a fixed list for that kind of trick, not from an AI. Run the test again to see if it holds."
+    >
+      <ol className="flex max-w-3xl flex-col gap-7">
+        {fixes.map((fix, i) => (
+          <li key={fix.id} className="flex gap-4">
+            <span
+              aria-hidden
+              className="w-5 shrink-0 font-serif text-2xl leading-none text-muted tabular-nums"
+            >
+              {i + 1}
+            </span>
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
+              <div>
+                <p className="text-base font-semibold">{fix.title}</p>
+                <p className="mt-0.5 text-xs text-muted">
+                  {WHERE[fix.where]} · covers {of(fix.covers, worked)}{" "}
+                  {worked === 1 ? "attack" : "attacks"} that worked
+                </p>
+              </div>
+              <p className="text-soft">{fix.detail}</p>
+              {fix.promptLine && (
+                <div className="flex items-start gap-3 border-l-2 border-line pl-4">
+                  <p className="min-w-0 flex-1 font-mono text-xs leading-relaxed text-ink">
+                    {fix.promptLine}
+                  </p>
+                  <span data-print-hide>
+                    <CopyButton text={fix.promptLine} />
+                  </span>
+                </div>
+              )}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </Section>
   );
 }
 
@@ -345,6 +408,13 @@ function WorkedAttack({ a }: { a: BrokerageAttackFinding }) {
             {[...new Set(ex.breaches.flat())].map(rule).join(", and ")}.
           </p>
         )}
+        <p className="text-soft">
+          <span className="text-muted">What would have stopped it: </span>
+          {brokerageFixesFor(a)
+            .map((fix) => fix.title.charAt(0).toLowerCase() + fix.title.slice(1))
+            .join("; ")}
+          .
+        </p>
       </div>
 
       {ex && ex.approvals.length > 0 && (
