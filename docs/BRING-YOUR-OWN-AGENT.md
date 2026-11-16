@@ -111,7 +111,7 @@ flowchart LR
 7. **Read the report**: the score and tier, per-class results, what your agent read and didn't, liveness and the Task score ([Task score and benign twins](#task-score-and-benign-twins)). It is labelled "Preview: private, not published". Above them, **Fix these first**: the three changes that address the most of its breaches. Below, for each breach, the exact text your agent read, what it did and what would have stopped it ([What the report shows](#what-the-report-shows)). Change your agent and press **Rate again**: the new report shows the two side by side ("54 → 81", with each attack class's breaches before and after).
 8. **Make it official** when you want a score on chain and cover: onboarding opens with your preview's choices filled in ([Official ratings](#official-ratings)).
 
-**How long it takes.** Connecting and checking take minutes. The preview itself is mostly your agent's time: the page shows the API's plan before you start (with today's library, up to 72 episodes and a budget of 40 seconds an episode, never more than 45 minutes), and the estimate in step 5 gives your own agent's figure from its check. An agent that runs past the budget is stopped ([Previews](#previews)).
+**How long it takes.** Connecting and checking take minutes. The preview itself is mostly your agent's time: the page shows the API's plan before you start (with today's library, up to 72 episodes and a budget of 90 seconds an episode, never more than 45 minutes; a stock-trading preview, 20 episodes in 30 minutes), and the estimate in step 5 gives your own agent's figure from its check, with a warning when it runs past the budget. An agent that runs past the budget is stopped ([Previews](#previews)).
 
 ## Connect your agent
 
@@ -651,7 +651,7 @@ A preview is a rating of your agent with nothing to commit: it belongs to your w
 | Not run | The S1 market-data and world-state batteries, for now (the time budget plans only the main library), and the memory battery (Bonded can't read or reset your agent's memory) | |
 | Episodes | With today's library of 40 published attacks in 10 classes: at most 40 + 10 + 6 + 16 = 72 | |
 | Time per episode | 90 seconds | `REMOTE_EPISODE_TIMEOUT_MS` |
-| Time for the whole preview | 40 seconds per episode, at most 45 minutes (72 episodes would take 48, so the 45-minute cap applies) | `REMOTE_EPISODE_BUDGET_MS`, `PREVIEW_RATING_MAX_MS` |
+| Time for the whole preview | 90 seconds per episode (each episode's whole deadline), at most 45 minutes: 72 episodes would take 108, so the 45-minute cap applies; a stock-trading preview's 20 episodes get 30 minutes | `REMOTE_EPISODE_BUDGET_MS`, `PREVIEW_RATING_MAX_MS` |
 | Judging | The hosted rules: only exercised trials count, the liveness bars apply, untested classes are priced as untested ([What the report shows](#what-the-report-shows)) | |
 | Stops | The same as an official rating: the first episode your agent fails, or the budget overrun because of your agent ([When a rating stops](#when-a-rating-stops)) | |
 
@@ -708,7 +708,7 @@ An official rating is attested: the attester signs the score and posts it to the
 | Not run | The S1 market-data and world-state batteries, for now (the time and fork budget plans only the main library), and the memory battery (Bonded can't read or reset your agent's memory) | |
 | Episodes | With today's library of 40 published attacks in 10 classes: at most (40 + 10) × 3 + 6 + 16 = 172 | |
 | Time per episode | 90 seconds | `REMOTE_EPISODE_TIMEOUT_MS` |
-| Time for the whole rating | 40 seconds per episode, at most 3 hours (about 115 minutes for 172 episodes) | `REMOTE_EPISODE_BUDGET_MS`, `REMOTE_RATING_MAX_MS` |
+| Time for the whole rating | 90 seconds per episode, at most 3 hours (172 episodes would take 258 minutes, so the 3-hour cap applies) | `REMOTE_EPISODE_BUDGET_MS`, `REMOTE_RATING_MAX_MS` |
 
 The agent's page shows the most episodes the rating can have and its time budget before you ask for one. `pnpm arena rate --agent remote --profile hosted` runs the same settings on your machine. Episodes run one at a time, in a random order, so when an episode runs says nothing about whether it is attacked.
 

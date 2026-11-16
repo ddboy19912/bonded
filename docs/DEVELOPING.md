@@ -184,7 +184,7 @@ To run the rating service's gateway yourself, start the API in the `arena-worker
 | `RATE_MAX_USD` | unset (no cap) | Model-spend cap for one rating; must be finite and positive when set. Checked between episodes, so a call already in progress can overrun it |
 | `REMOTE_REPEATS` | 3 | Runs of each attack in a remote rating (built-in designs: 5) |
 | `REMOTE_EPISODE_TIMEOUT_MS` | 90000 | One remote episode's time limit |
-| `REMOTE_EPISODE_BUDGET_MS`, `REMOTE_RATING_MAX_MS` | 40000, 10800000 | A remote rating's time budget: this much per episode, never more than the ceiling (3 hours) |
+| `REMOTE_EPISODE_BUDGET_MS`, `REMOTE_RATING_MAX_MS` | 90000, 10800000 | A remote rating's and a preview's time budget: this much per episode (by default each episode's whole deadline), never more than the ceiling (3 hours; 45 minutes for a preview) |
 | `REMOTE_RATINGS_PER_AGENT_DAILY`, `REMOTE_RATINGS_PER_OWNER_DAILY`, `REMOTE_RATINGS_DAILY` | 2, 3, 20 | Remote ratings per agent, per owner and for the whole chain, per 24 hours. Renewals and re-ratings count |
 | `REMOTE_RATING_INTERVAL_MS` | 3600000 | The least time between two ratings of one operator-run agent; also how often a TEE change may re-rate it |
 | `RENEW_CHECK_MS` | 600000 | How often the arena-worker looks for connected agents whose scores expire within 3 days |
@@ -192,7 +192,7 @@ To run the rating service's gateway yourself, start the API in the `arena-worker
 | `AGENT_URL_SIGNING_KEY` | unset (Agent URL mode is refused) | The Ed25519 key Bonded signs every call to an Agent URL with (base64url PKCS#8; several comma-separated while rotating, the signing one first). The API publishes the public keys at `/.well-known/bonded-agent-keys.json`, and the web app's host passes that address through (`vercel.json`), so handlers fetch them from `https://www.bondedhq.xyz/.well-known/bonded-agent-keys.json`. The file may be cached for an hour, so when rotating, add the new key second for an hour before putting it first. The same value on the API and the arena-worker. Make one with `pnpm --filter @bonded/api agent-url-key` |
 | `PREVIEW_PER_WALLET_DAILY`, `PREVIEW_DAILY` | 1, 20 | Preview ratings per wallet and for the whole chain, per 24 hours (0 turns previews off). Previews run one at a time, after official remote ratings |
 | `PREVIEW_CREATES_PER_WALLET_DAILY` | 5 | Previews a wallet may create per 24 hours |
-| `PREVIEW_RATING_MAX_MS` | 2700000 | A preview's time budget ceiling (45 minutes; 40 s an episode below it) |
+| `PREVIEW_RATING_MAX_MS` | 2700000 | A preview's time budget ceiling (45 minutes; 90 s an episode below it) |
 | `CHECKS_PER_WALLET_HOURLY`, `CHECKS_HOURLY` | 10, 30 | Connection checks per wallet and for the whole chain, per hour |
 | `AGENT_URL_VERIFIES_PER_WALLET_HOURLY`, `AGENT_URL_VERIFIES_HOURLY` | 10, 100 | Agent URL registrations and re-verifications (each one calls the URL) per wallet and in all, per hour; also at most 10 an hour per URL host |
 | `RESEND_API_KEY`, `EMAIL_FROM` | unset (no email) | Notification email through Resend, only when both are set. Each service sends its own (the API: payment gate alerts and accepting addresses; the arena-worker: a rating's end; the keeper: agent and Watch alerts), so set them on all three. The hosted service sends from `alerts@notify.bondedhq.xyz` |

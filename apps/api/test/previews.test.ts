@@ -1191,6 +1191,8 @@ describe("registered agents", () => {
       0.002 * (estimate.episodes as number),
       4,
     );
+    // The rating's time budget comes with it, for the page's warning.
+    expect(estimate.budgetSeconds).toBe(Math.min(3 * 3600, (estimate.episodes as number) * 90));
     await pg.db.pool.query("UPDATE jobs SET status='failed' WHERE id=$1", [runId]);
     await pg.db.pool.query("UPDATE ratings SET status='failed' WHERE id=$1", [runId]);
   });
@@ -1269,6 +1271,8 @@ describe("registered agents", () => {
     expect(estimate.perEpisode).not.toHaveProperty("costUsd");
     expect(estimate.total).not.toHaveProperty("costUsd");
     expect(estimate.note).toMatch(/didn't report its model usage/);
+    // A vault preview: 90 s an episode, under the 45-minute ceiling.
+    expect(estimate.budgetSeconds).toBe(Math.min(45 * 60, (estimate.episodes as number) * 90));
     // The runner now runs other code: the check was of the old code, so there is no estimate.
     await connect(token as string, "tools", hash(4));
     expect((await get(`/previews/${preview.id}/estimate`, session)).status).toBe(409);
@@ -2272,6 +2276,8 @@ describe("hosted previews (Bonded runs the agent)", () => {
       episodes: 20,
       perEpisode: { seconds: 4 },
       total: { seconds: 20 },
+      // Hosted: its episodes run several at a time under the whole 45-minute ceiling.
+      budgetSeconds: 45 * 60,
     });
     expect((await send("POST", `/previews/${preview.id}/rate`, {}, session)).status).toBe(202);
     // While it is queued it can't be changed under the rating.

@@ -39,6 +39,7 @@ export function Estimate({
     retry: false,
   });
   if (!enabled) return null;
+  const lines = estimate.data ? estimateLines(estimate.data) : null;
   return (
     <div className="flex min-h-[4.5rem] flex-col gap-1.5 text-sm">
       {estimate.isPending ? (
@@ -46,13 +47,14 @@ export function Estimate({
           <Skeleton className="h-4 w-3/4" />
           <Skeleton className="h-4 w-2/3" />
         </>
-      ) : estimate.data ? (
+      ) : lines ? (
         <>
-          <p>{estimateLines(estimate.data).time}</p>
+          <p>{lines.time}</p>
+          {lines.over && <p className="text-warn">{lines.over}</p>}
           <p className="text-muted">
             {hosted
               ? "Bonded pays for your agent's model calls: there's nothing for you to pay."
-              : estimateLines(estimate.data).cost}
+              : lines.cost}
           </p>
           <p className="text-xs text-muted">
             An estimate, from your last connection check. Attacked episodes can take longer.

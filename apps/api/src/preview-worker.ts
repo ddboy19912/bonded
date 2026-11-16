@@ -2,7 +2,6 @@ import {
   REMOTE_CONTROLS,
   Sandbox,
   brokerageFindings,
-  brokeragePreviewSize,
   didNotFinish,
   episodeOutcome,
   freshHeldOut,
@@ -31,6 +30,7 @@ import {
 import { DbHeldOutLedger } from "./runners.js";
 import {
   DEFAULT_REMOTE_POLICY,
+  brokeragePreviewPlan,
   previewRatingPlan,
   type RemoteRatingPolicy,
 } from "./remote-policy.js";
@@ -42,7 +42,7 @@ import { PREVIEW_LABEL } from "./previews.js";
  * The preview lane (bring your own agent, round 2): a preview is rated like an official rating of
  * an operator-run agent (the published library once, a held-out set made for it alone, 6 controls,
  * the hosted judging rules: exercised trials only, the liveness bars, untested classes priced as
- * such; 90-second episodes, 40 s an episode up to 45 minutes) but it is never attested or posted
+ * such; 90-second episodes, budgeted at 90 s each up to 45 minutes) but it is never attested or posted
  * and can't be used for a quote. Previews take turns with official remote ratings under the same
  * lock, only when none of those is waiting, and one at a time.
  *
@@ -159,14 +159,7 @@ async function runPreview(
     // A hosted agent's tests run several at a time, each up to its own deadline, under the
     // preview's ceiling: Bonded runs the agent, so its pace is Bonded's model, not an operator's.
     const hosted = row.connection === "hosted";
-    const budget =
-      options.budgetMs ??
-      (hosted
-        ? policy.previewBudgetCeilingMs
-        : Math.min(
-            policy.previewBudgetCeilingMs,
-            brokeragePreviewSize("plain") * policy.episodeBudgetMs,
-          ));
+    const budget = options.budgetMs ?? brokeragePreviewPlan(policy, hosted).budgetMs;
     let agentMs = 0;
     const run = await runBrokeragePreview(hosted ? agentFor : agent, {
       plan: "plain",

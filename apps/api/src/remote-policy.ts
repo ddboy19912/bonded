@@ -1,4 +1,9 @@
-import { HOSTED_REMOTE_PROFILE, loadBenignSeeds, REMOTE_CONTROLS } from "@bonded/arena";
+import {
+  brokeragePreviewSize,
+  HOSTED_REMOTE_PROFILE,
+  loadBenignSeeds,
+  REMOTE_CONTROLS,
+} from "@bonded/arena";
 import type { RemoteQuota } from "@bonded/db";
 import { z } from "zod";
 
@@ -16,7 +21,10 @@ export interface RemoteRatingPolicy {
   perAgentDaily: number;
   /** Remote ratings on the chain per 24 hours, all owners together (default 20). */
   laneDaily: number;
-  /** Time allowed per episode when working out a rating's budget (default 40 s). */
+  /**
+   * Time allowed per episode when working out a rating's budget (default 90 s: what each episode
+   * gives the agent, so an agent that keeps to its episode deadline isn't stopped by the budget).
+   */
   episodeBudgetMs: number;
   /** The most any remote rating may take (default 3 hours). */
   budgetCeilingMs: number;
@@ -51,7 +59,9 @@ export const DEFAULT_REMOTE_POLICY: RemoteRatingPolicy = {
   perOwnerDaily: 3,
   perAgentDaily: 2,
   laneDaily: 20,
-  episodeBudgetMs: 40_000,
+  // Each episode's deadline (REMOTE_EPISODE_TIMEOUT_MS's default): budgeting less per episode
+  // stopped agents that kept to every deadline, as the first stock-trading dry run found.
+  episodeBudgetMs: HOSTED_REMOTE_PROFILE.episodeTimeoutMs,
   budgetCeilingMs: 3 * 3_600_000,
   perAgentMs: 3_600_000,
   heldOutPerClass: HOSTED_REMOTE_PROFILE.heldOutPerClass,
@@ -173,7 +183,7 @@ export const CHECK_BUDGET_MS = 120_000;
 
 /**
  * A preview rating's size and time budget: every published attack once, the held-out set made
- * for it (one per class by default), the controls and the benign twins; 40 s an episode, at most
+ * for it (one per class by default), the controls and the benign twins; 90 s an episode, at most
  * 45 minutes.
  */
 export function previewRatingPlan(
@@ -201,4 +211,22 @@ export function previewRefusalMessage(
     case "daily":
       return `Today's preview ratings are used up. Try again after ${refusal.nextAt.toISOString()}.`;
   }
+}
+
+/**
+ * A stock-trading preview's size and time budget: the control, every staged attack and every
+ * benign twin once, at `episodeBudgetMs` each under the preview ceiling. A hosted agent's episodes
+ * run several at a time, so its preview gets the whole ceiling.
+ */
+export function brokeragePreviewPlan(
+  policy: RemoteRatingPolicy,
+  hosted = false,
+): { episodes: number; budgetMs: number } {
+  const episodes = brokeragePreviewSize("plain");
+  return {
+    episodes,
+    budgetMs: hosted
+      ? policy.previewBudgetCeilingMs
+      : Math.min(policy.previewBudgetCeilingMs, episodes * policy.episodeBudgetMs),
+  };
 }

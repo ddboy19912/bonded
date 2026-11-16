@@ -712,8 +712,8 @@ describe("who may be rated, and what a rating will be", () => {
     expect(plan.maxEpisodes).toBe(
       (library.length + classes) * 3 + REMOTE_CONTROLS + loadBenignSeeds().length,
     );
-    // 40 seconds an episode, at most 3 hours.
-    expect(plan.budgetSeconds).toBe(Math.min(3 * 3600, plan.maxEpisodes * 40));
+    // 90 seconds an episode, at most 3 hours.
+    expect(plan.budgetSeconds).toBe(Math.min(3 * 3600, plan.maxEpisodes * 90));
     expect(status.standing).toMatchObject({ failuresInRow: 0, superseded: null });
     const page = await bodyOf(await app.request(`/self/agents/${mine.agentId}/ratings?limit=2`));
     expect((page.items as unknown[]).length).toBe(2);
