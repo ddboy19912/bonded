@@ -642,6 +642,18 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 **What to do:** Start a new preview.
 
+### share-not-finished
+
+**Message:** Only a finished report can be shared.
+
+**What to do:** Wait for the preview's report, then make the link.
+
+### share-link-off
+
+**Message:** This shared report's link doesn't work.
+
+**What to do:** Whoever shared it may have turned it off, or the link is incomplete. Ask them for a new one.
+
 ### rating-running
 
 **Message:** Its rating is running.

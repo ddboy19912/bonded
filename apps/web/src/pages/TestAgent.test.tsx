@@ -620,6 +620,39 @@ describe("Test your agent", () => {
     expect(await screen.findByText("Onboarding")).toBeTruthy();
   });
 
+  it("makes a read-only link to a finished report, and turns it off", async () => {
+    vi.spyOn(api, "run").mockResolvedValue(finishedRun());
+    const done = preview({
+      agentUrl: verifiedUrl,
+      lastCheck: passedCheck("url"),
+      ratingId: "run-1",
+      status: "done",
+    });
+    const share = vi
+      .spyOn(byoaApi, "sharePreview")
+      .mockResolvedValue({ token: "t".repeat(32), sharedAt: iso(0) });
+    const unshare = vi.spyOn(byoaApi, "unsharePreview").mockResolvedValue({ shared: false });
+    withPreview(done);
+    // Reading the preview again fails: the link that was made still shows.
+    vi.spyOn(byoaApi, "preview").mockRejectedValue(new ApiError(503, "down"));
+    fireEvent.click(await screen.findByRole("button", { name: "Make a link" }));
+    await waitFor(() => expect(share).toHaveBeenCalledWith("sess", done.id));
+    expect(((await screen.findByLabelText("Link to this report")) as HTMLInputElement).value).toBe(
+      `${window.location.origin}/shared/${"t".repeat(32)}`,
+    );
+    // The page reads the preview again and shows the link it now has.
+    vi.spyOn(byoaApi, "preview").mockResolvedValue({
+      ...done,
+      share: { token: "t".repeat(32), sharedAt: iso(0) },
+    });
+    cleanup();
+    show(`/agents/test?preview=${done.id}`);
+    const link = (await screen.findByLabelText("Link to this report")) as HTMLInputElement;
+    expect(link.value).toBe(`${window.location.origin}/shared/${"t".repeat(32)}`);
+    fireEvent.click(screen.getByRole("button", { name: "Stop sharing" }));
+    await waitFor(() => expect(unshare).toHaveBeenCalledWith("sess", done.id));
+  });
+
   it("says when a preview isn't this wallet's, with a way to start again", async () => {
     signedIn();
     vi.spyOn(byoaApi, "preview").mockRejectedValue(new ApiError(404, "no such preview"));

@@ -45,7 +45,8 @@ export function prefillFrom(preview: PreviewRecord): OfficialPrefill {
 
 /**
  * A preview's report: the same score and report an official rating computes, never attested or
- * posted, and labelled so. "Make it official" opens onboarding with the preview's choices.
+ * posted, and labelled so. "Make it official" opens onboarding with the preview's choices. Without
+ * `preview` (a report shared by link) it is read-only: no code hash and nothing to act on.
  */
 export function PreviewReport({
   preview,
@@ -54,8 +55,9 @@ export function PreviewReport({
   session,
   onRateAgain,
   rateAgainBusy = false,
+  label = PREVIEW_LABEL,
 }: {
-  preview: PreviewRecord;
+  preview?: PreviewRecord | undefined;
   run: RunRecord;
   /** The wallet's preview before this one that finished with a score: the "before". */
   previous?: PreviewRecord | undefined;
@@ -63,10 +65,13 @@ export function PreviewReport({
   /** Start a new preview with the same choices, after a fix. */
   onRateAgain?: () => void;
   rateAgainBusy?: boolean;
+  /** The label under the score: a shared report's says it is no longer private. */
+  label?: string;
 }) {
   const navigate = useNavigate();
   const report = run.report;
   const official = () => {
+    if (!preview) return;
     window.scrollTo?.({ top: 0 });
     void navigate(`/agents/new?preview=${encodeURIComponent(preview.id)}`, {
       state: { prefill: prefillFrom(preview) },
@@ -88,7 +93,18 @@ export function PreviewReport({
                 <span className="text-xs text-muted">Security score</span>
               </div>
             ) : (
-              <span className="text-muted">Security score unavailable</span>
+              // The ring's place, empty: the two columns line up the same, scored or not.
+              <div className="flex flex-col items-center gap-2">
+                <div
+                  className="flex size-28 shrink-0 items-center justify-center rounded-full border-8 border-white/[0.08] font-serif text-4xl text-muted"
+                  aria-hidden
+                >
+                  –
+                </div>
+                <span className="w-28 text-center text-xs text-muted">
+                  Security score unavailable
+                </span>
+              </div>
             )}
             <div className="flex min-w-64 flex-1 flex-col gap-2">
               <p className="flex flex-wrap items-center gap-2">
@@ -121,12 +137,12 @@ export function PreviewReport({
                 {report.episodes.total} episodes ({report.episodes.attacks} attacks,{" "}
                 {report.episodes.controls} with no attack) in {duration(report.durationMs / 1000)}
               </p>
-              <p className="font-medium">{PREVIEW_LABEL}</p>
+              <p className="font-medium">{label}</p>
               <p className="max-w-prose text-muted">
                 Computed exactly as an official rating's score, but not signed or posted, and no
                 cover can be quoted from it.
               </p>
-              {preview.codeHash && (
+              {preview?.codeHash && (
                 <p className="text-xs text-muted">
                   Code hash{" "}
                   <span className="font-mono">{preview.codeHash.value.slice(0, 18)}…</span> from{" "}
@@ -135,8 +151,9 @@ export function PreviewReport({
               )}
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[28rem] text-sm">
+          {/* Pulled up by the section gap: the last row sits as close to the next line as rows do. */}
+          <div className="-mb-6 overflow-x-auto">
+            <table className="w-full text-sm">
               <caption className="sr-only">Results by attack class</caption>
               <thead className="text-left text-xs text-muted">
                 <tr>
@@ -153,7 +170,7 @@ export function PreviewReport({
                     <tr key={c.class} className="border-t border-line">
                       <td className="py-2.5 pr-4">{c.name}</td>
                       <td
-                        className={`py-2.5 text-right font-mono text-xs ${notReached ? "text-warn" : "text-muted"}`}
+                        className={`py-2.5 text-right font-mono text-xs whitespace-nowrap ${notReached ? "text-warn" : "text-muted"}`}
                         title={
                           notReached
                             ? "No episode tested the agent: priced as untested within its group"
@@ -163,7 +180,7 @@ export function PreviewReport({
                         {cells.exercised}
                       </td>
                       <td
-                        className={`py-2.5 pl-4 text-right font-mono text-xs ${TONE[cells.tone]}`}
+                        className={`py-2.5 pl-4 text-right font-mono text-xs whitespace-nowrap ${TONE[cells.tone]}`}
                       >
                         {cells.result}
                       </td>
@@ -192,32 +209,34 @@ export function PreviewReport({
           />
         </>
       )}
-      <div className="grid gap-6 border-t border-line pt-5 sm:grid-cols-2">
-        {onRateAgain && (
+      {preview && (
+        <div className="grid gap-6 border-t border-line pt-5 sm:grid-cols-2">
+          {onRateAgain && (
+            <div className="flex flex-col gap-2">
+              <p className="font-semibold">Fixed something?</p>
+              <p className="text-muted">
+                Rate it again with the same choices, then see the two side by side. A new preview
+                connects and checks again first.
+              </p>
+              <div className="mt-2">
+                <Button kind="secondary" loading={rateAgainBusy} onClick={onRateAgain}>
+                  Rate again
+                </Button>
+              </div>
+            </div>
+          )}
           <div className="flex flex-col gap-2">
-            <p className="font-semibold">Fixed something?</p>
+            <p className="font-semibold">Ready for the real thing?</p>
             <p className="text-muted">
-              Rate it again with the same choices, then see the two side by side. A new preview
-              connects and checks again first.
+              Making it official registers the agent, creates its vault and stakes a bond, with
+              these choices filled in. The official rating runs again, attested on chain.
             </p>
             <div className="mt-2">
-              <Button kind="secondary" loading={rateAgainBusy} onClick={onRateAgain}>
-                Rate again
-              </Button>
+              <Button onClick={official}>Make it official</Button>
             </div>
           </div>
-        )}
-        <div className="flex flex-col gap-2">
-          <p className="font-semibold">Ready for the real thing?</p>
-          <p className="text-muted">
-            Making it official registers the agent, creates its vault and stakes a bond, with these
-            choices filled in. The official rating runs again, attested on chain.
-          </p>
-          <div className="mt-2">
-            <Button onClick={official}>Make it official</Button>
-          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -229,7 +248,7 @@ function ScoreNotes({ rows }: { rows: { label: string; text: string | undefined 
   return (
     <section aria-labelledby="score-notes" className="border-t border-line pt-5">
       <h3 id="score-notes" className="font-semibold">
-        Notes on your score
+        Notes on the score
       </h3>
       <p className="mt-1 text-muted">
         Generated from this rating's results, not written by a model. They say what counted for or
@@ -252,6 +271,6 @@ function coverageText(coverage: Parameters<typeof coverageRows>[0]): string | un
   if (!rows.length) return undefined;
   const unread = rows.filter((r) => r.read === 0);
   return unread.length
-    ? `Your agent never read ${unread.map((r) => r.label).join(", ")}, so attacks there couldn't reach it.`
-    : "Your agent read every source that was attacked.";
+    ? `The agent never read ${unread.map((r) => r.label).join(", ")}, so attacks there couldn't reach it.`
+    : "The agent read every source that was attacked.";
 }

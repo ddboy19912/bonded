@@ -186,7 +186,7 @@ describe("liveness", () => {
       report: null,
     };
     expect(ratingFailure(refused)).toMatch(
-      /^Not scored: your agent didn't complete its normal task in 2 of 2 control runs/,
+      /^Not scored: the agent didn't complete its normal task in 2 of 2 control runs/,
     );
     expect(ratingFailure({ error: "gateway not available: x", report: null })).toBe(
       "gateway not available: x",
@@ -214,9 +214,7 @@ describe("liveness under attack", () => {
         liveness,
         report: null,
       }),
-    ).toMatch(
-      /^Not scored: your agent did its normal task in 6 of 6 control runs but only 0 of 10/,
-    );
+    ).toMatch(/^Not scored: the agent did its normal task in 6 of 6 control runs but only 0 of 10/);
   });
 });
 
@@ -262,7 +260,7 @@ describe("untested classes", () => {
   it("lists them, and says plainly each is priced as untested within its group", () => {
     expect(untestedClasses(masked)).toEqual(["A7"]);
     const line = untestedLine(masked)!;
-    expect(line).toMatch(/^A7 ran but never tested your agent/);
+    expect(line).toMatch(/^A7 ran but never tested the agent/);
     expect(line).toMatch(/priced as untested within its group \(A7 in Social engineering\)/);
     expect(line).toMatch(/however well the group's other classes went/);
     const two = untestedLine(
@@ -276,7 +274,7 @@ describe("untested classes", () => {
         { id: "m", name: "Market manipulation", classes: ["A3"], untestedClasses: ["A3"] },
       ]),
     )!;
-    expect(two).toMatch(/^A6, A7 and A3 ran but never tested your agent/);
+    expect(two).toMatch(/^A6, A7 and A3 ran but never tested the agent/);
     expect(two).toMatch(/each is priced as untested/);
   });
 
@@ -299,6 +297,6 @@ describe("untested classes", () => {
       },
       report: masked,
     });
-    expect(refused).toMatch(/at least 80% needed\)\. .* A7 ran but never tested your agent/);
+    expect(refused).toMatch(/at least 80% needed\)\. .* A7 ran but never tested the agent/);
   });
 });

@@ -431,6 +431,9 @@ export interface PreviewRecord {
   ratingId: string | null;
   error: string | null;
   upgradedTo: string | null;
+  /** 0040: the read-only link's token, while its owner shares the report. */
+  shareToken: string | null;
+  sharedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -596,6 +599,8 @@ const previewRow = (row: Record<string, unknown>): PreviewRecord => ({
   ratingId: (row.rating_id as string | null) ?? null,
   error: (row.error as string | null) ?? null,
   upgradedTo: (row.upgraded_to as string | null) ?? null,
+  shareToken: (row.share_token as string | null) ?? null,
+  sharedAt: (row.shared_at as Date | null) ?? null,
   createdAt: row.created_at as Date,
   updatedAt: row.updated_at as Date,
 });
@@ -721,6 +726,7 @@ export class Database {
       "0037_hosted_agents.sql",
       "0038_hosted_spend.sql",
       "0039_accounts.sql",
+      "0040_preview_shares.sql",
     ];
     await this.transaction(async (c) => {
       await c.query("SELECT pg_advisory_xact_lock(7001)");
@@ -2707,6 +2713,26 @@ export class Database {
     const r = await this.pool.query("SELECT * FROM previews WHERE id=$1", [id]);
     return r.rows[0] ? previewRow(r.rows[0]) : undefined;
   }
+  /**
+   * Share a preview's report by a read-only link (0040): the token it already has, or `token`.
+   * Sharing again keeps the same link.
+   */
+  async sharePreview(id: string, token: string): Promise<PreviewRecord | undefined> {
+    const r = await this.pool.query(
+      `UPDATE previews SET share_token=COALESCE(share_token,$2),
+         shared_at=COALESCE(shared_at,now()), updated_at=now()
+       WHERE id=$1 RETURNING *`,
+      [id, token],
+    );
+    return r.rows[0] ? previewRow(r.rows[0]) : undefined;
+  }
+  /** Stop sharing: the token is cleared, so the old link stops working. */
+  async unsharePreview(id: string): Promise<void> {
+    await this.pool.query(
+      "UPDATE previews SET share_token=NULL,shared_at=NULL,updated_at=now() WHERE id=$1",
+      [id],
+    );
+  }
   /** A wallet's previews, newest first, a numbered page at a time. */
   async previewsOf(
     owner: string,
@@ -2863,7 +2889,8 @@ export class Database {
       );
       await c.query("INSERT INTO jobs(id) VALUES($1)", [id]);
       await c.query(
-        "UPDATE previews SET status='queued',rating_id=$2,error=NULL,updated_at=now() WHERE id=$1",
+        // A shared link was to the report the owner chose to share: a new rating turns it off.
+        "UPDATE previews SET status='queued',rating_id=$2,error=NULL,share_token=NULL,shared_at=NULL,updated_at=now() WHERE id=$1",
         [previewId, id],
       );
       return { runId: id };

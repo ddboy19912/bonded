@@ -432,6 +432,112 @@ describe("previews", () => {
   });
 });
 
+describe("sharing a preview's report", () => {
+  it("makes a read-only link to a finished report, shows nothing of the owner, and can be turned off", async () => {
+    const wallet = privateKeyToAccount(generatePrivateKey());
+    const session = await sessionFor(wallet);
+    const preview = await newPreview(session);
+    // Nothing to share before the report exists.
+    const early = await send("POST", `/previews/${preview.id}/share`, {}, session);
+    expect(early.status).toBe(409);
+    expect((await bodyOf(early)).error).toMatch(/Only a finished report/);
+
+    const ratingId = crypto.randomUUID();
+    const codeHash = hash(0x5eed);
+    const agentUrl = "https://maya-trader.example/api/bonded";
+    // Shaped like what the preview worker stores: the report, labelled with the preview's code.
+    await pg.db.pool.query(
+      "INSERT INTO ratings(id,preview_id,kind,status,charged_owner,report,error) VALUES($1,$2,'preview','done',$3,$4,$5)",
+      [
+        ratingId,
+        preview.id,
+        wallet.address.toLowerCase(),
+        JSON.stringify({
+          agent: `remote/url ${agentUrl}`,
+          scoring: { score: 640, tier: "BBB" },
+          classes: [
+            {
+              class: "A1",
+              episodes: 1,
+              breaches: 1,
+              evidence: [{ codeHash, owner: wallet.address }],
+            },
+          ],
+          preview: {
+            label: "Preview: private, not published",
+            attested: false,
+            insurable: false,
+            codeHash,
+            codeSource: "url",
+          },
+        }),
+        `couldn't reach your URL ${agentUrl}`,
+      ],
+    );
+    await pg.db.pool.query("UPDATE previews SET rating_id=$2,status='done' WHERE id=$1", [
+      preview.id,
+      ratingId,
+    ]);
+
+    // Only its owner can share it.
+    const other = await sessionFor(privateKeyToAccount(generatePrivateKey()));
+    expect((await send("POST", `/previews/${preview.id}/share`, {}, other)).status).toBe(404);
+    expect((await send("POST", `/previews/${preview.id}/share`, {})).status).toBe(401);
+
+    const shared = await bodyOf(await send("POST", `/previews/${preview.id}/share`, {}, session));
+    const token = shared.token as string;
+    expect(token).toMatch(/^[A-Za-z0-9_-]{32}$/);
+    // Sharing again keeps the same link, and the owner's page shows it.
+    expect(
+      (await bodyOf(await send("POST", `/previews/${preview.id}/share`, {}, session))).token,
+    ).toBe(token);
+    expect((await bodyOf(await get(`/previews/${preview.id}`, session))).share).toMatchObject({
+      token,
+    });
+
+    // Anyone with the link, signed in or not, sees the report and nothing about the owner.
+    const view = await get(`/shared/previews/${token}`);
+    expect(view.status).toBe(200);
+    const body = await bodyOf(view);
+    expect(body).toMatchObject({
+      label: "Preview: not published",
+      world: "vault",
+      run: { id: ratingId, status: "done", report: { scoring: { score: 640 } } },
+    });
+    const raw = JSON.stringify(body).toLowerCase();
+    expect(raw).not.toContain(wallet.address.toLowerCase());
+    expect(raw).not.toContain(preview.id);
+    // Not the agent's code or address either, wherever the report or the error carried them.
+    expect(raw).not.toContain(codeHash.toLowerCase());
+    expect(raw).not.toContain("maya-trader");
+    expect(raw).not.toContain("codesource");
+    expect(body.run).toMatchObject({ error: null, preview: true });
+
+    // A wrong or malformed token says nothing more than "not found".
+    expect((await get(`/shared/previews/${"a".repeat(32)}`)).status).toBe(404);
+    expect((await get("/shared/previews/short")).status).toBe(404);
+
+    // Turned off: the old link stops working at once.
+    expect((await send("DELETE", `/previews/${preview.id}/share`, undefined, session)).status).toBe(
+      200,
+    );
+    expect((await get(`/shared/previews/${token}`)).status).toBe(404);
+    expect((await bodyOf(await get(`/previews/${preview.id}`, session))).share).toBeNull();
+
+    // A new rating of the same preview turns a link off: the owner shared the old report, not it.
+    const again = (await bodyOf(await send("POST", `/previews/${preview.id}/share`, {}, session)))
+      .token as string;
+    expect(again).not.toBe(token);
+    await pg.db.enqueuePreviewRating(preview.id, {
+      nowMs: Date.now(),
+      perWalletDaily: 100,
+      daily: 1000,
+    });
+    expect((await get(`/shared/previews/${again}`)).status).toBe(404);
+    expect((await bodyOf(await get(`/previews/${preview.id}`, session))).share).toBeNull();
+  });
+});
+
 describe("connection checks", () => {
   it("fail at once, saying why, when the agent can't be reached", async () => {
     const session = await sessionFor();

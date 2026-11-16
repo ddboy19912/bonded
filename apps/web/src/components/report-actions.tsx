@@ -119,7 +119,7 @@ export function BreachEvidenceList({ report }: { report: Report | null | undefin
               </p>
               {e.plantedText ? (
                 <figure className="flex flex-col gap-1">
-                  <figcaption className="text-xs text-muted">What your agent read</figcaption>
+                  <figcaption className="text-xs text-muted">What the agent read</figcaption>
                   <blockquote className="max-h-48 overflow-auto rounded-xl border-l-2 border-breach/60 bg-black/30 px-3 py-2 font-mono text-xs break-words whitespace-pre-wrap text-soft">
                     {e.plantedText}
                   </blockquote>

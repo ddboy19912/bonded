@@ -59,6 +59,7 @@ import { ConnectionCheck } from "../components/connection-check";
 import { hostedSummary } from "../components/connect-hosted";
 import { Estimate, NotificationSettingsForm, RatingLive } from "../components/rating-live";
 import { PREVIEW_LABEL, PreviewReport } from "../components/preview-report";
+import { ShareReport } from "../components/share-report";
 import {
   Badge,
   Button,
@@ -640,6 +641,14 @@ export function TestAgent() {
               ) : p && FINISHED.includes(p.status) && p.ratingId ? (
                 <Loading what="the report" height="md" />
               ) : null}
+              {p && session && runFinished && run.data?.report && (
+                <ShareReport
+                  previewId={p.id}
+                  session={session.session}
+                  share={p.share}
+                  onChanged={() => preview.refetch()}
+                />
+              )}
             </FlowStep>
           </ol>
         )}
@@ -662,7 +671,9 @@ export function TestAgent() {
             <dl className="mt-4 flex flex-col gap-3 text-sm">
               <div>
                 <dt className="font-medium">{PREVIEW_LABEL}</dt>
-                <dd className="mt-0.5 text-muted">Only you see it. It isn't published anywhere.</dd>
+                <dd className="mt-0.5 text-muted">
+                  Only you see it, unless you make a link to share it. It isn't published anywhere.
+                </dd>
               </div>
               <div>
                 <dt className="font-medium">Free, a few a day per account</dt>

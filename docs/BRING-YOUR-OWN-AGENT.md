@@ -657,7 +657,9 @@ A preview is a rating of your agent with nothing to commit: it belongs to your w
 
 One run of each attack against three for an official rating means fewer trials, so the bound on each breach rate is wider and the same agent scores lower in a preview than it would officially. The preview is a check of how your agent does, not a forecast of its official score.
 
-**What it is not.** The score and report are worked out exactly as for an official rating, but **never signed, posted or attested**, and they can't be used for a cover quote. The report and every page that shows it say "Preview: private, not published". Only you (the account or wallet that started it) can see it. The [privacy page](https://www.bondedhq.xyz/privacy) says what Bonded keeps and for how long.
+**What it is not.** The score and report are worked out exactly as for an official rating, but **never signed, posted or attested**, and they can't be used for a cover quote. The report and every page that shows it say "Preview: private, not published". Only you (the account or wallet that started it) can see it, unless you share it.
+
+**Share a report.** Under a finished report, **Make a link** gives a read-only link (`www.bondedhq.xyz/shared/…`) to send to someone, a colleague or a team you're talking to. It shows the report and when it ran, and nothing else: not who ran it, the agent's address, its code or its instructions. Making a link again gives the same one; **Stop sharing** turns it off at once, and a new link after that is a different one. A shared report is labelled "Preview: not published" and stays off the leaderboard and the Index. The [privacy page](https://www.bondedhq.xyz/privacy) says what Bonded keeps and for how long.
 
 **Limits** (each set by an environment variable on the service):
 
@@ -898,6 +900,8 @@ Everything the pages do is plain HTTP, for scripts. The hosted API is `https://a
 | `POST`/`DELETE /previews/:id/runner-token` | A preview's runner token, shown once; or revoke it |
 | `POST /previews/:id/rate` | Queue the preview's rating (needs a passing check) |
 | `GET /previews/:id/report` | The labelled report: `{ label, attested: false, insurable: false, report }` |
+| `POST`/`DELETE /previews/:id/share` | Share the finished report by a read-only link (`{ token }`, the same one again if it's shared), or stop sharing it (session) |
+| `GET /shared/previews/:token` | A shared report, for anyone with the link (no sign-in): `{ label, world, mode, createdAt, run }`. 404 once sharing stops |
 | `POST`/`GET`/`DELETE …/agent-url`, `POST …/agent-url/verify` | Set, read, revoke and verify the Agent URL of a preview (`/previews/:id`) or a registered agent (`/self/agents/:id`). Setting it returns `owner`, the wallet calls are signed for |
 | `GET /.well-known/bonded-agent-keys.json` | Bonded's public keys that sign calls to Agent URLs (`{ keys: [{ kid, alg: "Ed25519", x }] }`) |
 | `POST`/`GET …/checks` | Run a connection check, or list the last 10 |
