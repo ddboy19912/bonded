@@ -82,6 +82,8 @@ export const sentence = (text: string) => {
 
 /** Shown with every preview and its report. */
 export const PREVIEW_LABEL = "Preview: private, not published";
+/** A preview's report its owner shared by link: no longer private, still never published. */
+export const SHARED_PREVIEW_LABEL = "Preview: not published";
 
 export interface OwnerRouteOptions {
   db: Database;
@@ -1512,7 +1514,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
       const report = shareableReport(row.report);
       // An allow-list: the error's code, never its text (it can name the agent's address).
       return c.json({
-        label: PREVIEW_LABEL,
+        label: SHARED_PREVIEW_LABEL,
         world: row.world,
         mode: row.mode,
         createdAt: row.previewAt.toISOString(),

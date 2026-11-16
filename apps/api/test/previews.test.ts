@@ -500,7 +500,7 @@ describe("sharing a preview's report", () => {
     expect(view.status).toBe(200);
     const body = await bodyOf(view);
     expect(body).toMatchObject({
-      label: "Preview: private, not published",
+      label: "Preview: not published",
       world: "vault",
       run: { id: ratingId, status: "done", report: { scoring: { score: 640 } } },
     });

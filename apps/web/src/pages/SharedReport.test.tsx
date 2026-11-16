@@ -28,7 +28,7 @@ function show(token = "t".repeat(32)) {
 describe("a shared report", () => {
   it("shows the report read-only, with nothing to act on, to anyone with the link", async () => {
     const read = vi.spyOn(byoaApi, "sharedReport").mockResolvedValue({
-      label: "Preview: private, not published",
+      label: "Preview: not published",
       world: "vault",
       mode: "tools",
       createdAt: iso(0),
@@ -39,6 +39,10 @@ describe("a shared report", () => {
     expect(read).toHaveBeenCalledWith("t".repeat(32));
     expect(screen.getByText(/shared by the person who ran it/)).toBeTruthy();
     expect(screen.getByText("Insurance score 72")).toBeTruthy();
+    // Shared, so not "private": the label is the API's, said once.
+    expect(screen.getAllByText(/Preview: /).map((e) => e.textContent)).toEqual([
+      "Preview: not published",
+    ]);
     // Read-only: nothing that acts on someone else's preview.
     expect(screen.queryByRole("button", { name: "Make it official" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Rate again" })).toBeNull();

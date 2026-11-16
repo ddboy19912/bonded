@@ -659,7 +659,7 @@ One run of each attack against three for an official rating means fewer trials, 
 
 **What it is not.** The score and report are worked out exactly as for an official rating, but **never signed, posted or attested**, and they can't be used for a cover quote. The report and every page that shows it say "Preview: private, not published". Only you (the account or wallet that started it) can see it, unless you share it.
 
-**Share a report.** Under a finished report, **Make a link** gives a read-only link (`www.bondedhq.xyz/shared/…`) to send to someone, a colleague or a team you're talking to. It shows the report and when it ran, and nothing else: not who ran it, the agent's address, its code or its instructions. Making a link again gives the same one; **Stop sharing** turns it off at once, and a new link after that is a different one. A shared report stays off the leaderboard and the Index. The [privacy page](https://www.bondedhq.xyz/privacy) says what Bonded keeps and for how long.
+**Share a report.** Under a finished report, **Make a link** gives a read-only link (`www.bondedhq.xyz/shared/…`) to send to someone, a colleague or a team you're talking to. It shows the report and when it ran, and nothing else: not who ran it, the agent's address, its code or its instructions. Making a link again gives the same one; **Stop sharing** turns it off at once, and a new link after that is a different one. A shared report is labelled "Preview: not published" and stays off the leaderboard and the Index. The [privacy page](https://www.bondedhq.xyz/privacy) says what Bonded keeps and for how long.
 
 **Limits** (each set by an environment variable on the service):
 

@@ -55,6 +55,7 @@ export function PreviewReport({
   session,
   onRateAgain,
   rateAgainBusy = false,
+  label = PREVIEW_LABEL,
 }: {
   preview?: PreviewRecord | undefined;
   run: RunRecord;
@@ -64,6 +65,8 @@ export function PreviewReport({
   /** Start a new preview with the same choices, after a fix. */
   onRateAgain?: () => void;
   rateAgainBusy?: boolean;
+  /** The label under the score: a shared report's says it is no longer private. */
+  label?: string;
 }) {
   const navigate = useNavigate();
   const report = run.report;
@@ -90,7 +93,18 @@ export function PreviewReport({
                 <span className="text-xs text-muted">Security score</span>
               </div>
             ) : (
-              <span className="text-muted">Security score unavailable</span>
+              // The ring's place, empty: the two columns line up the same, scored or not.
+              <div className="flex flex-col items-center gap-2">
+                <div
+                  className="flex size-28 shrink-0 items-center justify-center rounded-full border-8 border-white/[0.08] font-serif text-4xl text-muted"
+                  aria-hidden
+                >
+                  –
+                </div>
+                <span className="w-28 text-center text-xs text-muted">
+                  Security score unavailable
+                </span>
+              </div>
             )}
             <div className="flex min-w-64 flex-1 flex-col gap-2">
               <p className="flex flex-wrap items-center gap-2">
@@ -123,7 +137,7 @@ export function PreviewReport({
                 {report.episodes.total} episodes ({report.episodes.attacks} attacks,{" "}
                 {report.episodes.controls} with no attack) in {duration(report.durationMs / 1000)}
               </p>
-              <p className="font-medium">{PREVIEW_LABEL}</p>
+              <p className="font-medium">{label}</p>
               <p className="max-w-prose text-muted">
                 Computed exactly as an official rating's score, but not signed or posted, and no
                 cover can be quoted from it.
@@ -138,7 +152,7 @@ export function PreviewReport({
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[28rem] text-sm">
+            <table className="w-full text-sm">
               <caption className="sr-only">Results by attack class</caption>
               <thead className="text-left text-xs text-muted">
                 <tr>
@@ -155,7 +169,7 @@ export function PreviewReport({
                     <tr key={c.class} className="border-t border-line">
                       <td className="py-2.5 pr-4">{c.name}</td>
                       <td
-                        className={`py-2.5 text-right font-mono text-xs ${notReached ? "text-warn" : "text-muted"}`}
+                        className={`py-2.5 text-right font-mono text-xs whitespace-nowrap ${notReached ? "text-warn" : "text-muted"}`}
                         title={
                           notReached
                             ? "No episode tested the agent: priced as untested within its group"
@@ -165,7 +179,7 @@ export function PreviewReport({
                         {cells.exercised}
                       </td>
                       <td
-                        className={`py-2.5 pl-4 text-right font-mono text-xs ${TONE[cells.tone]}`}
+                        className={`py-2.5 pl-4 text-right font-mono text-xs whitespace-nowrap ${TONE[cells.tone]}`}
                       >
                         {cells.result}
                       </td>

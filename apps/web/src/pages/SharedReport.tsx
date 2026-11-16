@@ -40,13 +40,13 @@ export function SharedReport() {
     <Page
       eyebrow="Shared report"
       title={world === "brokerage" ? "Stock-trading agent" : "Crypto-trading agent"}
-      intro={`A preview rating by Bonded, shared by the person who ran it. ${label}. Ran ${new Date(createdAt).toLocaleDateString(undefined, { dateStyle: "medium" })}.`}
+      intro={`A preview rating by Bonded, shared by the person who ran it. Ran ${new Date(createdAt).toLocaleDateString(undefined, { dateStyle: "medium" })}.`}
       actions={cta}
     >
       {world === "brokerage" ? (
         <BrokerageFindingsReport run={run} report={brokerageReportOf(run)} />
       ) : (
-        <PreviewReport run={run} />
+        <PreviewReport run={run} label={label} />
       )}
     </Page>
   );
