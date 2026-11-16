@@ -54,7 +54,7 @@ As of 2026-10-10, on Robinhood Chain testnet:
 
 | | What it means | How |
 |---|---|---|
-| **Preview** | A full report of how your agent does under attack, free, with nothing to commit: no vault, no bond, no tokens, no on-chain registration | Sign in on the **Test your agent** page (work email, passkey or wallet) and connect your agent. Labelled "Preview: private, not published" |
+| **Preview** | A full report of how your agent does under attack, free, with nothing to commit: no vault, no bond, no tokens, no on-chain registration | Sign in on the **Test your agent** page (email, passkey or wallet) and connect your agent. Labelled "Preview: private, not published" |
 | **Rate** | The Arena attacks your agent while it runs where it runs, and judges it only by what the episode's vault records. An official rating's signed score goes on chain | Bonded calls your agent's HTTPS endpoint (**Agent URL**), or a small runner next to your agent (`@bondedhq/runner`) starts it once per episode. Your agent reads and trades over MCP, plain HTTP, or (chain mode) a JSON-RPC endpoint |
 | **Protect** | Your agent's key can only act through a contract that checks every action against your mandate and records any breach on chain. That record pays claims | A Mandate Vault, or a `MandateModule` on your ERC-7579 smart account. `@bondedhq/sdk` and its plugins do the wiring |
 | **Bind** | How firmly the score is tied to the code that trades: **declared** (the code hash you or your runner report) or **TEE** (every episode proves it with an Intel TDX quote) | A code hash, which fills itself in, and optionally your TEE's URL and compose hash |
@@ -82,11 +82,11 @@ flowchart LR
 
 ## Test your agent for free
 
-The **Test your agent** page ([www.bondedhq.xyz/agents/test](https://www.bondedhq.xyz/agents/test), Robinhood Chain testnet) takes you from nothing to a preview report. You need a work email, a passkey or a browser wallet to sign in (not to pay: a preview costs you nothing on chain) and your agent, either reachable at a public HTTPS address or able to run next to the runner.
+The **Test your agent** page ([www.bondedhq.xyz/agents/test](https://www.bondedhq.xyz/agents/test), Robinhood Chain testnet) takes you from nothing to a preview report. You need an email, a passkey or a browser wallet to sign in (not to pay: a preview costs you nothing on chain) and your agent, either reachable at a public HTTPS address or able to run next to the runner.
 
 ```mermaid
 flowchart LR
-  A["1. Sign in<br/>(work email, passkey<br/>or wallet)"] --> B["2. Choose<br/>Agent URL or runner,<br/>tools or chain mode"]
+  A["1. Sign in<br/>(email, passkey<br/>or wallet)"] --> B["2. Choose<br/>Agent URL or runner,<br/>tools or chain mode"]
   B --> C["3. Connect<br/>verify the URL, or<br/>start the runner"]
   C --> D["4. Connection check<br/>one benign episode, live"]
   D --> E["5. Estimate<br/>time and your model cost"]
@@ -95,7 +95,7 @@ flowchart LR
   G --> H["8. Make it official<br/>vault, bond, attested rating"]
 ```
 
-1. **Sign in.** Press **Sign in** and use your work email (a one-time code) or a passkey. Or connect a wallet and sign one message (`Bonded: start preview`, the chain, your wallet and the time). Either way you stay signed in for 12 hours; nothing is sent on chain.
+1. **Sign in.** Press **Sign in** and use your email (a one-time code) or a passkey. Or connect a wallet and sign one message (`Bonded: start preview`, the chain, your wallet and the time). Either way you stay signed in for 12 hours; nothing is sent on chain.
 2. **Answer two questions.** *Which framework is your agent built on?* (ElizaOS, Coinbase AgentKit, LangChain or LangGraph, the Vercel AI SDK, something else over MCP or HTTP, or Python) and *Where do you run it?* (on your computer or server: the runner, which is the default; on a host like Vercel: Agent URL). The snippets and the `init` command follow your answers. The mode (tools or chain) is under **Advanced (optional)**; then press **Continue**. A declared code hash and a TEE are set later, when you make it official (onboarding has its own **Advanced (optional)**).
    - **Runner** (the default): a small program next to your agent connects out to Bonded and starts your agent command once per episode. It works anywhere you can run a command: your laptop, a private network, or a host that keeps a process running (Railway, Render, Fly).
    - **Agent URL**: for an agent that only runs when it is called, on a host like Vercel. You add one file (the handler) to your app and deploy; Bonded calls that HTTPS endpoint once per episode.

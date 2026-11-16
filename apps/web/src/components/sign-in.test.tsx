@@ -58,7 +58,7 @@ async function emailIn() {
   vi.spyOn(byoaApi, "emailCode").mockResolvedValue({ sent: true });
   const made = vi.spyOn(byoaApi, "emailSession").mockResolvedValue(SESSION);
   fireEvent.click(screen.getByRole("button", { name: /Continue with email/ }));
-  fireEvent.change(screen.getByLabelText("Your work email"), {
+  fireEvent.change(screen.getByLabelText("Your email"), {
     target: { value: "dana@fund.example" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Email me a code" }));
@@ -146,7 +146,7 @@ describe("SignInButton", () => {
     render(<SignInButton />);
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     fireEvent.click(screen.getByRole("button", { name: /Continue with email/ }));
-    fireEvent.change(screen.getByLabelText("Your work email"), {
+    fireEvent.change(screen.getByLabelText("Your email"), {
       target: { value: "dana@fund.example" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Email me a code" }));
@@ -166,7 +166,7 @@ describe("SignInButton, a late answer", () => {
     render(<SignInButton onSignedIn={signedIn} />);
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     fireEvent.click(screen.getByRole("button", { name: /Continue with email/ }));
-    fireEvent.change(screen.getByLabelText("Your work email"), {
+    fireEvent.change(screen.getByLabelText("Your email"), {
       target: { value: "dana@fund.example" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Email me a code" }));

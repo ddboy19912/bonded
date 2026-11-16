@@ -241,7 +241,7 @@ export function SignInDialog({
           <Option
             icon={<Mail className="size-5" aria-hidden />}
             title="Continue with email"
-            hint="Your work email and a one-time code."
+            hint="Your email and a one-time code."
             onClick={() => {
               setError(null);
               setView("email");
@@ -275,14 +275,14 @@ export function SignInDialog({
           }}
         >
           <Input
-            label="Your work email"
+            label="Your email"
             type="email"
             inputMode="email"
             autoComplete="email"
             mono={false}
             value={email}
             onChange={setEmail}
-            placeholder="you@company.com"
+            placeholder="you@example.com"
           />
           <ErrorText error={error} />
           <Button type="submit" loading={busy === "code"} disabled={!email.includes("@")}>

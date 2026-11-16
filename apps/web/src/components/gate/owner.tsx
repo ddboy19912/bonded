@@ -28,7 +28,7 @@ export function SignedIn({
       <Empty>
         <EmptyHeader>
           <EmptyTitle>Sign in to see your gate accounts</EmptyTitle>
-          <EmptyDescription>With your work email, a passkey or a crypto wallet.</EmptyDescription>
+          <EmptyDescription>With your email, a passkey or a crypto wallet.</EmptyDescription>
         </EmptyHeader>
         <EmptyContent className="items-center">
           <SignInButton

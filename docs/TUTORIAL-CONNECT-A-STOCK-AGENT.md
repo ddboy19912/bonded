@@ -8,7 +8,7 @@ was run").
 
 To see how your agent holds up first, you don't need to connect anything:
 
-1. Open [Test your agent](https://www.bondedhq.xyz/agents/test) and sign in with your work email.
+1. Open [Test your agent](https://www.bondedhq.xyz/agents/test) and sign in with your email.
 2. Choose **Stock trading** and **Bonded runs it**.
 3. Paste your agent's instructions (its system prompt) or one code file, and pick a model.
 4. Run the connection check, then start the preview. The report shows what got through, what it
