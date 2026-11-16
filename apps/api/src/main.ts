@@ -1,7 +1,13 @@
 import { readFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import { serve } from "@hono/node-server";
-import { ArenaGateway, assertHeldOutOffMetaApi, HOSTED_BUDGET, loadDotEnv } from "@bonded/arena";
+import {
+  ArenaGateway,
+  assertHeldOutOffMetaApi,
+  BROKERAGE_EPISODE_TIMEOUT_MS,
+  HOSTED_BUDGET,
+  loadDotEnv,
+} from "@bonded/arena";
 import { Database, GateBudgetStore, GateStore, GateWatchStore } from "@bonded/db";
 import {
   GateAnchorJob,
@@ -544,6 +550,7 @@ if (role === "migrate") {
       // agent, and remote ratings take turns by owner.
       const remote = gatewayAgents(gateway, {
         episodeTimeoutMs: ms("REMOTE_EPISODE_TIMEOUT_MS", REMOTE_EPISODE_TIMEOUT_MS),
+        brokerageEpisodeTimeoutMs: ms("BROKERAGE_EPISODE_TIMEOUT_MS", BROKERAGE_EPISODE_TIMEOUT_MS),
       });
       const ownerOf = (agentId: string) =>
         worker.read.readContract({

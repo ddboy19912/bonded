@@ -9,7 +9,7 @@ import {
   type ConnectionCheckResult,
   type ConnectionCheckRunner,
 } from "./connections.js";
-import { CHECK_BUDGET_MS } from "./remote-policy.js";
+import { checkBudgetMs } from "./remote-policy.js";
 
 /**
  * The connection check lane (bring your own agent, round 2): one benign episode per check, never
@@ -21,7 +21,7 @@ import { CHECK_BUDGET_MS } from "./remote-policy.js";
 export interface CheckWorkerOptions {
   /** The gateway's check runner; without it every check fails with CHECKS_UNAVAILABLE. */
   runCheck?: ConnectionCheckRunner | undefined;
-  /** A check's budget (default 120 s). */
+  /** A check's budget (default checkBudgetMs: 120 s, 270 s for a stock-trading check). */
   timeoutMs?: number;
   log?: (line: string) => void;
 }
@@ -137,7 +137,6 @@ export async function workCheckOne(
   chainId: number,
   options: CheckWorkerOptions = {},
 ): Promise<boolean> {
-  const timeoutMs = options.timeoutMs ?? CHECK_BUDGET_MS;
   const lock = await db.pool.connect();
   const locked = (
     await lock.query("SELECT pg_try_advisory_lock($2,$1) AS locked", [chainId, CHECK_LOCK])
@@ -147,9 +146,15 @@ export async function workCheckOne(
     return false;
   }
   try {
-    const job = await db.takeCheck(chainId, timeoutMs + 60_000);
+    // The lease covers the longest check (a stock-trading one) before its world is known.
+    const job = await db.takeCheck(
+      chainId,
+      (options.timeoutMs ?? checkBudgetMs("brokerage")) + 60_000,
+    );
     if (!job) return false;
     const check = (await db.check(job.id))!;
+    // One episode at the world's deadline: 90 s for the vault, 240 s for stock trading.
+    const timeoutMs = options.timeoutMs ?? checkBudgetMs(check.world);
     // Events are written in order, one at a time, and at most MAX_EVENTS of them.
     let written = Promise.resolve();
     let count = 0;

@@ -1,5 +1,6 @@
 import {
   AgentUrlUnavailableError,
+  BROKERAGE_EPISODE_TIMEOUT_MS,
   bondedFailure,
   HOSTED_REMOTE_PROFILE,
   RemoteAgent,
@@ -76,7 +77,12 @@ export type RemoteAgentFactory = (
  */
 export function gatewayAgents(
   gateway: ArenaGateway,
-  options: { episodeTimeoutMs?: number; runnerWaitMs?: number } = {},
+  options: {
+    episodeTimeoutMs?: number;
+    /** A stock-trading episode's deadline (default BROKERAGE_EPISODE_TIMEOUT_MS). */
+    brokerageEpisodeTimeoutMs?: number;
+    runnerWaitMs?: number;
+  } = {},
 ): RemoteAgentFactory {
   return (request, sandbox) => {
     // An Agent URL can't carry a TEE's evidence: that comes through the runner.
@@ -95,7 +101,10 @@ export function gatewayAgents(
         : { kind: "runner", key: request.agentKey },
       mode: request.mode,
       name: `remote/agent-${request.agentId}`,
-      episodeTimeoutMs: options.episodeTimeoutMs ?? REMOTE_EPISODE_TIMEOUT_MS,
+      episodeTimeoutMs:
+        world === "brokerage"
+          ? (options.brokerageEpisodeTimeoutMs ?? BROKERAGE_EPISODE_TIMEOUT_MS)
+          : (options.episodeTimeoutMs ?? REMOTE_EPISODE_TIMEOUT_MS),
       runnerWaitMs: options.runnerWaitMs ?? 30_000,
       ...(request.tee
         ? {

@@ -184,6 +184,7 @@ To run the rating service's gateway yourself, start the API in the `arena-worker
 | `RATE_MAX_USD` | unset (no cap) | Model-spend cap for one rating; must be finite and positive when set. Checked between episodes, so a call already in progress can overrun it |
 | `REMOTE_REPEATS` | 3 | Runs of each attack in a remote rating (built-in designs: 5) |
 | `REMOTE_EPISODE_TIMEOUT_MS` | 90000 | One remote episode's time limit |
+| `BROKERAGE_EPISODE_TIMEOUT_MS` | 240000 | One remote stock-trading episode's time limit: an attack that works makes the agent read and trade more, and 90 s cut those episodes off |
 | `REMOTE_EPISODE_BUDGET_MS`, `REMOTE_RATING_MAX_MS` | 90000, 10800000 | A remote rating's and a preview's time budget: this much per episode (by default each episode's whole deadline), never more than the ceiling (3 hours; 45 minutes for a preview) |
 | `REMOTE_RATINGS_PER_AGENT_DAILY`, `REMOTE_RATINGS_PER_OWNER_DAILY`, `REMOTE_RATINGS_DAILY` | 2, 3, 20 | Remote ratings per agent, per owner and for the whole chain, per 24 hours. Renewals and re-ratings count |
 | `REMOTE_RATING_INTERVAL_MS` | 3600000 | The least time between two ratings of one operator-run agent; also how often a TEE change may re-rate it |

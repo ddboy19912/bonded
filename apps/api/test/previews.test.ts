@@ -1869,18 +1869,22 @@ describe("brokerage previews", () => {
     await connect(made.token as string, "tools", code);
     const worlds: unknown[] = [];
     const names: unknown[] = [];
+    const budgets: unknown[] = [];
     await send("POST", `/previews/${preview.id}/checks`, {}, session, a);
     expect(
       await workCheckOne(pg.db, chainId, {
         runCheck: (request) => {
           worlds.push(request.world);
           names.push(request.toolNames);
+          budgets.push(request.timeoutMs);
           return passing(request);
         },
       }),
     ).toBe(true);
     expect(worlds).toEqual(["brokerage"]);
     expect(names).toEqual([toolNames ?? "bonded"]);
+    // A stock-trading check: one 240-second episode, as in its rating, plus 30 s to set up.
+    expect(budgets).toEqual([270_000]);
     return preview;
   }
 

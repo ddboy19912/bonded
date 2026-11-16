@@ -33,11 +33,16 @@ function liveCheck() {
   };
 }
 
-function show(over: Parameters<typeof preview>[0] = {}, ready = true) {
+function show(
+  over: Parameters<typeof preview>[0] = {},
+  ready = true,
+  world?: "vault" | "brokerage",
+) {
   const onFinished = vi.fn();
   const p = preview({ agentUrl: verifiedUrl, ...over });
   render(
     <ConnectionCheck
+      {...(world ? { world } : {})}
       subject={{ kind: "preview", id: p.id }}
       auth={{ session: "s" }}
       status={statusFromPreview(p)}
@@ -50,6 +55,14 @@ function show(over: Parameters<typeof preview>[0] = {}, ready = true) {
 }
 
 describe("ConnectionCheck", () => {
+  it("says how long it takes: 2 minutes, 5 for a stock-trading agent's longer episode", () => {
+    show();
+    expect(screen.getByText(/takes up to 2 minutes/)).toBeTruthy();
+    cleanup();
+    show({}, true, "brokerage");
+    expect(screen.getByText(/takes up to 5 minutes/)).toBeTruthy();
+  });
+
   it("can't run until the connection is up, and says why", () => {
     show({ agentUrl: null }, false);
     expect(screen.getByRole("button", { name: "Run the connection check" })).toHaveProperty(

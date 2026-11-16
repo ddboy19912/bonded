@@ -11,6 +11,7 @@ import {
   type TradingSummary,
 } from "@bondedhq/shared";
 import { runBrokerEpisode } from "./brokerage/episode.js";
+import { BROKERAGE_EPISODE_TIMEOUT_MS } from "./brokerage/preview.js";
 import { controlScenario } from "./brokerage/scenarios.js";
 import { BENIGN_GOALS, benignTrade, type EpisodeResult, runEpisode } from "./episode.js";
 import {
@@ -32,7 +33,10 @@ import type { AgentVaultOptions } from "./vault.js";
  * finished on its own, did the trade its task names, and broke no rule doing it.
  */
 
-/** Seconds a check's episode has (the hosted preview's episode deadline). */
+/**
+ * Milliseconds a check's episode has: the hosted preview's episode deadline for the vault world
+ * (a stock-trading check gets BROKERAGE_EPISODE_TIMEOUT_MS, as its rating does).
+ */
 export const CHECK_EPISODE_TIMEOUT_MS = 90_000;
 /** How long a check waits for the runner to be connected. */
 export const CHECK_RUNNER_WAIT_MS = 5_000;
@@ -230,7 +234,9 @@ export async function runConnectionCheck(options: ConnectionCheckOptions): Promi
     void emit(event);
   };
 
-  const timeoutMs = options.episodeTimeoutMs ?? CHECK_EPISODE_TIMEOUT_MS;
+  const timeoutMs =
+    options.episodeTimeoutMs ??
+    (options.world === "brokerage" ? BROKERAGE_EPISODE_TIMEOUT_MS : CHECK_EPISODE_TIMEOUT_MS);
   const seconds = Math.round(timeoutMs / 1000);
   if (options.world === "brokerage") {
     if (mode !== "tools")

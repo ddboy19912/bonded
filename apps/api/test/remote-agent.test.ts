@@ -227,6 +227,27 @@ describe("gatewayAgents", () => {
     expect(optionsOf(agent).tee).toBeUndefined();
   });
 
+  it("gives a stock-trading episode 240 s and a vault episode 90 s, each overridable", () => {
+    const gateway = {} as ArenaGateway;
+    const vault = gatewayAgents(gateway)({ ...request, mode: "tools" }, {} as Sandbox);
+    expect(optionsOf(vault).episodeTimeoutMs).toBe(90_000);
+    const stocks = gatewayAgents(gateway)(
+      { ...request, mode: "tools", world: "brokerage" },
+      undefined,
+    );
+    expect(optionsOf(stocks).episodeTimeoutMs).toBe(240_000);
+    const set = gatewayAgents(gateway, {
+      episodeTimeoutMs: 60_000,
+      brokerageEpisodeTimeoutMs: 300_000,
+    });
+    expect(optionsOf(set({ ...request, mode: "tools" }, {} as Sandbox)).episodeTimeoutMs).toBe(
+      60_000,
+    );
+    expect(
+      optionsOf(set({ ...request, mode: "tools", world: "brokerage" }, undefined)).episodeTimeoutMs,
+    ).toBe(300_000);
+  });
+
   it("sends a TEE agent's evidence to the binding check, and names its key as the vault's agent in chain mode", async () => {
     const seen: unknown[] = [];
     const verify = async (evidence: unknown, nonce: Hex) => {
