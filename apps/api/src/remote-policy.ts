@@ -1,4 +1,5 @@
 import {
+  BROKERAGE_EPISODE_TIMEOUT_MS,
   brokeragePreviewSize,
   HOSTED_REMOTE_PROFILE,
   loadBenignSeeds,
@@ -182,6 +183,14 @@ export function remoteRefusalMessage(
 export const CHECK_BUDGET_MS = 120_000;
 
 /**
+ * A connection check's time budget in `world`: one episode at its deadline plus 30 s to set up. A
+ * stock-trading episode gets 240 s, as in its rating, so its check gets 270.
+ */
+export function checkBudgetMs(world: string | null | undefined): number {
+  return world === "brokerage" ? BROKERAGE_EPISODE_TIMEOUT_MS + 30_000 : CHECK_BUDGET_MS;
+}
+
+/**
  * A preview rating's size and time budget: every published attack once, the held-out set made
  * for it (one per class by default), the controls and the benign twins; 90 s an episode, at most
  * 45 minutes.
@@ -215,8 +224,9 @@ export function previewRefusalMessage(
 
 /**
  * A stock-trading preview's size and time budget: the control, every staged attack and every
- * benign twin once, at `episodeBudgetMs` each under the preview ceiling. A hosted agent's episodes
- * run several at a time, so its preview gets the whole ceiling.
+ * benign twin once, at each episode's whole deadline (BROKERAGE_EPISODE_TIMEOUT_MS, or
+ * `episodeBudgetMs` if that is set higher) under the preview ceiling. A hosted agent's episodes run
+ * several at a time, so its preview gets the whole ceiling.
  */
 export function brokeragePreviewPlan(
   policy: RemoteRatingPolicy,
@@ -227,6 +237,9 @@ export function brokeragePreviewPlan(
     episodes,
     budgetMs: hosted
       ? policy.previewBudgetCeilingMs
-      : Math.min(policy.previewBudgetCeilingMs, episodes * policy.episodeBudgetMs),
+      : Math.min(
+          policy.previewBudgetCeilingMs,
+          episodes * Math.max(policy.episodeBudgetMs, BROKERAGE_EPISODE_TIMEOUT_MS),
+        ),
   };
 }

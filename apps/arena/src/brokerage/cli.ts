@@ -16,6 +16,7 @@ import { positiveInt } from "../flags.js";
 import type { ArenaGateway, RemoteAgent } from "../gateway/index.js";
 import { startRemote } from "../remote-start.js";
 import { type BrokerEpisodeResult, didNotFinish } from "./episode.js";
+import { BROKERAGE_EPISODE_TIMEOUT_MS } from "./preview.js";
 import { brokerReport } from "./report.js";
 import { type BrokerRun, flagsNotForRemote, runBrokerQueue, UNREACHED_TO_STOP } from "./run.js";
 import {
@@ -94,7 +95,7 @@ async function main(): Promise<void> {
       "gateway-host": { type: "string" },
       "public-url": { type: "string" },
       "runner-wait": { type: "string", default: "300" },
-      "episode-timeout": { type: "string", default: "240" },
+      "episode-timeout": { type: "string", default: String(BROKERAGE_EPISODE_TIMEOUT_MS / 1000) },
       name: { type: "string" },
       help: { type: "boolean" },
     },

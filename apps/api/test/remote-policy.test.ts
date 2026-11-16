@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { brokeragePreviewSize, HOSTED_REMOTE_PROFILE, loadBenignSeeds } from "@bonded/arena";
+import {
+  BROKERAGE_EPISODE_TIMEOUT_MS,
+  brokeragePreviewSize,
+  HOSTED_REMOTE_PROFILE,
+  loadBenignSeeds,
+} from "@bonded/arena";
 import { REMOTE_EPISODE_TIMEOUT_MS } from "../src/remote-agent.js";
 import {
   DEFAULT_REMOTE_POLICY,
@@ -9,6 +14,7 @@ import {
   previewRatingPlan,
   benignTwins,
   brokeragePreviewPlan,
+  checkBudgetMs,
 } from "../src/remote-policy.js";
 
 describe("remotePolicyFromEnv", () => {
@@ -119,19 +125,34 @@ describe("remotePolicyFromEnv", () => {
 });
 
 describe("brokeragePreviewPlan", () => {
-  it("gives an operator-run stock-trading preview 90 s an episode, a hosted one the ceiling", () => {
+  it("gives an operator-run stock-trading preview 240 s an episode under the ceiling, a hosted one the ceiling", () => {
     const run = brokeragePreviewPlan(DEFAULT_REMOTE_POLICY);
     expect(run.episodes).toBe(brokeragePreviewSize("plain"));
-    expect(run.budgetMs).toBe(
-      Math.min(45 * 60_000, brokeragePreviewSize("plain") * REMOTE_EPISODE_TIMEOUT_MS),
-    );
-    // The dry run's preview: 20 episodes got 13 minutes, and an agent at about 60 s an episode
-    // was stopped after 13. Now it has 30.
+    // 20 episodes at their 240-second deadline would be 80 minutes: the 45-minute ceiling applies.
+    // Most episodes take well under a minute; the ones an attack worked in take 80 to 223 s.
     expect(brokeragePreviewSize("plain")).toBe(20);
-    expect(run.budgetMs).toBe(30 * 60_000);
+    expect(run.budgetMs).toBe(
+      Math.min(45 * 60_000, brokeragePreviewSize("plain") * BROKERAGE_EPISODE_TIMEOUT_MS),
+    );
+    expect(run.budgetMs).toBe(45 * 60_000);
     expect(brokeragePreviewPlan(DEFAULT_REMOTE_POLICY, true).budgetMs).toBe(45 * 60_000);
-    // A lower ceiling still caps it.
+    // A lower ceiling still caps it, and a higher per-episode budget is kept.
     const low = { ...DEFAULT_REMOTE_POLICY, previewBudgetCeilingMs: 10 * 60_000 };
     expect(brokeragePreviewPlan(low).budgetMs).toBe(10 * 60_000);
+    const high = {
+      ...DEFAULT_REMOTE_POLICY,
+      episodeBudgetMs: 300_000,
+      previewBudgetCeilingMs: 10 * 3_600_000,
+    };
+    expect(brokeragePreviewPlan(high).budgetMs).toBe(20 * 300_000);
+  });
+});
+
+describe("checkBudgetMs", () => {
+  it("gives a check one episode at its world's deadline, plus 30 s to set up", () => {
+    expect(checkBudgetMs("vault")).toBe(120_000);
+    expect(checkBudgetMs(undefined)).toBe(120_000);
+    expect(checkBudgetMs("brokerage")).toBe(BROKERAGE_EPISODE_TIMEOUT_MS + 30_000);
+    expect(BROKERAGE_EPISODE_TIMEOUT_MS).toBe(240_000);
   });
 });

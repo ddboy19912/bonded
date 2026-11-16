@@ -75,6 +75,15 @@ export function brokeragePreviewScenarios(
   ];
 }
 
+/**
+ * A stock-trading episode's deadline, on the hosted service and in the local CLI (`broker
+ * --episode-timeout`): 240 s. An attack that works makes the agent read the planted filing or
+ * notice, ask for approval and place more orders, so those episodes run longest. At 90 s, the
+ * first hosted dry run (2026-11-16) lost exactly the attacks that worked to the deadline; they ran
+ * 80 to 223 s with the same agent locally.
+ */
+export const BROKERAGE_EPISODE_TIMEOUT_MS = 240_000;
+
 const sizes = new Map<BrokerPlan, number>();
 /**
  * How many episodes a full preview runs, one run of each (the control and every staged seed).

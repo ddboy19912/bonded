@@ -111,7 +111,7 @@ flowchart LR
 7. **Read the report**: the score and tier, per-class results, what your agent read and didn't, liveness and the Task score ([Task score and benign twins](#task-score-and-benign-twins)). It is labelled "Preview: private, not published". Above them, **Fix these first**: the three changes that address the most of its breaches. Below, for each breach, the exact text your agent read, what it did and what would have stopped it ([What the report shows](#what-the-report-shows)). Change your agent and press **Rate again**: the new report shows the two side by side ("54 → 81", with each attack class's breaches before and after).
 8. **Make it official** when you want a score on chain and cover: onboarding opens with your preview's choices filled in ([Official ratings](#official-ratings)).
 
-**How long it takes.** Connecting and checking take minutes. The preview itself is mostly your agent's time: the page shows the API's plan before you start (with today's library, up to 72 episodes and a budget of 90 seconds an episode, never more than 45 minutes; a stock-trading preview, 20 episodes in 30 minutes), and the estimate in step 5 gives your own agent's figure from its check, with a warning when it runs past the budget. An agent that runs past the budget is stopped ([Previews](#previews)).
+**How long it takes.** Connecting and checking take minutes. The preview itself is mostly your agent's time: the page shows the API's plan before you start (with today's library, up to 72 episodes and a budget of 90 seconds an episode, never more than 45 minutes; a stock-trading preview, 20 episodes of up to 4 minutes each, also within 45 minutes), and the estimate in step 5 gives your own agent's figure from its check, with a warning when it runs past the budget. An agent that runs past the budget is stopped ([Previews](#previews)).
 
 ## Connect your agent
 
@@ -178,7 +178,7 @@ The owner check is what keeps your URL yours. Bonded signs a call for a wallet o
 | Answer time | 10 seconds for every call, from the name lookup to the last byte of your answer. Answer an episode at once and work after replying |
 | Answer size | Bonded reads at most 64 KiB of an answer |
 | Body size | Bonded sends at most 256 KiB (an episode is a few KB) |
-| Episodes | One at a time per agent or preview. The episode's deadline (90 seconds in a hosted rating) starts once your endpoint has accepted it |
+| Episodes | One at a time per agent or preview. The episode's deadline (90 seconds in a hosted rating; 4 minutes for stock trading) starts once your endpoint has accepted it |
 | Calls to your URL | Episode and cancel calls: 30 a minute per agent or preview, bursts of 10. Verify calls: 10 a minute per host name, per registrable domain and per resolved address, bursts of 5; and on the API, 10 an hour per wallet and per URL host, 100 an hour in all |
 | A failed delivery | An error status, no answer within 10 seconds, a redirect, a TLS error or an address that isn't public fails the episode, as the agent's doing. A call Bonded didn't make because of its own rate limit is tried again (up to 3 times) and is never the agent's fault |
 
@@ -571,7 +571,7 @@ A check is one episode with a benign task in a benign world and **no attack**, n
 1. Cheap checks first, so nothing starts until your agent is reachable:
    - runner: it waits up to 5 seconds for the runner, then checks its mode and that it isn't busy;
    - Agent URL: it sends a fresh verify challenge.
-2. One benign episode on a fresh local chain (no fork): one of the rating's benign goals, a fresh world, the episode's normal 90-second deadline, and a 120-second budget for the whole check.
+2. One benign episode on a fresh local chain (no fork): one of the rating's benign goals, a fresh world, the episode's normal 90-second deadline, and a 120-second budget for the whole check. A stock-trading check runs the brokerage control episode with its rating's 4-minute deadline, in a 270-second budget.
 3. A live stream of what happened: `started`, each `tool` call (`name`, the `surface` it read, `ok`, `error?`), each `tx` in chain mode (`ok`, `reason?`), `done` (`exitCode?` for a runner, `durationMs`, the last 4 KB of output), and a final `result`.
 4. The result: `passed`, `problems` (what stops a rating from working), `warnings` (what works but costs score or makes estimates rough), `taskCompleted`, `toolsCalled`, `surfacesRead`, the `usage` your agent reported, `durationMs` and the code hash the runner or URL reported.
 
@@ -651,7 +651,7 @@ A preview is a rating of your agent with nothing to commit: it belongs to your w
 | Not run | The S1 market-data and world-state batteries, for now (the time budget plans only the main library), and the memory battery (Bonded can't read or reset your agent's memory) | |
 | Episodes | With today's library of 40 published attacks in 10 classes: at most 40 + 10 + 6 + 16 = 72 | |
 | Time per episode | 90 seconds | `REMOTE_EPISODE_TIMEOUT_MS` |
-| Time for the whole preview | 90 seconds per episode (each episode's whole deadline), at most 45 minutes: 72 episodes would take 108, so the 45-minute cap applies; a stock-trading preview's 20 episodes get 30 minutes | `REMOTE_EPISODE_BUDGET_MS`, `PREVIEW_RATING_MAX_MS` |
+| Time for the whole preview | 90 seconds per episode (each episode's whole deadline), at most 45 minutes: 72 episodes would take 108, so the 45-minute cap applies. A stock-trading preview's 20 episodes have 4 minutes each (`BROKERAGE_EPISODE_TIMEOUT_MS`) and the same 45-minute cap: most finish in under a minute, and the ones an attack works in take longest | `REMOTE_EPISODE_BUDGET_MS`, `PREVIEW_RATING_MAX_MS` |
 | Judging | The hosted rules: only exercised trials count, the liveness bars apply, untested classes are priced as untested ([What the report shows](#what-the-report-shows)) | |
 | Stops | The same as an official rating: the first episode your agent fails, or the budget overrun because of your agent ([When a rating stops](#when-a-rating-stops)) | |
 

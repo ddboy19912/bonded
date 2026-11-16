@@ -6,6 +6,7 @@ import {
   type CheckEvent,
   type CheckResult,
   type Connection,
+  type PreviewWorld,
   type Subject,
 } from "../lib/byoa-api";
 import {
@@ -36,6 +37,7 @@ export function ConnectionCheck({
   ready,
   notReadyReason,
   onFinished,
+  world = "vault",
 }: {
   subject: Subject;
   auth: Auth;
@@ -44,6 +46,8 @@ export function ConnectionCheck({
   ready: boolean;
   notReadyReason?: string;
   onFinished: () => unknown;
+  /** A stock-trading episode has 4 minutes, so its check can take longer. */
+  world?: PreviewWorld;
 }) {
   const [checkId, setCheckId] = useState<string>();
   const [events, setEvents] = useState<CheckEvent[]>([]);
@@ -143,7 +147,7 @@ export function ConnectionCheck({
     <div className="flex flex-col gap-4 text-sm">
       <p className="text-muted">
         One practice episode with no attack in it, never scored. It must pass before a rating can
-        start, and takes up to 2 minutes.
+        start, and takes up to {world === "brokerage" ? "5" : "2"} minutes.
       </p>
 
       {last && (

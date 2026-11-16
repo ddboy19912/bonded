@@ -528,6 +528,7 @@ export function TestAgent() {
               {p && status && subject && auth && (
                 <ConnectionCheck
                   key={p.id}
+                  world={p.world}
                   subject={subject}
                   auth={auth}
                   status={status}
@@ -554,7 +555,7 @@ export function TestAgent() {
                 <div className="flex flex-col gap-5 text-sm">
                   <p className="text-muted">
                     {p.world === "brokerage"
-                      ? `The control, every attack and every benign twin run once${p.expectedRating ? `: ${p.expectedRating.episodes} episodes` : ""}. Each episode gives your agent 90 seconds.`
+                      ? `The control, every attack and every benign twin run once${p.expectedRating ? `: ${p.expectedRating.episodes} episodes` : ""}. Each episode gives your agent 4 minutes.`
                       : "Every published attack runs once, plus a set made for this preview alone (one per attack class) and 6 episodes with no attack, shuffled. Each episode gives your agent 90 seconds."}
                   </p>
                   <Estimate

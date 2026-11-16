@@ -1,4 +1,6 @@
 import {
+  BROKERAGE_EPISODE_TIMEOUT_MS,
+  CHECK_EPISODE_TIMEOUT_MS,
   hostedAgent,
   runConnectionCheck,
   verifyAgentUrl,
@@ -187,7 +189,11 @@ export function gatewayCheckRunner(gateway: ArenaGateway): ConnectionCheckRunner
       mode: request.mode,
       ...(request.world ? { world: request.world } : {}),
       ...(request.toolNames ? { toolProfile: request.toolNames } : {}),
-      episodeTimeoutMs: Math.min(request.timeoutMs, 90_000),
+      // The episode's deadline, as the world's rating gives it, inside the check's own budget.
+      episodeTimeoutMs: Math.min(
+        request.timeoutMs,
+        request.world === "brokerage" ? BROKERAGE_EPISODE_TIMEOUT_MS : CHECK_EPISODE_TIMEOUT_MS,
+      ),
       onEvent: (event) => request.onEvent(event as ConnectionCheckEvent),
     });
     return {
