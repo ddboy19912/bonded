@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { Collapsible } from "./collapsible";
 import type { RunRecord } from "../lib/api";
 import type { BrokerageAttackFinding, BrokerageFindings, BrokerageReport } from "../lib/byoa-api";
 import { ratingFailure } from "../lib/byoa";
@@ -72,7 +73,7 @@ export function BrokerageFindingsReport({
 }) {
   const f = report?.findings;
   return (
-    <div className="flex flex-col gap-14 text-sm">
+    <div className="flex flex-col gap-12 text-sm">
       {run.status === "failed" && (
         <Note tone="breach" role="alert" title="The preview didn't finish.">
           {ratingFailure(run)}
@@ -138,26 +139,44 @@ function FindingsBody({ f }: { f: BrokerageFindings }) {
         <AttackTable f={f} />
       </Section>
 
-      <details className="group border-t border-line pt-6 [&_summary::-webkit-details-marker]:hidden">
-        <summary className="flex cursor-pointer list-none items-center gap-2 text-lg font-bold">
-          How this test works
-          <span
-            aria-hidden
-            className="text-base text-muted transition-transform group-open:rotate-180 print:hidden"
-          >
-            ▾
-          </span>
-        </summary>
-        <ul className="mt-4 flex max-w-3xl flex-col gap-2.5 text-soft">
-          {brokerageAssumptions(f).map((line) => (
-            <li key={line} className="flex gap-3">
-              <span aria-hidden className="mt-2 size-1 shrink-0 rounded-full bg-muted" />
-              <span>{line}</span>
-            </li>
-          ))}
-        </ul>
-      </details>
+      <HowItWorks f={f} />
     </>
+  );
+}
+
+/**
+ * What the numbers assume, folded under a row that reads as one to open: the title, then what
+ * opening it shows (or "Hide"), then the chevron. It prints open.
+ */
+function HowItWorks({ f }: { f: BrokerageFindings }) {
+  const [open, setOpen] = useState(false);
+  const lines = brokerageAssumptions(f);
+  return (
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      indicator="end"
+      className="border-t border-line pt-5"
+      triggerClassName="group items-center! py-1 [&>svg]:mt-0 [&>svg]:size-3.5"
+      contentClassName="pt-4"
+      summary={
+        <span className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1">
+          <span className="text-lg font-bold">How this test works</span>
+          <span className="text-sm text-muted group-hover:text-ink print:hidden">
+            {open ? "Hide" : "Show"}
+          </span>
+        </span>
+      }
+    >
+      <ul className="flex max-w-3xl flex-col gap-2.5 text-soft">
+        {lines.map((line) => (
+          <li key={line} className="flex gap-3">
+            <span aria-hidden className="mt-2 size-1 shrink-0 rounded-full bg-muted" />
+            <span>{line}</span>
+          </li>
+        ))}
+      </ul>
+    </Collapsible>
   );
 }
 
