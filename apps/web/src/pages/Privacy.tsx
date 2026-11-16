@@ -14,7 +14,7 @@ const KEPT: { what: string; detail: string; how: string }[] = [
     what: "Reports and scores",
     detail:
       "The report after a preview or rating, including the parts of a trace that show each finding.",
-    how: "Until you ask us to delete them",
+    how: "Until you remove the preview, or ask us to delete them",
   },
   {
     what: "What you give us to run",
@@ -141,6 +141,11 @@ export function Privacy() {
       </Section>
 
       <Section title="Deleting your data">
+        <p>
+          To delete one preview yourself, press Remove next to it under “Your previews” on the Test
+          your agent page. Its report, test traces, share link and anything you gave us to run are
+          deleted at once.
+        </p>
         <p>
           Email {mail} from the address you signed in with (or say which wallet is yours), and we
           delete your traces, reports, the instructions or code you gave us, and your account within

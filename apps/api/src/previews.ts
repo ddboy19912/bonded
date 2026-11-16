@@ -214,12 +214,31 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
       })
     ).toLowerCase();
 
-  /** A preview by its id: another wallet's is "not found", so ids can't be probed. */
+  /**
+   * Why a preview can't be connected, checked or rated any more: its owner stopped it, or it
+   * expired (it never started a rating within its runner token's life, 0041).
+   */
+  const closedPreview = (status: string | undefined): Refused | undefined =>
+    status === "stopped"
+      ? new Refused(409, "This preview was stopped.")
+      : status === "expired"
+        ? new Refused(409, "This preview expired: it can't connect after 7 days. Start a new one.")
+        : undefined;
+  const refuseClosed = (status: string | undefined) => {
+    const closed = closedPreview(status);
+    if (closed) throw closed;
+  };
+
+  /**
+   * A preview by its id: another wallet's, or a removed one, is "not found", so ids can't be
+   * probed.
+   */
   async function previewSubject(id: string | undefined, wallet?: string): Promise<Subject> {
     const parsed = uuid.safeParse(id);
     const preview = parsed.success ? await db.preview(parsed.data) : undefined;
     if (
       !preview ||
+      preview.removedAt ||
       preview.chainId !== chainId ||
       (wallet !== undefined && preview.owner !== wallet)
     )
@@ -633,8 +652,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
     handle(async (c) => {
       const { wallet, body } = await writer(c, "preview", "sign-in");
       const subject = await previewSubject(c.req.param("id"), wallet);
-      if (subject.preview!.status === "stopped")
-        throw new Refused(409, "This preview was stopped.");
+      refuseClosed(subject.preview!.status);
       if (subject.connection !== "hosted")
         throw new Refused(409, "This preview runs your agent on your side, not on Bonded.");
       if (["queued", "running", "starting"].includes(subject.preview!.status))
@@ -659,9 +677,8 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
       if ("refused" in saved)
         throw new Refused(
           409,
-          saved.refused === "stopped"
-            ? "This preview was stopped."
-            : "Its rating has started. Wait for it to finish, then change it.",
+          closedPreview(saved.refused)?.message ??
+            "Its rating has started. Wait for it to finish, then change it.",
         );
       // A changed agent needs a new check: back to "created" if it had passed one.
       await db.pool.query(
@@ -741,6 +758,28 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
     }),
   );
 
+  /**
+   * Remove a preview: it leaves the owner's list, and everything in it is deleted (its report,
+   * episodes, share link, tokens, Agent URL, hosted code and checks). Refused while its rating or
+   * a connection check is queued or running. The daily limits still count a removed preview.
+   */
+  app.delete(
+    "/previews/:id",
+    handle(async (c) => {
+      const { wallet } = await writer(c, "preview", "sign-in");
+      const subject = await previewSubject(c.req.param("id"), wallet);
+      const removed = await db.removePreview(subject.id);
+      if ("refused" in removed)
+        throw new Refused(
+          409,
+          removed.refused === "rating"
+            ? "Its rating is queued or running. Stop it, or wait for it to finish, then remove it."
+            : "Its connection check is running. Wait for it to finish, then remove it.",
+        );
+      return c.json({ removed: true });
+    }),
+  );
+
   /** A preview's runner token, shown once (it replaces the preview's current one). */
   app.post(
     "/previews/:id/runner-token",
@@ -748,8 +787,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
       const { wallet, body } = await writer(c, "preview", "runner-token");
       empty.parse(body);
       const subject = await previewSubject(c.req.param("id"), wallet);
-      if (subject.preview!.status === "stopped")
-        throw new Refused(409, "This preview was stopped.");
+      refuseClosed(subject.preview!.status);
       if (subject.connection !== "runner")
         throw new Refused(
           409,
@@ -799,7 +837,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
    * global caps. When the agent can't be reached at all, the check fails at once saying why.
    */
   async function startCheck(subject: Subject, wallet: string): Promise<ConnectionCheckRecord> {
-    if (subject.preview?.status === "stopped") throw new Refused(409, "This preview was stopped.");
+    refuseClosed(subject.preview?.status);
     const { current, code } = await connectionNow(subject);
     const problem = await connectionProblem(subject);
     const made = await db.createCheck(
@@ -898,8 +936,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
           url: String(b.url ?? ""),
         }));
         const subject = await subjectOf(kind, c.req.param("id"), wallet);
-        if (subject.preview?.status === "stopped")
-          throw new Refused(409, "This preview was stopped.");
+        refuseClosed(subject.preview?.status);
         if (subject.kind === "preview" && subject.connection !== "url")
           throw new Refused(
             409,
@@ -1327,7 +1364,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
           const changed = key !== last;
           last = key;
           if (changed) quietSince = Date.now();
-          const over = ["done", "failed", "refused", "stopped"].includes(p.status);
+          const over = ["done", "failed", "refused", "stopped", "expired"].includes(p.status);
           return {
             events: changed ? [{ data: state }] : [],
             // Ends when the preview is over, or after 10 quiet minutes (the browser reconnects).
@@ -1352,7 +1389,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
    * The page's route and testing in CI (ci-runs.ts) both queue through here.
    */
   async function queuePreviewRating(subject: Subject): Promise<{ runId: string }> {
-    if (subject.preview!.status === "stopped") throw new Refused(409, "This preview was stopped.");
+    refuseClosed(subject.preview!.status);
     const problem = await connectionProblem(subject);
     if (problem) throw new Refused(409, problem);
     const { code, config } = await connectionNow(subject);

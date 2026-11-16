@@ -434,6 +434,8 @@ export interface PreviewRecord {
   /** 0040: the read-only link's token, while its owner shares the report. */
   shareToken: string | null;
   sharedAt: Date | null;
+  /** 0041: when its owner removed it. A removed preview is "not found" everywhere. */
+  removedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -601,6 +603,7 @@ const previewRow = (row: Record<string, unknown>): PreviewRecord => ({
   upgradedTo: (row.upgraded_to as string | null) ?? null,
   shareToken: (row.share_token as string | null) ?? null,
   sharedAt: (row.shared_at as Date | null) ?? null,
+  removedAt: (row.removed_at as Date | null) ?? null,
   createdAt: row.created_at as Date,
   updatedAt: row.updated_at as Date,
 });
@@ -727,6 +730,7 @@ export class Database {
       "0038_hosted_spend.sql",
       "0039_accounts.sql",
       "0040_preview_shares.sql",
+      "0041_preview_remove.sql",
     ];
     await this.transaction(async (c) => {
       await c.query("SELECT pg_advisory_xact_lock(7001)");
@@ -1139,7 +1143,8 @@ export class Database {
       await this.pool.query(
         `SELECT t.id,t.agent_id,t.created_by,v.id AS preview,v.chain_id,v.mode,v.owner FROM runner_tokens t
          JOIN previews v ON 'preview:'||v.id::text=t.agent_id
-         WHERE t.token_hash=$1 AND t.revoked_at IS NULL AND v.status<>'stopped'
+         WHERE t.token_hash=$1 AND t.revoked_at IS NULL AND v.status NOT IN ('stopped','expired')
+           AND v.removed_at IS NULL
            AND v.created_at > now() - make_interval(days => $2)`,
         [hash, PREVIEW_TOKEN_DAYS],
       )
@@ -2742,13 +2747,13 @@ export class Database {
     const limit = clampLimit(q.limit ?? 10);
     const total = (
       await this.pool.query(
-        "SELECT count(*)::int AS n FROM previews WHERE owner=$1 AND chain_id=$2",
+        "SELECT count(*)::int AS n FROM previews WHERE owner=$1 AND chain_id=$2 AND removed_at IS NULL",
         [owner.toLowerCase(), chainId],
       )
     ).rows[0].n as number;
     const at = pageOf(q.page, total, limit);
     const r = await this.pool.query(
-      `SELECT * FROM previews WHERE owner=$1 AND chain_id=$2
+      `SELECT * FROM previews WHERE owner=$1 AND chain_id=$2 AND removed_at IS NULL
        ORDER BY created_at DESC, id LIMIT $3 OFFSET $4`,
       [owner.toLowerCase(), chainId, limit, at.offset],
     );
@@ -2799,6 +2804,95 @@ export class Database {
         [previewKey(id)],
       );
       return { stopped: true as const };
+    });
+  }
+  /**
+   * Remove a preview for its owner (0041). Refused while a rating is queued or running, or a
+   * connection check is, so no worker is left writing to it. Everything in it is deleted: the
+   * reports and episodes of its ratings, its share link, runner tokens and presence, Agent URL,
+   * hosted code, connection checks and their step logs, and its notifications. The bare preview
+   * and rating rows stay, with no report, because the daily preview limits count them.
+   */
+  async removePreview(id: string): Promise<{ removed: true } | { refused: "rating" | "checking" }> {
+    const key = previewKey(id);
+    return this.transaction(async (c) => {
+      await c.query("SELECT 1 FROM previews WHERE id=$1 FOR UPDATE", [id]);
+      const rating = await c.query(
+        `SELECT 1 FROM jobs j JOIN ratings r ON r.id=j.id
+         WHERE r.preview_id=$1 AND j.status IN ('queued','running')`,
+        [id],
+      );
+      if (rating.rowCount) return { refused: "rating" as const };
+      const checking = await c.query(
+        "SELECT 1 FROM connection_checks WHERE subject=$1 AND status IN ('queued','running')",
+        [key],
+      );
+      if (checking.rowCount) return { refused: "checking" as const };
+      const ratings = (await c.query("SELECT id FROM ratings WHERE preview_id=$1", [id])).rows.map(
+        (r) => r.id as string,
+      );
+      if (ratings.length) {
+        await c.query(
+          "DELETE FROM events WHERE topic='rating.episode' AND payload->>'runId' = ANY($1::text[])",
+          [ratings],
+        );
+        await c.query(
+          `UPDATE ratings SET report=NULL,report_json=NULL,agent_report=NULL,progress=NULL,
+             error=NULL,config=NULL,code_hash=NULL,code_source=NULL
+           WHERE preview_id=$1`,
+          [id],
+        );
+      }
+      await c.query(
+        `DELETE FROM connection_check_events WHERE check_id IN
+           (SELECT id FROM connection_checks WHERE subject=$1)`,
+        [key],
+      );
+      await c.query("DELETE FROM connection_checks WHERE subject=$1", [key]);
+      await c.query("DELETE FROM runner_tokens WHERE agent_id=$1", [key]);
+      await c.query("DELETE FROM runner_presence WHERE agent_id=$1", [key]);
+      await c.query("DELETE FROM agent_urls WHERE owner_key=$1", [key]);
+      await c.query("DELETE FROM hosted_agents WHERE owner_key=$1", [key]);
+      await c.query("DELETE FROM owner_notifications WHERE subject=$1", [key]);
+      await c.query(
+        `UPDATE previews SET removed_at=now(),code_hash=NULL,error=NULL,share_token=NULL,
+           shared_at=NULL,updated_at=now()
+         WHERE id=$1`,
+        [id],
+      );
+      return { removed: true as const };
+    });
+  }
+  /**
+   * Close previews that never started a rating and are older than their runner token's life
+   * (PREVIEW_TOKEN_DAYS): they can't connect any more, so they read "Expired", not "Connecting".
+   * Their Agent URLs stop working too. Returns how many it closed.
+   */
+  async expireStalePreviews(nowMs = Date.now()): Promise<number> {
+    const before = new Date(nowMs - PREVIEW_TOKEN_DAYS * 86_400_000);
+    return this.transaction(async (c) => {
+      const r = await c.query(
+        `UPDATE previews SET status='expired',updated_at=now(),
+           error='This preview expired: it can''t connect after 7 days. Start a new one.'
+         WHERE status IN ('created','checking','ready') AND rating_id IS NULL
+           AND removed_at IS NULL AND created_at < $1
+           AND NOT EXISTS (SELECT 1 FROM connection_checks k
+             WHERE k.subject='preview:'||previews.id::text AND k.status IN ('queued','running'))
+         RETURNING id`,
+        [before],
+      );
+      const keys = r.rows.map((row) => previewKey(row.id as string));
+      if (keys.length) {
+        await c.query(
+          "UPDATE runner_tokens SET revoked_at=now() WHERE agent_id = ANY($1::text[]) AND revoked_at IS NULL",
+          [keys],
+        );
+        await c.query(
+          "UPDATE agent_urls SET revoked_at=now() WHERE owner_key = ANY($1::text[]) AND revoked_at IS NULL",
+          [keys],
+        );
+      }
+      return r.rowCount ?? 0;
     });
   }
   /**
@@ -3097,7 +3191,7 @@ export class Database {
         const status = (
           await c.query("SELECT status FROM previews WHERE id=$1 FOR UPDATE", [previewId])
         ).rows[0]?.status as string | undefined;
-        if (status && ["queued", "starting", "running", "stopped"].includes(status))
+        if (status && ["queued", "starting", "running", "stopped", "expired"].includes(status))
           return { refused: status };
       }
       await c.query("DELETE FROM hosted_agents WHERE owner_key=$1", [ownerKey]);

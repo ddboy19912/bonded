@@ -676,8 +676,40 @@ describe("Test your agent", () => {
       items: [preview({ id: "old", status: "done", ratingId: "r0" })],
     });
     show();
+    const jump = vi.fn();
+    Element.prototype.scrollIntoView = jump;
     fireEvent.click(await screen.findByRole("button", { name: "Open it" }));
     await waitFor(() => expect(screen.getByTestId("search").textContent).toBe("?preview=old"));
+    // The preview opens in the steps above the list, so the page moves there.
+    await waitFor(() => expect(jump).toHaveBeenCalled());
+    delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+  });
+
+  it("removes a preview after asking, but not one whose rating is under way", async () => {
+    signedIn();
+    const list = vi.mocked(byoaApi.listPreviews);
+    list.mockResolvedValue({
+      items: [
+        preview({ id: "old", status: "done", ratingId: "r0" }),
+        preview({ id: "busy", status: "running", ratingId: "r1" }),
+        preview({ id: "stale", status: "expired" }),
+      ],
+    });
+    const remove = vi.spyOn(byoaApi, "removePreview").mockResolvedValue({ removed: true });
+    show();
+    // The running one has no Remove; the expired one says so.
+    expect(await screen.findByText("Expired")).toBeTruthy();
+    const buttons = await screen.findAllByRole("button", { name: /^Remove the preview from/ });
+    expect(buttons).toHaveLength(2);
+    list.mockResolvedValue({ items: [preview({ id: "busy", status: "running", ratingId: "r1" })] });
+    fireEvent.click(buttons[0]!);
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/can't be undone/)).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(remove).toHaveBeenCalledWith("sess", "old"));
+    await waitFor(() =>
+      expect(screen.queryAllByRole("button", { name: /^Remove the preview from/ })).toHaveLength(0),
+    );
   });
 
   it("shows the API being down with a way to retry", async () => {

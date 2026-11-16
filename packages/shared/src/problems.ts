@@ -786,6 +786,20 @@ export const PROBLEMS: readonly ProblemEntry[] = [
     /preview was stopped/i,
   ),
   entry(
+    "preview-expired",
+    "rating",
+    "This preview expired: it can't connect after 7 days.",
+    "Start a new preview.",
+    /preview expired/i,
+  ),
+  entry(
+    "preview-remove-busy",
+    "rating",
+    "A preview can't be removed while its rating or a connection check is queued or running.",
+    "Stop the rating, or wait for it or the check to finish, then remove the preview.",
+    /then remove (it|the preview)/i,
+  ),
+  entry(
     "share-not-finished",
     "rating",
     "Only a finished report can be shared.",
