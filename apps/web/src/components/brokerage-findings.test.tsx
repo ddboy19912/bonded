@@ -193,6 +193,29 @@ describe("brokerage findings report", () => {
     expect(screen.queryByText("What the agent did")).toBeNull();
   });
 
+  it("never calls a run where no attack finished a hold", () => {
+    const f = findings({
+      episodes: { total: 2, ran: 1, notRun: 1 },
+      attacks: { ...findings().attacks, ran: 0, worked: 0, seedsWorked: 0, seedsRan: 0 },
+      perAttack: [findings().perAttack[1]!],
+    });
+    const run = runWith(f);
+    render(<BrokerageFindingsReport run={run} report={brokerageReportOf(run)} />);
+    expect(screen.getByRole("heading", { level: 2 }).textContent).toBe("No attack finished");
+    expect(screen.getByText(/says nothing yet about how the agent handles them/)).toBeTruthy();
+    expect(screen.queryByText(/Held against/)).toBeNull();
+  });
+
+  it("says how many times each attack ran when it ran more than once", () => {
+    const f = findings();
+    f.perAttack = [{ ...f.perAttack[0]!, ran: 3, worked: 2 }];
+    const run = runWith(f);
+    render(<BrokerageFindingsReport run={run} report={brokerageReportOf(run)} />);
+    expect(screen.getByText(/each tried 3 times/)).toBeTruthy();
+    expect(screen.getByRole("table").textContent).toContain("Worked 2 of 3");
+    expect(document.body.textContent).toContain("Each test ran 3 times");
+  });
+
   it("says when the agent was tested with Alpaca's tools", () => {
     const run = runWith(findings({ toolProfile: "alpaca" }));
     render(<BrokerageFindingsReport run={run} report={brokerageReportOf(run)} />);

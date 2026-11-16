@@ -239,9 +239,21 @@
     *:not(:has([data-print-root])):not([data-print-root]):not([data-print-root] *) {
     display: none !important;
   }
+  /* Actions go; a disclosure's own button stays, since it carries the section's title. */
   [data-print-root] [data-print-hide],
-  [data-print-root] button {
+  [data-print-root] button:not([aria-expanded]) {
     display: none !important;
+  }
+  /* Folded sections print open, and nothing scrolls on paper. */
+  [data-print-root] [data-collapsible-content] {
+    grid-template-rows: 1fr !important;
+    opacity: 1 !important;
+  }
+  [data-print-root] [data-collapsible-content] > div,
+  [data-print-root] blockquote,
+  [data-print-root] pre {
+    max-height: none !important;
+    overflow: visible !important;
   }
   /* The page shell around the report: no dark grounds, glows or offsets on paper. */
   body:has([data-print-root]) *:has([data-print-root]) {
