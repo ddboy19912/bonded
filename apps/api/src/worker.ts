@@ -179,7 +179,7 @@ export interface WorkerOptions {
   lane?: RatingLane;
   /**
    * Wall-clock budget for one remote rating. By default it comes from the rating's size
-   * (`remoteRatingPlan`: 40 s an episode, at most 3 hours). Past it the rating stops: charged to
+   * (`remoteRatingPlan`: 90 s an episode, at most 3 hours). Past it the rating stops: charged to
    * the agent when the agent took most of the time, else retried as an infrastructure problem.
    */
   remoteBudgetMs?: number;

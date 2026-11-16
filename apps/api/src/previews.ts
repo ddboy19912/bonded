@@ -12,13 +12,7 @@ import {
   type PreviewWorld,
   type RatedCode,
 } from "@bonded/db";
-import {
-  brokeragePreviewSize,
-  HOSTED_BUDGET,
-  HostedBudgetError,
-  INSPECT_BUSY,
-  inspectCodeAgent,
-} from "@bonded/arena";
+import { HOSTED_BUDGET, HostedBudgetError, INSPECT_BUSY, inspectCodeAgent } from "@bonded/arena";
 import {
   HOSTED_MODELS,
   HOSTED_PREVIEW_CONCURRENCY,
@@ -48,6 +42,7 @@ import {
   type ConnectionCheckResult,
 } from "./connections.js";
 import {
+  brokeragePreviewPlan,
   previewRatingPlan,
   previewRefusalMessage,
   type RemoteRatingPolicy,
@@ -387,13 +382,13 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
   }
   /**
    * What a preview runs. A brokerage preview runs the control, every staged attack and every
-   * benign twin once (findings, not a score); a vault preview, the rating plan.
+   * benign twin once (findings, not a score); a vault preview, the rating plan. `hosted`: Bonded
+   * runs the agent, and a hosted brokerage preview runs several episodes at a time.
    */
-  const previewPlan = (world: PreviewWorld = "vault") => {
+  const previewPlan = (world: PreviewWorld = "vault", hosted = false) => {
     if (world === "brokerage") {
-      const episodes = brokeragePreviewSize("plain");
-      const budgetMs = Math.min(policy.previewBudgetCeilingMs, episodes * policy.episodeBudgetMs);
-      return { episodes, budgetSeconds: Math.round(budgetMs / 1000) };
+      const plan = brokeragePreviewPlan(policy, hosted);
+      return { episodes: plan.episodes, budgetSeconds: Math.round(plan.budgetMs / 1000) };
     }
     const library = publishedLibrary();
     const plan = previewRatingPlan(policy, {
@@ -474,7 +469,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
       share: p.shareToken
         ? { token: p.shareToken, sharedAt: p.sharedAt?.toISOString() ?? null }
         : null,
-      expectedRating: previewPlan(p.world),
+      expectedRating: previewPlan(p.world, p.connection === "hosted"),
       // The brokerage world has no official rating yet: its attacks are staged (findings only).
       upgrade:
         p.world === "brokerage"
@@ -1044,17 +1039,15 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
             409,
             "Run a connection check of this connection first: the estimate comes from it.",
           );
-        const episodes =
-          kind === "preview"
-            ? previewPlan(subject.world).episodes
-            : expectedRating(policy.repeats, policy).maxEpisodes;
-        return c.json(
-          costEstimate(
-            check,
-            episodes,
-            subject.connection === "hosted" ? HOSTED_PREVIEW_CONCURRENCY : 1,
-          ),
-        );
+        const hosted = subject.connection === "hosted";
+        let episodes: number, budgetSeconds: number;
+        if (kind === "preview") ({ episodes, budgetSeconds } = previewPlan(subject.world, hosted));
+        else ({ maxEpisodes: episodes, budgetSeconds } = expectedRating(policy.repeats, policy));
+        return c.json({
+          ...costEstimate(check, episodes, hosted ? HOSTED_PREVIEW_CONCURRENCY : 1),
+          // The rating stops at this: the page warns when the estimate runs past it.
+          budgetSeconds,
+        });
       }),
     );
 
@@ -1391,7 +1384,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
         {
           runId: queued.runId,
           queue: { position: await db.remoteQueue(chainId, queued.runId) },
-          expectedRating: previewPlan(subject.world),
+          expectedRating: previewPlan(subject.world, subject.connection === "hosted"),
         },
         202,
       );

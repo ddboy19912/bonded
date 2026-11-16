@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { HOSTED_REMOTE_PROFILE, loadBenignSeeds } from "@bonded/arena";
+import { brokeragePreviewSize, HOSTED_REMOTE_PROFILE, loadBenignSeeds } from "@bonded/arena";
 import { REMOTE_EPISODE_TIMEOUT_MS } from "../src/remote-agent.js";
 import {
   DEFAULT_REMOTE_POLICY,
@@ -8,6 +8,7 @@ import {
   remoteRatingPlan,
   previewRatingPlan,
   benignTwins,
+  brokeragePreviewPlan,
 } from "../src/remote-policy.js";
 
 describe("remotePolicyFromEnv", () => {
@@ -75,7 +76,7 @@ describe("remotePolicyFromEnv", () => {
     expect(benignTwins()).toBe(loadBenignSeeds().length);
   });
 
-  it("sizes a default preview as the spec says: 40 s an episode, at most 45 minutes", () => {
+  it("sizes a default preview as the spec says: 90 s an episode, at most 45 minutes", () => {
     expect(previewRatingPlan(DEFAULT_REMOTE_POLICY, { publishedAttacks: 70, heldOut: 10 })).toEqual(
       {
         episodes: 86 + benignTwins(),
@@ -86,7 +87,7 @@ describe("remotePolicyFromEnv", () => {
       previewRatingPlan(DEFAULT_REMOTE_POLICY, { publishedAttacks: 4, heldOut: 0, benign: 0 }),
     ).toEqual({
       episodes: 10,
-      budgetMs: 400_000,
+      budgetMs: 900_000,
     });
     expect(DEFAULT_REMOTE_POLICY).toMatchObject({
       previewPerWalletDaily: 1,
@@ -111,5 +112,26 @@ describe("remotePolicyFromEnv", () => {
     expect(DEFAULT_REMOTE_POLICY.repeats).toBe(HOSTED_REMOTE_PROFILE.repeats);
     expect(DEFAULT_REMOTE_POLICY.heldOutPerClass).toBe(HOSTED_REMOTE_PROFILE.heldOutPerClass);
     expect(REMOTE_EPISODE_TIMEOUT_MS).toBe(HOSTED_REMOTE_PROFILE.episodeTimeoutMs);
+    // The budget gives each episode its whole deadline, so an agent that keeps to every deadline
+    // isn't stopped for running past the budget.
+    expect(DEFAULT_REMOTE_POLICY.episodeBudgetMs).toBe(REMOTE_EPISODE_TIMEOUT_MS);
+  });
+});
+
+describe("brokeragePreviewPlan", () => {
+  it("gives an operator-run stock-trading preview 90 s an episode, a hosted one the ceiling", () => {
+    const run = brokeragePreviewPlan(DEFAULT_REMOTE_POLICY);
+    expect(run.episodes).toBe(brokeragePreviewSize("plain"));
+    expect(run.budgetMs).toBe(
+      Math.min(45 * 60_000, brokeragePreviewSize("plain") * REMOTE_EPISODE_TIMEOUT_MS),
+    );
+    // The dry run's preview: 20 episodes got 13 minutes, and an agent at about 60 s an episode
+    // was stopped after 13. Now it has 30.
+    expect(brokeragePreviewSize("plain")).toBe(20);
+    expect(run.budgetMs).toBe(30 * 60_000);
+    expect(brokeragePreviewPlan(DEFAULT_REMOTE_POLICY, true).budgetMs).toBe(45 * 60_000);
+    // A lower ceiling still caps it.
+    const low = { ...DEFAULT_REMOTE_POLICY, previewBudgetCeilingMs: 10 * 60_000 };
+    expect(brokeragePreviewPlan(low).budgetMs).toBe(10 * 60_000);
   });
 });

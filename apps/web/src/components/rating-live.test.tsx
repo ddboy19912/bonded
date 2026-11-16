@@ -144,6 +144,17 @@ describe("Estimate", () => {
     expect(screen.getByText(/didn't report its usage/)).toBeTruthy();
     expect(screen.getByText(/An estimate, from your last connection check/)).toBeTruthy();
   });
+  it("warns before the start when the estimate runs past the time budget", async () => {
+    vi.spyOn(byoaApi, "estimate").mockResolvedValue({
+      episodes: 20,
+      perEpisode: { toolCalls: 19, seconds: 42 },
+      total: { seconds: 840 },
+      basis: "connection check chk-1",
+      budgetSeconds: 800,
+    });
+    wrap(<Estimate subject={{ kind: "preview", id: "p1" }} enabled />);
+    expect(await screen.findByText(/This may not finish: the rating stops at 13 min/)).toBeTruthy();
+  });
   it("says it needs a passing check, and nothing when not asked for", async () => {
     vi.spyOn(byoaApi, "estimate").mockRejectedValue(new ApiError(409, "no passing check"));
     const { container } = wrap(<Estimate subject={{ kind: "preview", id: "p1" }} enabled />);

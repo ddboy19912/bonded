@@ -232,14 +232,21 @@ export function eventLine(event: CheckEvent): { text: string; ok: boolean | null
   }
 }
 
-/** The estimate in two lines: time, and the agent's own model cost when it reported usage. */
-export function estimateLines(e: CostEstimate): { time: string; cost: string } {
+/**
+ * The estimate in two lines: time, and the agent's own model cost when it reported usage. `over`:
+ * a warning when the estimate runs past the rating's time budget, which would stop it unfinished.
+ */
+export function estimateLines(e: CostEstimate): { time: string; cost: string; over?: string } {
   const time = `About ${duration(e.total.seconds)} for ${e.episodes} episodes (${duration(e.perEpisode.seconds)} and ${e.perEpisode.toolCalls} tool calls each in the check).`;
   const cost =
     e.total.costUsd != null
       ? `Your model costs about $${e.total.costUsd.toFixed(2)} in all ($${(e.perEpisode.costUsd ?? e.total.costUsd / e.episodes).toFixed(3)} an episode). Bonded doesn't pay or limit it.`
       : `${e.note ?? "Your agent didn't report its usage at done, so there's no cost estimate: send usage with done to get one."} Bonded doesn't pay or limit your model calls.`;
-  return { time, cost };
+  const over =
+    e.budgetSeconds != null && e.total.seconds > e.budgetSeconds
+      ? `This may not finish: the rating stops at ${duration(e.budgetSeconds)}. Make each episode faster (fewer model calls or a faster model), then run the check again.`
+      : undefined;
+  return { time, cost, ...(over ? { over } : {}) };
 }
 
 /** Where the code hash came from, in words. */

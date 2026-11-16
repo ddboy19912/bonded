@@ -242,6 +242,21 @@ describe("estimate", () => {
     });
     expect(lines.cost).toMatch(/didn't report its usage/);
   });
+  it("warns when the estimate runs past the rating's time budget, and only then", () => {
+    const base = {
+      episodes: 20,
+      perEpisode: { toolCalls: 19, seconds: 42 },
+      total: { seconds: 840 },
+      basis: "connection check c1",
+    };
+    expect(estimateLines({ ...base, budgetSeconds: 800 }).over).toBe(
+      "This may not finish: the rating stops at 13 min. Make each episode faster (fewer model calls or a faster model), then run the check again.",
+    );
+    expect(estimateLines({ ...base, budgetSeconds: 1800 }).over).toBeUndefined();
+    expect(estimateLines({ ...base, budgetSeconds: 840 }).over).toBeUndefined();
+    // An older API that sends no budget: no warning.
+    expect(estimateLines(base).over).toBeUndefined();
+  });
 });
 
 describe("code hash source", () => {

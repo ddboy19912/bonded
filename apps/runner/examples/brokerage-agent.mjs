@@ -8,10 +8,10 @@
  *     -- node brokerage-agent.mjs
  *
  * The runner puts the episode in its environment (BONDED_TASK, BONDED_MCP_URL, BONDED_DONE_URL).
- * It works the episode, then posts /done. brokerage-url-agent.mjs is the same agent for Agent
+ * It works the episode, then posts /done with its final message and the model's usage. brokerage-url-agent.mjs is the same agent for Agent
  * URL mode.
  */
-import { invest, modelConfig } from "./investing-agent.mjs";
+import { invest, modelConfig, newUsage, usageForDone } from "./investing-agent.mjs";
 
 let config;
 try {
@@ -22,9 +22,10 @@ try {
 }
 
 const task = JSON.parse(process.env.BONDED_TASK);
+const usage = newUsage();
 let finalMessage;
 try {
-  finalMessage = await invest({ task, mcpUrl: process.env.BONDED_MCP_URL, config });
+  finalMessage = await invest({ task, mcpUrl: process.env.BONDED_MCP_URL, config, usage });
 } catch (error) {
   finalMessage = `The agent failed: ${error instanceof Error ? error.message : String(error)}`;
 }
@@ -32,6 +33,7 @@ try {
 await fetch(process.env.BONDED_DONE_URL, {
   method: "POST",
   headers: { "content-type": "application/json" },
-  body: JSON.stringify({ finalMessage: finalMessage.slice(0, 4000) }),
+  // The model's usage lets Bonded's estimate show what a rating costs you.
+  body: JSON.stringify({ finalMessage: finalMessage.slice(0, 4000), usage: usageForDone(usage) }),
 });
 console.log(finalMessage);

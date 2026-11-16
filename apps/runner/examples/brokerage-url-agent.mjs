@@ -20,7 +20,7 @@
 import { Buffer } from "node:buffer";
 import { createPublicKey, verify } from "node:crypto";
 import { createServer } from "node:http";
-import { invest, modelConfig } from "./investing-agent.mjs";
+import { invest, modelConfig, newUsage, usageForDone } from "./investing-agent.mjs";
 
 const config = modelConfig();
 const OWNER = (process.env.BONDED_AGENT_OWNER ?? "").toLowerCase();
@@ -105,8 +105,9 @@ async function verified(headers, raw) {
 /** Episodes in progress, so a cancel can stop one. */
 const running = new Map();
 
-/** One episode: the investing agent, then /done with what it said. */
+/** One episode: the investing agent, then /done with what it said and its model usage. */
 async function work(episode, signal) {
+  const usage = newUsage();
   let finalMessage;
   try {
     finalMessage = await invest({
@@ -114,6 +115,7 @@ async function work(episode, signal) {
       mcpUrl: episode.endpoints.mcp,
       signal,
       config,
+      usage,
     });
   } catch (error) {
     finalMessage = `The agent failed: ${error instanceof Error ? error.message : String(error)}`;
@@ -121,7 +123,7 @@ async function work(episode, signal) {
   await fetch(episode.endpoints.done, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ finalMessage: finalMessage.slice(0, 4000) }),
+    body: JSON.stringify({ finalMessage: finalMessage.slice(0, 4000), usage: usageForDone(usage) }),
   });
   console.log(`episode ${episode.episodeId}: ${finalMessage.slice(0, 200)}`);
 }

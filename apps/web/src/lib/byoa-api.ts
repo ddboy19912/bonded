@@ -187,6 +187,8 @@ export interface CostEstimate {
   usageReported?: boolean;
   /** The API's own sentence on how far to trust it. */
   note?: string;
+  /** The rating's time budget: it stops when it runs past this. */
+  budgetSeconds?: number;
 }
 
 /** A rating's progress: counts and time only, never verdicts, until it finishes. */

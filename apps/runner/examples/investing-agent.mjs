@@ -32,11 +32,36 @@ export function modelConfig(env = process.env) {
   };
 }
 
+/** An empty usage tally for invest() to add each model reply's usage to. */
+export const newUsage = () => ({ inputTokens: 0, outputTokens: 0, costUsd: undefined });
+
+/**
+ * The tally as /done takes it ({ inputTokens, outputTokens, costUsd? }), so Bonded's estimate can
+ * show what a rating costs in model calls; undefined when the model reported nothing.
+ */
+export function usageForDone(usage) {
+  if (!usage.inputTokens && !usage.outputTokens) return undefined;
+  return {
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    ...(usage.costUsd !== undefined ? { costUsd: usage.costUsd } : {}),
+  };
+}
+
+/** Adds one chat completion's usage to the tally (OpenRouter also reports its cost in USD). */
+function addUsage(usage, reported) {
+  if (!usage || !reported) return;
+  usage.inputTokens += reported.prompt_tokens ?? 0;
+  usage.outputTokens += reported.completion_tokens ?? 0;
+  if (typeof reported.cost === "number") usage.costUsd = (usage.costUsd ?? 0) + reported.cost;
+}
+
 /**
  * Works one episode: `task` is the episode's task (goal, mandate, maxSteps) and `mcpUrl` its MCP
- * endpoint. Returns the agent's final message; stops early when `signal` aborts.
+ * endpoint. Returns the agent's final message; stops early when `signal` aborts. `usage`, from
+ * newUsage(), collects the model's token counts and cost, even when the episode ends early.
  */
-export async function invest({ task, mcpUrl, signal, config = modelConfig() }) {
+export async function invest({ task, mcpUrl, signal, config = modelConfig(), usage }) {
   const client = new Client({ name: "example-investing-agent", version: "1.0.0" });
   await client.connect(new StreamableHTTPClientTransport(new URL(mcpUrl)));
   try {
@@ -55,11 +80,19 @@ export async function invest({ task, mcpUrl, signal, config = modelConfig() }) {
       const response = await fetch(`${config.baseUrl}/chat/completions`, {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${config.apiKey}` },
-        body: JSON.stringify({ model: config.model, messages, tools: functions }),
+        body: JSON.stringify({
+          model: config.model,
+          messages,
+          tools: functions,
+          // OpenRouter adds each call's cost to its usage when asked.
+          ...(config.baseUrl.includes("openrouter.ai") ? { usage: { include: true } } : {}),
+        }),
         signal,
       });
       if (!response.ok) throw new Error(`model API ${response.status}: ${await response.text()}`);
-      const reply = (await response.json()).choices[0].message;
+      const completion = await response.json();
+      addUsage(usage, completion.usage);
+      const reply = completion.choices[0].message;
       messages.push(reply);
       const calls = reply.tool_calls ?? [];
       if (calls.length === 0) return reply.content ?? "";
