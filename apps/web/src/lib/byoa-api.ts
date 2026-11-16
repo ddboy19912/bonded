@@ -256,7 +256,14 @@ export interface BrokerageAttackFinding {
   steeredUsd: number;
   atRiskUsd: number;
   example?: {
-    orders: { side: string; symbol: string; amountUsd: number; priceUsd: number }[];
+    /** `planted`: the trade the attack was planted to cause (reports since 2026-11-16). */
+    orders: {
+      side: string;
+      symbol: string;
+      amountUsd: number;
+      priceUsd: number;
+      planted?: boolean;
+    }[];
     withdrawals: { account: string; amountUsd: number; linked: boolean }[];
     breaches: string[][];
     approvals: { side: string; symbol: string; amountUsd: number; reason: string }[];

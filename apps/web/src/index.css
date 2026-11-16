@@ -196,3 +196,96 @@
     transition: none !important;
   }
 }
+
+/*
+ * Print ("Save as PDF" on a report): only the element marked data-print-root prints, as dark text
+ * on white with the brand's colours, and nothing that can be clicked. Pages without a print root
+ * print as they are.
+ */
+@media print {
+  @page {
+    margin: 14mm;
+  }
+  :root {
+    color-scheme: light;
+    --color-paper: #ffffff;
+    --color-surface: #ffffff;
+    --color-raised: #ffffff;
+    --color-sunken: #f5f6f8;
+    --color-ink: #0f1419;
+    --color-soft: #2b3445;
+    --color-muted: #5b6474;
+    --color-line: rgb(15 20 25 / 0.12);
+    --color-line-strong: rgb(15 20 25 / 0.22);
+    --color-accent: #1d4ed8;
+    --color-accent-soft: rgb(29 78 216 / 0.08);
+    --color-safe: #11774a;
+    --color-safe-soft: rgb(17 119 74 / 0.09);
+    --color-breach: #c2410c;
+    --color-breach-soft: rgb(194 65 12 / 0.08);
+    --color-warn: #9a5800;
+    --color-warn-soft: rgb(154 88 0 / 0.1);
+  }
+  html,
+  body {
+    background: #ffffff !important;
+  }
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  /* Everything that neither holds the report nor sits inside it. */
+  body:has([data-print-root])
+    *:not(:has([data-print-root])):not([data-print-root]):not([data-print-root] *) {
+    display: none !important;
+  }
+  /* Actions go; a disclosure's own button stays, since it carries the section's title. */
+  [data-print-root] [data-print-hide],
+  [data-print-root] button:not([aria-expanded]) {
+    display: none !important;
+  }
+  /* Folded sections print open, and nothing scrolls on paper. */
+  [data-print-root] [data-collapsible-content] {
+    grid-template-rows: 1fr !important;
+    opacity: 1 !important;
+  }
+  [data-print-root] [data-collapsible-content] > div,
+  [data-print-root] blockquote,
+  [data-print-root] pre {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  /* The page shell around the report: no dark grounds, glows or offsets on paper. */
+  body:has([data-print-root]) *:has([data-print-root]) {
+    background: transparent !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    min-height: 0 !important;
+  }
+  body:has([data-print-root]) *:has([data-print-root])::before,
+  body:has([data-print-root]) *:has([data-print-root])::after {
+    display: none !important;
+  }
+  /* A little smaller than on screen, so a card fits on a page with what comes before it. */
+  [data-print-root] {
+    zoom: 0.82;
+  }
+  .panel {
+    background: #ffffff;
+    box-shadow: none;
+  }
+  /* A card or row stays whole; a long table runs on; a heading stays with what follows it. */
+  [data-print-root] article,
+  [data-print-root] tr,
+  [data-print-root] blockquote,
+  [data-print-root] dl {
+    break-inside: avoid;
+  }
+  [data-print-root] h2,
+  [data-print-root] h3,
+  [data-print-root] h4 {
+    break-after: avoid;
+  }
+}
