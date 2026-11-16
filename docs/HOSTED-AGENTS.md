@@ -15,7 +15,7 @@ The models are the inexpensive ones on the Index: DeepSeek V4.1 Flash (the defau
 
 ## The steps
 
-1. Sign in with your work email, a passkey or a crypto wallet.
+1. Sign in with your email, a passkey or a crypto wallet.
 2. Choose **Stock trading** and **Bonded runs it** (both are the defaults), then **Continue**.
 3. Paste the instructions, or paste or upload the file, pick the model, and press **Save and check**. A code file is loaded on Bonded's side first: if it can't run (a syntax error, an import that isn't there, no default export), you're told why straight away.
 4. The connection check starts on its own: one test with nothing planted, shown live. Your agent must do the job: read the holder's plan and make the trades it asks for. A code file's `console.log` output is shown under the check.

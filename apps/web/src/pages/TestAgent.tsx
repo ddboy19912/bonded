@@ -341,7 +341,7 @@ export function TestAgent() {
     <Page
       title="Test your agent"
       back={{ to: "/agents", label: "All agents" }}
-      intro="See how your agent holds up against Bonded's red team. It's free: sign in with your work email."
+      intro="See how your agent holds up against Bonded's red team. It's free: sign in with your email."
     >
       {blockedLine && !p?.ratingId && (
         <Note tone="warn" title={blockedLine}>
@@ -385,7 +385,7 @@ export function TestAgent() {
                   </p>
                 )}
                 <p className="text-muted">
-                  Use your work email, a passkey or a crypto wallet. It's free.
+                  Use your email, a passkey or a crypto wallet. It's free.
                 </p>
                 <SignInButton
                   onSignedIn={(s) => {

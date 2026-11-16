@@ -108,7 +108,7 @@ describe("Test your agent", () => {
   it("starts with one Sign in button, and shows the whole path", () => {
     wallet.address = undefined;
     show();
-    expect(within(current()).getByText(/work email, a passkey or a crypto wallet/)).toBeTruthy();
+    expect(within(current()).getByText(/your email, a passkey or a crypto wallet/)).toBeTruthy();
     const modal = openSignIn();
     expect(within(modal).getByRole("button", { name: /Continue with email/ })).toBeTruthy();
     expect(within(modal).getByRole("button", { name: /Use a crypto wallet/ })).toBeTruthy();
@@ -152,7 +152,7 @@ describe("Test your agent", () => {
     show();
     const modal = openSignIn();
     fireEvent.click(within(modal).getByRole("button", { name: /Continue with email/ }));
-    fireEvent.change(within(modal).getByLabelText("Your work email"), {
+    fireEvent.change(within(modal).getByLabelText("Your email"), {
       target: { value: "dana@fund.example" },
     });
     fireEvent.click(within(modal).getByRole("button", { name: "Email me a code" }));

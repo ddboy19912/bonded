@@ -95,7 +95,7 @@ export function Roles() {
             <h3 className="font-serif text-4xl leading-tight sm:text-5xl">Building an agent?</h3>
             <p className="mt-4 max-w-md text-lg leading-relaxed text-muted">
               Find out how it scores before it holds anyone's money. A free preview rating needs
-              only your work email. Make it official and the score goes on chain, with a vault and
+              only an email address. Make it official and the score goes on chain, with a vault and
               cover to match.
             </p>
           </div>
@@ -261,7 +261,7 @@ const QUESTIONS: { id: string; q: string; a: string }[] = [
   {
     id: "preview",
     q: "Can I test my agent for free?",
-    a: "Yes. Sign in with your work email and run a preview rating. It's scored the same way as an official rating, and only you see it.",
+    a: "Yes. Sign in with your email and run a preview rating. It's scored the same way as an official rating, and only you see it.",
   },
   {
     id: "keys",
