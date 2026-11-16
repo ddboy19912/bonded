@@ -84,6 +84,23 @@ export function bondedFailure(summary: object): string | undefined {
   return (summary as { remote?: RemoteEpisode }).remote?.bondedProblem;
 }
 
+/**
+ * Whether an episode's result is worth one re-run: its runner's connection dropped part-way, and
+ * nothing in it counts yet (no breach, and no attack that worked; those count as they are). A
+ * dropped connection says nothing about the agent, and the episode would otherwise be lost from
+ * the report. A second drop leaves the episode as it is.
+ */
+export function rerunAfterDrop(result: {
+  agentSummary: object;
+  verdict: { breached: boolean; attackSucceeded: boolean | null };
+}): boolean {
+  return (
+    (result.agentSummary as { remote?: RemoteEpisode }).remote?.connectionDropped === true &&
+    !result.verdict.breached &&
+    result.verdict.attackSucceeded !== true
+  );
+}
+
 /** Attempts to deliver an episode when Bonded's own rate limit is in the way. */
 const URL_DELIVERY_ATTEMPTS = 3;
 
@@ -189,6 +206,11 @@ export interface RemoteEpisode {
   stderrTail?: string;
   /** Why the runner couldn't run it, if it said. */
   runnerError?: string;
+  /**
+   * The runner's connection to the gateway dropped during the episode: the episode ended there,
+   * not because the agent finished, failed or ran out of time.
+   */
+  connectionDropped?: true;
   /** Successful reads per attack surface, as the gateway logged them. */
   reads: Partial<Record<AttackSurface, number>>;
   /** Model usage the agent reported at /done: recorded, never used for spending limits. */
@@ -546,6 +568,7 @@ export class RemoteAgent implements SelfSigningAgent {
         if (exited.error) record.runnerError ??= exited.error;
       }
       record.durationMs = Date.now() - started;
+      if (why === "disconnected") record.connectionDropped = true;
       collect(record, opened);
       this.emit({
         type: "done",

@@ -39,7 +39,12 @@ import { datasetRows, type SentinelRow, writeDataset } from "./dataset.js";
 import { ratingDollarsAtRisk } from "./dollars-at-risk.js";
 import type { BenignSeed } from "./benign.js";
 import { BENIGN_GOALS, type EpisodeResult, runEpisode, saveEpisode } from "./episode.js";
-import { AgentUrlUnavailableError, bondedFailure, RemoteAgent } from "./gateway/remote-agent.js";
+import {
+  AgentUrlUnavailableError,
+  bondedFailure,
+  RemoteAgent,
+  rerunAfterDrop,
+} from "./gateway/remote-agent.js";
 import { isMemoryCapable, runMemoryBattery, validateMemoryBattery } from "./memory-attempt.js";
 import {
   type WorldPairResult,
@@ -704,15 +709,23 @@ export async function rateAgent(sandbox: Sandbox, options: RatingOptions): Promi
       stoppedEarly = `spending cap of $${options.maxUsd} reached after ${index} of ${jobs.length} episodes`;
       break;
     }
-    const result = await runEpisode(sandbox, {
-      agent: options.agent,
-      attack: job.attack,
-      goal: job.goal,
-      ...(job.benign ? { benign: job.benign } : {}),
-      worldSeed: `${worldSecret}:${index}`,
-      ...(options.vault ? { vault: options.vault } : {}),
-      ...(options.episodeTimeoutMs ? { timeoutMs: options.episodeTimeoutMs } : {}),
-    });
+    const run = () =>
+      runEpisode(sandbox, {
+        agent: options.agent,
+        attack: job.attack,
+        goal: job.goal,
+        ...(job.benign ? { benign: job.benign } : {}),
+        worldSeed: `${worldSecret}:${index}`,
+        ...(options.vault ? { vault: options.vault } : {}),
+        ...(options.episodeTimeoutMs ? { timeoutMs: options.episodeTimeoutMs } : {}),
+      });
+    let result = await run();
+    // The runner's connection dropped part-way: run it again once rather than lose the episode
+    // (or, in a rating that stops at the agent's first failure, stop on a network blip).
+    if (rerunAfterDrop(result)) {
+      cap.add(result.agentSummary.usage);
+      result = await run();
+    }
     // An episode Bonded couldn't deliver says nothing about the agent: stop, not the agent's
     // failure (the rating service retries the rating).
     const bonded = bondedFailure(result.agentSummary);

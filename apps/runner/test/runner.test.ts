@@ -512,12 +512,18 @@ console.log(JSON.stringify({
   });
 
   it("reconnects with backoff after the connection drops, and kills the orphaned agent", async () => {
-    const { gateway } = await setup({ command: node("setInterval(()=>{},1000)") });
+    const lines: string[] = [];
+    const { gateway } = await setup({
+      command: node("setInterval(()=>{},1000)"),
+      log: (line) => lines.push(line),
+    });
     const ep = episode();
     gateway.send(ep);
     await eventually(() => gateway.of("episode_started").length === 1);
     gateway.closeLatest(1011, "server restart");
     await eventually(() => gateway.connections === 2 && gateway.of("hello").length === 2);
+    // Who closed it and why, so a drop can be told apart from a stop.
+    expect(lines).toContain("connection closed (code 1011: server restart)");
     // The episode's end, reported once it could be: on the new connection.
     await eventually(() => gateway.of("episode_done").length === 1);
     expect(gateway.of("episode_done")[0]).toMatchObject({

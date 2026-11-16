@@ -217,6 +217,11 @@ export class Runner {
         clearInterval(heartbeat);
         if (this.socket === socket) this.socket = undefined;
         const why = reason.toString();
+        // Who closed it, so a dropped connection can be told apart from a stop: 1006 means it
+        // closed with no close frame (the network, or a proxy in between); 1005 that no code was
+        // given; 4xxx codes are the gateway's own.
+        if (openedAt && !this.stopped)
+          this.log(`connection closed (code ${code}${why ? `: ${why}` : ""})`);
         if (code === RUNNER_CLOSE.replaced)
           fatal = "another runner connected with the same token; this one is stopping";
         else if (code === RUNNER_CLOSE.revoked) fatal = "the runner token was revoked";

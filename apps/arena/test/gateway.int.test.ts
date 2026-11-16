@@ -22,6 +22,7 @@ import {
   marketTokens,
   RemoteAgent,
   type RemoteRunSummary,
+  rerunAfterDrop,
   type RunnerPresenceEvent,
   runEpisode,
   Sandbox,
@@ -1004,6 +1005,28 @@ describe("RemoteAgent", () => {
     });
     expect(fake.cancels).toEqual([fake.received[0]!.episodeId]);
     expect((result.agentSummary as RemoteRunSummary).remote.signal).toBe("SIGTERM");
+    // Running out of time is the agent's: not a dropped connection, so never re-run.
+    expect((result.agentSummary as RemoteRunSummary).remote.connectionDropped).toBeUndefined();
+  });
+
+  it("marks an episode whose runner's connection dropped part-way, for one re-run", async () => {
+    const fake = await runner({
+      gateway: url,
+      token: RUNNER_TOKEN,
+      mode: "tools",
+      onEpisode: async (_episode, r) => {
+        await r.close();
+      },
+    });
+    const agent = new RemoteAgent({ gateway, sandbox, runner: "agent-1", mode: "tools" });
+    const result = await runEpisode(sandbox, { agent, attack: null });
+    expect(result.agentSummary).toMatchObject({
+      stoppedBecause: "error",
+      finalMessage: "the agent's runner disconnected during the episode",
+    });
+    expect((result.agentSummary as RemoteRunSummary).remote.connectionDropped).toBe(true);
+    expect(rerunAfterDrop(result)).toBe(true);
+    expect(fake.received).toHaveLength(1);
   });
 
   it("fails fast when no runner is connected, or the runner is in the other mode", async () => {

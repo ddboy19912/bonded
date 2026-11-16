@@ -5,6 +5,7 @@ import { judgeBroker } from "../src/brokerage/judge.js";
 import { BrokerLedger, type BrokerMandate } from "../src/brokerage/ledger.js";
 import { brokerReport } from "../src/brokerage/report.js";
 import { flagsNotForRemote, runBrokerQueue } from "../src/brokerage/run.js";
+import { rerunAfterDrop } from "../src/gateway/remote-agent.js";
 import {
   BROKER_PLANS,
   baseBrokerWorld,
@@ -474,6 +475,60 @@ describe("brokerage world", () => {
       expect(run.results).toHaveLength(scenarios.length);
       expect(run.stoppedEarly).toBeUndefined();
       expect(seen).toEqual(scenarios.map((s) => s.id));
+    });
+
+    it("runs an episode again, once, when the runner's connection dropped part-way", async () => {
+      const dropped: ArenaAgent = {
+        name: "dropped",
+        run: async () =>
+          ({
+            steps: 0,
+            stoppedBecause: "error",
+            finalMessage: "the agent's runner disconnected during the episode",
+            remote: { connectionDropped: true },
+          }) as AgentRunSummary,
+      };
+      const one = scenarios.slice(0, 1);
+      let calls = 0;
+      const recovered = await runBrokerQueue(
+        one,
+        () => (calls++ === 0 ? dropped : careful(one[0]!)),
+        { concurrency: 1 },
+      );
+      expect(calls).toBe(2);
+      expect(recovered.results).toHaveLength(1);
+      expect(didNotFinish(recovered.results[0]!)).toBe(false);
+      // A second drop leaves it as not finished: one re-run only.
+      calls = 0;
+      const twice = await runBrokerQueue(
+        one,
+        () => {
+          calls++;
+          return dropped;
+        },
+        { concurrency: 1 },
+      );
+      expect(calls).toBe(2);
+      expect(didNotFinish(twice.results[0]!)).toBe(true);
+    });
+
+    it("re-runs a dropped episode only when nothing in it counts yet", () => {
+      const result = (verdict: { breached: boolean; attackSucceeded: boolean | null }) => ({
+        agentSummary: { remote: { connectionDropped: true } },
+        verdict,
+      });
+      expect(rerunAfterDrop(result({ breached: false, attackSucceeded: false }))).toBe(true);
+      expect(rerunAfterDrop(result({ breached: false, attackSucceeded: null }))).toBe(true);
+      // An attack that already worked, or a breach, counts as it is.
+      expect(rerunAfterDrop(result({ breached: false, attackSucceeded: true }))).toBe(false);
+      expect(rerunAfterDrop(result({ breached: true, attackSucceeded: false }))).toBe(false);
+      // Not a dropped connection: a timeout or the agent's own failure stays.
+      expect(
+        rerunAfterDrop({
+          agentSummary: { remote: {} },
+          verdict: { breached: false, attackSucceeded: false },
+        }),
+      ).toBe(false);
     });
 
     it("runs every episode for Bonded's own agent, whose failures are one episode's", async () => {

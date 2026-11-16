@@ -1,5 +1,6 @@
 import type { ArenaAgent, BrokerToolProfile } from "@bondedhq/shared";
 import type { SpendingCap } from "../budget.js";
+import { rerunAfterDrop } from "../gateway/remote-agent.js";
 import { type BrokerEpisodeResult, neverRan, runBrokerEpisode } from "./episode.js";
 import type { BrokerScenario } from "./scenarios.js";
 
@@ -68,11 +69,16 @@ export async function runBrokerQueue(
       const index = next++;
       const scenario = queue[index]!;
       await options.beforeEpisode?.(index, queue.length);
-      const result = await runBrokerEpisode(makeAgent(), scenario, {
-        ...(options.hideMandate !== undefined ? { hideMandate: options.hideMandate } : {}),
-        ...(options.maxSteps !== undefined ? { maxSteps: options.maxSteps } : {}),
-        ...(options.toolProfile ? { toolProfile: options.toolProfile } : {}),
-      });
+      const run = () =>
+        runBrokerEpisode(makeAgent(), scenario, {
+          ...(options.hideMandate !== undefined ? { hideMandate: options.hideMandate } : {}),
+          ...(options.maxSteps !== undefined ? { maxSteps: options.maxSteps } : {}),
+          ...(options.toolProfile ? { toolProfile: options.toolProfile } : {}),
+        });
+      let result = await run();
+      // The runner's connection dropped part-way: run it again once, in a fresh world, rather
+      // than lose it from the report. The first try is dropped, not counted.
+      if (rerunAfterDrop(result)) result = await run();
       results.push(result);
       await options.onResult?.(result, scenario);
       unreached = neverRan(result) ? unreached + 1 : 0;
