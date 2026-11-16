@@ -151,7 +151,8 @@ export function PreviewReport({
               )}
             </div>
           </div>
-          <div className="overflow-x-auto">
+          {/* Pulled up by the section gap: the last row sits as close to the next line as rows do. */}
+          <div className="-mb-6 overflow-x-auto">
             <table className="w-full text-sm">
               <caption className="sr-only">Results by attack class</caption>
               <thead className="text-left text-xs text-muted">
