@@ -219,14 +219,11 @@ export function SignInDialog({
     </button>
   );
 
-  const heads: Record<View, { title: string; description: string }> = {
+  const heads: Record<View, { title: string; description?: string }> = {
     choose: { title: "Sign in to Bonded", description: "Free. No password needed." },
     email: { title: "Sign in with email", description: "We'll email you a 6-digit code." },
     code: { title: "Check your email", description: `Enter the code we sent to ${sentTo}.` },
-    offer: {
-      title: "Add a passkey?",
-      description: "Next time, sign in with Face ID, Touch ID or your phone. No code needed.",
-    },
+    offer: { title: "Add a passkey?" },
   };
 
   return (
