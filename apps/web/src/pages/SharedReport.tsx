@@ -35,12 +35,12 @@ export function SharedReport() {
     ) : (
       <Unavailable error={shared.error} onRetry={() => void shared.refetch()} />
     );
-  const { run, world, createdAt, label } = shared.data;
+  const { run, world, label } = shared.data;
   return (
     <Page
       eyebrow="Shared report"
       title={world === "brokerage" ? "Stock-trading agent" : "Crypto-trading agent"}
-      intro={`A preview rating by Bonded, shared by the person who ran it. Ran ${new Date(createdAt).toLocaleDateString(undefined, { dateStyle: "medium" })}.`}
+      intro={`A preview rating by Bonded, shared by the person who ran it. Ran ${new Date(run.created_at).toLocaleDateString(undefined, { dateStyle: "medium" })}.`}
       actions={cta}
     >
       {world === "brokerage" ? (

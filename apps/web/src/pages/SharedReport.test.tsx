@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { ApiError } from "../lib/api";
 import { byoaApi } from "../lib/byoa-api";
-import { finishedRun, iso } from "../test/byoa-fixtures";
+import { finishedRun } from "../test/byoa-fixtures";
 import { SharedReport } from "./SharedReport";
 
 afterEach(() => {
@@ -31,13 +31,19 @@ describe("a shared report", () => {
       label: "Preview: not published",
       world: "vault",
       mode: "tools",
-      createdAt: iso(0),
-      run: finishedRun(),
+      // Made one day, rated another: the page says when it ran.
+      createdAt: "2026-03-01T12:00:00Z",
+      run: finishedRun({ created_at: "2026-03-04T12:00:00Z" }),
     });
     show();
     expect(await screen.findByRole("heading", { name: "Crypto-trading agent" })).toBeTruthy();
     expect(read).toHaveBeenCalledWith("t".repeat(32));
-    expect(screen.getByText(/shared by the person who ran it/)).toBeTruthy();
+    const ran = new Date("2026-03-04T12:00:00Z").toLocaleDateString(undefined, {
+      dateStyle: "medium",
+    });
+    expect(screen.getByText(/shared by the person who ran it/).textContent).toContain(
+      `Ran ${ran}.`,
+    );
     expect(screen.getByText("Insurance score 72")).toBeTruthy();
     // Shared, so not "private": the label is the API's, said once.
     expect(screen.getAllByText(/Preview: /).map((e) => e.textContent)).toEqual([

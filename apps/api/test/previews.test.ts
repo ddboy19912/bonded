@@ -523,6 +523,18 @@ describe("sharing a preview's report", () => {
     );
     expect((await get(`/shared/previews/${token}`)).status).toBe(404);
     expect((await bodyOf(await get(`/previews/${preview.id}`, session))).share).toBeNull();
+
+    // A new rating of the same preview turns a link off: the owner shared the old report, not it.
+    const again = (await bodyOf(await send("POST", `/previews/${preview.id}/share`, {}, session)))
+      .token as string;
+    expect(again).not.toBe(token);
+    await pg.db.enqueuePreviewRating(preview.id, {
+      nowMs: Date.now(),
+      perWalletDaily: 100,
+      daily: 1000,
+    });
+    expect((await get(`/shared/previews/${again}`)).status).toBe(404);
+    expect((await bodyOf(await get(`/previews/${preview.id}`, session))).share).toBeNull();
   });
 });
 

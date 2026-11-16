@@ -2889,7 +2889,8 @@ export class Database {
       );
       await c.query("INSERT INTO jobs(id) VALUES($1)", [id]);
       await c.query(
-        "UPDATE previews SET status='queued',rating_id=$2,error=NULL,updated_at=now() WHERE id=$1",
+        // A shared link was to the report the owner chose to share: a new rating turns it off.
+        "UPDATE previews SET status='queued',rating_id=$2,error=NULL,share_token=NULL,shared_at=NULL,updated_at=now() WHERE id=$1",
         [previewId, id],
       );
       return { runId: id };
