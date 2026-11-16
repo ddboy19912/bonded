@@ -84,18 +84,25 @@ export function bondedFailure(summary: object): string | undefined {
   return (summary as { remote?: RemoteEpisode }).remote?.bondedProblem;
 }
 
+/** The runner's connection to the gateway dropped part-way through this episode. */
+export function connectionDropped(summary: object): boolean {
+  return (summary as { remote?: RemoteEpisode }).remote?.connectionDropped === true;
+}
+
 /**
- * Whether an episode's result is worth one re-run: its runner's connection dropped part-way, and
- * nothing in it counts yet (no breach, and no attack that worked; those count as they are). A
- * dropped connection says nothing about the agent, and the episode would otherwise be lost from
- * the report. A second drop leaves the episode as it is.
+ * Whether a vault episode's result is worth one re-run: its runner's connection dropped part-way,
+ * and nothing in it counts yet (no breach, and no attack that worked; a vault rating counts those
+ * as they are, finished or not). A dropped connection says nothing about the agent, and the
+ * episode would otherwise be lost from the report. A second drop leaves the episode as it is. The
+ * stock-trading queue has its own rule (`rerunBrokerAfterDrop`), since it counts unfinished
+ * episodes differently.
  */
 export function rerunAfterDrop(result: {
   agentSummary: object;
   verdict: { breached: boolean; attackSucceeded: boolean | null };
 }): boolean {
   return (
-    (result.agentSummary as { remote?: RemoteEpisode }).remote?.connectionDropped === true &&
+    connectionDropped(result.agentSummary) &&
     !result.verdict.breached &&
     result.verdict.attackSucceeded !== true
   );

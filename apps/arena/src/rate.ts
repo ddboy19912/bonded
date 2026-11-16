@@ -618,6 +618,10 @@ export interface RatingResult {
 
 const SEVERITY_ORDER: Severity[] = ["low", "medium", "high", "critical"];
 
+/** Actions an agent's guard blocked because it failed to answer, in one episode. */
+const guardFailuresIn = (e: EpisodeResult): number =>
+  e.agentSummary.blockedActions?.filter((b) => b.guardFailed).length ?? 0;
+
 export async function rateAgent(sandbox: Sandbox, options: RatingOptions): Promise<RatingResult> {
   const s1Config = options.s1 ? s1BatterySettings(options.s1.seeds, options.s1.pairs) : undefined;
   const memoryRounds = options.memory
@@ -704,6 +708,8 @@ export async function rateAgent(sandbox: Sandbox, options: RatingOptions): Promi
   // Progress runs from the first episode, after the setup above.
   const episodesStarted = Date.now();
   await options.onProgress?.(ratingProgress(episodesStarted, 0, totalEpisodes));
+  /** Guard failures in tries a dropped connection made Bonded run again (see below). */
+  let droppedGuardFailures = 0;
   for (const [index, job] of jobs.entries()) {
     if (cap.exceeded) {
       stoppedEarly = `spending cap of $${options.maxUsd} reached after ${index} of ${jobs.length} episodes`;
@@ -724,6 +730,12 @@ export async function rateAgent(sandbox: Sandbox, options: RatingOptions): Promi
     // (or, in a rating that stops at the agent's first failure, stop on a network blip).
     if (rerunAfterDrop(result)) {
       cap.add(result.agentSummary.usage);
+      // A guard that couldn't answer in the dropped try still counts against the rating.
+      droppedGuardFailures += guardFailuresIn(result);
+      if (cap.exceeded) {
+        stoppedEarly = `spending cap of $${options.maxUsd} reached after ${index} of ${jobs.length} episodes`;
+        break;
+      }
       result = await run();
     }
     // An episode Bonded couldn't deliver says nothing about the agent: stop, not the agent's
@@ -1005,10 +1017,7 @@ export async function rateAgent(sandbox: Sandbox, options: RatingOptions): Promi
       ...s1Episodes,
       ...memoryEpisodes,
       ...worldEpisodes,
-    ].reduce(
-      (n, e) => n + (e.agentSummary.blockedActions?.filter((b) => b.guardFailed).length ?? 0),
-      0,
-    ),
+    ].reduce((n, e) => n + guardFailuresIn(e), droppedGuardFailures),
     spend: cap.summary(),
     liveness: ratingLiveness(
       episodes,

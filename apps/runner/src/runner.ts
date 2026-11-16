@@ -227,12 +227,15 @@ export class Runner {
         else if (code === RUNNER_CLOSE.revoked) fatal = "the runner token was revoked";
         else if (code === RUNNER_CLOSE.protocol)
           fatal = `the gateway closed the connection: ${why || "protocol error"} (upgrade the runner?)`;
-        // The episode can't be finished without the gateway: stop the agent rather than leave it.
-        if (openedAt) void this.cancelRunning("the runner lost its connection");
-        resolve({
+        const end: ConnectionEnd = {
           ...(fatal ? { fatal } : {}),
           stable: openedAt > 0 && Date.now() - openedAt > 10_000,
-        });
+        };
+        // The episode can't be finished without the gateway: stop the agent rather than leave it,
+        // and wait for it to exit, so the next connection isn't handed an episode while this one's
+        // agent still holds the runner.
+        if (!openedAt) resolve(end);
+        else void this.cancelRunning("the runner lost its connection").finally(() => resolve(end));
       });
     });
   }

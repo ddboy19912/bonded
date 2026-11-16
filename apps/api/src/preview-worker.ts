@@ -171,6 +171,8 @@ async function runPreview(
         if (index === 0)
           await db.setRatingProgress(job, { done: 0, total, startedAt: new Date(started) });
       },
+      // A dropped episode's re-run is a whole episode: not after the lease is lost.
+      beforeRerun: check,
       afterEpisode: async (episode, done, total) => {
         await check();
         await db.setRatingProgress(job, { done, total, startedAt: new Date(started) });

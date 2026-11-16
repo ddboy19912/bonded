@@ -532,6 +532,26 @@ console.log(JSON.stringify({
     });
   });
 
+  it("waits for the orphaned agent to exit before it reconnects", async () => {
+    const lines: string[] = [];
+    // An agent that ignores SIGTERM: only the SIGKILL after the grace period stops it.
+    const { gateway } = await setup({
+      command: node("process.on('SIGTERM',()=>{});setInterval(()=>{},1000)"),
+      log: (line) => lines.push(line),
+    });
+    gateway.send(episode());
+    await eventually(() => gateway.of("episode_started").length === 1);
+    // Give the agent time to set its SIGTERM handler: "started" is sent when it spawns.
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    gateway.closeLatest(1011, "server restart");
+    await eventually(() => gateway.of("hello").length === 2);
+    // Reconnecting before the agent exited would hand the new connection a runner still busy.
+    const stopped = lines.findIndex((line) => / agent stopped \(SIGKILL\)/.test(line));
+    const reconnected = lines.findLastIndex((line) => line.startsWith("connected to"));
+    expect(stopped).toBeGreaterThan(-1);
+    expect(stopped).toBeLessThan(reconnected);
+  });
+
   it("stops for good when its token is refused, revoked or taken over", async () => {
     const gateway = await fakeGateway();
     stops.push(() => gateway.close());
