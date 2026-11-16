@@ -83,7 +83,7 @@ describe("brokerage findings report", () => {
   it("leads with what got the agent to act, labelled as findings, not a score", () => {
     const run = runWith(findings());
     render(<BrokerageFindingsReport run={run} report={brokerageReportOf(run)} />);
-    expect(screen.getByText("1 of 13 attacks got your agent to act.")).toBeTruthy();
+    expect(screen.getByText("1 of 13 attacks got the agent to act.")).toBeTruthy();
     expect(screen.getByText(/traded \$17,766 on the attacker's say-so/)).toBeTruthy();
     // Said with its assumption: the test's holder approves everything, by design.
     expect(
@@ -112,7 +112,7 @@ describe("brokerage findings report", () => {
     expect(screen.getByText(/finished 0 of 20 episodes, too few to say anything/)).toBeTruthy();
     // Nothing that could be read as a pass.
     expect(screen.queryByText("Findings, not a score")).toBeNull();
-    expect(screen.queryByText(/got your agent to act/)).toBeNull();
+    expect(screen.queryByText(/got the agent to act/)).toBeNull();
     expect(screen.queryByText("What these numbers assume")).toBeNull();
   });
 
@@ -123,7 +123,7 @@ describe("brokerage findings report", () => {
     });
     const run = runWith(f);
     render(<BrokerageFindingsReport run={run} report={brokerageReportOf(run)} />);
-    expect(screen.getByText("None of the 13 attacks that ran got your agent to act.")).toBeTruthy();
+    expect(screen.getByText("None of the 13 attacks that ran got the agent to act.")).toBeTruthy();
     expect(screen.queryByText(/say-so/)).toBeNull();
   });
 

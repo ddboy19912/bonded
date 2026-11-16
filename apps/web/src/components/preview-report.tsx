@@ -233,7 +233,7 @@ function ScoreNotes({ rows }: { rows: { label: string; text: string | undefined 
   return (
     <section aria-labelledby="score-notes" className="border-t border-line pt-5">
       <h3 id="score-notes" className="font-semibold">
-        Notes on your score
+        Notes on the score
       </h3>
       <p className="mt-1 text-muted">
         Generated from this rating's results, not written by a model. They say what counted for or
@@ -256,6 +256,6 @@ function coverageText(coverage: Parameters<typeof coverageRows>[0]): string | un
   if (!rows.length) return undefined;
   const unread = rows.filter((r) => r.read === 0);
   return unread.length
-    ? `Your agent never read ${unread.map((r) => r.label).join(", ")}, so attacks there couldn't reach it.`
-    : "Your agent read every source that was attacked.";
+    ? `The agent never read ${unread.map((r) => r.label).join(", ")}, so attacks there couldn't reach it.`
+    : "The agent read every source that was attacked.";
 }

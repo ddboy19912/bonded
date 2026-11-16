@@ -44,6 +44,12 @@ describe("a shared report", () => {
     expect(screen.queryByRole("button", { name: "Rate again" })).toBeNull();
     expect(screen.getByRole("link", { name: "Test your own agent, free" })).toBeTruthy();
     expect(document.title).toBe("Shared report · Bonded");
+    // Unlisted: search engines are asked not to index it, only while it's shown.
+    expect(document.head.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe(
+      "noindex",
+    );
+    cleanup();
+    expect(document.head.querySelector('meta[name="robots"]')).toBeNull();
   });
 
   it("says plainly when the link was turned off", async () => {

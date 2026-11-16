@@ -26,19 +26,24 @@ export function ShareReport({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  const run = async (work: () => Promise<unknown>) => {
+  // What this box just did (a token, or null once stopped), until the page's record catches up:
+  // a failed re-read never hides a link that exists, or shows one that was turned off.
+  const [mine, setMine] = useState<string | null>();
+  const token = mine === undefined ? share?.token : mine;
+  const run = async (work: () => Promise<string | null>) => {
     setBusy(true);
     setError(null);
     try {
-      await work();
-      await onChanged();
+      setMine(await work());
     } catch (e) {
       setError(e);
+      return;
     } finally {
       setBusy(false);
     }
+    await Promise.resolve(onChanged()).catch(() => undefined);
   };
-  const url = share ? sharedReportUrl(share.token) : undefined;
+  const url = token ? sharedReportUrl(token) : undefined;
   return (
     <section className="flex flex-col gap-2 border-t border-line pt-5 text-sm">
       <p className="font-semibold">Share this report</p>
@@ -61,7 +66,9 @@ export function ShareReport({
               kind="ghost"
               size="sm"
               loading={busy}
-              onClick={() => void run(() => byoaApi.unsharePreview(session, previewId))}
+              onClick={() =>
+                void run(() => byoaApi.unsharePreview(session, previewId).then(() => null))
+              }
             >
               Stop sharing
             </Button>
@@ -78,7 +85,9 @@ export function ShareReport({
               kind="secondary"
               size="sm"
               loading={busy}
-              onClick={() => void run(() => byoaApi.sharePreview(session, previewId))}
+              onClick={() =>
+                void run(() => byoaApi.sharePreview(session, previewId).then((r) => r.token))
+              }
             >
               Make a link
             </Button>

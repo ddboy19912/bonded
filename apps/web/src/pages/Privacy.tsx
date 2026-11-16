@@ -1,5 +1,6 @@
-import { useEffect, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { CONTACT_EMAIL } from "../lib/routes";
+import { usePageTitle } from "../lib/page-title";
 
 /** What Bonded keeps, for how long. Kept in step with the clean-up in apps/api/src/main.ts. */
 const KEPT: { what: string; detail: string; how: string }[] = [
@@ -61,13 +62,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 /** The privacy page, on the public site. Retention periods match docs/DATA-HANDLING.md. */
 export function Privacy() {
-  useEffect(() => {
-    const before = document.title;
-    document.title = "Privacy · Bonded";
-    return () => {
-      document.title = before;
-    };
-  }, []);
+  usePageTitle("Privacy · Bonded");
   return (
     <article className="mx-auto flex max-w-3xl flex-col gap-12 px-4 py-14 sm:px-6 sm:py-20">
       <header className="flex flex-col gap-4">

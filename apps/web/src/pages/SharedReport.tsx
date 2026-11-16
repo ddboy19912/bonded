@@ -1,8 +1,8 @@
-import { useEffect } from "react";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ApiError } from "../lib/api";
 import { byoaApi } from "../lib/byoa-api";
+import { usePageTitle } from "../lib/page-title";
 import { TEST_AGENT } from "../lib/routes";
 import { BrokerageFindingsReport, brokerageReportOf } from "../components/brokerage-findings";
 import { PreviewReport } from "../components/preview-report";
@@ -14,13 +14,8 @@ import { EmptyState, Loading, Page, Unavailable, buttonClass } from "../componen
  */
 export function SharedReport() {
   const { token = "" } = useParams();
-  useEffect(() => {
-    const before = document.title;
-    document.title = "Shared report · Bonded";
-    return () => {
-      document.title = before;
-    };
-  }, []);
+  // Unlisted: whoever shared it chose who gets the link, so search engines shouldn't list it.
+  usePageTitle("Shared report · Bonded", { noindex: true });
   const shared = useQuery({
     queryKey: ["shared-report", token],
     queryFn: () => byoaApi.sharedReport(token),

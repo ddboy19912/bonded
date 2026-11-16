@@ -443,13 +443,35 @@ describe("sharing a preview's report", () => {
     expect((await bodyOf(early)).error).toMatch(/Only a finished report/);
 
     const ratingId = crypto.randomUUID();
+    const codeHash = hash(0x5eed);
+    const agentUrl = "https://maya-trader.example/api/bonded";
+    // Shaped like what the preview worker stores: the report, labelled with the preview's code.
     await pg.db.pool.query(
-      "INSERT INTO ratings(id,preview_id,kind,status,charged_owner,report) VALUES($1,$2,'preview','done',$3,$4)",
+      "INSERT INTO ratings(id,preview_id,kind,status,charged_owner,report,error) VALUES($1,$2,'preview','done',$3,$4,$5)",
       [
         ratingId,
         preview.id,
         wallet.address.toLowerCase(),
-        JSON.stringify({ scoring: { score: 640, tier: "BBB" }, classes: [] }),
+        JSON.stringify({
+          agent: `remote/url ${agentUrl}`,
+          scoring: { score: 640, tier: "BBB" },
+          classes: [
+            {
+              class: "A1",
+              episodes: 1,
+              breaches: 1,
+              evidence: [{ codeHash, owner: wallet.address }],
+            },
+          ],
+          preview: {
+            label: "Preview: private, not published",
+            attested: false,
+            insurable: false,
+            codeHash,
+            codeSource: "url",
+          },
+        }),
+        `couldn't reach your URL ${agentUrl}`,
       ],
     );
     await pg.db.pool.query("UPDATE previews SET rating_id=$2,status='done' WHERE id=$1", [
@@ -485,6 +507,11 @@ describe("sharing a preview's report", () => {
     const raw = JSON.stringify(body).toLowerCase();
     expect(raw).not.toContain(wallet.address.toLowerCase());
     expect(raw).not.toContain(preview.id);
+    // Not the agent's code or address either, wherever the report or the error carried them.
+    expect(raw).not.toContain(codeHash.toLowerCase());
+    expect(raw).not.toContain("maya-trader");
+    expect(raw).not.toContain("codesource");
+    expect(body.run).toMatchObject({ error: null, preview: true });
 
     // A wrong or malformed token says nothing more than "not found".
     expect((await get(`/shared/previews/${"a".repeat(32)}`)).status).toBe(404);

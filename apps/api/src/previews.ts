@@ -1396,21 +1396,26 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
     }),
   );
 
+  /** A preview's rating (its status and report), or undefined before it has one. */
+  async function previewRating(p: PreviewRecord) {
+    if (!p.ratingId) return undefined;
+    return (
+      await db.pool.query("SELECT status,report FROM ratings WHERE id=$1 AND preview_id=$2", [
+        p.ratingId,
+        p.id,
+      ])
+    ).rows[0] as { status: string; report: unknown } | undefined;
+  }
+  /** Whether a preview has a finished report. */
+  const finishedReport = async (p: PreviewRecord) => Boolean((await previewRating(p))?.report);
+
   /** The preview's report, labelled: never attested, never insurable. */
   app.get(
     "/previews/:id/report",
     handle(async (c) => {
       const wallet = await reader(c);
       const subject = await previewSubject(c.req.param("id"), wallet);
-      const runId = subject.preview!.ratingId;
-      const row = runId
-        ? (
-            await db.pool.query("SELECT status,report FROM ratings WHERE id=$1 AND preview_id=$2", [
-              runId,
-              subject.id,
-            ])
-          ).rows[0]
-        : undefined;
+      const row = await previewRating(subject.preview!);
       if (!row?.report) return c.json({ status: row?.status ?? "none", report: null }, 202);
       return c.json({
         label: PREVIEW_LABEL,
@@ -1423,18 +1428,22 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
 
   // Sharing a report by a read-only link (migration 0040).
 
-  /** The finished rating of a preview, with its report, or undefined. */
-  async function finishedRun(p: PreviewRecord) {
-    if (!p.ratingId) return undefined;
-    const row = (
-      await db.pool.query(
-        `SELECT id,status,report,error,created_at FROM ratings WHERE id=$1 AND preview_id=$2`,
-        [p.ratingId, p.id],
-      )
-    ).rows[0] as
-      | { id: string; status: string; report: unknown; error: string | null; created_at: Date }
-      | undefined;
-    return row?.report ? row : undefined;
+  /**
+   * What a shared link may show of a report: everything but the keys that identify the agent or
+   * its owner (its code hash and where it came from, an owner or a URL), wherever they are.
+   */
+  const PRIVATE_REPORT_KEYS = new Set(["codeHash", "codeSource", "owner", "wallet", "agentUrl"]);
+  function shareableReport(value: unknown): unknown {
+    if (Array.isArray(value)) return value.map(shareableReport);
+    if (!value || typeof value !== "object") return value;
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([k]) => !PRIVATE_REPORT_KEYS.has(k))
+        .map(([k, v]) => [
+          k,
+          k === "agent" && typeof v === "string" ? "agent" : shareableReport(v),
+        ]),
+    );
   }
 
   /**
@@ -1446,7 +1455,7 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
     handle(async (c) => {
       const { wallet } = await writer(c, "preview", "sign-in");
       const subject = await previewSubject(c.req.param("id"), wallet);
-      if (!(await finishedRun(subject.preview!)))
+      if (!(await finishedReport(subject.preview!)))
         throw new Refused(409, "Only a finished report can be shared.");
       const shared = await db.sharePreview(subject.id, randomBytes(24).toString("base64url"));
       return c.json({ token: shared!.shareToken, sharedAt: shared!.sharedAt?.toISOString() });
@@ -1478,23 +1487,44 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
         "This link doesn't work: it was turned off, or it's wrong.",
       );
       if (!/^[A-Za-z0-9_-]{32}$/.test(token)) throw notFound;
-      const p = await db.sharedPreview(token);
-      const run = p ? await finishedRun(p) : undefined;
-      if (!p || !run) throw notFound;
+      // One query: the shared preview and its finished rating together.
+      const row = (
+        await db.pool.query(
+          `SELECT p.world,p.mode,p.created_at AS "previewAt",r.id,r.status,r.report,r.error,
+             r.created_at
+           FROM previews p JOIN ratings r ON r.id=p.rating_id AND r.preview_id=p.id
+           WHERE p.share_token=$1 AND r.report IS NOT NULL`,
+          [token],
+        )
+      ).rows[0] as
+        | {
+            world: string;
+            mode: string;
+            previewAt: Date;
+            id: string;
+            status: string;
+            report: unknown;
+            error: string | null;
+            created_at: Date;
+          }
+        | undefined;
+      if (!row) throw notFound;
+      const report = shareableReport(row.report);
+      // An allow-list: the error's code, never its text (it can name the agent's address).
       return c.json({
         label: PREVIEW_LABEL,
-        world: p.world,
-        mode: p.mode,
-        createdAt: p.createdAt.toISOString(),
+        world: row.world,
+        mode: row.mode,
+        createdAt: row.previewAt.toISOString(),
         run: {
-          id: run.id,
-          status: run.status,
-          report: run.report,
-          error: run.error,
-          errorCode: run.error ? problemCode(run.error) : null,
-          created_at: run.created_at,
+          id: row.id,
+          status: row.status,
+          report,
+          error: null,
+          errorCode: row.error ? problemCode(row.error) : null,
+          created_at: row.created_at,
           preview: true,
-          ...ratingFacts(undefined, run.report),
+          ...ratingFacts(undefined, report),
         },
       });
     }),

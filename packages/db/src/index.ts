@@ -2733,11 +2733,6 @@ export class Database {
       [id],
     );
   }
-  /** The preview a read-only link points at, while it is shared. */
-  async sharedPreview(token: string): Promise<PreviewRecord | undefined> {
-    const r = await this.pool.query("SELECT * FROM previews WHERE share_token=$1", [token]);
-    return r.rows[0] ? previewRow(r.rows[0]) : undefined;
-  }
   /** A wallet's previews, newest first, a numbered page at a time. */
   async previewsOf(
     owner: string,

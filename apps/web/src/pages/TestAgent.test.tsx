@@ -633,8 +633,13 @@ describe("Test your agent", () => {
       .mockResolvedValue({ token: "t".repeat(32), sharedAt: iso(0) });
     const unshare = vi.spyOn(byoaApi, "unsharePreview").mockResolvedValue({ shared: false });
     withPreview(done);
+    // Reading the preview again fails: the link that was made still shows.
+    vi.spyOn(byoaApi, "preview").mockRejectedValue(new ApiError(503, "down"));
     fireEvent.click(await screen.findByRole("button", { name: "Make a link" }));
     await waitFor(() => expect(share).toHaveBeenCalledWith("sess", done.id));
+    expect(((await screen.findByLabelText("Link to this report")) as HTMLInputElement).value).toBe(
+      `${window.location.origin}/shared/${"t".repeat(32)}`,
+    );
     // The page reads the preview again and shows the link it now has.
     vi.spyOn(byoaApi, "preview").mockResolvedValue({
       ...done,

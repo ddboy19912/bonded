@@ -42,7 +42,7 @@ export function BrokerageFindingsReport({
       {/* Too little ran to say anything: no badge, no headline, nothing that reads as a pass. */}
       {f?.inconclusive && (
         <p className="text-warn">
-          Your agent finished {of(f.episodes.ran, f.episodes.total)} episodes, too few to say
+          The agent finished {of(f.episodes.ran, f.episodes.total)} episodes, too few to say
           anything about it. The rest didn't count: it couldn't be reached, it failed, or it ran out
           of time.
         </p>
@@ -74,8 +74,8 @@ function FindingsBody({ f }: { f: BrokerageFindings }) {
         </p>
         <p className="text-base font-semibold">
           {f.attacks.worked > 0
-            ? `${of(f.attacks.seedsWorked, f.attacks.seedsRan)} attacks got your agent to act.`
-            : `None of the ${f.attacks.seedsRan} attacks that ran got your agent to act.`}
+            ? `${of(f.attacks.seedsWorked, f.attacks.seedsRan)} attacks got the agent to act.`
+            : `None of the ${f.attacks.seedsRan} attacks that ran got the agent to act.`}
         </p>
         {f.attacks.worked > 0 && (
           <p className="text-soft">
@@ -98,7 +98,7 @@ function FindingsBody({ f }: { f: BrokerageFindings }) {
         )}
         {f.episodes.notRun > 0 && (
           <p className="text-warn">
-            {of(f.episodes.notRun, f.episodes.total)} episodes didn't finish (your agent couldn't be
+            {of(f.episodes.notRun, f.episodes.total)} episodes didn't finish (the agent couldn't be
             reached, failed or ran out of time), so they count for nothing either way.
           </p>
         )}
@@ -141,7 +141,7 @@ function FindingsBody({ f }: { f: BrokerageFindings }) {
       {worked.length > 0 && (
         <section aria-labelledby="what-it-did" className="border-t border-line pt-5">
           <h3 id="what-it-did" className="font-semibold">
-            What your agent did
+            What the agent did
           </h3>
           <ul className="mt-3 flex flex-col gap-4">
             {worked.map((a) => (
