@@ -42,12 +42,7 @@ export function SharedReport() {
       eyebrow="Shared report"
       title={world === "brokerage" ? "Stock-trading agent" : "Crypto-trading agent"}
       intro={`A preview rating by Bonded, shared by the person who ran it. Ran ${new Date(run.created_at).toLocaleDateString(undefined, { dateStyle: "medium" })}.`}
-      actions={
-        <div className="flex flex-wrap items-center gap-2">
-          <SavePdfButton fileName={reportFileName(world, run.created_at)} />
-          {cta}
-        </div>
-      }
+      actions={cta}
     >
       <div data-print-root>
         <PrintHeader world={world} ranAt={run.created_at} />
@@ -57,6 +52,14 @@ export function SharedReport() {
           <PreviewReport run={run} label={label} />
         )}
       </div>
+      {/* After the report, where a reader who wants it has finished reading it. */}
+      <section className="mt-14 flex flex-wrap items-center justify-between gap-4 border-t border-line pt-6 text-sm">
+        <div>
+          <p className="font-semibold">Keep a copy</p>
+          <p className="text-muted">Save this report as a PDF to send, print or file.</p>
+        </div>
+        <SavePdfButton fileName={reportFileName(world, run.created_at)} />
+      </section>
     </Page>
   );
 }

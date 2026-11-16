@@ -5,7 +5,14 @@ import { Button } from "./ui";
  * Only the element marked `data-print-root` prints, on a light page (index.css, "Print"). The
  * page's title names the file while the dialog is open.
  */
-export function SavePdfButton({ fileName }: { fileName: string }) {
+export function SavePdfButton({
+  fileName,
+  size = "md",
+}: {
+  fileName: string;
+  /** The size of the buttons beside it. */
+  size?: "sm" | "md";
+}) {
   const save = () => {
     const title = document.title;
     document.title = fileName;
@@ -23,7 +30,7 @@ export function SavePdfButton({ fileName }: { fileName: string }) {
     window.print();
   };
   return (
-    <Button kind="secondary" size="sm" onClick={save}>
+    <Button kind="secondary" size={size} onClick={save}>
       Save as PDF
     </Button>
   );

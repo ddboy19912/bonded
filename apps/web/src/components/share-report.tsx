@@ -52,7 +52,7 @@ export function ShareReport({
     <section className="mt-8 flex flex-col gap-2 border-t border-line pt-6 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="font-semibold">Share this report</p>
-        {pdfFileName && <SavePdfButton fileName={pdfFileName} />}
+        {pdfFileName && <SavePdfButton fileName={pdfFileName} size="sm" />}
       </div>
       {url ? (
         <>
