@@ -6,7 +6,7 @@ import type {
 } from "@simplewebauthn/browser";
 import type { RemoteMode } from "@bondedhq/shared";
 import { apiUrl, deployment } from "../config";
-import { ApiError, request, type RunnerRecord } from "./api";
+import { ApiError, request, type RunRecord, type RunnerRecord } from "./api";
 import { byoaMessage, type ByoaAction } from "./byoa-messages";
 import { createRunnerToken, requestRating, revokeRunnerToken, type Signer } from "./self-serve";
 import { withCodes, type ApiMessage, type CheckIssue } from "./troubleshooting";
@@ -307,6 +307,15 @@ export interface BrokerageReport {
   preview?: { label: string; attested: false; insurable: false };
 }
 
+/** A report shared by its owner's read-only link: the report, never who the owner is. */
+export interface SharedReport {
+  label: string;
+  world: PreviewWorld;
+  mode: RemoteMode;
+  createdAt: string;
+  run: RunRecord;
+}
+
 export interface PreviewRecord {
   id: string;
   chainId: number;
@@ -340,6 +349,8 @@ export interface PreviewRecord {
   declaredCodeHash?: string | null;
   /** Waiting to start: how many previews or official ratings are ahead of it. */
   queue?: { position: number } | null;
+  /** The report's read-only link, while its owner shares it (`/shared/<token>`). */
+  share?: { token: string; sharedAt: string | null } | null;
   /** Why it was refused or stopped, in a sentence. */
   reason?: string | null;
   /** Its rating's status, and its score once it is over. */
@@ -562,6 +573,22 @@ export const byoaApi = {
       headers: { "Content-Type": "application/json", ...bearer(session).headers },
       body: JSON.stringify({ response, ...(name ? { name } : {}) }),
     }),
+  /** POST /previews/:id/share: a read-only link to the finished report (the same one again). */
+  sharePreview: (session: string, id: string) =>
+    request<{ token: string; sharedAt: string }>(`/previews/${encodeURIComponent(id)}/share`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...bearer(session).headers },
+      body: "{}",
+    }),
+  /** DELETE /previews/:id/share: the link stops working. */
+  unsharePreview: (session: string, id: string) =>
+    request<{ shared: false }>(`/previews/${encodeURIComponent(id)}/share`, {
+      method: "DELETE",
+      ...bearer(session),
+    }),
+  /** GET /shared/previews/:token: a shared report, for anyone with the link. */
+  sharedReport: (token: string) =>
+    request<SharedReport>(`/shared/previews/${encodeURIComponent(token)}`),
   /** DELETE /account/passkeys/:id. */
   passkeyRemove: (session: string, id: string) =>
     request<{ removed: true }>(`/account/passkeys/${encodeURIComponent(id)}`, {

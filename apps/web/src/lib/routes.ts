@@ -25,3 +25,5 @@ export const DOCS_S1 = "/docs/concepts/s1-taxonomy/";
 export const DOCS_BYOA = "/docs/guides/bring-your-own-agent/";
 /** How to set up the payment gate and connect an agent to it. */
 export const DOCS_GATE = "/docs/guides/payment-gate/";
+/** A report its owner shared by a read-only link. */
+export const sharedReportPath = (token: string) => `/shared/${encodeURIComponent(token)}`;

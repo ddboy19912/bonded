@@ -256,11 +256,11 @@ export function createApi(options: {
   // an owner session or a gate API key (gate.ts); the data APIs' (/data, /ci) an owner session, a
   // data API key, or nothing for the public Index (data-keys.ts).
   const PUBLIC_POST =
-    /^\/(bounties\/\d{1,78}\/reveal|self\/agents(\/\d{1,78}\/(rate|runner-token|agent-url|agent-url\/verify|agent-url\/secret|checks))?|quotes|sentinel\/check|self\/session|self\/notifications(\/webhook-secret|\/inbox\/read)?|previews(\/session|\/[0-9a-f-]{36}\/(stop|runner-token|agent-url|agent-url\/verify|agent-url\/secret|checks|rate|notifications))?|self\/agents\/\d{1,78}\/notifications|streams\/token|runner\/check)$/;
+    /^\/(bounties\/\d{1,78}\/reveal|self\/agents(\/\d{1,78}\/(rate|runner-token|agent-url|agent-url\/verify|agent-url\/secret|checks))?|quotes|sentinel\/check|self\/session|self\/notifications(\/webhook-secret|\/inbox\/read)?|previews(\/session|\/[0-9a-f-]{36}\/(stop|runner-token|agent-url|agent-url\/verify|agent-url\/secret|checks|rate|notifications|share))?|self\/agents\/\d{1,78}\/notifications|streams\/token|runner\/check)$/;
   const PUBLIC_PUT =
     /^\/(self\/notifications|previews\/[0-9a-f-]{36}\/(notifications|hosted-agent)|self\/agents\/\d{1,78}\/notifications)$/;
   const PUBLIC_DELETE =
-    /^\/(self\/agents\/\d{1,78}\/(runner-token|agent-url)|self\/session|previews\/session|previews\/[0-9a-f-]{36}\/(runner-token|agent-url))$/;
+    /^\/(self\/agents\/\d{1,78}\/(runner-token|agent-url)|self\/session|previews\/session|previews\/[0-9a-f-]{36}\/(runner-token|agent-url|share))$/;
   // Sign-in without a wallet (accounts.ts): a code, a passkey or the account's own session
   // authenticates each of these.
   const ACCOUNT_POST =

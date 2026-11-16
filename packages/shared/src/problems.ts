@@ -786,6 +786,20 @@ export const PROBLEMS: readonly ProblemEntry[] = [
     /preview was stopped/i,
   ),
   entry(
+    "share-not-finished",
+    "rating",
+    "Only a finished report can be shared.",
+    "Wait for the preview's report, then make the link.",
+    /only a finished report can be shared/i,
+  ),
+  entry(
+    "share-link-off",
+    "rating",
+    "This shared report's link doesn't work.",
+    "Whoever shared it may have turned it off, or the link is incomplete. Ask them for a new one.",
+    /this link doesn't work: it was turned off/i,
+  ),
+  entry(
     "rating-running",
     "rating",
     "Its rating is running.",

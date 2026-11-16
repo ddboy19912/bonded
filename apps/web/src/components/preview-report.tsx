@@ -45,7 +45,8 @@ export function prefillFrom(preview: PreviewRecord): OfficialPrefill {
 
 /**
  * A preview's report: the same score and report an official rating computes, never attested or
- * posted, and labelled so. "Make it official" opens onboarding with the preview's choices.
+ * posted, and labelled so. "Make it official" opens onboarding with the preview's choices. Without
+ * `preview` (a report shared by link) it is read-only: no code hash and nothing to act on.
  */
 export function PreviewReport({
   preview,
@@ -55,7 +56,7 @@ export function PreviewReport({
   onRateAgain,
   rateAgainBusy = false,
 }: {
-  preview: PreviewRecord;
+  preview?: PreviewRecord | undefined;
   run: RunRecord;
   /** The wallet's preview before this one that finished with a score: the "before". */
   previous?: PreviewRecord | undefined;
@@ -67,6 +68,7 @@ export function PreviewReport({
   const navigate = useNavigate();
   const report = run.report;
   const official = () => {
+    if (!preview) return;
     window.scrollTo?.({ top: 0 });
     void navigate(`/agents/new?preview=${encodeURIComponent(preview.id)}`, {
       state: { prefill: prefillFrom(preview) },
@@ -126,7 +128,7 @@ export function PreviewReport({
                 Computed exactly as an official rating's score, but not signed or posted, and no
                 cover can be quoted from it.
               </p>
-              {preview.codeHash && (
+              {preview?.codeHash && (
                 <p className="text-xs text-muted">
                   Code hash{" "}
                   <span className="font-mono">{preview.codeHash.value.slice(0, 18)}…</span> from{" "}
@@ -192,32 +194,34 @@ export function PreviewReport({
           />
         </>
       )}
-      <div className="grid gap-6 border-t border-line pt-5 sm:grid-cols-2">
-        {onRateAgain && (
+      {preview && (
+        <div className="grid gap-6 border-t border-line pt-5 sm:grid-cols-2">
+          {onRateAgain && (
+            <div className="flex flex-col gap-2">
+              <p className="font-semibold">Fixed something?</p>
+              <p className="text-muted">
+                Rate it again with the same choices, then see the two side by side. A new preview
+                connects and checks again first.
+              </p>
+              <div className="mt-2">
+                <Button kind="secondary" loading={rateAgainBusy} onClick={onRateAgain}>
+                  Rate again
+                </Button>
+              </div>
+            </div>
+          )}
           <div className="flex flex-col gap-2">
-            <p className="font-semibold">Fixed something?</p>
+            <p className="font-semibold">Ready for the real thing?</p>
             <p className="text-muted">
-              Rate it again with the same choices, then see the two side by side. A new preview
-              connects and checks again first.
+              Making it official registers the agent, creates its vault and stakes a bond, with
+              these choices filled in. The official rating runs again, attested on chain.
             </p>
             <div className="mt-2">
-              <Button kind="secondary" loading={rateAgainBusy} onClick={onRateAgain}>
-                Rate again
-              </Button>
+              <Button onClick={official}>Make it official</Button>
             </div>
           </div>
-        )}
-        <div className="flex flex-col gap-2">
-          <p className="font-semibold">Ready for the real thing?</p>
-          <p className="text-muted">
-            Making it official registers the agent, creates its vault and stakes a bond, with these
-            choices filled in. The official rating runs again, attested on chain.
-          </p>
-          <div className="mt-2">
-            <Button onClick={official}>Make it official</Button>
-          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

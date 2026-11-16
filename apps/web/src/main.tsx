@@ -34,6 +34,7 @@ import { Gate } from "./pages/Gate";
 import { GateAccount } from "./pages/GateAccount";
 import { GateVerify } from "./pages/GateVerify";
 import { Privacy } from "./pages/Privacy";
+import { SharedReport } from "./pages/SharedReport";
 import "./index.css";
 
 const router = createBrowserRouter([
@@ -70,6 +71,7 @@ const router = createBrowserRouter([
       { path: "/gate", element: <Gate /> },
       { path: "/gate/verify", element: <GateVerify /> },
       { path: "/gate/:accountId", element: <GateAccount /> },
+      { path: "/shared/:token", element: <SharedReport /> },
       { path: "*", element: <NotFound /> },
     ],
   },

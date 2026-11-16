@@ -55,6 +55,7 @@ import {
 import { expectedRating, publishedLibrary } from "./self-serve.js";
 import { PollStreams } from "./poll-stream.js";
 import { outboundUrlProblem } from "./outbound.js";
+import { ratingFacts } from "./rating-facts.js";
 import {
   notificationInput,
   notificationView,
@@ -467,6 +468,10 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
       reasonCode: p.error ? problemCode(p.error) : null,
       rating,
       upgradedTo: p.upgradedTo,
+      // The read-only link, while the owner shares the report (shown to the owner only).
+      share: p.shareToken
+        ? { token: p.shareToken, sharedAt: p.sharedAt?.toISOString() ?? null }
+        : null,
       expectedRating: previewPlan(p.world),
       // The brokerage world has no official rating yet: its attacks are staged (findings only).
       upgrade:
@@ -1412,6 +1417,85 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
         attested: false,
         insurable: false,
         report: row.report,
+      });
+    }),
+  );
+
+  // Sharing a report by a read-only link (migration 0040).
+
+  /** The finished rating of a preview, with its report, or undefined. */
+  async function finishedRun(p: PreviewRecord) {
+    if (!p.ratingId) return undefined;
+    const row = (
+      await db.pool.query(
+        `SELECT id,status,report,error,created_at FROM ratings WHERE id=$1 AND preview_id=$2`,
+        [p.ratingId, p.id],
+      )
+    ).rows[0] as
+      | { id: string; status: string; report: unknown; error: string | null; created_at: Date }
+      | undefined;
+    return row?.report ? row : undefined;
+  }
+
+  /**
+   * Share the preview's report: anyone with the link sees the report, and nothing else about the
+   * owner. Only a finished report can be shared. Sharing again returns the same link.
+   */
+  app.post(
+    "/previews/:id/share",
+    handle(async (c) => {
+      const { wallet } = await writer(c, "preview", "sign-in");
+      const subject = await previewSubject(c.req.param("id"), wallet);
+      if (!(await finishedRun(subject.preview!)))
+        throw new Refused(409, "Only a finished report can be shared.");
+      const shared = await db.sharePreview(subject.id, randomBytes(24).toString("base64url"));
+      return c.json({ token: shared!.shareToken, sharedAt: shared!.sharedAt?.toISOString() });
+    }),
+  );
+
+  /** Stop sharing: the link stops working at once. */
+  app.delete(
+    "/previews/:id/share",
+    handle(async (c) => {
+      const { wallet } = await writer(c, "preview", "sign-in");
+      const subject = await previewSubject(c.req.param("id"), wallet);
+      await db.unsharePreview(subject.id);
+      return c.json({ shared: false });
+    }),
+  );
+
+  /**
+   * A shared report, for anyone with its link: the report and when it ran, never the owner, the
+   * agent's address, its code or its instructions. "Not found" once sharing stops.
+   */
+  app.get(
+    "/shared/previews/:token",
+    handle(async (c) => {
+      limited(c, options.reads);
+      const token = c.req.param("token") ?? "";
+      const notFound = new Refused(
+        404,
+        "This link doesn't work: it was turned off, or it's wrong.",
+      );
+      if (!/^[A-Za-z0-9_-]{32}$/.test(token)) throw notFound;
+      const p = await db.sharedPreview(token);
+      const run = p ? await finishedRun(p) : undefined;
+      if (!p || !run) throw notFound;
+      return c.json({
+        label: PREVIEW_LABEL,
+        world: p.world,
+        mode: p.mode,
+        createdAt: p.createdAt.toISOString(),
+        run: {
+          id: run.id,
+          status: run.status,
+          report: run.report,
+          error: run.error,
+          errorCode: run.error ? problemCode(run.error) : null,
+          created_at: run.created_at,
+          preview: true,
+          ...ratingFacts(undefined, run.report),
+        },
       });
     }),
   );

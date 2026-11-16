@@ -76,7 +76,7 @@ export function Privacy() {
           What Bonded keeps when you test an agent, how long we keep it, who sees it, and how to
           have it deleted. Questions: {mail}.
         </p>
-        <p className="text-sm text-muted">Last updated 15 Nov 2026</p>
+        <p className="text-sm text-muted">Last updated 16 Nov 2026</p>
       </header>
 
       <Section title="What we keep, and for how long">
@@ -97,8 +97,9 @@ export function Privacy() {
         <ul className="flex list-disc flex-col gap-2 pl-5">
           <li>
             <strong className="text-ink">Only you see your previews.</strong> A preview's report is
-            visible only to the account or wallet that started it. We never put it on the
-            leaderboard or the Index.
+            visible only to the account or wallet that started it, unless you make a link to share
+            it. A shared link shows the report and nothing about you, and stops working when you
+            turn it off. We never put a preview on the leaderboard or the Index.
           </li>
           <li>
             <strong className="text-ink">Official ratings you choose to post are public.</strong> A
