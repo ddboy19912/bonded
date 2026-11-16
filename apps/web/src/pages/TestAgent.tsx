@@ -74,8 +74,11 @@ import {
   linkClass,
 } from "../components/ui";
 import { SignInButton } from "../components/sign-in";
+import { ConfirmButton } from "../components/gate/common";
 
-const FINISHED = ["done", "failed", "refused", "stopped"];
+const FINISHED = ["done", "failed", "refused", "stopped", "expired"];
+/** A preview can be removed unless its rating or a connection check is under way. */
+const BUSY = ["checking", "queued", "starting", "running"];
 const PREVIEW_STATUS: Record<PreviewRecord["status"], string> = {
   created: "Connecting",
   checking: "Checking",
@@ -87,6 +90,7 @@ const PREVIEW_STATUS: Record<PreviewRecord["status"], string> = {
   failed: "Failed",
   refused: "Refused",
   stopped: "Stopped",
+  expired: "Expired",
 };
 
 const STEP_TITLES: Record<PreviewStep, string> = {
@@ -108,8 +112,21 @@ export function TestAgent() {
   const { address, isConnected: walletConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const queryClient = useQueryClient();
+  // "Open it" in the list below the steps: the preview opens in the steps, so the page moves there.
+  const stepsRef = useRef<HTMLDivElement>(null);
+  const jumpToSteps = useRef(false);
+  const openPreview = (id: string) => {
+    setChanging(false);
+    jumpToSteps.current = true;
+    setParams({ preview: id });
+  };
   const [params, setParams] = useSearchParams();
   const previewId = params.get("preview") ?? undefined;
+  useEffect(() => {
+    if (!jumpToSteps.current) return;
+    jumpToSteps.current = false;
+    stepsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }, [previewId]);
   // An email account's session (email code or passkey) first: it needs no wallet.
   const storedSession = () =>
     loadAccountSession(deployment.chainId) ?? loadSession(deployment.chainId, address);
@@ -350,7 +367,10 @@ export function TestAgent() {
           then.
         </Note>
       )}
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+      <div
+        ref={stepsRef}
+        className="grid scroll-mt-24 items-start gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]"
+      >
         {previewId && session && preview.isPending ? (
           <Card>
             <Loading what="your preview" height="lg" />
@@ -721,9 +741,9 @@ export function TestAgent() {
                 {previews.data!.items.map((x) => (
                   <li
                     key={x.id}
-                    className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2.5 first:pt-0 last:pb-0"
+                    className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
                   >
-                    <span className="flex flex-wrap items-center gap-2">
+                    <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="text-muted">
                         {when(Math.floor(Date.parse(x.createdAt) / 1000))}
                       </span>
@@ -731,7 +751,7 @@ export function TestAgent() {
                         tone={
                           x.status === "done"
                             ? "safe"
-                            : FINISHED.includes(x.status)
+                            : FINISHED.includes(x.status) && x.status !== "expired"
                               ? "breach"
                               : "neutral"
                         }
@@ -746,17 +766,35 @@ export function TestAgent() {
                           : ""}
                       </Badge>
                     </span>
-                    {x.id === previewId ? (
-                      <span className="text-xs text-muted">Open</span>
-                    ) : (
-                      <button
-                        type="button"
-                        className={`${linkClass} text-xs`}
-                        onClick={() => (setChanging(false), setParams({ preview: x.id }))}
-                      >
-                        Open it
-                      </button>
-                    )}
+                    <span className="flex shrink-0 items-center gap-4">
+                      {x.id === previewId ? (
+                        <span className="text-xs text-muted">Open</span>
+                      ) : (
+                        <button
+                          type="button"
+                          className={`${linkClass} text-xs`}
+                          onClick={() => openPreview(x.id)}
+                        >
+                          Open it
+                        </button>
+                      )}
+                      {!BUSY.includes(x.status) && (
+                        <ConfirmButton
+                          label="Remove"
+                          ariaLabel={`Remove the preview from ${when(Math.floor(Date.parse(x.createdAt) / 1000))}`}
+                          variant="link"
+                          className="h-auto p-0 text-xs font-normal text-muted hover:text-breach"
+                          title="Remove this preview?"
+                          description="Its report, share link and connection details are deleted, and it leaves this list. This can't be undone. It still counts toward today's preview limit."
+                          confirm="Remove"
+                          act={() => byoaApi.removePreview(session.session, x.id)}
+                          then={async () => {
+                            if (x.id === previewId) setParams({});
+                            await previews.refetch();
+                          }}
+                        />
+                      )}
+                    </span>
                   </li>
                 ))}
               </ul>

@@ -359,6 +359,8 @@ if (role === "migrate") {
           // Connection checks' step logs go with the events (docs/DATA-HANDLING.md).
           await db.pruneCheckEvents(before);
           await db.pruneSentinelChecks(before);
+          // Previews that never started a rating and can't connect any more read "Expired".
+          await db.expireStalePreviews();
           // Used sign-in signatures and long-expired sessions (a day past their window).
           await db.pruneOwnerAuth();
           // The owners' in-app notification lists keep 90 days.

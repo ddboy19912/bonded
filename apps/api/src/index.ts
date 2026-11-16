@@ -260,7 +260,7 @@ export function createApi(options: {
   const PUBLIC_PUT =
     /^\/(self\/notifications|previews\/[0-9a-f-]{36}\/(notifications|hosted-agent)|self\/agents\/\d{1,78}\/notifications)$/;
   const PUBLIC_DELETE =
-    /^\/(self\/agents\/\d{1,78}\/(runner-token|agent-url)|self\/session|previews\/session|previews\/[0-9a-f-]{36}\/(runner-token|agent-url|share))$/;
+    /^\/(self\/agents\/\d{1,78}\/(runner-token|agent-url)|self\/session|previews\/session|previews\/[0-9a-f-]{36}(\/(runner-token|agent-url|share))?)$/;
   // Sign-in without a wallet (accounts.ts): a code, a passkey or the account's own session
   // authenticates each of these.
   const ACCOUNT_POST =

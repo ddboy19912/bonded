@@ -335,6 +335,10 @@ describe("previewStep", () => {
     expect(previewStep({ signedIn: false, preview: undefined })).toBe("sign-in");
     expect(previewStep({ signedIn: true, preview: undefined })).toBe("choose");
     expect(previewStep({ signedIn: true, preview: basePreview(), nowMs: NOW })).toBe("connect");
+    // An expired preview can't connect any more: it opens where it says why.
+    expect(
+      previewStep({ signedIn: true, preview: basePreview({ status: "expired" }), nowMs: NOW }),
+    ).toBe("start");
     expect(
       previewStep({ signedIn: true, preview: basePreview({ agentUrl: url }), nowMs: NOW }),
     ).toBe("check");

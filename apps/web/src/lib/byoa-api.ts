@@ -235,7 +235,9 @@ export type PreviewStatus =
   | "done"
   | "failed"
   | "refused"
-  | "stopped";
+  | "stopped"
+  /** Never started a rating, and older than its runner token's 7 days: closed by the keeper. */
+  | "expired";
 
 /** The world a preview tests the agent on: the on-chain vault, or a simulated brokerage account. */
 export type PreviewWorld = "vault" | "brokerage";
@@ -588,6 +590,12 @@ export const byoaApi = {
       method: "POST",
       headers: { "Content-Type": "application/json", ...bearer(session).headers },
       body: "{}",
+    }),
+  /** DELETE /previews/:id: removes the preview and deletes everything in it. */
+  removePreview: (session: string, id: string) =>
+    request<{ removed: true }>(`/previews/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      ...bearer(session),
     }),
   /** DELETE /previews/:id/share: the link stops working. */
   unsharePreview: (session: string, id: string) =>

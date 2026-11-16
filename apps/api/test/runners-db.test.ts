@@ -23,7 +23,7 @@ const hello = { runnerVersion: "0.1.0", mode: "tools" };
  * The migrations' numbers: 0001 to 0040 (0034 the preview's world, 0035 its tool names, 0036 drops
  * Agent URL secrets, 0037 hosted agents, 0038 their daily spending, 0039 email and passkey accounts, 0040 shared preview reports).
  */
-const MIGRATIONS = [...Array.from({ length: 40 }, (_, i) => i + 1)];
+const MIGRATIONS = [...Array.from({ length: 41 }, (_, i) => i + 1)];
 
 beforeAll(async () => {
   pg = await postgres();

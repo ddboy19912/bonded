@@ -95,7 +95,7 @@ export function launchRoutes(app: Hono, options: LaunchRouteOptions) {
     const wallet = await options.wallet(c);
     const id = z.uuid().safeParse(c.req.param("id"));
     const preview = id.success ? await db.preview(id.data) : undefined;
-    if (!preview || preview.chainId !== chainId || preview.owner !== wallet)
+    if (!preview || preview.removedAt || preview.chainId !== chainId || preview.owner !== wallet)
       throw new Refused(404, "That preview wasn't found.");
     return { wallet, preview };
   }

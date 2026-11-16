@@ -538,6 +538,167 @@ describe("sharing a preview's report", () => {
   });
 });
 
+describe("removing a preview", () => {
+  it("deletes everything in it, hides it everywhere, and still counts it toward the daily limit", async () => {
+    const wallet = privateKeyToAccount(generatePrivateKey());
+    const session = await sessionFor(wallet);
+    const preview = await newPreview(session);
+    const key = `preview:${preview.id}`;
+    const { token } = await bodyOf(
+      await send("POST", `/previews/${preview.id}/runner-token`, {}, session),
+    );
+    const ratingId = crypto.randomUUID();
+    await pg.db.pool.query(
+      "INSERT INTO ratings(id,preview_id,kind,status,charged_owner,report,code_hash) VALUES($1,$2,'preview','done',$3,$4,$5)",
+      [
+        ratingId,
+        preview.id,
+        wallet.address.toLowerCase(),
+        JSON.stringify({ scoring: { score: 640 } }),
+        hash(0x5eed),
+      ],
+    );
+    await pg.db.pool.query("INSERT INTO jobs(id,status) VALUES($1,'queued')", [ratingId]);
+    await pg.db.pool.query("UPDATE previews SET rating_id=$2,status='done' WHERE id=$1", [
+      preview.id,
+      ratingId,
+    ]);
+    await pg.db.pool.query("INSERT INTO events(topic,payload) VALUES('rating.episode',$1)", [
+      JSON.stringify({ runId: ratingId, episode: { attackId: "A1-x" } }),
+    ]);
+    await pg.db.pool.query(
+      "INSERT INTO owner_notifications(owner,type,dedupe_key,subject,payload) VALUES($1,'rating_done',$2,$3,'{}')",
+      [wallet.address.toLowerCase(), `done:${ratingId}`, key],
+    );
+
+    // Only its owner, and not while its rating is queued or running.
+    const other = await sessionFor(privateKeyToAccount(generatePrivateKey()));
+    expect((await send("DELETE", `/previews/${preview.id}`, undefined, other)).status).toBe(404);
+    expect((await send("DELETE", `/previews/${preview.id}`, undefined)).status).toBe(401);
+    const busy = await send("DELETE", `/previews/${preview.id}`, undefined, session);
+    expect(busy.status).toBe(409);
+    expect((await bodyOf(busy)).error).toMatch(/Stop it, or wait for it to finish/);
+    await pg.db.pool.query("UPDATE jobs SET status='done' WHERE id=$1", [ratingId]);
+    // Nor while a connection check of it is running.
+    const checkId = crypto.randomUUID();
+    await pg.db.pool.query(
+      "INSERT INTO connection_checks(id,subject,chain_id,owner,mode,connection,status) VALUES($1,$2,$3,$4,'tools','runner','running')",
+      [checkId, key, chainId, wallet.address.toLowerCase()],
+    );
+    const checking = await send("DELETE", `/previews/${preview.id}`, undefined, session);
+    expect(checking.status).toBe(409);
+    expect((await bodyOf(checking)).error).toMatch(/connection check is running/);
+    await pg.db.pool.query("UPDATE connection_checks SET status='passed' WHERE id=$1", [checkId]);
+    await pg.db.pool.query(
+      "INSERT INTO connection_check_events(check_id,event) VALUES($1,'{\"step\":1}')",
+      [checkId],
+    );
+    const shared = (await bodyOf(await send("POST", `/previews/${preview.id}/share`, {}, session)))
+      .token as string;
+
+    const removed = await send("DELETE", `/previews/${preview.id}`, undefined, session);
+    expect(removed.status).toBe(200);
+    expect(await bodyOf(removed)).toEqual({ removed: true });
+
+    // Gone from the owner's list and every route, the share link included.
+    expect((await get(`/previews/${preview.id}`, session)).status).toBe(404);
+    const list = await bodyOf(await get("/previews", session));
+    expect((list.items as { id: string }[]).map((x) => x.id)).not.toContain(preview.id);
+    expect(list.total).toBe(0);
+    expect((await get(`/shared/previews/${shared}`)).status).toBe(404);
+    expect((await send("DELETE", `/previews/${preview.id}`, undefined, session)).status).toBe(404);
+    expect(await auth.validate(token as string)).toBeFalsy();
+    expect((await get(`/previews/${preview.id}/suggested-mandate`, session)).status).toBe(404);
+    // A rating or a hosted agent that reached the database after the route's own check is refused
+    // there too.
+    await expect(
+      pg.db.enqueuePreviewRating(preview.id, {
+        nowMs: Date.now(),
+        perWalletDaily: 100,
+        daily: 1000,
+      }),
+    ).rejects.toThrow("preview not found");
+    await expect(
+      pg.db.saveHostedAgent(
+        key,
+        { kind: "instructions", model: "m", instructions: "x", codeHash: hash(1), createdBy: "w" },
+        preview.id,
+      ),
+    ).rejects.toThrow("preview not found");
+
+    // Everything in it is deleted.
+    const count = async (sql: string, args: unknown[]) =>
+      (await pg.db.pool.query(sql, args)).rows[0].n as number;
+    const n = "SELECT count(*)::int AS n FROM";
+    expect(
+      await count(`${n} events WHERE topic='rating.episode' AND payload->>'runId'=$1`, [ratingId]),
+    ).toBe(0);
+    expect(await count(`${n} runner_tokens WHERE agent_id=$1`, [key])).toBe(0);
+    expect(await count(`${n} connection_checks WHERE subject=$1`, [key])).toBe(0);
+    expect(await count(`${n} connection_check_events WHERE check_id=$1`, [checkId])).toBe(0);
+    expect(await count(`${n} owner_notifications WHERE subject=$1`, [key])).toBe(0);
+    const rating = (
+      await pg.db.pool.query("SELECT report,code_hash,charged_owner FROM ratings WHERE id=$1", [
+        ratingId,
+      ])
+    ).rows[0];
+    expect(rating).toMatchObject({ report: null, code_hash: null });
+
+    // The bare rows stay, so the rating still counts toward the wallet's daily preview.
+    const allowance = await pg.db.previewAllowance(wallet.address, chainId, {
+      nowMs: Date.now(),
+      perWalletDaily: 1,
+      daily: 1000,
+    });
+    expect(allowance.refusal?.refused).toBe("wallet-daily");
+  });
+});
+
+describe("stale previews", () => {
+  it("expire after 7 days without a rating, can't connect, and can still be removed", async () => {
+    const session = await sessionFor(privateKeyToAccount(generatePrivateKey()));
+    const stale = await newPreview(session);
+    const rated = await newPreview(session);
+    const fresh = await newPreview(session);
+    const { token } = await bodyOf(
+      await send("POST", `/previews/${stale.id}/runner-token`, {}, session),
+    );
+    const ratingId = crypto.randomUUID();
+    await pg.db.pool.query(
+      "INSERT INTO ratings(id,preview_id,kind,status) VALUES($1,$2,'preview','done')",
+      [ratingId, rated.id],
+    );
+    await pg.db.pool.query("UPDATE previews SET rating_id=$2,status='done' WHERE id=$1", [
+      rated.id,
+      ratingId,
+    ]);
+    const eightDaysAgo = new Date(Date.now() - 8 * 86_400_000);
+    await pg.db.pool.query("UPDATE previews SET created_at=$2 WHERE id = ANY($1::uuid[])", [
+      [stale.id, rated.id],
+      eightDaysAgo,
+    ]);
+
+    expect(await pg.db.expireStalePreviews()).toBeGreaterThanOrEqual(1);
+    const page = await bodyOf(await get(`/previews/${stale.id}`, session));
+    expect(page.status).toBe("expired");
+    expect(page.reason).toMatch(/expired: it can't connect after 7 days/);
+    // A rated preview and a new one are left alone.
+    expect((await bodyOf(await get(`/previews/${rated.id}`, session))).status).toBe("done");
+    expect((await bodyOf(await get(`/previews/${fresh.id}`, session))).status).toBe("created");
+    // It can't connect, get a new token or be checked any more.
+    expect(await auth.validate(token as string)).toBeFalsy();
+    const again = await send("POST", `/previews/${stale.id}/runner-token`, {}, session);
+    expect(again.status).toBe(409);
+    expect((await bodyOf(again)).error).toMatch(/expired/);
+    // Running it again changes nothing.
+    await pg.db.expireStalePreviews();
+    expect((await bodyOf(await get(`/previews/${stale.id}`, session))).status).toBe("expired");
+    // It can be removed.
+    expect((await send("DELETE", `/previews/${stale.id}`, undefined, session)).status).toBe(200);
+    expect((await get(`/previews/${stale.id}`, session)).status).toBe(404);
+  });
+});
+
 describe("connection checks", () => {
   it("fail at once, saying why, when the agent can't be reached", async () => {
     const session = await sessionFor();

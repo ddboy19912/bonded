@@ -642,6 +642,18 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 **What to do:** Start a new preview.
 
+### preview-expired
+
+**Message:** This preview expired: it can't connect after 7 days.
+
+**What to do:** Start a new preview.
+
+### preview-remove-busy
+
+**Message:** A preview can't be removed while its rating or a connection check is queued or running.
+
+**What to do:** Stop the rating, or wait for it or the check to finish, then remove the preview.
+
 ### share-not-finished
 
 **Message:** Only a finished report can be shared.

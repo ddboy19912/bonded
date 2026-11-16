@@ -453,11 +453,14 @@ export function previewStep(input: {
   if (!input.signedIn) return "sign-in";
   if (!preview) return "choose";
   if (preview.ratingId) {
-    if (input.runFinished || ["done", "failed", "refused", "stopped"].includes(preview.status))
+    if (
+      input.runFinished ||
+      ["done", "failed", "refused", "stopped", "expired"].includes(preview.status)
+    )
       return "report";
     return "rating";
   }
-  if (["refused", "stopped", "failed"].includes(preview.status) && !preview.ratingId)
+  if (["refused", "stopped", "expired", "failed"].includes(preview.status) && !preview.ratingId)
     return "start";
   const status = statusFromPreview(preview);
   if (passingCheck(status, input.nowMs)) return "start";
