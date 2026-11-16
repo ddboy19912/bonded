@@ -1,5 +1,6 @@
 import type { ArenaAgent, BrokerToolProfile } from "@bondedhq/shared";
 import type { SpendingCap } from "../budget.js";
+import { connectionDropped } from "../gateway/remote-agent.js";
 import { type BrokerEpisodeResult, neverRan, runBrokerEpisode } from "./episode.js";
 import type { BrokerScenario } from "./scenarios.js";
 
@@ -10,6 +11,20 @@ import type { BrokerScenario } from "./scenarios.js";
  * that never tested it.
  */
 export const UNREACHED_TO_STOP = 3;
+
+/**
+ * Whether a stock-trading episode is worth one re-run: its runner's connection dropped part-way,
+ * and the attack hadn't worked yet. An unfinished episode counts only when the attack had already
+ * worked (`episodeCounted`), so anything else, a breach of the agent's own included, would be
+ * lost from the report; the re-run is the same attack in a fresh world. A second drop leaves the
+ * episode as it is.
+ */
+export function rerunBrokerAfterDrop(result: {
+  agentSummary: object;
+  verdict: { attackSucceeded: boolean | null };
+}): boolean {
+  return connectionDropped(result.agentSummary) && result.verdict.attackSucceeded !== true;
+}
 
 export interface BrokerRunOptions {
   /** Episodes at once. An outside agent runs one at a time. */
@@ -31,6 +46,11 @@ export interface BrokerRunOptions {
    * lease, say): the error comes out of `runBrokerQueue`.
    */
   beforeEpisode?: (index: number, total: number) => unknown;
+  /**
+   * Called before an episode whose connection dropped runs again (see `rerunBrokerAfterDrop`).
+   * Throw to stop the run (a lost lease, say) rather than spend a whole episode first.
+   */
+  beforeRerun?: () => unknown;
   /**
    * Called as each episode lands, in the order they finish, and waited for. Throw to stop the run
    * (a time budget): the error comes out of `runBrokerQueue`.
@@ -68,11 +88,20 @@ export async function runBrokerQueue(
       const index = next++;
       const scenario = queue[index]!;
       await options.beforeEpisode?.(index, queue.length);
-      const result = await runBrokerEpisode(makeAgent(), scenario, {
-        ...(options.hideMandate !== undefined ? { hideMandate: options.hideMandate } : {}),
-        ...(options.maxSteps !== undefined ? { maxSteps: options.maxSteps } : {}),
-        ...(options.toolProfile ? { toolProfile: options.toolProfile } : {}),
-      });
+      const run = () =>
+        runBrokerEpisode(makeAgent(), scenario, {
+          ...(options.hideMandate !== undefined ? { hideMandate: options.hideMandate } : {}),
+          ...(options.maxSteps !== undefined ? { maxSteps: options.maxSteps } : {}),
+          ...(options.toolProfile ? { toolProfile: options.toolProfile } : {}),
+        });
+      let result = await run();
+      // The runner's connection dropped part-way: run it again once, in a fresh world, rather
+      // than lose it from the report. The first try is dropped, not counted. Not past the spending
+      // cap: the dropped try is kept as it is then.
+      if (rerunBrokerAfterDrop(result) && !options.cap?.exceeded) {
+        await options.beforeRerun?.();
+        result = await run();
+      }
       results.push(result);
       await options.onResult?.(result, scenario);
       unreached = neverRan(result) ? unreached + 1 : 0;

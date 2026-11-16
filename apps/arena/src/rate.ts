@@ -39,7 +39,12 @@ import { datasetRows, type SentinelRow, writeDataset } from "./dataset.js";
 import { ratingDollarsAtRisk } from "./dollars-at-risk.js";
 import type { BenignSeed } from "./benign.js";
 import { BENIGN_GOALS, type EpisodeResult, runEpisode, saveEpisode } from "./episode.js";
-import { AgentUrlUnavailableError, bondedFailure, RemoteAgent } from "./gateway/remote-agent.js";
+import {
+  AgentUrlUnavailableError,
+  bondedFailure,
+  RemoteAgent,
+  rerunAfterDrop,
+} from "./gateway/remote-agent.js";
 import { isMemoryCapable, runMemoryBattery, validateMemoryBattery } from "./memory-attempt.js";
 import {
   type WorldPairResult,
@@ -613,6 +618,10 @@ export interface RatingResult {
 
 const SEVERITY_ORDER: Severity[] = ["low", "medium", "high", "critical"];
 
+/** Actions an agent's guard blocked because it failed to answer, in one episode. */
+const guardFailuresIn = (e: EpisodeResult): number =>
+  e.agentSummary.blockedActions?.filter((b) => b.guardFailed).length ?? 0;
+
 export async function rateAgent(sandbox: Sandbox, options: RatingOptions): Promise<RatingResult> {
   const s1Config = options.s1 ? s1BatterySettings(options.s1.seeds, options.s1.pairs) : undefined;
   const memoryRounds = options.memory
@@ -699,20 +708,36 @@ export async function rateAgent(sandbox: Sandbox, options: RatingOptions): Promi
   // Progress runs from the first episode, after the setup above.
   const episodesStarted = Date.now();
   await options.onProgress?.(ratingProgress(episodesStarted, 0, totalEpisodes));
+  /** Guard failures in tries a dropped connection made Bonded run again (see below). */
+  let droppedGuardFailures = 0;
   for (const [index, job] of jobs.entries()) {
     if (cap.exceeded) {
       stoppedEarly = `spending cap of $${options.maxUsd} reached after ${index} of ${jobs.length} episodes`;
       break;
     }
-    const result = await runEpisode(sandbox, {
-      agent: options.agent,
-      attack: job.attack,
-      goal: job.goal,
-      ...(job.benign ? { benign: job.benign } : {}),
-      worldSeed: `${worldSecret}:${index}`,
-      ...(options.vault ? { vault: options.vault } : {}),
-      ...(options.episodeTimeoutMs ? { timeoutMs: options.episodeTimeoutMs } : {}),
-    });
+    const run = () =>
+      runEpisode(sandbox, {
+        agent: options.agent,
+        attack: job.attack,
+        goal: job.goal,
+        ...(job.benign ? { benign: job.benign } : {}),
+        worldSeed: `${worldSecret}:${index}`,
+        ...(options.vault ? { vault: options.vault } : {}),
+        ...(options.episodeTimeoutMs ? { timeoutMs: options.episodeTimeoutMs } : {}),
+      });
+    let result = await run();
+    // The runner's connection dropped part-way: run it again once rather than lose the episode
+    // (or, in a rating that stops at the agent's first failure, stop on a network blip).
+    if (rerunAfterDrop(result)) {
+      cap.add(result.agentSummary.usage);
+      // A guard that couldn't answer in the dropped try still counts against the rating.
+      droppedGuardFailures += guardFailuresIn(result);
+      if (cap.exceeded) {
+        stoppedEarly = `spending cap of $${options.maxUsd} reached after ${index} of ${jobs.length} episodes`;
+        break;
+      }
+      result = await run();
+    }
     // An episode Bonded couldn't deliver says nothing about the agent: stop, not the agent's
     // failure (the rating service retries the rating).
     const bonded = bondedFailure(result.agentSummary);
@@ -992,10 +1017,7 @@ export async function rateAgent(sandbox: Sandbox, options: RatingOptions): Promi
       ...s1Episodes,
       ...memoryEpisodes,
       ...worldEpisodes,
-    ].reduce(
-      (n, e) => n + (e.agentSummary.blockedActions?.filter((b) => b.guardFailed).length ?? 0),
-      0,
-    ),
+    ].reduce((n, e) => n + guardFailuresIn(e), droppedGuardFailures),
     spend: cap.summary(),
     liveness: ratingLiveness(
       episodes,

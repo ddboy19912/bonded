@@ -27,6 +27,8 @@ export {
   type AgentTransport,
   AgentUrlUnavailableError,
   bondedFailure,
+  connectionDropped,
+  rerunAfterDrop,
   BROKERAGE_RUNNER_NEEDED,
   RemoteAgent,
   type RemoteEpisodeEvent,

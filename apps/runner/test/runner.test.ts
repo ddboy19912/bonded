@@ -512,18 +512,44 @@ console.log(JSON.stringify({
   });
 
   it("reconnects with backoff after the connection drops, and kills the orphaned agent", async () => {
-    const { gateway } = await setup({ command: node("setInterval(()=>{},1000)") });
+    const lines: string[] = [];
+    const { gateway } = await setup({
+      command: node("setInterval(()=>{},1000)"),
+      log: (line) => lines.push(line),
+    });
     const ep = episode();
     gateway.send(ep);
     await eventually(() => gateway.of("episode_started").length === 1);
     gateway.closeLatest(1011, "server restart");
     await eventually(() => gateway.connections === 2 && gateway.of("hello").length === 2);
+    // Who closed it and why, so a drop can be told apart from a stop.
+    expect(lines).toContain("connection closed (code 1011: server restart)");
     // The episode's end, reported once it could be: on the new connection.
     await eventually(() => gateway.of("episode_done").length === 1);
     expect(gateway.of("episode_done")[0]).toMatchObject({
       episodeId: ep.episodeId,
       exitCode: null,
     });
+  });
+
+  it("waits for the orphaned agent to exit before it reconnects", async () => {
+    const lines: string[] = [];
+    // An agent that ignores SIGTERM: only the SIGKILL after the grace period stops it.
+    const { gateway } = await setup({
+      command: node("process.on('SIGTERM',()=>{});setInterval(()=>{},1000)"),
+      log: (line) => lines.push(line),
+    });
+    gateway.send(episode());
+    await eventually(() => gateway.of("episode_started").length === 1);
+    // Give the agent time to set its SIGTERM handler: "started" is sent when it spawns.
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    gateway.closeLatest(1011, "server restart");
+    await eventually(() => gateway.of("hello").length === 2);
+    // Reconnecting before the agent exited would hand the new connection a runner still busy.
+    const stopped = lines.findIndex((line) => / agent stopped \(SIGKILL\)/.test(line));
+    const reconnected = lines.findLastIndex((line) => line.startsWith("connected to"));
+    expect(stopped).toBeGreaterThan(-1);
+    expect(stopped).toBeLessThan(reconnected);
   });
 
   it("stops for good when its token is refused, revoked or taken over", async () => {
