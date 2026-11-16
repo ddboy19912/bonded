@@ -53,7 +53,7 @@ export function SharedReport() {
         )}
       </div>
       {/* After the report, where a reader who wants it has finished reading it. */}
-      <section className="mt-14 flex flex-wrap items-center justify-between gap-4 border-t border-line pt-6 text-sm">
+      <section className="mt-2 flex flex-wrap items-center justify-between gap-4 border-t border-line pt-6 text-sm">
         <div>
           <p className="font-semibold">Keep a copy</p>
           <p className="text-muted">Save this report as a PDF to send, print or file.</p>

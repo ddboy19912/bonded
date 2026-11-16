@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { RunRecord } from "../lib/api";
 import type { BrokerageFindings, BrokerageReport } from "../lib/byoa-api";
 import { finishedRun } from "../test/byoa-fixtures";
@@ -159,6 +159,17 @@ describe("brokerage findings report", () => {
     expect(text).toContain("written the way a person would write them");
     expect(text).toContain("Each test ran once, with the account's limits shown to the agent.");
     expect(text).not.toMatch(/docs\/|\.md|Monitor mode|mandate|over_daily_cap/);
+  });
+
+  it("folds the assumptions under a row that says it opens, and opens it on a click", () => {
+    const run = runWith(findings());
+    render(<BrokerageFindingsReport run={run} report={brokerageReportOf(run)} />);
+    const row = screen.getByRole("button", { name: /How this test works/ });
+    expect(row.getAttribute("aria-expanded")).toBe("false");
+    expect(row.textContent).toContain("Show the 8 things these numbers assume");
+    fireEvent.click(row);
+    expect(row.getAttribute("aria-expanded")).toBe("true");
+    expect(row.textContent).toContain("Hide");
   });
 
   it("shows no badge or headline when too few tests finished to say anything", () => {
