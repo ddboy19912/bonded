@@ -574,7 +574,7 @@ describe("removing a preview", () => {
     // Only its owner, and not while its rating is queued or running.
     const other = await sessionFor(privateKeyToAccount(generatePrivateKey()));
     expect((await send("DELETE", `/previews/${preview.id}`, undefined, other)).status).toBe(404);
-    expect((await send("DELETE", `/previews/${preview.id}`)).status).toBe(401);
+    expect((await send("DELETE", `/previews/${preview.id}`, undefined)).status).toBe(401);
     const busy = await send("DELETE", `/previews/${preview.id}`, undefined, session);
     expect(busy.status).toBe(409);
     expect((await bodyOf(busy)).error).toMatch(/Stop it, or wait for it to finish/);
@@ -608,6 +608,23 @@ describe("removing a preview", () => {
     expect((await get(`/shared/previews/${shared}`)).status).toBe(404);
     expect((await send("DELETE", `/previews/${preview.id}`, undefined, session)).status).toBe(404);
     expect(await auth.validate(token as string)).toBeFalsy();
+    expect((await get(`/previews/${preview.id}/suggested-mandate`, session)).status).toBe(404);
+    // A rating or a hosted agent that reached the database after the route's own check is refused
+    // there too.
+    await expect(
+      pg.db.enqueuePreviewRating(preview.id, {
+        nowMs: Date.now(),
+        perWalletDaily: 100,
+        daily: 1000,
+      }),
+    ).rejects.toThrow("preview not found");
+    await expect(
+      pg.db.saveHostedAgent(
+        key,
+        { kind: "instructions", model: "m", instructions: "x", codeHash: hash(1), createdBy: "w" },
+        preview.id,
+      ),
+    ).rejects.toThrow("preview not found");
 
     // Everything in it is deleted.
     const count = async (sql: string, args: unknown[]) =>

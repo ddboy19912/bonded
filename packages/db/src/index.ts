@@ -2930,7 +2930,8 @@ export class Database {
     return this.transaction(async (c) => {
       const preview = (await c.query("SELECT * FROM previews WHERE id=$1 FOR UPDATE", [previewId]))
         .rows[0];
-      if (!preview) throw new AgentNotConfiguredError("preview not found");
+      // Removed since the route read it (0041): as gone as one that never existed.
+      if (!preview || preview.removed_at) throw new AgentNotConfiguredError("preview not found");
       await c.query("SELECT pg_advisory_xact_lock(7014,$1)", [preview.chain_id]);
       const busy = await c.query(
         `SELECT 1 FROM ratings r JOIN jobs j ON j.id=r.id
@@ -3188,9 +3189,13 @@ export class Database {
     return this.transaction(async (c) => {
       await this.lockSubject(c, ownerKey);
       if (previewId) {
-        const status = (
-          await c.query("SELECT status FROM previews WHERE id=$1 FOR UPDATE", [previewId])
-        ).rows[0]?.status as string | undefined;
+        const row = (
+          await c.query("SELECT status,removed_at FROM previews WHERE id=$1 FOR UPDATE", [
+            previewId,
+          ])
+        ).rows[0] as { status: string; removed_at: Date | null } | undefined;
+        if (row?.removed_at) throw new AgentNotConfiguredError("preview not found");
+        const status = row?.status;
         if (status && ["queued", "starting", "running", "stopped", "expired"].includes(status))
           return { refused: status };
       }
