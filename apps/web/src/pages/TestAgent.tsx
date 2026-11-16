@@ -52,6 +52,7 @@ import {
   WorldChoice,
 } from "../components/connection-setup";
 import { BrokerageFindingsReport, brokerageReportOf } from "../components/brokerage-findings";
+import { PrintHeader, reportFileName } from "../components/save-pdf";
 import { FrameworkQuestions, useFramework } from "../components/framework-questions";
 import { FRAMEWORK_TEXT, connectionFor, hostingFor } from "../lib/frameworks";
 import { Collapsible } from "../components/collapsible";
@@ -623,22 +624,27 @@ export function TestAgent() {
             </FlowStep>
 
             <FlowStep n={7} title={STEP_TITLES.report} state={stateOf("report")}>
-              {p && run.data && runFinished && p.world === "brokerage" ? (
-                <BrokerageFindingsReport
-                  run={run.data}
-                  report={brokerageReportOf(run.data)}
-                  onRateAgain={() => void rateAgain(p)}
-                  rateAgainBusy={creating}
-                />
-              ) : p && run.data && runFinished ? (
-                <PreviewReport
-                  preview={p}
-                  run={run.data}
-                  previous={previewBefore(p, previews.data?.items)}
-                  session={session?.session}
-                  onRateAgain={() => void rateAgain(p)}
-                  rateAgainBusy={creating}
-                />
+              {p && run.data && runFinished ? (
+                <div data-print-root>
+                  <PrintHeader world={p.world ?? "vault"} ranAt={run.data.created_at} />
+                  {p.world === "brokerage" ? (
+                    <BrokerageFindingsReport
+                      run={run.data}
+                      report={brokerageReportOf(run.data)}
+                      onRateAgain={() => void rateAgain(p)}
+                      rateAgainBusy={creating}
+                    />
+                  ) : (
+                    <PreviewReport
+                      preview={p}
+                      run={run.data}
+                      previous={previewBefore(p, previews.data?.items)}
+                      session={session?.session}
+                      onRateAgain={() => void rateAgain(p)}
+                      rateAgainBusy={creating}
+                    />
+                  )}
+                </div>
               ) : p && FINISHED.includes(p.status) && p.ratingId ? (
                 <Loading what="the report" height="md" />
               ) : null}
@@ -648,6 +654,7 @@ export function TestAgent() {
                   session={session.session}
                   share={p.share}
                   onChanged={() => preview.refetch()}
+                  pdfFileName={reportFileName(p.world ?? "vault", run.data.created_at)}
                 />
               )}
             </FlowStep>

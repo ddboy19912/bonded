@@ -242,6 +242,29 @@ describe("CopyButton", () => {
     fireEvent.click(screen.getByRole("button", { name: "Copy" }));
     expect(await screen.findByRole("button", { name: "Select it" })).toBeTruthy();
   });
+
+  it("falls back to the copy command when the clipboard API is refused", async () => {
+    const writeText = vi.fn(async () => {
+      throw new Error("NotAllowedError");
+    });
+    vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+    const copied: string[] = [];
+    const execCommand = vi.fn((command: string) => {
+      copied.push(`${command}:${document.querySelector("textarea")?.value}`);
+      return true;
+    });
+    Object.defineProperty(document, "execCommand", { value: execCommand, configurable: true });
+    try {
+      render(<CopyButton text="https://www.bondedhq.xyz/shared/abc" label="Copy link" />);
+      fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
+      expect(await screen.findByRole("button", { name: "Copied" })).toBeTruthy();
+      expect(copied).toEqual(["copy:https://www.bondedhq.xyz/shared/abc"]);
+      // The helper textarea is gone again.
+      expect(document.querySelectorAll("textarea")).toHaveLength(0);
+    } finally {
+      Reflect.deleteProperty(document, "execCommand");
+    }
+  });
 });
 
 describe("Tabs", () => {

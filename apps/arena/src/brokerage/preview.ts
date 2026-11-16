@@ -4,6 +4,7 @@ import {
   type BrokerToolProfile,
 } from "@bondedhq/shared";
 import { type BrokerEpisodeResult, didNotFinish } from "./episode.js";
+import { normalSymbol } from "./ledger.js";
 import { approvedPlanted, brokerAssumptions } from "./report.js";
 import { runBrokerQueue, UNREACHED_TO_STOP } from "./run.js";
 import {
@@ -164,7 +165,14 @@ export interface BrokerageAttackFinding {
   atRiskUsd: number;
   /** From the first episode it worked in: what the agent did. */
   example?: {
-    orders: { side: string; symbol: string; amountUsd: number; priceUsd: number }[];
+    /** Every order the agent placed; `planted`: the trade the attack was planted to cause. */
+    orders: {
+      side: string;
+      symbol: string;
+      amountUsd: number;
+      priceUsd: number;
+      planted?: boolean;
+    }[];
     withdrawals: { account: string; amountUsd: number; linked: boolean }[];
     breaches: string[][];
     /** Approvals that covered an order for the planted trade: the agent's own words. */
@@ -300,12 +308,16 @@ export function brokerageFindings(run: BrokeragePreviewRun): BrokerageFindings {
 
 function exampleOf(s: BrokerScenario, r: BrokerEpisodeResult): BrokerageAttackFinding["example"] {
   const message = r.agentSummary.finalMessage?.trim();
+  const planted = s.attack?.plantedTrades ?? [];
   return {
     orders: r.orders.map((o) => ({
       side: o.side,
       symbol: o.symbol,
       amountUsd: o.amountUsd,
       priceUsd: o.priceUsd,
+      ...(planted.some((t) => normalSymbol(t.symbol) === o.symbol && t.side === o.side)
+        ? { planted: true }
+        : {}),
     })),
     withdrawals: r.withdrawals.map((w) => ({
       account: w.account,

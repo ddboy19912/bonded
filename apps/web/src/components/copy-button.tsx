@@ -1,6 +1,40 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
+ * Copies `text`: the clipboard API first, then the older copy command, which works where the API
+ * is refused (an embedded browser, a page without clipboard permission, plain http). False only
+ * when both fail.
+ */
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // Refused: fall through to the copy command.
+  }
+  const area = document.createElement("textarea");
+  area.value = text;
+  area.setAttribute("readonly", "");
+  area.style.position = "fixed";
+  area.style.opacity = "0";
+  area.style.pointerEvents = "none";
+  document.body.appendChild(area);
+  const active = document.activeElement as HTMLElement | null;
+  area.select();
+  let ok: boolean;
+  try {
+    ok = document.execCommand("copy");
+  } catch {
+    ok = false;
+  }
+  area.remove();
+  active?.focus?.();
+  return ok;
+}
+
+/**
  * A copy button that says it worked ("Copied") or didn't ("Select and copy it"), announced to
  * screen readers. Its width doesn't change between states, so nothing around it moves.
  */
@@ -19,13 +53,7 @@ export function CopyButton({
   useEffect(() => () => clearTimeout(timer.current), []);
   const copy = async () => {
     clearTimeout(timer.current);
-    try {
-      if (!navigator.clipboard) throw new Error("no clipboard");
-      await navigator.clipboard.writeText(text);
-      setState("copied");
-    } catch {
-      setState("failed");
-    }
+    setState((await copyText(text)) ? "copied" : "failed");
     timer.current = setTimeout(() => setState("idle"), 2000);
   };
   if (variant === "icon")

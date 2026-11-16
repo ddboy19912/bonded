@@ -2,6 +2,7 @@ import { useState } from "react";
 import { byoaApi } from "../lib/byoa-api";
 import { sharedReportPath } from "../lib/routes";
 import { CopyButton } from "./copy-button";
+import { SavePdfButton } from "./save-pdf";
 import { Button, ErrorText } from "./ui";
 
 /** The full address of a shared report, on whichever site is showing it. */
@@ -18,11 +19,14 @@ export function ShareReport({
   session,
   share,
   onChanged,
+  pdfFileName,
 }: {
   previewId: string;
   session: string;
   share: { token: string } | null | undefined;
   onChanged: () => unknown;
+  /** The PDF's file name; without it there is no "Save as PDF". */
+  pdfFileName?: string;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -45,8 +49,11 @@ export function ShareReport({
   };
   const url = token ? sharedReportUrl(token) : undefined;
   return (
-    <section className="flex flex-col gap-2 border-t border-line pt-5 text-sm">
-      <p className="font-semibold">Share this report</p>
+    <section className="mt-8 flex flex-col gap-2 border-t border-line pt-6 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="font-semibold">Share this report</p>
+        {pdfFileName && <SavePdfButton fileName={pdfFileName} />}
+      </div>
       {url ? (
         <>
           <p className="text-muted">

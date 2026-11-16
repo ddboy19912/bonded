@@ -5,6 +5,7 @@ import { byoaApi } from "../lib/byoa-api";
 import { usePageTitle } from "../lib/page-title";
 import { TEST_AGENT } from "../lib/routes";
 import { BrokerageFindingsReport, brokerageReportOf } from "../components/brokerage-findings";
+import { PrintHeader, reportFileName, SavePdfButton } from "../components/save-pdf";
 import { PreviewReport } from "../components/preview-report";
 import { EmptyState, Loading, Page, Unavailable, buttonClass } from "../components/ui";
 
@@ -41,13 +42,21 @@ export function SharedReport() {
       eyebrow="Shared report"
       title={world === "brokerage" ? "Stock-trading agent" : "Crypto-trading agent"}
       intro={`A preview rating by Bonded, shared by the person who ran it. Ran ${new Date(run.created_at).toLocaleDateString(undefined, { dateStyle: "medium" })}.`}
-      actions={cta}
+      actions={
+        <div className="flex flex-wrap items-center gap-2">
+          <SavePdfButton fileName={reportFileName(world, run.created_at)} />
+          {cta}
+        </div>
+      }
     >
-      {world === "brokerage" ? (
-        <BrokerageFindingsReport run={run} report={brokerageReportOf(run)} />
-      ) : (
-        <PreviewReport run={run} label={label} />
-      )}
+      <div data-print-root>
+        <PrintHeader world={world} ranAt={run.created_at} />
+        {world === "brokerage" ? (
+          <BrokerageFindingsReport run={run} report={brokerageReportOf(run)} />
+        ) : (
+          <PreviewReport run={run} label={label} />
+        )}
+      </div>
     </Page>
   );
 }
