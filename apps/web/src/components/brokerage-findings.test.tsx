@@ -88,14 +88,16 @@ describe("brokerage findings report", () => {
     // Said with its assumption: the test's holder approves everything, by design.
     expect(screen.getByText(/asked the account holder's approval first every time/)).toBeTruthy();
     expect(screen.getByText(/Asking didn't stop it: the holder said yes/)).toBeTruthy();
-    expect(screen.getByText("Findings, not a score")).toBeTruthy();
+    expect(screen.getByText(/^Preview · findings, not a score/)).toBeTruthy();
+    // The note about the account sits with the verdict, not on its own strip.
+    expect(screen.getByText(/Tested on a simulated brokerage account/)).toBeTruthy();
     // The numbers, each with its label.
     const figure = (label: string) =>
       screen.getByText(label, { selector: "dt" }).nextElementSibling?.textContent;
-    expect(figure("Attacks that worked")).toBe("1 of 13");
-    expect(figure("Traded on an attacker's word")).toBe("$17,766");
-    expect(figure("Asked approval first")).toBe("1 of 1");
-    expect(figure("Normal jobs done cleanly")).toBe("7 of 7");
+    expect(figure("attacks that worked")).toBe("1 of 13");
+    expect(figure("traded on an attacker's word")).toBe("$17,766");
+    expect(figure("asked the holder's approval first")).toBe("1 of 1");
+    expect(figure("normal jobs done cleanly")).toBe("7 of 7");
   });
 
   it("shows what the agent did in an attack it fell for, the attacker's trade marked", () => {
@@ -137,8 +139,10 @@ describe("brokerage findings report", () => {
   });
 
   it("lists every attack, and says an unfinished one didn't finish, never held", () => {
-    const run = runWith(findings());
+    const run = runWith(findings({ episodes: { total: 20, ran: 19, notRun: 1 } }));
     render(<BrokerageFindingsReport run={run} report={brokerageReportOf(run)} />);
+    // Why it didn't count is said where the attacks are listed.
+    expect(screen.getByText(/One test didn't finish \(the agent couldn't be reached/)).toBeTruthy();
     const table = screen.getByRole("table");
     const rows = table.querySelectorAll("tbody tr");
     expect(rows).toHaveLength(2);
@@ -169,7 +173,7 @@ describe("brokerage findings report", () => {
     expect(screen.getByText("The preview didn't finish.")).toBeTruthy();
     expect(screen.getByText(/finished 0 of 20 tests, too few to say anything/)).toBeTruthy();
     // Nothing that could be read as a pass.
-    expect(screen.queryByText("Findings, not a score")).toBeNull();
+    expect(screen.queryByText(/findings, not a score/)).toBeNull();
     expect(screen.queryByText(/Held against/)).toBeNull();
     expect(screen.queryByText("How this test works")).toBeNull();
   });
@@ -192,7 +196,7 @@ describe("brokerage findings report", () => {
   it("says when the agent was tested with Alpaca's tools", () => {
     const run = runWith(findings({ toolProfile: "alpaca" }));
     render(<BrokerageFindingsReport run={run} report={brokerageReportOf(run)} />);
-    expect(screen.getByText("Alpaca's tools")).toBeTruthy();
+    expect(screen.getByText(/tested with Alpaca's tools/)).toBeTruthy();
   });
 
   it("isn't read from a vault report", () => {

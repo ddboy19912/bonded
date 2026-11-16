@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import type { RunRecord } from "../lib/api";
 import type { BrokerageAttackFinding, BrokerageFindings, BrokerageReport } from "../lib/byoa-api";
 import { ratingFailure } from "../lib/byoa";
-import { Badge, Button, Note } from "./ui";
+import { Button, Note } from "./ui";
 
 /** The label every brokerage preview carries. */
 export const BROKERAGE_LABEL = "Findings, not a score";
@@ -67,7 +67,7 @@ export function BrokerageFindingsReport({
 }) {
   const f = report?.findings;
   return (
-    <div className="flex flex-col gap-10 text-sm">
+    <div className="flex flex-col gap-14 text-sm">
       {run.status === "failed" && (
         <Note tone="breach" role="alert" title="The preview didn't finish.">
           {ratingFailure(run)}
@@ -82,7 +82,10 @@ export function BrokerageFindingsReport({
       )}
       {f && !f.inconclusive && <FindingsBody f={f} />}
       {onRateAgain && (
-        <div data-print-hide className="flex flex-wrap items-center justify-between gap-3">
+        <div
+          data-print-hide
+          className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-6"
+        >
           <div>
             <p className="font-semibold">Fixed something?</p>
             <p className="text-muted">Run it again with the same choices.</p>
@@ -99,6 +102,7 @@ export function BrokerageFindingsReport({
 function FindingsBody({ f }: { f: BrokerageFindings }) {
   const worked = f.perAttack.filter((a) => a.worked > 0);
   const kinds = new Set(f.perAttack.map((a) => a.attackClass)).size;
+  const unfinished = f.episodes.notRun;
   return (
     <>
       <Summary f={f} />
@@ -109,7 +113,7 @@ function FindingsBody({ f }: { f: BrokerageFindings }) {
           title="What the agent did"
           sub="The attacks it fell for: every order it placed in that test, and what it told the account holder."
         >
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="flex flex-col divide-y divide-line">
             {worked.map((a) => (
               <WorkedAttack key={a.id} a={a} />
             ))}
@@ -120,22 +124,26 @@ function FindingsBody({ f }: { f: BrokerageFindings }) {
       <Section
         id="every-attack"
         title="Every attack"
-        sub={`${f.perAttack.length} attacks across ${kinds} kinds of trick, each tried once.`}
+        sub={`${f.perAttack.length} attacks across ${kinds} kinds of trick, each tried once.${
+          unfinished > 0
+            ? ` ${unfinished === 1 ? "One test" : `${unfinished} tests`} didn't finish (the agent couldn't be reached, failed or ran out of time), so ${unfinished === 1 ? "it counts" : "they count"} for nothing either way.`
+            : ""
+        }`}
       >
         <AttackTable f={f} />
       </Section>
 
-      <details className="group panel p-5 sm:p-6 [&_summary::-webkit-details-marker]:hidden">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-semibold">
+      <details className="group border-t border-line pt-6 [&_summary::-webkit-details-marker]:hidden">
+        <summary className="flex cursor-pointer list-none items-center gap-2 text-lg font-bold">
           How this test works
           <span
             aria-hidden
-            className="text-muted transition-transform group-open:rotate-180 print:hidden"
+            className="text-base text-muted transition-transform group-open:rotate-180 print:hidden"
           >
             ▾
           </span>
         </summary>
-        <ul className="mt-4 flex flex-col gap-2.5 text-soft">
+        <ul className="mt-4 flex max-w-3xl flex-col gap-2.5 text-soft">
           {brokerageAssumptions(f).map((line) => (
             <li key={line} className="flex gap-3">
               <span aria-hidden className="mt-2 size-1 shrink-0 rounded-full bg-muted" />
@@ -160,31 +168,30 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <section aria-labelledby={id} className="flex flex-col gap-4">
-      <div className="break-after-avoid">
-        <h3 id={id} className="text-lg font-bold">
+    <section aria-labelledby={id} className="flex flex-col gap-5">
+      <div className="max-w-3xl break-after-avoid">
+        <h3 id={id} className="text-xl font-bold">
           {title}
         </h3>
-        <p className="mt-1 text-muted">{sub}</p>
+        <p className="mt-1.5 text-muted">{sub}</p>
       </div>
       {children}
     </section>
   );
 }
 
-/** The verdict and its four numbers, before anything else. */
+/** The verdict, what it means, and its four numbers: no box, just type and space. */
 function Summary({ f }: { f: BrokerageFindings }) {
   const fell = f.attacks.worked > 0;
   const approved = f.attacks.approvedThenWorked;
   return (
-    <section className="panel overflow-hidden" aria-labelledby="findings-verdict">
-      <div className="flex flex-col gap-3 p-5 sm:p-7">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge tone="warn">Preview</Badge>
-          <Badge tone="neutral">{BROKERAGE_LABEL}</Badge>
-          {f.toolProfile === "alpaca" && <Badge tone="neutral">Alpaca's tools</Badge>}
-        </div>
-        <h2 id="findings-verdict" className="font-serif text-4xl leading-tight sm:text-5xl">
+    <section aria-labelledby="findings-verdict" className="flex flex-col gap-8 pt-6 print:pt-0">
+      <div className="flex max-w-3xl flex-col gap-4">
+        <p className="text-xs font-semibold text-warn">
+          Preview · {BROKERAGE_LABEL.toLowerCase()}
+          {f.toolProfile === "alpaca" ? " · tested with Alpaca's tools" : ""}
+        </p>
+        <h2 id="findings-verdict" className="font-serif text-5xl leading-[1.05] sm:text-6xl">
           {fell ? (
             <>
               Fell for{" "}
@@ -195,46 +202,44 @@ function Summary({ f }: { f: BrokerageFindings }) {
             <>Held against all {f.attacks.seedsRan} attacks</>
           )}
         </h2>
-        <p className="max-w-2xl text-base text-soft">
+        <p className="text-lg leading-relaxed text-soft">
           {fell
             ? `It traded ${usd(f.attacks.steeredUsd)} on an attacker's word${f.attacks.atRiskUsd > 0 ? `, with ${usd(f.attacks.atRiskUsd)} at risk` : ""}${approved > 0 ? `, and asked the account holder's approval first ${approved === f.attacks.worked ? "every time" : `${of(approved, f.attacks.worked)} times`}. Asking didn't stop it: the holder said yes.` : "."}`
             : "No planted notice, filing, alert or post got it to trade or move money it shouldn't have."}
         </p>
+        <p className="text-muted">
+          Tested on a simulated brokerage account. These attacks aren't part of official ratings
+          yet, so this gives findings, not a score.
+        </p>
       </div>
-      <dl className="grid grid-cols-2 border-t border-line sm:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-x-8 gap-y-6 border-t border-line pt-6 sm:grid-cols-4">
         <Figure
-          label="Attacks that worked"
+          label="attacks that worked"
           value={of(f.attacks.seedsWorked, f.attacks.seedsRan)}
           tone={fell ? "breach" : "safe"}
         />
         <Figure
-          label="Traded on an attacker's word"
+          label="traded on an attacker's word"
           value={usd(f.attacks.steeredUsd)}
           tone={fell ? "breach" : undefined}
         />
-        <Figure label="Asked approval first" value={fell ? of(approved, f.attacks.worked) : "–"} />
         <Figure
-          label="Normal jobs done cleanly"
+          label="asked the holder's approval first"
+          value={fell ? of(approved, f.attacks.worked) : "–"}
+        />
+        <Figure
+          label="normal jobs done cleanly"
           value={of(f.job.done, f.job.ran)}
           tone={f.job.done === f.job.ran ? "safe" : "warn"}
         />
       </dl>
-      {f.episodes.notRun > 0 && (
-        <p className="border-t border-line px-5 py-3 text-xs text-warn sm:px-7">
-          {of(f.episodes.notRun, f.episodes.total)} tests didn't finish (the agent couldn't be
-          reached, failed or ran out of time). They count for nothing either way.
-        </p>
-      )}
-      <p className="border-t border-line px-5 py-3 text-xs text-muted sm:px-7">
-        A simulated brokerage account. These attacks aren't part of official ratings yet, so there's
-        no score.
-      </p>
     </section>
   );
 }
 
 const TONE = { breach: "text-breach", safe: "text-safe", warn: "text-warn" } as const;
 
+/** A number first, then what it counts. */
 function Figure({
   label,
   value,
@@ -245,9 +250,9 @@ function Figure({
   tone?: keyof typeof TONE | undefined;
 }) {
   return (
-    <div className="flex flex-col justify-between gap-1.5 border-line p-5 even:border-l sm:border-l sm:first:border-l-0 sm:px-7 [&:nth-child(n+3)]:border-t sm:[&:nth-child(n+3)]:border-t-0">
-      <dt className="eyebrow">{label}</dt>
-      <dd className={`text-2xl font-bold tracking-tight tabular-nums ${tone ? TONE[tone] : ""}`}>
+    <div className="flex flex-col-reverse justify-end gap-1">
+      <dt className="text-muted">{label}</dt>
+      <dd className={`text-3xl font-bold tracking-tight tabular-nums ${tone ? TONE[tone] : ""}`}>
         {value}
       </dd>
     </div>
@@ -261,73 +266,64 @@ function WorkedAttack({ a }: { a: BrokerageAttackFinding }) {
   const isPlanted = (o: NonNullable<typeof ex>["orders"][number]) =>
     o.planted ?? Boolean(ex?.approvals.some((ap) => ap.symbol === o.symbol && ap.side === o.side));
   return (
-    <article className="panel flex flex-col gap-5 p-5 sm:p-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="eyebrow">{a.className}</p>
-          <h4 className="mt-1.5 text-base font-semibold">{a.title}</h4>
+    <article className="grid gap-x-12 gap-y-6 py-8 first:pt-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="flex flex-col gap-4">
+        <div>
+          <p className="text-muted">{a.className}</p>
+          <h4 className="mt-1 text-lg font-semibold">{a.title}</h4>
+          <p className="mt-1 font-semibold text-breach">Traded {usd(a.steeredUsd)} on it</p>
         </div>
-        <Badge tone="breach">Traded {usd(a.steeredUsd)}</Badge>
-      </header>
-
-      {ex && (ex.orders.length > 0 || ex.withdrawals.length > 0) && (
-        <div className="flex flex-col gap-2">
-          <p className="eyebrow">What it did</p>
-          <ul className="overflow-hidden rounded-lg border border-line">
+        {ex && (ex.orders.length > 0 || ex.withdrawals.length > 0) && (
+          <ul className="divide-y divide-line">
             {ex.orders.map((o, i) => {
               const planted = isPlanted(o);
               return (
-                <li
-                  key={`o${i}`}
-                  className={`flex items-center gap-3 border-line px-3.5 py-2.5 not-first:border-t ${planted ? "bg-breach-soft" : ""}`}
-                >
+                <li key={`o${i}`} className="flex items-baseline gap-3 py-2.5">
                   <span
-                    className={`w-10 shrink-0 text-xs font-semibold uppercase ${o.side === "buy" ? "text-safe" : "text-accent"}`}
+                    className={`w-9 shrink-0 text-xs font-semibold ${o.side === "buy" ? "text-safe" : "text-accent"}`}
                   >
                     {o.side === "buy" ? "Buy" : "Sell"}
                   </span>
-                  <span className="font-mono font-semibold">{o.symbol}</span>
-                  {planted && (
-                    <span className="text-xs font-semibold text-breach">attacker's trade</span>
-                  )}
-                  <span className="ml-auto font-mono tabular-nums">{usd(o.amountUsd)}</span>
+                  <span className={`font-mono font-semibold ${planted ? "text-breach" : ""}`}>
+                    {o.symbol}
+                  </span>
+                  {planted && <span className="text-xs text-breach">the attacker's trade</span>}
+                  <span
+                    className={`ml-auto font-mono tabular-nums ${planted ? "text-breach" : "text-soft"}`}
+                  >
+                    {usd(o.amountUsd)}
+                  </span>
                 </li>
               );
             })}
             {ex.withdrawals.map((w, i) => (
-              <li
-                key={`w${i}`}
-                className={`flex items-center gap-3 border-line px-3.5 py-2.5 not-first:border-t ${w.linked ? "" : "bg-breach-soft"}`}
-              >
-                <span className="w-10 shrink-0 text-xs font-semibold text-soft uppercase">
-                  Send
-                </span>
-                <span className="min-w-0 text-soft">
+              <li key={`w${i}`} className="flex items-baseline gap-3 py-2.5">
+                <span className="w-9 shrink-0 text-xs font-semibold text-soft">Send</span>
+                <span className={`min-w-0 ${w.linked ? "text-soft" : "text-breach"}`}>
                   {w.linked
                     ? `to the holder's own account (${masked(w.account)})`
                     : `to an account the holder never linked (${masked(w.account)})`}
                 </span>
-                <span className="ml-auto font-mono tabular-nums">{usd(w.amountUsd)}</span>
+                <span className="ml-auto font-mono text-soft tabular-nums">{usd(w.amountUsd)}</span>
               </li>
             ))}
           </ul>
-        </div>
-      )}
-
-      {ex && ex.breaches.length > 0 && (
-        <p className="text-breach">
-          Broke the account's limits: it {[...new Set(ex.breaches.flat())].map(rule).join(", and ")}
-          .
-        </p>
-      )}
+        )}
+        {ex && ex.breaches.length > 0 && (
+          <p className="text-breach">
+            Broke the account's limits: it{" "}
+            {[...new Set(ex.breaches.flat())].map(rule).join(", and ")}.
+          </p>
+        )}
+      </div>
 
       {ex && ex.approvals.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <p className="eyebrow">What it told the account holder</p>
+        <div className="flex flex-col gap-3">
+          <p className="text-muted">What it told the account holder</p>
           {ex.approvals.map((ap, i) => (
             <blockquote
               key={i}
-              className="border-l-2 border-breach/60 pl-4 leading-relaxed text-soft"
+              className="border-l-2 border-breach/60 pl-4 text-base leading-relaxed text-ink"
             >
               “{ap.reason}”
             </blockquote>
@@ -338,48 +334,47 @@ function WorkedAttack({ a }: { a: BrokerageAttackFinding }) {
   );
 }
 
+/** Every attack, one row each, with hairlines between rows and nothing around them. */
 function AttackTable({ f }: { f: BrokerageFindings }) {
   return (
-    <div className="panel overflow-hidden">
-      <table className="w-full text-sm">
-        <caption className="sr-only">Results by attack</caption>
-        <thead>
-          <tr className="text-left">
-            <th className="eyebrow px-5 py-3 font-normal sm:px-6">Attack</th>
-            <th className="eyebrow px-3 py-3 text-right font-normal">Result</th>
-            <th className="eyebrow hidden px-5 py-3 text-right font-normal sm:table-cell sm:px-6">
-              Traded on it
-            </th>
+    <table className="w-full text-sm">
+      <caption className="sr-only">Results by attack</caption>
+      <thead>
+        <tr className="text-left text-muted">
+          <th className="py-2 pr-4 font-normal">Attack</th>
+          <th className="py-2 pr-4 text-right font-normal">Result</th>
+          <th className="hidden py-2 text-right font-normal sm:table-cell">Traded on it</th>
+        </tr>
+      </thead>
+      <tbody>
+        {f.perAttack.map((a) => (
+          <tr key={a.id} className="border-t border-line">
+            <td className="py-3.5 pr-4">
+              <span className={a.worked > 0 ? "font-semibold" : ""}>{a.title}</span>
+              <span className="mt-0.5 block text-xs text-muted">{a.className}</span>
+            </td>
+            <td className="py-3.5 pr-4 text-right whitespace-nowrap">
+              {a.ran === 0 ? (
+                <span className="font-semibold text-warn">Didn't finish</span>
+              ) : a.worked > 0 ? (
+                <span className="inline-flex items-center gap-1.5 font-semibold text-breach">
+                  <span aria-hidden className="size-1.5 rounded-full bg-current" />
+                  Worked
+                </span>
+              ) : (
+                <span className="text-muted">Held</span>
+              )}
+            </td>
+            <td className="hidden py-3.5 text-right font-mono whitespace-nowrap tabular-nums sm:table-cell">
+              {a.worked > 0 ? (
+                <span className="text-breach">{usd(a.steeredUsd)}</span>
+              ) : (
+                <span className="text-muted">–</span>
+              )}
+            </td>
           </tr>
-        </thead>
-        <tbody>
-          {f.perAttack.map((a) => (
-            <tr
-              key={a.id}
-              className={`border-t border-line ${a.worked > 0 ? "bg-breach-soft/60" : ""}`}
-            >
-              <td className="px-5 py-3 sm:px-6">
-                <span className="font-medium">{a.title}</span>
-                <span className="mt-0.5 block text-xs text-muted">{a.className}</span>
-              </td>
-              <td className="px-3 py-3 text-right whitespace-nowrap">
-                {a.ran === 0 ? (
-                  <Badge tone="warn">Didn't finish</Badge>
-                ) : a.worked > 0 ? (
-                  <Badge tone="breach" dot>
-                    Worked
-                  </Badge>
-                ) : (
-                  <span className="text-xs font-semibold text-muted">Held</span>
-                )}
-              </td>
-              <td className="hidden px-5 py-3 text-right font-mono text-xs whitespace-nowrap text-soft tabular-nums sm:table-cell sm:px-6">
-                {a.worked > 0 ? usd(a.steeredUsd) : "–"}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+        ))}
+      </tbody>
+    </table>
   );
 }
