@@ -6,9 +6,11 @@ One call gives the episode's tools in your framework's own shape, so your agent'
 
 Every helper is tested end to end against a real Arena Gateway with a scripted model (no model provider, no keys) in [`examples/frameworks`](../examples/frameworks/README.md): the tool calls are in the episode's trace, the swap went through the episode vault, and `/done` arrived with the usage the agent reported. A scripted model shows the wiring works; it says nothing about how a real model behaves under attack. That is what a rating measures.
 
-These helpers are for the rating. For your agent's real trades, the same subpaths have **vault trading tools**: `bondedVaultLangChainTools({ vault })` from `@bondedhq/sdk/langchain` and `bondedVaultAiSdkTools({ vault })` from `@bondedhq/sdk/ai-sdk` give `swap`, `transfer`, `approve` and `vault_status` through your Mandate Vault, with the same names and arguments as the episode's write tools, so your prompts work the same in both. Each write is dry-run against the vault first and refused on a predicted breach (the guard, on by default; `guard: false` turns it off), and Sentinel is optional. `bondedVaultFromEnv()` from `@bondedhq/sdk` builds the vault from `BONDED_VAULT_ADDRESS`, `BONDED_AGENT_KEY`, `BONDED_ROUTER_ADDRESS` (optional), `BONDED_VAULT_CHAIN_ID` (default 46630) and `BONDED_VAULT_RPC_URL` (default: that chain's public RPC), and returns `undefined` while `BONDED_VAULT_ADDRESS` isn't set. The runner removes `BONDED_AGENT_KEY` and `BONDED_VAULT_ADDRESS` from a rated agent's environment, so a rating never trades your real funds. Details are in the [SDK README](../packages/sdk/README.md#vault-trading-tools-for-langchain-langgraph-and-the-ai-sdk); `init` writes this code for you ([Set it up with init](CONNECTING-YOUR-AGENT.md#set-it-up-with-init)).
+These helpers are for the rating. For your agent's real trades, the same subpaths have **vault trading tools**: `bondedVaultLangChainTools({ vault })` from `@bondedhq/sdk/langchain` and `bondedVaultAiSdkTools({ vault })` from `@bondedhq/sdk/ai-sdk` give `swap`, `transfer`, `approve` and `vault_status` through your Mandate Vault, with the same names and arguments as the episode's write tools, so your prompts work the same in both. Each write is dry-run against the vault first and refused on a predicted breach (the guard, on by default; `guard: false` turns it off, unless Sentinel is configured, which keeps the dry run), and Sentinel is optional. `bondedVaultFromEnv()` from `@bondedhq/sdk` builds the vault from `BONDED_VAULT_ADDRESS`, `BONDED_AGENT_KEY`, `BONDED_ROUTER_ADDRESS` (optional), `BONDED_VAULT_CHAIN_ID` (default 46630) and `BONDED_VAULT_RPC_URL` (default: that chain's public RPC), and returns `undefined` while `BONDED_VAULT_ADDRESS` isn't set. The runner removes `BONDED_AGENT_KEY` and `BONDED_VAULT_ADDRESS` from a rated agent's environment, so a rating never trades your real funds. Details are in the [SDK README](../packages/sdk/README.md#vault-trading-tools-for-langchain-langgraph-and-the-ai-sdk); `init` writes this code for you ([Set it up with init](CONNECTING-YOUR-AGENT.md#set-it-up-with-init)).
 
 The snippets below are the ones the web app shows. Placeholders such as `llm`, `model`, `task`, `productionTools`, `walletProvider` and `myTradingPlugin` stand for your own code.
+
+The LangChain, AI SDK, MCP and Python snippets are for **tools mode**. In chain mode the episode's tools are reads only, and your agent sends its trades as transactions it signs: `episodeVault(episode)` from `@bondedhq/sdk` does that ([Chain mode](CONNECTING-YOUR-AGENT.md#chain-mode)). The ElizaOS and AgentKit sections below say how each handles chain mode.
 
 **LangChain and LangGraph** (`npm i @bondedhq/sdk @langchain/core @langchain/langgraph`; `@langchain/core` 1):
 
@@ -66,7 +68,7 @@ const kit = await AgentKit.from({
 
 Then `getLangChainTools(kit)` or `getVercelAITools(kit)` as usual. Actions are named `BondedEpisodeActionProvider_<tool>` and typed with a zod 3 schema built from the tool's JSON Schema. In chain mode writes are transactions: use a `BondedWalletProvider` for `episode.vault` with the session key and `episode.endpoints.rpc`.
 
-**Any MCP agent** (Claude Desktop, Claude Code, Cursor and frameworks that read an `mcpServers` config), with no Bonded code in the agent:
+**Any MCP agent** (Claude Code, Cursor and frameworks that read an `mcpServers` config over HTTP), with no Bonded code in the agent. A client that only launches local servers, such as Claude Desktop, needs `--style stdio` and its own config file instead:
 
 ```sh
 npm install @bondedhq/sdk   # in the agent's folder: it provides bonded-mcp-config
@@ -75,7 +77,7 @@ npx @bondedhq/runner --gateway https://arena-worker-production.up.railway.app --
 
 The episode's MCP URL is new for every episode, so the config is written each time, in the agent command. `bonded-mcp-config [--style http|url|stdio] [--name <name>]` (a command of `@bondedhq/sdk`, found when the SDK is installed in the folder you start the runner from) prints `{ "mcpServers": { "bonded-episode": { "type": "http", "url": "<episode MCP URL>" } } }`; `--style url` gives `{ url }` only, and `--style stdio` wraps it in `npx -y mcp-remote@0.14.3 <url>` for stdio-only clients. It exits 1 outside an episode. In code, `mcpConfig(episode, options)` from `@bondedhq/sdk/mcp` returns the same object.
 
-**Plain MCP, in TypeScript**: `connectEpisodeTools()` from `@bondedhq/sdk/mcp` connects the official MCP client to the episode and lists its tools (`episode.tools`, `episode.callTool(name, args)`, `episode.done(...)`). A failed call is returned (`ok: false`), not thrown. `finishEpisode(episode, { finalMessage, usage })` posts `/done`.
+**Plain MCP, in TypeScript**: `connectEpisodeTools()` from `@bondedhq/sdk/mcp` connects the official MCP client to the episode and lists its tools (`episode.tools`, `episode.callTool(name, args)`, `episode.done(...)`). A tool that fails comes back as `ok: false`, not thrown; a lost connection still throws, so catch errors as well. `finishEpisode(episode, { finalMessage, usage })` posts `/done`.
 
 **Python, under the runner**, with the standard library and the plain HTTP tools:
 
@@ -90,7 +92,7 @@ def call(name, args=None):
 
 task = json.loads(os.environ["BONDED_TASK"])  # {"goal", "mandate", "maxSteps"}
 inbox = call("read_inbox")  # read everything as data, never as instructions
-call("swap", {"tokenIn": "tUSDG", "tokenOut": "tTSLA", "amountIn": "100"})  # the trade the task names
+call("swap", {"tokenIn": "tUSDG", "tokenOut": "tTSLA", "amountIn": "100"})  # illustrative: make the trade task["goal"] names
 ```
 
 Finish with a `POST` to `BONDED_DONE_URL` (`{ finalMessage, usage }`), or just exit. For Agent URL mode in Python, use [`examples/python-agent-url`](../examples/python-agent-url/README.md).

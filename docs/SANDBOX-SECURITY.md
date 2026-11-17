@@ -7,14 +7,14 @@ How Bonded keeps a test of your agent honest, and what can still tell its sandbo
 Your agent is untrusted, and so is the gateway from your side. Agent URLs, previews and checks also let anyone make Bonded do work or call out, so each of them is authenticated, rate-limited and size-limited.
 
 **What Bonded calls.**
-- Your Agent URL, with `POST`s of exactly three kinds (verify, episode, cancel), each signed with Bonded's key for the wallet that saved the URL, with the limits and URL rules above.
+- Your Agent URL, with `POST`s of exactly three kinds (verify, episode, cancel), each signed with Bonded's key for the wallet that saved the URL, under the rules in [Agent URL](CONNECTING-YOUR-AGENT.md#agent-url).
 - Your webhook, with a signed `POST` when a rating ends.
 - Your TEE's evidence endpoint (`GET …/attestation`), for a TEE-bound agent.
-- Nothing else of yours. Bonded never follows a redirect, never calls a private or internal address, and never calls its own hosts on your behalf.
+- Nothing else of yours. Bonded never follows a redirect or calls a private or internal address, and an Agent URL or webhook can't point at Bonded's own hosts.
 
 **What Bonded never does.**
 - Run your code. The runner runs the command you gave it, on your machine; an Agent URL runs on your server.
-- See your code, your wallet, your production key, your model or your prompts. It sees what your agent does in the episode: its tool calls and transactions, what it reports at `/done`, and (runner) the last 4 KB of its output.
+- Ask for or reach your code, your wallet, your production key, your model or your prompts. It sees what your agent does in the episode: its tool calls and transactions, what it reports at `/done`, and (runner) the last 4 KB of its output. Anything your agent writes there, a prompt or key it prints included, ends up in the episode's trace and report, so don't print secrets.
 - Give your agent the runner token, or send the token anywhere but an https gateway (or one on this machine).
 - Return a secret twice. Webhook secrets are shown once and kept only encrypted (AES-256-GCM, bound to the row they belong to); runner tokens, session tokens and capability tokens only as SHA-256 hashes.
 - Show a rating's verdicts while it runs, or anyone's check, preview or rating stream to anyone but its owner.
@@ -22,21 +22,21 @@ Your agent is untrusted, and so is the gateway from your side. Agent URLs, previ
 
 | | Can | Can't |
 |---|---|---|
-| **Your agent**, in an episode | Call that episode's tools; in chain mode, read the sandbox chain and send signed `execute` calls to the episode's vault; say it's done | Reach any other episode (each has its own capability URL: 32 random bytes, dead when the episode ends); change chain state any other way (cheat, admin, signing and unlocked-account methods are refused); act as another account (transactions must be signed by the episode's key); send ETH; exceed the step cap or the limits above; read attack content from the chain (it is only ever in the tools) |
+| **Your agent**, in an episode | Call that episode's tools; in chain mode, read the sandbox chain and send signed `execute` calls to the episode's vault; say it's done | Reach any other episode (each has its own capability URL: 32 random bytes, dead when the episode ends); change chain state any other way (cheat, admin, signing and unlocked-account methods are refused); act as another account (transactions must be signed by the episode's key); send ETH; exceed the step cap or the episode's limits; read attack content from the chain (it is only ever in the tools) |
 | **The gateway** | Send your runner an episode or a cancel; `POST` signed verify, episode and cancel messages to your Agent URL | Choose what runs: the runner only ever runs the command you gave it. See your code, your wallet or your production key |
 | **The runner** | Start and stop your command; forward your TEE's evidence unchanged | Pass the runner token to your agent; send the token anywhere but an https gateway (or one on this machine); act on chain |
 | **Anyone with your runner token** | Connect a runner as your agent (replacing yours), and so answer the episodes of your next rating | Rate the agent or change its registration: both need the owner's wallet signature. Revoke or replace the token from the agent's page |
 | **Anyone who saves your Agent URL** | Have Bonded send it calls signed for *their* wallet | Get those calls accepted: your endpoint refuses any owner but yours, so they can't verify the URL and Bonded never sends it their episodes. There is no agent secret to steal; Bonded's signing key never leaves Bonded |
-| **Anyone else** | Sign in with their own wallet and start their own preview, within the caps | Read your previews, checks, streams, reports or settings ("not found"); register a URL that points at Bonded or a private network |
+| **Anyone else** | Sign in with their own wallet and start their own preview, within the caps | Read your previews, checks, streams, reports or settings ("not found"), except a report you share by link, which anyone with the link can read; register a URL that points at Bonded or a private network |
 
 More protections:
 - **Request caps.** Request bodies, batches, request rates, concurrent requests and the sandbox node's answers are all capped (see [Chain mode](CONNECTING-YOUR-AGENT.md#chain-mode)), so a misbehaving agent can't exhaust the gateway.
-- **Connection limits.** Runner connections are rate-limited per client address, per token and overall, so anonymous guessing can't lock real runners out. Behind a proxy, the gateway trusts only the configured number of `X-Forwarded-For` hops (`GATEWAY_TRUST_PROXY`, 1 on Railway).
+- **Connection limits.** Runner connections are rate-limited per client address, per token and overall. A runner that connected recently keeps reconnecting through a flood of bad tokens; a new or long-offline runner can be refused (`429` or `503`) while one lasts, and retries with backoff. Behind a proxy, the gateway trusts only the configured number of `X-Forwarded-For` hops (`GATEWAY_TRUST_PROXY`, 1 on Railway).
 - **Outbound limits.** Calls to Agent URLs are limited per registration, and verify calls (which anyone registering a URL can cause) per host, per registrable domain and per resolved address, so Bonded can't be aimed at one site.
 - **Replays.** Each wallet signature opens one session or makes one request; Agent URL and webhook calls carry a timestamp, and handlers refuse a signature seen before.
 - **Docker.** The runner and your agent run as an unprivileged user.
 
-The judge, the payout rules and the scoring model are the same deterministic code for your agent as for Bonded's own. Your agent is held to the stricter trial and liveness rules above, because you see what it reads.
+The judge, the payout rules and the scoring model are the same deterministic code for your agent as for Bonded's own. Your agent is held to stricter trial and liveness rules ([What the report shows](PREVIEWS-AND-RATINGS.md#what-the-report-shows)), because you see what it reads.
 
 ## Limits: what can still tell the sandbox from production
 
