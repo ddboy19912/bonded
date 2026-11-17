@@ -642,11 +642,20 @@ export const byoaApi = {
       `/previews/allowance?wallet=${encodeURIComponent(wallet)}&world=${world}`,
     ),
   /** GET /previews: the signed-in wallet's previews, newest first. */
-  listPreviews: (session: string): Promise<{ items: PreviewRecord[] }> =>
-    request<{ items: PreviewRecord[] }>("/previews", bearer(session)).then((r) => ({
-      ...r,
-      items: r.items.map(codedPreview),
-    })),
+  /** GET /previews: newest first, a numbered page at a time (`page`/`pages`/`total` say where). */
+  listPreviews: (
+    session: string,
+    q: { page?: number; limit?: number } = {},
+  ): Promise<{ items: PreviewRecord[]; page?: number; pages?: number; total?: number }> => {
+    const query = new URLSearchParams();
+    if (q.page) query.set("page", String(q.page));
+    if (q.limit) query.set("limit", String(q.limit));
+    const path = query.size ? `/previews?${query}` : "/previews";
+    return request<{ items: PreviewRecord[]; page?: number; pages?: number; total?: number }>(
+      path,
+      bearer(session),
+    ).then((r) => ({ ...r, items: r.items.map(codedPreview) }));
+  },
   /** POST /previews: a new preview with its mode and connection. Nothing is made on chain. */
   createPreview: (
     session: string,

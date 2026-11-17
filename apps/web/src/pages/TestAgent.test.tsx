@@ -662,6 +662,44 @@ describe("Test your agent", () => {
     await waitFor(() => expect(screen.getByTestId("search").textContent).toBe(""));
   });
 
+  it("stays on 'isn't here' for a missing preview: it doesn't ask again or open its stream", async () => {
+    signedIn();
+    const read = vi
+      .spyOn(byoaApi, "preview")
+      .mockRejectedValue(new ApiError(404, "no such preview"));
+    show("/agents/test?preview=gone");
+    expect(await screen.findByText("That preview isn't here")).toBeTruthy();
+    // Past the 4-second poll: still one read, no "Loading" flicker, no stream.
+    await new Promise((r) => setTimeout(r, 4_500));
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/Loading your preview/)).toBeNull();
+    expect(screen.getByText("That preview isn't here")).toBeTruthy();
+    expect(byoaApi.previewEvents).not.toHaveBeenCalled();
+  }, 10_000);
+
+  it("shows previews 10 at a time, with a way to see the rest", async () => {
+    signedIn();
+    const many = Array.from({ length: 12 }, (_, i) =>
+      preview({ id: `p${i}`, status: "done", ratingId: `r${i}` }),
+    );
+    const list = vi
+      .mocked(byoaApi.listPreviews)
+      .mockImplementation(async (_s, q) =>
+        q?.page === 2
+          ? { items: many.slice(10), page: 2, pages: 2, total: 12 }
+          : { items: many.slice(0, 10), page: 1, pages: 2, total: 12 },
+      );
+    show();
+    expect(await screen.findByText("Showing 10 of 12")).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "Open it" })).toHaveLength(10);
+    fireEvent.click(screen.getByRole("button", { name: "Show 2 more" }));
+    await waitFor(() =>
+      expect(screen.getAllByRole("button", { name: "Open it" })).toHaveLength(12),
+    );
+    expect(list).toHaveBeenCalledWith("sess", { page: 2, limit: 10 });
+    expect(screen.queryByText(/Showing/)).toBeNull();
+  });
+
   it("asks to sign in again when the session expired", async () => {
     signedIn();
     vi.spyOn(byoaApi, "preview").mockRejectedValue(new ApiError(401, "session expired"));
