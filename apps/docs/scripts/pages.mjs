@@ -27,6 +27,8 @@ export const PAGES = [
   { src: "docs/S1-TAXONOMY.md", slug: "concepts/s1-taxonomy", label: "S1 market-data attacks" },
   { src: "docs/AGENTS.md", slug: "concepts/agents", label: "Agents" },
   { src: "docs/OFFCHAIN.md", slug: "concepts/offchain", label: "Off-chain agents" },
+  { src: "docs/BROKERAGE.md", slug: "concepts/brokerage", label: "Stock-trading agents" },
+  { src: "docs/SANDBOX-SECURITY.md", slug: "concepts/sandbox-security", label: "Sandbox security" },
   { src: "docs/INDEX.md", slug: "concepts/bonded-index", label: "Bonded Index" },
   {
     src: "docs/ADAPTIVE-ATTACKER.md",
@@ -47,6 +49,26 @@ export const PAGES = [
     src: "docs/BRING-YOUR-OWN-AGENT.md",
     slug: "guides/bring-your-own-agent",
     label: "Bring your own agent",
+  },
+  {
+    src: "docs/CONNECTING-YOUR-AGENT.md",
+    slug: "guides/connecting-your-agent",
+    label: "Connecting your agent",
+  },
+  {
+    src: "docs/AGENT-FRAMEWORKS.md",
+    slug: "guides/agent-frameworks",
+    label: "Framework recipes",
+  },
+  {
+    src: "docs/PREVIEWS-AND-RATINGS.md",
+    slug: "guides/previews-and-ratings",
+    label: "Previews and official ratings",
+  },
+  {
+    src: "docs/PROTECT-YOUR-AGENT.md",
+    slug: "guides/protect-your-agent",
+    label: "Protect your agent",
   },
   {
     src: "docs/ACCOUNTS.md",
@@ -172,6 +194,12 @@ export const SHORT_NAMES = {
   "docs/S1-TAXONOMY.md": "the S1 coverage map",
   "docs/YOUR-AGENTS.md": "Bonded and your agents",
   "docs/BRING-YOUR-OWN-AGENT.md": "the bring-your-own-agent guide",
+  "docs/CONNECTING-YOUR-AGENT.md": "the connecting guide",
+  "docs/AGENT-FRAMEWORKS.md": "the framework recipes",
+  "docs/PREVIEWS-AND-RATINGS.md": "the previews and ratings guide",
+  "docs/PROTECT-YOUR-AGENT.md": "the protect-your-agent guide",
+  "docs/SANDBOX-SECURITY.md": "the sandbox security page",
+  "docs/BROKERAGE.md": "the stock-trading page",
   "docs/HOSTED-AGENTS.md": "the Bonded-runs-it guide",
   "docs/ACCOUNTS.md": "signing in without a wallet",
   "docs/APPROVAL-IN-TESTS.md": "how approval works in a test",

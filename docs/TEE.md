@@ -97,7 +97,7 @@ Then run a rating through the deployed API with `scripts/rate-live-tee.sh <agent
 
 ## Bring your own TEE
 
-Your own agent, running in your own TEE, can be rated with its TEE proven at every episode ([BRING-YOUR-OWN-AGENT.md](BRING-YOUR-OWN-AGENT.md#bring-your-own-tee)). It must be rated in chain mode: in tool mode the tool calls come from the runner, outside the TEE, so the TEE would bind nothing. The checks are the ones above, against your deployment instead of Bonded's:
+Your own agent, running in your own TEE, can be rated with its TEE proven at every episode ([BRING-YOUR-OWN-AGENT.md](PREVIEWS-AND-RATINGS.md#bring-your-own-tee)). It must be rated in chain mode: in tool mode the tool calls come from the runner, outside the TEE, so the TEE would bind nothing. The checks are the ones above, against your deployment instead of Bonded's:
 
 - **Same platform.** Phala dstack on Intel TDX, booted from an approved production OS image (`APPROVED_OS_IMAGES` in `apps/arena/src/tee.ts`).
 - **Same evidence.** Your service answers `GET /attestation?nonce=<32 bytes hex>` with `{ quote, eventLog, composeHash, codeHash, evmAddress, solanaPublicKey?, nonce }`. The quote's report data is `teeReportData` from `@bondedhq/shared`. `solanaPublicKey` is optional, for EVM-only agents. `services/tee-agent` is a working reference to copy.
