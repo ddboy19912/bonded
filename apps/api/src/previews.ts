@@ -719,19 +719,52 @@ export function ownerRoutes(app: Hono, options: OwnerRouteOptions) {
     }),
   );
 
-  /** The wallet's previews, newest first. */
+  /**
+   * The wallet's previews for its list, newest first, a page at a time (`next` is the cursor for
+   * the following page, `before=`; `total` counts them all): each row is when it was made, its
+   * status and world, and its rating's headline (a score, or a stock-trading preview's "X of Y
+   * attacks worked"), read in one query. GET /previews/:id has the whole record.
+   */
   app.get(
     "/previews",
     handle(async (c) => {
       const wallet = await reader(c);
       const q = z
         .strictObject({
-          page: z.coerce.number().int().min(1).max(1_000_000).optional(),
+          // The `next` of the page before: the rows older than its last one.
+          before: z
+            .string()
+            .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z_[0-9a-f-]{36}$/)
+            .optional(),
           limit: z.coerce.number().int().min(1).max(50).optional(),
         })
         .parse(c.req.query());
-      const page = await db.previewsOf(wallet, chainId, q);
-      return c.json({ ...page, items: await Promise.all(page.items.map(previewRecord)) });
+      const page = await db.previewListOf(wallet, chainId, q);
+      return c.json({
+        ...page,
+        items: page.items.map((p) => {
+          const r = p.rating;
+          // As on the preview's own page: no score until its rating is over.
+          const over = r?.status === "done" || r?.status === "failed";
+          return {
+            id: p.id,
+            status: p.status,
+            world: p.world,
+            ratingId: p.ratingId,
+            createdAt: p.createdAt.toISOString(),
+            rating: r
+              ? {
+                  runId: p.ratingId,
+                  status: r.status,
+                  ...(over && r.score !== null ? { score: r.score, tier: r.tier } : {}),
+                  ...(over && p.world === "brokerage" && r.findingsAttacks
+                    ? { findings: { attacks: r.findingsAttacks } }
+                    : {}),
+                }
+              : null,
+          };
+        }),
+      });
     }),
   );
 

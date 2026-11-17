@@ -44,8 +44,12 @@ const openSignIn = () => {
 function Search() {
   return <span data-testid="search">{useLocation().search}</span>;
 }
+let lastClient: QueryClient | undefined;
+/** The query client of the page `show` rendered last. */
+const queryClientOf = () => lastClient!;
 function show(url = "/agents/test") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  lastClient = client;
   render(
     <MemoryRouter initialEntries={[url]}>
       <QueryClientProvider client={client}>
@@ -660,6 +664,86 @@ describe("Test your agent", () => {
     expect(await screen.findByText("That preview isn't here")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Start a new preview" }));
     await waitFor(() => expect(screen.getByTestId("search").textContent).toBe(""));
+  });
+
+  it("stays on 'isn't here' for a missing preview: it doesn't ask again or open its stream", async () => {
+    signedIn();
+    const read = vi
+      .spyOn(byoaApi, "preview")
+      .mockRejectedValue(new ApiError(404, "no such preview"));
+    show("/agents/test?preview=gone");
+    expect(await screen.findByText("That preview isn't here")).toBeTruthy();
+    // Past the 4-second poll: still one read, no "Loading" flicker, no stream.
+    await new Promise((r) => setTimeout(r, 4_500));
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/Loading your preview/)).toBeNull();
+    expect(screen.getByText("That preview isn't here")).toBeTruthy();
+    expect(byoaApi.previewEvents).not.toHaveBeenCalled();
+  }, 10_000);
+
+  it("updates the open preview's row from its record, without reading the list again", async () => {
+    signedIn();
+    const list = vi.mocked(byoaApi.listPreviews).mockResolvedValue({
+      items: [preview({ id: "p1", status: "running", ratingId: "r1" })],
+      total: 1,
+      next: null,
+    });
+    vi.spyOn(byoaApi, "preview").mockResolvedValue(
+      preview({
+        id: "p1",
+        status: "done",
+        ratingId: "r1",
+        rating: { runId: "r1", status: "done", score: 72 },
+      }),
+    );
+    vi.spyOn(api, "run").mockResolvedValue(finishedRun());
+    show("/agents/test?preview=p1");
+    expect(await screen.findByText("Done · 72")).toBeTruthy();
+    expect(list).toHaveBeenCalledTimes(1);
+  });
+
+  it("doesn't read the next page while the list is being read again", async () => {
+    signedIn();
+    const many = Array.from({ length: 11 }, (_, i) => preview({ id: `p${i}`, status: "done" }));
+    let release!: () => void;
+    let calls = 0;
+    vi.mocked(byoaApi.listPreviews).mockImplementation(async () => {
+      calls += 1;
+      // The second read (the refresh) hangs until released.
+      if (calls === 2) await new Promise<void>((r) => (release = r));
+      return { items: many.slice(0, 10), total: 11, next: "c10" };
+    });
+    show();
+    const more = await screen.findByRole("button", { name: "Show 1 more" });
+    expect((more as HTMLButtonElement).disabled).toBe(false);
+    // A refresh starts (as after a new preview): "Show more" waits for it.
+    void queryClientOf().invalidateQueries({ queryKey: ["previews"] });
+    await waitFor(() => expect((more as HTMLButtonElement).disabled).toBe(true));
+    release();
+    await waitFor(() => expect((more as HTMLButtonElement).disabled).toBe(false));
+  });
+
+  it("shows previews 10 at a time, with a way to see the rest", async () => {
+    signedIn();
+    const many = Array.from({ length: 12 }, (_, i) =>
+      preview({ id: `p${i}`, status: "done", ratingId: `r${i}` }),
+    );
+    const list = vi
+      .mocked(byoaApi.listPreviews)
+      .mockImplementation(async (_s, q) =>
+        q?.before === "c10"
+          ? { items: many.slice(10), total: 12, next: null }
+          : { items: many.slice(0, 10), total: 12, next: "c10" },
+      );
+    show();
+    expect(await screen.findByText("Showing 10 of 12")).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "Open it" })).toHaveLength(10);
+    fireEvent.click(screen.getByRole("button", { name: "Show 2 more" }));
+    await waitFor(() =>
+      expect(screen.getAllByRole("button", { name: "Open it" })).toHaveLength(12),
+    );
+    expect(list).toHaveBeenCalledWith("sess", { before: "c10", limit: 10 });
+    expect(screen.queryByText(/Showing/)).toBeNull();
   });
 
   it("asks to sign in again when the session expired", async () => {

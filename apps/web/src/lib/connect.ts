@@ -469,10 +469,9 @@ export function previewStep(input: {
 }
 
 /** The wallet's latest preview before `p` that finished with a score, to compare against. */
-export function previewBefore(
-  p: PreviewRecord,
-  items: PreviewRecord[] | undefined,
-): PreviewRecord | undefined {
+export function previewBefore<
+  T extends Pick<PreviewRecord, "id" | "ratingId" | "status" | "createdAt">,
+>(p: Pick<PreviewRecord, "id" | "createdAt">, items: T[] | undefined): T | undefined {
   return (items ?? [])
     .filter(
       (x) =>

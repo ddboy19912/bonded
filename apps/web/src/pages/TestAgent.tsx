@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+} from "@tanstack/react-query";
 import { useAccount, useSignMessage } from "wagmi";
 import type { RemoteMode } from "@bondedhq/shared";
 import { deployment } from "../config";
@@ -77,6 +82,10 @@ import { SignInButton } from "../components/sign-in";
 import { ConfirmButton } from "../components/gate/common";
 
 const FINISHED = ["done", "failed", "refused", "stopped", "expired"];
+/** One page of "Your previews", as GET /previews gives it. */
+type PreviewListPage = Awaited<ReturnType<typeof byoaApi.listPreviews>>;
+/** How many previews "Your previews" shows at a time. */
+const PREVIEWS_PAGE = 10;
 /** A preview can be removed unless its rating or a connection check is under way. */
 const BUSY = ["checking", "queued", "starting", "running"];
 const PREVIEW_STATUS: Record<PreviewRecord["status"], string> = {
@@ -160,11 +169,23 @@ export function TestAgent() {
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<unknown>(null);
 
-  const previews = useQuery({
+  // The account's previews, 10 at a time: "Show more" reads the rows older than the last one
+  // shown (a cursor, so a preview added or removed meanwhile never makes it skip or repeat one).
+  const previews = useInfiniteQuery({
     queryKey: ["previews", session?.session],
-    queryFn: () => byoaApi.listPreviews(session!.session),
+    queryFn: ({ pageParam }) =>
+      byoaApi.listPreviews(session!.session, {
+        ...(pageParam ? { before: pageParam } : {}),
+        limit: PREVIEWS_PAGE,
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.next ?? undefined,
     enabled: Boolean(session),
   });
+  const listed = previews.data?.pages.flatMap((pg) => pg.items) ?? [];
+  // Counted on every read: the latest page's count is the current one.
+  const listedTotal = previews.data?.pages.at(-1)?.total ?? listed.length;
+  const listedLeft = listedTotal - listed.length;
   // The preview's live stream: its status, queue place and progress as they change. While it is
   // open, the record is read again only when the status moves on; if it drops, polling takes over.
   const [streaming, setStreaming] = useState(false);
@@ -176,7 +197,10 @@ export function TestAgent() {
     // Also in a background tab, so the page moves on (and can notify) while you're elsewhere.
     refetchIntervalInBackground: true,
     refetchInterval: (q) =>
-      q.state.data && FINISHED.includes(q.state.data.status)
+      // Not found, or not this account's: asking again won't change that, and each new read of a
+      // query with no data shows "Loading" again, so the page would flicker.
+      (q.state.error instanceof ApiError && q.state.error.status < 500) ||
+      (q.state.data && FINISHED.includes(q.state.data.status))
         ? false
         : // Before a rating the stream doesn't carry the runner's or URL's state: poll for it.
           !q.state.data?.ratingId
@@ -196,8 +220,11 @@ export function TestAgent() {
   });
   const previewKey = ["preview", previewId, session?.session];
   const over = preview.data ? FINISHED.includes(preview.data.status) : false;
+  const missing = preview.error instanceof ApiError && preview.error.status < 500;
+  // Opened once the preview has loaded, so one that isn't there never gets a stream.
+  const loaded = preview.data?.id === previewId;
   useEffect(() => {
-    if (!session || !previewId || over) return;
+    if (!session || !previewId || over || missing || !loaded) return;
     let last = "";
     setStreaming(true);
     const stop = byoaApi.previewEvents(
@@ -222,14 +249,38 @@ export function TestAgent() {
       setStreaming(false);
     };
     // One stream per preview and session; the record's own updates don't restart it.
-  }, [session?.session, previewId, over]);
+  }, [session?.session, previewId, over, missing, loaded]);
   const run = useRatingRun(preview.data?.ratingId ?? undefined, 5000, session?.session);
-  // The list beside the steps follows the open preview's status.
-  const openStatus = preview.data?.status;
-  const refetchList = previews.refetch;
+  // The list beside the steps follows the open preview: its row is updated from the record this
+  // page already has, on whichever page of the list it is, with no new request.
+  const open = preview.data;
+  const openRow = open
+    ? JSON.stringify([open.id, open.status, open.ratingId, open.rating?.status, open.rating?.score])
+    : "";
   useEffect(() => {
-    if (openStatus) void refetchList();
-  }, [openStatus, refetchList]);
+    if (!open) return;
+    queryClient.setQueryData<InfiniteData<PreviewListPage>>(["previews", session?.session], (d) =>
+      d
+        ? {
+            ...d,
+            pages: d.pages.map((pg) => ({
+              ...pg,
+              items: pg.items.map((x) =>
+                x.id === open.id
+                  ? {
+                      ...x,
+                      status: open.status,
+                      ratingId: open.ratingId,
+                      rating: open.rating ?? null,
+                    }
+                  : x,
+              ),
+            })),
+          }
+        : d,
+    );
+    // The row changes only when what it shows does.
+  }, [openRow]);
 
   // A session the API no longer accepts: back to signing in, saying why.
   const authError = [previews.error, preview.error].find(
@@ -658,7 +709,7 @@ export function TestAgent() {
                     <PreviewReport
                       preview={p}
                       run={run.data}
-                      previous={previewBefore(p, previews.data?.items)}
+                      previous={previewBefore(p, listed)}
                       session={session?.session}
                       onRateAgain={() => void rateAgain(p)}
                       rateAgainBusy={creating}
@@ -735,10 +786,10 @@ export function TestAgent() {
               </Link>
             </p>
           </Card>
-          {session && (previews.data?.items.length ?? 0) > 0 && (
+          {session && listed.length > 0 && (
             <Card title="Your previews">
               <ul className="divide-y divide-line text-sm">
-                {previews.data!.items.map((x) => (
+                {listed.map((x) => (
                   <li
                     key={x.id}
                     className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
@@ -798,6 +849,29 @@ export function TestAgent() {
                   </li>
                 ))}
               </ul>
+              {previews.hasNextPage && (
+                <div className="mt-3 flex items-center justify-between gap-3 border-t border-line pt-3 text-xs text-muted">
+                  <span>
+                    Showing {listed.length} of {listedTotal}
+                  </span>
+                  <button
+                    type="button"
+                    className={linkClass}
+                    // Not while the list is being read again (after a new preview, say): the
+                    // next page would land on the old rows and cut that read short.
+                    disabled={previews.isFetching}
+                    onClick={() => {
+                      if (!previews.isFetching) void previews.fetchNextPage();
+                    }}
+                  >
+                    {previews.isFetchingNextPage
+                      ? "Loading…"
+                      : listedLeft > 0
+                        ? `Show ${Math.min(PREVIEWS_PAGE, listedLeft)} more`
+                        : "Show more"}
+                  </button>
+                </div>
+              )}
             </Card>
           )}
         </div>

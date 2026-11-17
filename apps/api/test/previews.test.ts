@@ -571,6 +571,22 @@ describe("removing a preview", () => {
       [wallet.address.toLowerCase(), `done:${ratingId}`, key],
     );
 
+    // The list row is what the list shows, read in one query: no connection, checks or report.
+    await pg.db.pool.query("UPDATE ratings SET status='running' WHERE id=$1", [ratingId]);
+    const listed = async () =>
+      ((await bodyOf(await get("/previews", session))).items as Record<string, unknown>[])[0];
+    // No score while its rating runs, as on the preview's own page.
+    expect((await listed())!.rating).toEqual({ runId: ratingId, status: "running" });
+    await pg.db.pool.query("UPDATE ratings SET status='done' WHERE id=$1", [ratingId]);
+    expect(await listed()).toEqual({
+      id: preview.id,
+      status: "done",
+      world: "vault",
+      ratingId,
+      createdAt: expect.any(String),
+      rating: { runId: ratingId, status: "done", score: 640, tier: null },
+    });
+
     // Only its owner, and not while its rating is queued or running.
     const other = await sessionFor(privateKeyToAccount(generatePrivateKey()));
     expect((await send("DELETE", `/previews/${preview.id}`, undefined, other)).status).toBe(404);
@@ -651,6 +667,37 @@ describe("removing a preview", () => {
       daily: 1000,
     });
     expect(allowance.refusal?.refused).toBe("wallet-daily");
+  });
+});
+
+describe("the previews list", () => {
+  it("pages by cursor, so removing a listed preview between reads never skips one", async () => {
+    const session = await sessionFor(privateKeyToAccount(generatePrivateKey()));
+    // Made in the same instant: the cursor still orders and pages them.
+    const made = [];
+    for (let i = 0; i < 5; i++) made.push((await newPreview(session)).id);
+    const page = async (q: string) => bodyOf(await get(`/previews?${q}`, session));
+    const first = await page("limit=2");
+    expect(first.total).toBe(5);
+    const firstIds = (first.items as { id: string }[]).map((x) => x.id);
+    expect(firstIds).toHaveLength(2);
+    expect(first.next).toEqual(expect.any(String));
+    // Another window removes a preview this one already listed.
+    expect((await send("DELETE", `/previews/${firstIds[0]}`, undefined, session)).status).toBe(200);
+    const rest: string[] = [];
+    let next = first.next as string | null;
+    let last: Record<string, unknown> = first;
+    while (next) {
+      last = await page(`limit=2&before=${encodeURIComponent(next)}`);
+      rest.push(...(last.items as { id: string }[]).map((x) => x.id));
+      next = last.next as string | null;
+    }
+    // Every other preview comes once, none skipped or repeated, and the total is the current one.
+    expect([...firstIds, ...rest].sort()).toEqual([...made].sort());
+    expect(new Set(rest).size).toBe(rest.length);
+    expect(last.total).toBe(4);
+    // A cursor that isn't one is a bad request.
+    expect((await get("/previews?before=nonsense", session)).status).toBe(400);
   });
 });
 
