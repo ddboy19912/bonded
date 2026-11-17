@@ -723,6 +723,21 @@ describe("Test your agent", () => {
     await waitFor(() => expect((more as HTMLButtonElement).disabled).toBe(false));
   });
 
+  it("reads the list again when every page is in but the count says there's one more", async () => {
+    signedIn();
+    const many = Array.from({ length: 3 }, (_, i) => preview({ id: `p${i}`, status: "done" }));
+    const made = preview({ id: "new", status: "expired" });
+    const list = vi
+      .mocked(byoaApi.listPreviews)
+      // A preview made elsewhere after the first read: the count already has it, the rows don't.
+      .mockResolvedValueOnce({ items: many, total: 4, next: null })
+      .mockResolvedValue({ items: [made, ...many], total: 4, next: null });
+    show();
+    expect(await screen.findByText("Expired")).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "Open it" })).toHaveLength(4);
+    expect(list).toHaveBeenCalledTimes(2);
+  });
+
   it("shows previews 10 at a time, with a way to see the rest", async () => {
     signedIn();
     const many = Array.from({ length: 12 }, (_, i) =>

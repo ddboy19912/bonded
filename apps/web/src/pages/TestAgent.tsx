@@ -186,6 +186,16 @@ export function TestAgent() {
   // Counted on every read: the latest page's count is the current one.
   const listedTotal = previews.data?.pages.at(-1)?.total ?? listed.length;
   const listedLeft = listedTotal - listed.length;
+  // Every page read, yet the count says there are more: a preview was made elsewhere (another tab
+  // or device) after the first page, so it sorts above the cursor. Read the list again from the
+  // top, once for each count, so it shows up.
+  const recountedAt = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (!previews.data || previews.hasNextPage || previews.isFetching || listedLeft <= 0) return;
+    if (recountedAt.current === listedTotal) return;
+    recountedAt.current = listedTotal;
+    void previews.refetch();
+  }, [previews.data, previews.hasNextPage, previews.isFetching, listedLeft, listedTotal]);
   // The preview's live stream: its status, queue place and progress as they change. While it is
   // open, the record is read again only when the status moves on; if it drops, polling takes over.
   const [streaming, setStreaming] = useState(false);
