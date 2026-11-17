@@ -738,6 +738,26 @@ describe("Test your agent", () => {
     expect(list).toHaveBeenCalledTimes(2);
   });
 
+  it("reads the list again for another session at the same count, without reloading the page", async () => {
+    signedIn();
+    const rows = Array.from({ length: 3 }, (_, i) => preview({ id: `p${i}`, status: "done" }));
+    // The count is always one more than the rows: each session gets one read again, no more.
+    const list = vi
+      .mocked(byoaApi.listPreviews)
+      .mockResolvedValue({ items: rows, total: 4, next: null });
+    show();
+    await waitFor(() => expect(list.mock.calls.filter(([s]) => s === "sess")).toHaveLength(2));
+    // Another session signs in on the same page, with the same count.
+    saveSession(deployment.chainId, {
+      session: "sess2",
+      wallet: WALLET,
+      expiresAt: iso(3_600_000),
+    });
+    await waitFor(() => expect(list.mock.calls.filter(([s]) => s === "sess2")).toHaveLength(2));
+    await new Promise((r) => setTimeout(r, 200));
+    expect(list.mock.calls.filter(([s]) => s === "sess")).toHaveLength(2);
+  });
+
   it("shows previews 10 at a time, with a way to see the rest", async () => {
     signedIn();
     const many = Array.from({ length: 12 }, (_, i) =>

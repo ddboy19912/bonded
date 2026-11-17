@@ -188,14 +188,23 @@ export function TestAgent() {
   const listedLeft = listedTotal - listed.length;
   // Every page read, yet the count says there are more: a preview was made elsewhere (another tab
   // or device) after the first page, so it sorts above the cursor. Read the list again from the
-  // top, once for each count, so it shows up.
-  const recountedAt = useRef<number | undefined>(undefined);
+  // top, once for each count in each session (another account signing in here starts afresh), so
+  // it shows up.
+  const recountedAt = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (!previews.data || previews.hasNextPage || previews.isFetching || listedLeft <= 0) return;
-    if (recountedAt.current === listedTotal) return;
-    recountedAt.current = listedTotal;
+    const mark = `${session?.session}:${listedTotal}`;
+    if (recountedAt.current === mark) return;
+    recountedAt.current = mark;
     void previews.refetch();
-  }, [previews.data, previews.hasNextPage, previews.isFetching, listedLeft, listedTotal]);
+  }, [
+    previews.data,
+    previews.hasNextPage,
+    previews.isFetching,
+    listedLeft,
+    listedTotal,
+    session?.session,
+  ]);
   // The preview's live stream: its status, queue place and progress as they change. While it is
   // open, the record is read again only when the status moves on; if it drops, polling takes over.
   const [streaming, setStreaming] = useState(false);
