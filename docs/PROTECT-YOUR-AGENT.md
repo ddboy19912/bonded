@@ -82,7 +82,7 @@ Nothing is sent by the SDK. The web app's onboarding offers the same ("Protect t
 
 ## Framework plugins
 
-These protect an agent in production: its real actions go through the vault. (To rate an agent built on a framework, see [Use your framework](AGENT-FRAMEWORKS.md#use-your-framework).) Each plugin is a subpath of `@bondedhq/sdk`, with its framework as an optional peer dependency.
+These protect an agent in production: its real actions go through the vault. (To rate an agent built on a framework, see [Use your framework](AGENT-FRAMEWORKS.md).) Each plugin is a subpath of `@bondedhq/sdk`, with its framework as an optional peer dependency.
 
 | Framework | Import | What it does | Limits |
 |---|---|---|---|

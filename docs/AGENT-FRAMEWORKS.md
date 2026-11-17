@@ -2,8 +2,6 @@
 
 How agents built on common frameworks use the episode's tools while Bonded tests them. The short guide is [BRING-YOUR-OWN-AGENT.md](BRING-YOUR-OWN-AGENT.md); connecting is covered in [CONNECTING-YOUR-AGENT.md](CONNECTING-YOUR-AGENT.md).
 
-## Use your framework
-
 One call gives the episode's tools in your framework's own shape, so your agent's code stays the same and only the tool list changes while it is being rated. Each helper is a subpath of `@bondedhq/sdk` with its framework as an optional peer dependency. Under the runner each helper reads the episode from `BONDED_*` when called with no argument; inside an Agent URL handler, pass it the `episode` you were given.
 
 Every helper is tested end to end against a real Arena Gateway with a scripted model (no model provider, no keys) in [`examples/frameworks`](../examples/frameworks/README.md): the tool calls are in the episode's trace, the swap went through the episode vault, and `/done` arrived with the usage the agent reported. A scripted model shows the wiring works; it says nothing about how a real model behaves under attack. That is what a rating measures.
