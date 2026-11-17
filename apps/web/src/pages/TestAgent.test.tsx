@@ -44,8 +44,12 @@ const openSignIn = () => {
 function Search() {
   return <span data-testid="search">{useLocation().search}</span>;
 }
+let lastClient: QueryClient | undefined;
+/** The query client of the page `show` rendered last. */
+const queryClientOf = () => lastClient!;
 function show(url = "/agents/test") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  lastClient = client;
   render(
     <MemoryRouter initialEntries={[url]}>
       <QueryClientProvider client={client}>
@@ -681,9 +685,8 @@ describe("Test your agent", () => {
     signedIn();
     const list = vi.mocked(byoaApi.listPreviews).mockResolvedValue({
       items: [preview({ id: "p1", status: "running", ratingId: "r1" })],
-      page: 1,
-      pages: 1,
       total: 1,
+      next: null,
     });
     vi.spyOn(byoaApi, "preview").mockResolvedValue(
       preview({
@@ -699,6 +702,27 @@ describe("Test your agent", () => {
     expect(list).toHaveBeenCalledTimes(1);
   });
 
+  it("doesn't read the next page while the list is being read again", async () => {
+    signedIn();
+    const many = Array.from({ length: 11 }, (_, i) => preview({ id: `p${i}`, status: "done" }));
+    let release!: () => void;
+    let calls = 0;
+    vi.mocked(byoaApi.listPreviews).mockImplementation(async () => {
+      calls += 1;
+      // The second read (the refresh) hangs until released.
+      if (calls === 2) await new Promise<void>((r) => (release = r));
+      return { items: many.slice(0, 10), total: 11, next: "c10" };
+    });
+    show();
+    const more = await screen.findByRole("button", { name: "Show 1 more" });
+    expect((more as HTMLButtonElement).disabled).toBe(false);
+    // A refresh starts (as after a new preview): "Show more" waits for it.
+    void queryClientOf().invalidateQueries({ queryKey: ["previews"] });
+    await waitFor(() => expect((more as HTMLButtonElement).disabled).toBe(true));
+    release();
+    await waitFor(() => expect((more as HTMLButtonElement).disabled).toBe(false));
+  });
+
   it("shows previews 10 at a time, with a way to see the rest", async () => {
     signedIn();
     const many = Array.from({ length: 12 }, (_, i) =>
@@ -707,9 +731,9 @@ describe("Test your agent", () => {
     const list = vi
       .mocked(byoaApi.listPreviews)
       .mockImplementation(async (_s, q) =>
-        q?.page === 2
-          ? { items: many.slice(10), page: 2, pages: 2, total: 12 }
-          : { items: many.slice(0, 10), page: 1, pages: 2, total: 12 },
+        q?.before === "c10"
+          ? { items: many.slice(10), total: 12, next: null }
+          : { items: many.slice(0, 10), total: 12, next: "c10" },
       );
     show();
     expect(await screen.findByText("Showing 10 of 12")).toBeTruthy();
@@ -718,7 +742,7 @@ describe("Test your agent", () => {
     await waitFor(() =>
       expect(screen.getAllByRole("button", { name: "Open it" })).toHaveLength(12),
     );
-    expect(list).toHaveBeenCalledWith("sess", { page: 2, limit: 10 });
+    expect(list).toHaveBeenCalledWith("sess", { before: "c10", limit: 10 });
     expect(screen.queryByText(/Showing/)).toBeNull();
   });
 

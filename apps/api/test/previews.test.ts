@@ -670,6 +670,37 @@ describe("removing a preview", () => {
   });
 });
 
+describe("the previews list", () => {
+  it("pages by cursor, so removing a listed preview between reads never skips one", async () => {
+    const session = await sessionFor(privateKeyToAccount(generatePrivateKey()));
+    // Made in the same instant: the cursor still orders and pages them.
+    const made = [];
+    for (let i = 0; i < 5; i++) made.push((await newPreview(session)).id);
+    const page = async (q: string) => bodyOf(await get(`/previews?${q}`, session));
+    const first = await page("limit=2");
+    expect(first.total).toBe(5);
+    const firstIds = (first.items as { id: string }[]).map((x) => x.id);
+    expect(firstIds).toHaveLength(2);
+    expect(first.next).toEqual(expect.any(String));
+    // Another window removes a preview this one already listed.
+    expect((await send("DELETE", `/previews/${firstIds[0]}`, undefined, session)).status).toBe(200);
+    const rest: string[] = [];
+    let next = first.next as string | null;
+    let last: Record<string, unknown> = first;
+    while (next) {
+      last = await page(`limit=2&before=${encodeURIComponent(next)}`);
+      rest.push(...(last.items as { id: string }[]).map((x) => x.id));
+      next = last.next as string | null;
+    }
+    // Every other preview comes once, none skipped or repeated, and the total is the current one.
+    expect([...firstIds, ...rest].sort()).toEqual([...made].sort());
+    expect(new Set(rest).size).toBe(rest.length);
+    expect(last.total).toBe(4);
+    // A cursor that isn't one is a bad request.
+    expect((await get("/previews?before=nonsense", session)).status).toBe(400);
+  });
+});
+
 describe("stale previews", () => {
   it("expire after 7 days without a rating, can't connect, and can still be removed", async () => {
     const session = await sessionFor(privateKeyToAccount(generatePrivateKey()));

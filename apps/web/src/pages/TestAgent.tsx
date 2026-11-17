@@ -169,18 +169,23 @@ export function TestAgent() {
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<unknown>(null);
 
-  // The account's previews, 10 at a time: "Show more" reads the next page.
+  // The account's previews, 10 at a time: "Show more" reads the rows older than the last one
+  // shown (a cursor, so a preview added or removed meanwhile never makes it skip or repeat one).
   const previews = useInfiniteQuery({
     queryKey: ["previews", session?.session],
     queryFn: ({ pageParam }) =>
-      byoaApi.listPreviews(session!.session, { page: pageParam, limit: PREVIEWS_PAGE }),
-    initialPageParam: 1,
-    getNextPageParam: (last) =>
-      last.page && last.pages && last.page < last.pages ? last.page + 1 : undefined,
+      byoaApi.listPreviews(session!.session, {
+        ...(pageParam ? { before: pageParam } : {}),
+        limit: PREVIEWS_PAGE,
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.next ?? undefined,
     enabled: Boolean(session),
   });
   const listed = previews.data?.pages.flatMap((pg) => pg.items) ?? [];
-  const listedTotal = previews.data?.pages[0]?.total ?? listed.length;
+  // Counted on every read: the latest page's count is the current one.
+  const listedTotal = previews.data?.pages.at(-1)?.total ?? listed.length;
+  const listedLeft = listedTotal - listed.length;
   // The preview's live stream: its status, queue place and progress as they change. While it is
   // open, the record is read again only when the status moves on; if it drops, polling takes over.
   const [streaming, setStreaming] = useState(false);
@@ -852,12 +857,18 @@ export function TestAgent() {
                   <button
                     type="button"
                     className={linkClass}
-                    disabled={previews.isFetchingNextPage}
-                    onClick={() => void previews.fetchNextPage()}
+                    // Not while the list is being read again (after a new preview, say): the
+                    // next page would land on the old rows and cut that read short.
+                    disabled={previews.isFetching}
+                    onClick={() => {
+                      if (!previews.isFetching) void previews.fetchNextPage();
+                    }}
                   >
                     {previews.isFetchingNextPage
                       ? "Loading…"
-                      : `Show ${Math.min(PREVIEWS_PAGE, listedTotal - listed.length)} more`}
+                      : listedLeft > 0
+                        ? `Show ${Math.min(PREVIEWS_PAGE, listedLeft)} more`
+                        : "Show more"}
                   </button>
                 </div>
               )}

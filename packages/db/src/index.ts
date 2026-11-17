@@ -440,6 +440,16 @@ export interface PreviewRecord {
   updatedAt: Date;
 }
 
+/**
+ * A preview list cursor ("<created_at, UTC, to the microsecond>_<id>", from `previewListOf`'s
+ * `next`), or a RangeError for anything else.
+ */
+function previewCursor(raw: string): { at: string; id: string } {
+  const m = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z)_([0-9a-f-]{36})$/.exec(raw);
+  if (!m || Number.isNaN(Date.parse(m[1]!))) throw new RangeError("not a preview list cursor");
+  return { at: m[1]!, id: m[2]! };
+}
+
 /** One row of an owner's preview list (`previewListOf`): what the list shows, nothing more. */
 export interface PreviewListItem {
   id: string;
@@ -2757,13 +2767,16 @@ export class Database {
   /**
    * The "Your previews" list: each row is what the list shows (when, status, world) and its
    * latest rating's headline, read in one query with the rating joined, not the whole preview
-   * record per row. Newest first, a numbered page at a time; removed previews aren't listed.
+   * record per row. Newest first. A page ends at a cursor (`next`): the following page is the
+   * rows older than its last one, so a preview added or removed between reads never makes a
+   * page skip or repeat a row (an offset would). `total` is counted on every read. Removed
+   * previews aren't listed.
    */
   async previewListOf(
     owner: string,
     chainId: number,
-    q: { page?: number; limit?: number } = {},
-  ): Promise<Page<PreviewListItem>> {
+    q: { before?: string; limit?: number } = {},
+  ): Promise<{ items: PreviewListItem[]; total: number; next: string | null }> {
     const limit = clampLimit(q.limit ?? 10);
     const total = (
       await this.pool.query(
@@ -2771,19 +2784,23 @@ export class Database {
         [owner.toLowerCase(), chainId],
       )
     ).rows[0].n as number;
-    const at = pageOf(q.page, total, limit);
+    const cursor = q.before ? previewCursor(q.before) : undefined;
     const r = await this.pool.query(
       `SELECT v.id, v.status, v.world, v.rating_id, v.created_at,
+         to_char(v.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at,
          r.status AS rating_status,
          r.report->'scoring'->>'score' AS score, r.report->'scoring'->>'tier' AS tier,
          r.report->'findings'->'attacks' AS findings_attacks
        FROM previews v LEFT JOIN ratings r ON r.id = v.rating_id
        WHERE v.owner=$1 AND v.chain_id=$2 AND v.removed_at IS NULL
-       ORDER BY v.created_at DESC, v.id LIMIT $3 OFFSET $4`,
-      [owner.toLowerCase(), chainId, limit, at.offset],
+         AND ($4::timestamptz IS NULL OR (v.created_at, v.id) < ($4::timestamptz, $5::uuid))
+       ORDER BY v.created_at DESC, v.id DESC LIMIT $3`,
+      [owner.toLowerCase(), chainId, limit + 1, cursor?.at ?? null, cursor?.id ?? null],
     );
+    const rows = r.rows.slice(0, limit);
+    const last = rows.at(-1);
     return {
-      items: r.rows.map((row) => ({
+      items: rows.map((row) => ({
         id: row.id as string,
         status: row.status as string,
         world: ((row.world as PreviewWorld | undefined) ?? "vault") as PreviewWorld,
@@ -2798,9 +2815,10 @@ export class Database {
             }
           : null,
       })),
-      page: at.page,
-      pages: at.pages,
       total,
+      // Microseconds, as stored: a millisecond cursor could skip a row made in the same millisecond.
+      next:
+        r.rows.length > limit && last ? `${last.cursor_at as string}_${last.id as string}` : null,
     };
   }
   /** Set a preview's status (and its error, cleared when not given). */

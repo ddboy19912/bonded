@@ -656,18 +656,19 @@ export const byoaApi = {
       `/previews/allowance?wallet=${encodeURIComponent(wallet)}&world=${world}`,
     ),
   /**
-   * GET /previews: the list rows, newest first, a numbered page at a time (`page`/`pages`/`total`
-   * say where). GET /previews/:id has a preview's whole record.
+   * GET /previews: the list rows, newest first, a page at a time. `next` is the cursor for the
+   * following page (pass it as `before`); `total` counts them all, now. GET /previews/:id has a
+   * preview's whole record.
    */
   listPreviews: (
     session: string,
-    q: { page?: number; limit?: number } = {},
-  ): Promise<{ items: PreviewListItem[]; page?: number; pages?: number; total?: number }> => {
+    q: { before?: string; limit?: number } = {},
+  ): Promise<{ items: PreviewListItem[]; total?: number; next?: string | null }> => {
     const query = new URLSearchParams();
-    if (q.page) query.set("page", String(q.page));
+    if (q.before) query.set("before", q.before);
     if (q.limit) query.set("limit", String(q.limit));
     const path = query.size ? `/previews?${query}` : "/previews";
-    return request<{ items: PreviewListItem[]; page?: number; pages?: number; total?: number }>(
+    return request<{ items: PreviewListItem[]; total?: number; next?: string | null }>(
       path,
       bearer(session),
     );
