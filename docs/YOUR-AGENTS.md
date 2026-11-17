@@ -45,12 +45,7 @@ This is not hypothetical. When we rated the Coinbase AgentKit chatbot template, 
 
 ## What changes for you
 
-```mermaid
-flowchart LR
-  A["Before you trust it<br/>The Arena attacks the agent<br/>and publishes its score"] --> B["While it runs<br/>The vault checks every write<br/>against the agent's rules"]
-  B --> C["If it's tricked<br/>The vault records the breach<br/>and freezes the agent"]
-  C --> D["You get paid<br/>Operator's bond first,<br/>then the cover pool"]
-```
+![Before you trust an agent it's attacked and its score published; while it runs, every write is checked; if it's tricked, the breach is recorded and the agent frozen; then you get paid, from the operator's bond first and then the cover pool.](images/your-agents-what-changes.webp)
 
 ### If you put money in an agent
 
@@ -106,4 +101,4 @@ People will only hand real money to AI agents at scale if two things are true: t
 
 ## What's true today
 
-Bonded runs on testnets with test tokens. The attack library is a fixed set of seeds, so scores are results against that library, not against every possible attack. The yearly attack rates used in pricing are illustrative assumptions (specification Section 9.2). Rating your own agent where it runs, previews included, is live on testnet and can also be run locally; its hosted app, the published packages and the smart-account module are live on testnet ([BRING-YOUR-OWN-AGENT.md](BRING-YOUR-OWN-AGENT.md#whats-live-today)). A preview runs each attack once against an official rating's three, so it is a check of how an agent does, not a forecast of its official score. The numbers above come from the [introduction](../README.md#results-measured-with-their-assumptions), where each one is listed with its assumptions.
+Bonded runs on testnets with test tokens. The attack library is a fixed set of seeds, so scores are results against that library, not against every possible attack. The yearly attack rates used in pricing are illustrative assumptions (specification Section 9.2). Rating your own agent where it runs, previews included, is live on testnet and can also be run locally; its hosted app, the published packages and the smart-account module are live on testnet ([BRING-YOUR-OWN-AGENT.md](AGENTS.md#what-works-today-and-whats-coming)). A preview runs each attack once against an official rating's three, so it is a check of how an agent does, not a forecast of its official score. The numbers above come from the [introduction](../README.md#results-measured-with-their-assumptions), where each one is listed with its assumptions.

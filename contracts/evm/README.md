@@ -47,47 +47,7 @@ Both run the same rules: the checks live in [`MandateBase`](src/MandateBase.sol)
 
 ## How it fits together
 
-```mermaid
-flowchart LR
-    subgraph People
-        OP[Operator]
-        AG[AI agent]
-        DEP[Depositors]
-        UW[Underwriters]
-        AR[Arena attester]
-    end
-
-    REG[BondedRegistry<br/>agents and scores]
-    FAC[MandateVaultFactory]
-    V[MandateVault<br/>one per agent]
-    BOND[OperatorBond]
-    POOL[CoverPool]
-    CM[CoverManager<br/>policies and premiums]
-    CE[ClaimsEngine]
-    DM[DisputeModule]
-    BB[BountyBoard]
-    MKT[Market<br/>DemoRouter, tokens, oracle]
-
-    OP -- registers agent --> REG
-    OP -- creates vault --> FAC --> V
-    OP -- locks bond --> BOND
-    OP -- buys cover with signed quote --> CM
-    AR -- signs scores --> REG
-    AR -- signs quote --> CM
-    DEP -- deposit --> V
-    UW -- deposit --> POOL
-    AG -- trades through execute --> V
-    V -- allowed trades --> MKT
-    CM -- premiums --> POOL
-    CM -- bounty share --> BB
-    V -- pays premiums --> CM
-    CE -- reads breach record --> V
-    CE -- 1st: slash --> BOND
-    CE -- 2nd: pay rest --> POOL
-    BOND -- payout --> V
-    POOL -- payout --> V
-    DM -- grey-area claims --> CE
-```
+![How the contracts fit together: the operator registers the agent, creates its vault and locks a bond; depositors deposit into the MandateVault and underwriters into CoverPool; the agent trades through the vault into the market; premiums go to CoverManager and CoverPool; ClaimsEngine reads breaches, slashes OperatorBond first and has CoverPool pay the rest, both paying out to the vault; DisputeModule handles grey-area claims; the Arena attester signs scores to BondedRegistry.](../../docs/images/contracts-overview.webp)
 
 ### The life of a policy
 

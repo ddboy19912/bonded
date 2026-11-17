@@ -8,69 +8,35 @@ Six small diagrams, each showing one idea. Click any of them to enlarge.
 
 ### 1. The loop in one line
 
-```mermaid
-flowchart LR
-  A["1. The Arena<br/>attacks the agent"] --> B["2. Security and insurance<br/>scores are signed on chain"]
-  B --> C["3. Cover is priced from<br/>the insurance score"]
-  C --> D["4. A breach pays<br/>the claim automatically"]
-```
+![The loop: the Arena attacks the agent, scores are signed on chain, cover is priced from the score, and a breach pays the claim.](images/architecture-loop.webp)
 
 ### 2. How an agent gets rated
 
-```mermaid
-flowchart LR
-  Arena["Arena"] -- "plants attacks" --> Agent["AI agent"]
-  Agent -- "acts through" --> Vault["MandateVault"]
-  Vault -- "breach log" --> Arena
-  Arena -- "signed score" --> Registry["BondedRegistry"]
-  Registry -. "same score" .-> Other["Arbitrum, Ethereum, Solana"]
-```
+![The Arena plants attacks on the AI agent, which acts through the MandateVault; the vault's breach log goes back to the Arena, which posts a signed score to BondedRegistry, and the same score to Arbitrum, Ethereum and Solana.](images/architecture-rating.webp)
 
 The Arena judges by the vault's breach log, never by what the agent says.
 
 ### 3. Who puts money where
 
-```mermaid
-flowchart LR
-  Depositor["Depositor"] -- "pays a premium" --> Manager["CoverManager"]
-  Operator["Agent operator"] -- "stakes a bond" --> Bond["OperatorBond"]
-  Underwriters["Underwriters"] -- "supply capital" --> Pool["CoverPool"]
-```
+![The depositor pays a premium to CoverManager, the agent operator stakes a bond in OperatorBond, and underwriters supply capital to CoverPool.](images/architecture-money.webp)
 
 The premium is quoted from the agent's score. The bond pays first and the pool pays the rest.
 
 ### 4. What happens on a breach
 
-```mermaid
-flowchart TB
-  Vault["MandateVault<br/>records the breach"] --> Keeper["Keeper<br/>files the claim"]
-  Keeper --> Claims["ClaimsEngine"]
-  Claims -- "1. slash" --> Bond["OperatorBond"]
-  Claims -- "2. pay the rest" --> Pool["CoverPool"]
-  Bond --> Back["Money goes back<br/>into the vault"]
-  Pool --> Back
-```
+![The MandateVault records the breach, the keeper files the claim, ClaimsEngine slashes OperatorBond first and has CoverPool pay the rest, and the money goes back into the vault.](images/architecture-breach.webp)
 
 Every step here is on chain and deterministic.
 
 ### 5. Where the AI sits
 
-```mermaid
-flowchart LR
-  Sentinel["Sentinel<br/>(AI, advisory)"] -. "may refuse" .-> Agent["AI agent"]
-  Agent -- "every action" --> Vault["MandateVault<br/>(deterministic)"]
-```
+![Off chain, Sentinel (AI, advisory) may refuse the AI agent's action; every action goes to the MandateVault on chain, which is deterministic.](images/architecture-where-ai-sits.webp)
 
 Every AI component (the agent, the Arena's attackers, Sentinel) sits off chain and can only cause actions that the vault then judges.
 
 ### 6. How the attack library grows
 
-```mermaid
-flowchart LR
-  Hunter["Bounty hunter"] -- "submits an attack" --> Board["BountyBoard"]
-  Board -- "accepted attacks join" --> Library["Attack library"]
-  Library --> Arena["Arena"]
-```
+![A bounty hunter submits an attack to BountyBoard, accepted attacks join the attack library, the library feeds the Arena, and the bar rises.](images/architecture-library-grows.webp)
 
 Every accepted attack is run against every rated agent, so the bar rises over time.
 
@@ -114,16 +80,7 @@ A rating runs every attack (usually five times) plus control episodes with no at
 
 ### Agents that run elsewhere
 
-An agent its operator runs on their own servers is rated through the **Arena Gateway** (`apps/arena/src/gateway`), which the rating worker serves on a public address ([BRING-YOUR-OWN-AGENT.md](BRING-YOUR-OWN-AGENT.md)):
-
-```mermaid
-flowchart LR
-  Runner["@bondedhq/runner<br/>(operator's server)"] -- "WebSocket out,<br/>runner token" --> Gateway["Arena Gateway<br/>(arena-worker)"]
-  Runner -- "starts per episode" --> Agent["Operator's agent"]
-  Gateway -. "Agent URL: signed POST<br/>per episode" .-> Agent
-  Agent -- "MCP / HTTP tools,<br/>chain-mode RPC" --> Gateway
-  Gateway --> Toolbox["Same world, toolbox<br/>and vault as in-process"]
-```
+An agent its operator runs on their own servers is rated through the **Arena Gateway** (`apps/arena/src/gateway`), which the rating worker serves on a public address ([BRING-YOUR-OWN-AGENT.md](BRING-YOUR-OWN-AGENT.md)).
 
 - **Two ways in.** The runner connects out and starts the agent's command per episode. In Agent URL mode there is no runner: the gateway `POST`s the same episode message to the agent's HTTPS endpoint, signed with Bonded's own Ed25519 key (`AGENT_URL_SIGNING_KEY`, public keys at `/.well-known/bonded-agent-keys.json`) for the wallet that saved the URL, through `safe-fetch` (public https on port 443, addresses checked at connect, no redirects, a 10-second deadline, 64 KiB answers) and per-registration and per-host rate limits (`gateway/agent-url.ts`). The URL is proved by a signed verify challenge the agent answers with its owner, the wallet written in its code; a handler refuses calls signed for any other wallet, so nobody can claim someone else's URL.
 - **Connection checks.** One benign episode with no attack, never scored, on a fresh local chain, through the same transport a rating would use (`check.ts`). Its events (tool calls, transactions, exit) stream to the owner, and its problems come back as plain sentences. A preview or an owner's rating can only be queued with a passing check of the same connection in the last 24 hours.
@@ -155,18 +112,9 @@ Agents that pay through payment APIs instead of a chain are rated by the same Ar
 
 ## Payment gate
 
-The gate runs the Ledger's rules in front of real payments ([PAYMENT-GATE.md](PAYMENT-GATE.md)). It lives in the `api` and the `keeper`, and connects three ways:
+The gate runs the Ledger's rules in front of real payments ([PAYMENT-GATE.md](PAYMENT-GATE.md)). It lives in the `api` and the `keeper`, and connects three ways.
 
-```mermaid
-flowchart LR
-  Agent["Agent's server"] -- "ask first:<br/>API, SDK or MCP" --> Gate["Gate rules<br/>(api)"]
-  Cards["Card program<br/>Stripe Issuing, Lithic, Marqeta"] -- "card hook:<br/>before each charge" --> Gate
-  Gate -- "allowed or blocked,<br/>signed receipt" --> Agent
-  Wallets["Wallets on Ethereum,<br/>Base, Arbitrum"] -. "Watch: read after<br/>(keeper)" .-> Gate
-  Log["Your payment log"] -. "Watch: sent after" .-> Gate
-  Gate --> Alerts["Inbox, Slack,<br/>webhook, email"]
-  Gate -- "daily log root,<br/>rules hash" --> Anchor["GateAnchor<br/>(Robinhood Chain)"]
-```
+![The agent's server asks the gate first and the card program calls it from a card hook; the gate answers allowed or blocked with a signed receipt. Wallets and your payment log are watched after the fact. The gate sends alerts and anchors a daily log root in GateAnchor on Robinhood Chain.](images/architecture-payment-gate.webp)
 
 - **Ask first** and **card hooks** decide before the money moves: Enforce blocks or declines, Monitor lets it through and logs a breach. One exception: a card hook declines cash, money orders and gambling (`blocked_merchant`) in both modes. Each decision gets a receipt signed by Bonded that anyone can check offline.
 - **Watch** decides nothing in time. It runs payments already made through the same rules and alerts on a breach. With **Expect a check first** on, a payment with no allowed check for the same payee and amount in the 24 hours before is also a breach (`skipped_gate`). Each check covers one payment, so an allowed check that was never paid can cover a later identical payment that skipped the gate.

@@ -212,6 +212,31 @@ pre.mermaid::after {
   height: auto;
 }
 
+/* Images in a page: click (or Tab, then Enter) to open them full screen. */
+.sl-markdown-content img {
+  border-radius: 0.75rem;
+  cursor: zoom-in;
+  transition: box-shadow 0.15s;
+}
+.sl-markdown-content img:hover,
+.sl-markdown-content img:focus-visible {
+  box-shadow: 0 0 0 1px rgb(60 107 255 / 0.55);
+  outline: none;
+}
+/* An image opened full screen: as large as the window allows, never cropped. */
+.diagram-overlay.is-image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.diagram-overlay.is-image img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 0.75rem;
+  cursor: zoom-out;
+}
+
 /* Cards and buttons */
 .sl-link-button.primary {
   background: var(--bonded-brand);

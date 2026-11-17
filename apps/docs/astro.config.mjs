@@ -77,20 +77,58 @@ export default defineConfig({
         { tag: "link", attrs: { rel: "icon", href: "/docs/brand/favicon.ico", sizes: "any" } },
         { tag: "meta", attrs: { name: "theme-color", content: "#05070d" } },
         {
-          // Click a diagram to open it full screen; click again or press Escape to close.
+          // Click a diagram or an image in a page to open it full screen; click again or press
+          // Escape to close. Images can also be opened from the keyboard (Tab, then Enter).
           tag: "script",
           content: `
-            const close = () => document.querySelector(".diagram-overlay")?.remove();
-            document.addEventListener("click", (e) => {
-              if (document.querySelector(".diagram-overlay")) return close();
-              const svg = e.target instanceof Element && e.target.closest("pre.mermaid")?.querySelector("svg");
-              if (!svg) return;
+            const IMG = ".sl-markdown-content img";
+            let opener = null;
+            const close = () => {
+              const overlay = document.querySelector(".diagram-overlay");
+              if (!overlay) return false;
+              overlay.remove();
+              opener?.focus();
+              opener = null;
+              return true;
+            };
+            const open = (el, from) => {
               const overlay = document.createElement("div");
-              overlay.className = "diagram-overlay";
-              overlay.append(svg.cloneNode(true));
+              overlay.className = "diagram-overlay" + (el.tagName === "IMG" ? " is-image" : "");
+              overlay.setAttribute("role", "dialog");
+              overlay.setAttribute("aria-label", el.getAttribute("alt") || "Diagram, enlarged");
+              overlay.append(el.cloneNode(true));
               document.body.append(overlay);
+              opener = from;
+            };
+            const target = (node) => {
+              if (!(node instanceof Element)) return null;
+              const img = node.closest(IMG);
+              if (img) return img;
+              return node.closest("pre.mermaid")?.querySelector("svg") ?? null;
+            };
+            document.addEventListener("click", (e) => {
+              if (close()) return;
+              const el = target(e.target);
+              if (!el) return;
+              e.preventDefault();
+              open(el, el.tagName === "IMG" ? el : null);
             });
-            document.addEventListener("keydown", (e) => e.key === "Escape" && close());
+            document.addEventListener("keydown", (e) => {
+              if (e.key === "Escape") return close();
+              if ((e.key === "Enter" || e.key === " ") && document.activeElement?.matches?.(IMG)) {
+                e.preventDefault();
+                open(document.activeElement, document.activeElement);
+              }
+            });
+            const ready = () => {
+              for (const img of document.querySelectorAll(IMG)) {
+                img.tabIndex = 0;
+                img.setAttribute("role", "button");
+                img.title = "Click to enlarge";
+              }
+            };
+            if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", ready);
+            else ready();
           `,
         },
         // Starlight already writes og:title, og:description, og:url and twitter:card per page.
