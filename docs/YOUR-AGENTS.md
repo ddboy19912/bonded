@@ -45,6 +45,8 @@ This is not hypothetical. When we rated the Coinbase AgentKit chatbot template, 
 
 ## What changes for you
 
+![Before you trust an agent it's attacked and its score published; while it runs, every write is checked; if it's tricked, the breach is recorded and the agent frozen; then you get paid, from the operator's bond first and then the cover pool.](images/your-agents-what-changes.webp)
+
 ### If you put money in an agent
 
 - **Check before you trust.** A rated agent has a Security score from 0 to 100 and a report of which attacks it fell for. Ratings that measured it also show a Task score from 0 to 100. You no longer have to take the builder's word for it.

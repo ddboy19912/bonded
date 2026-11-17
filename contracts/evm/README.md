@@ -47,6 +47,8 @@ Both run the same rules: the checks live in [`MandateBase`](src/MandateBase.sol)
 
 ## How it fits together
 
+![How the contracts fit together: the operator registers the agent, creates its vault and locks a bond; depositors deposit into the MandateVault and underwriters into CoverPool; the agent trades through the vault into the market; premiums go to CoverManager and CoverPool; ClaimsEngine reads breaches, slashes OperatorBond first and has CoverPool pay the rest, both paying out to the vault; DisputeModule handles grey-area claims; the Arena attester signs scores to BondedRegistry.](../../docs/images/contracts-overview.webp)
+
 ### The life of a policy
 
 This is the loop that [`script/Smoke.s.sol`](script/Smoke.s.sol) runs, with the numbers it uses:

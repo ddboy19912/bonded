@@ -8,23 +8,35 @@ Six small diagrams, each showing one idea. Click any of them to enlarge.
 
 ### 1. The loop in one line
 
+![The loop: the Arena attacks the agent, scores are signed on chain, cover is priced from the score, and a breach pays the claim.](images/architecture-loop.webp)
+
 ### 2. How an agent gets rated
+
+![The Arena plants attacks on the AI agent, which acts through the MandateVault; the vault's breach log goes back to the Arena, which posts a signed score to BondedRegistry, and the same score to Arbitrum, Ethereum and Solana.](images/architecture-rating.webp)
 
 The Arena judges by the vault's breach log, never by what the agent says.
 
 ### 3. Who puts money where
 
+![The depositor pays a premium to CoverManager, the agent operator stakes a bond in OperatorBond, and underwriters supply capital to CoverPool.](images/architecture-money.webp)
+
 The premium is quoted from the agent's score. The bond pays first and the pool pays the rest.
 
 ### 4. What happens on a breach
+
+![The MandateVault records the breach, the keeper files the claim, ClaimsEngine slashes OperatorBond first and has CoverPool pay the rest, and the money goes back into the vault.](images/architecture-breach.webp)
 
 Every step here is on chain and deterministic.
 
 ### 5. Where the AI sits
 
+![Off chain, Sentinel (AI, advisory) may refuse the AI agent's action; every action goes to the MandateVault on chain, which is deterministic.](images/architecture-where-ai-sits.webp)
+
 Every AI component (the agent, the Arena's attackers, Sentinel) sits off chain and can only cause actions that the vault then judges.
 
 ### 6. How the attack library grows
+
+![A bounty hunter submits an attack to BountyBoard, accepted attacks join the attack library, the library feeds the Arena, and the bar rises.](images/architecture-library-grows.webp)
 
 Every accepted attack is run against every rated agent, so the bar rises over time.
 
@@ -101,6 +113,8 @@ Agents that pay through payment APIs instead of a chain are rated by the same Ar
 ## Payment gate
 
 The gate runs the Ledger's rules in front of real payments ([PAYMENT-GATE.md](PAYMENT-GATE.md)). It lives in the `api` and the `keeper`, and connects three ways.
+
+![The agent's server asks the gate first and the card program calls it from a card hook; the gate answers allowed or blocked with a signed receipt. Wallets and your payment log are watched after the fact. The gate sends alerts and anchors a daily log root in GateAnchor on Robinhood Chain.](images/architecture-payment-gate.webp)
 
 - **Ask first** and **card hooks** decide before the money moves: Enforce blocks or declines, Monitor lets it through and logs a breach. One exception: a card hook declines cash, money orders and gambling (`blocked_merchant`) in both modes. Each decision gets a receipt signed by Bonded that anyone can check offline.
 - **Watch** decides nothing in time. It runs payments already made through the same rules and alerts on a breach. With **Expect a check first** on, a payment with no allowed check for the same payee and amount in the 24 hours before is also a breach (`skipped_gate`). Each check covers one payment, so an allowed check that was never paid can cover a later identical payment that skipped the gate.

@@ -105,6 +105,8 @@ The agent's page shows the most episodes the rating can have and its time budget
 
 The Arena runs your agent through the same judge and scoring model as Bonded's own agents. The parity tests run Bonded's scripted agents through the gateway (over MCP, over HTTP and in chain mode) and require the same verdict, episode by episode, as in-process. `pnpm --filter @bonded/arena test:parity` runs the whole published library.
 
+![What a rating runs: the rating worker opens an episode with a fresh vault, the gateway sends it to your runner or URL, which starts your agent; your agent reads tools (where attacks are planted), trades and says done; the gateway passes the breach log to the worker, and the verdict comes from the breach log.](images/ratings-what-runs.webp)
+
 ### Fair-use limits
 
 Fair-use limits for operator-run agents keep one operator from holding the rating worker or rerolling a rating until it comes out well:
