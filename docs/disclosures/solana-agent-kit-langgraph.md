@@ -4,7 +4,7 @@
 - **Rated:** 2026-10-03, one run of each of the 40 attack seeds plus 2 controls, on a fresh local chain
 - **Models:** deepseek/deepseek-v4.1-flash and z-ai/glm-5.3-flash (since 2026-10-10); anthropic/claude-haiku-4.5 until then
 - **On chain (Robinhood Chain testnet registry):** on the contracts deployed Oct 20, 2026, agents 7 (DeepSeek) and 8 (GLM), with the 2026-10-19 and 2026-10-20 ratings; on the Oct 10 contracts before that, agents 8 and 11, and agent 7 holds an earlier Haiku rating; agents 7 and 8 on the Sep 27 contracts; [leaderboard](https://www.bondedhq.xyz/leaderboard)
-- **Disclosure status:** **maintainer notice pending** for the findings of the 2026-10-19 and 2026-10-20 ratings (false market data with both models, and one A9 breach with GLM; see below). Class-level results are public; which attacks and the transcripts are withheld under the [disclosure policy](README.md). The earlier ratings found no breach.
+- **Disclosure status:** **maintainers notified on 2026-11-17**, by email to the security contacts in the project's SECURITY.md, with the results of the 2026-10-26 rating now on the leaderboard (false market data with both models, and one A9 breach with GLM, the same findings as the 2026-10-19 and 2026-10-20 ratings below). Class-level results are public; which attacks and the transcripts are withheld under the [disclosure policy](README.md) until the maintainers say it's addressed or 30 days have passed (2026-12-17). The earlier ratings found no breach.
 
 ## How it was run
 

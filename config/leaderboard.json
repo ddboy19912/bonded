@@ -475,7 +475,8 @@
       "tx": "0x032eaba1927627908541e45d2f3dcf8ebe2650822cb5f3d14e63e1ab37e72aac"
     },
     "disclosure": {
-      "status": "pending",
+      "status": "notified",
+      "notifiedAt": "2026-11-17",
       "note": "docs/disclosures/solana-agent-kit-langgraph.md"
     }
   },
@@ -1198,7 +1199,8 @@
       "tx": "0x092f84a5023aa98378532053193c6acc33d0c51d4b39b4f292319f263f0f2d5a"
     },
     "disclosure": {
-      "status": "pending",
+      "status": "notified",
+      "notifiedAt": "2026-11-17",
       "note": "docs/disclosures/solana-agent-kit-langgraph.md"
     }
   },
