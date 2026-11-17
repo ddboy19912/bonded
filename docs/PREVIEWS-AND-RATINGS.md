@@ -6,16 +6,7 @@ What a free preview runs and shows, how to make a rating official, and how to st
 
 The **Test your agent** page ([www.bondedhq.xyz/agents/test](https://www.bondedhq.xyz/agents/test), Robinhood Chain testnet) takes you from nothing to a preview report. You need an email, a passkey or a browser wallet to sign in (not to pay: a preview costs you nothing on chain) and your agent, either reachable at a public HTTPS address or able to run next to the runner.
 
-```mermaid
-flowchart LR
-  A["1. Sign in<br/>(email, passkey<br/>or wallet)"] --> B["2. Choose<br/>Agent URL or runner,<br/>tools or chain mode"]
-  B --> C["3. Connect<br/>verify the URL, or<br/>start the runner"]
-  C --> D["4. Connection check<br/>one benign episode, live"]
-  D --> E["5. Estimate<br/>time and your model cost"]
-  E --> F["6. Preview rating<br/>progress: counts and ETA"]
-  F --> G["7. Report<br/>private, not published"]
-  G --> H["8. Make it official<br/>vault, bond, attested rating"]
-```
+![Five steps: sign in, connect, run the check (no attack), run the preview, read the report.](images/byoa-test-steps.webp)
 
 1. **Sign in.** Press **Sign in** and use your email (a one-time code) or a passkey. Or connect a wallet and sign one message (`Bonded: start preview`, the chain, your wallet and the time). Either way you stay signed in for 12 hours; nothing is sent on chain.
 2. **Answer two questions.** *Which framework is your agent built on?* (ElizaOS, Coinbase AgentKit, LangChain or LangGraph, the Vercel AI SDK, something else over MCP or HTTP, or Python) and *Where do you run it?* (on your computer or server: the runner, which is the default; on a host like Vercel: Agent URL). The snippets and the `init` command follow your answers. The mode (tools or chain) is under **Advanced (optional)**; then press **Continue**. A declared code hash and a TEE are set later, when you make it official (onboarding has its own **Advanced (optional)**).
@@ -113,23 +104,6 @@ An official rating is attested: the attester signs the score and posts it to the
 The agent's page shows the most episodes the rating can have and its time budget before you ask for one. `pnpm arena rate --agent remote --profile hosted` runs the same settings on your machine. Episodes run one at a time, in a random order, so when an episode runs says nothing about whether it is attacked.
 
 The Arena runs your agent through the same judge and scoring model as Bonded's own agents. The parity tests run Bonded's scripted agents through the gateway (over MCP, over HTTP and in chain mode) and require the same verdict, episode by episode, as in-process. `pnpm --filter @bonded/arena test:parity` runs the whole published library.
-
-```mermaid
-sequenceDiagram
-  participant W as Rating worker
-  participant G as Arena Gateway
-  participant R as Your runner (or your URL)
-  participant A as Your agent
-  W->>G: open episode: fresh capability URL, fresh vault on the sandbox chain
-  G->>R: episode (task, endpoints, vault, deadline)
-  R->>A: start your command with BONDED_* set (or: your endpoint gets the POST)
-  A->>G: read tools (MCP or HTTP): attacks are planted here
-  A->>G: write: a tool call (tool mode) or a signed execute() (chain mode)
-  G->>W: the vault records any breach
-  A->>G: POST done (optional under the runner)
-  R->>G: episode_done (exit code, last 4 KB of output)
-  W->>W: verdict = the vault's breach log
-```
 
 ### Fair-use limits
 

@@ -45,13 +45,6 @@ This is not hypothetical. When we rated the Coinbase AgentKit chatbot template, 
 
 ## What changes for you
 
-```mermaid
-flowchart LR
-  A["Before you trust it<br/>The Arena attacks the agent<br/>and publishes its score"] --> B["While it runs<br/>The vault checks every write<br/>against the agent's rules"]
-  B --> C["If it's tricked<br/>The vault records the breach<br/>and freezes the agent"]
-  C --> D["You get paid<br/>Operator's bond first,<br/>then the cover pool"]
-```
-
 ### If you put money in an agent
 
 - **Check before you trust.** A rated agent has a Security score from 0 to 100 and a report of which attacks it fell for. Ratings that measured it also show a Task score from 0 to 100. You no longer have to take the builder's word for it.

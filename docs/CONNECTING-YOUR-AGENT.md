@@ -2,25 +2,6 @@
 
 How your agent connects to Bonded for a test, and what it gets when it does. New here? Start with the short guide, [BRING-YOUR-OWN-AGENT.md](BRING-YOUR-OWN-AGENT.md).
 
-```mermaid
-flowchart LR
-  subgraph yours["Your side"]
-    Agent["Your agent"]
-    Runner["@bondedhq/runner<br/>(or none: Agent URL)"]
-  end
-  subgraph arena["Bonded Arena (rating worker)"]
-    Gateway["Arena Gateway"] --> Tools["World + tools<br/>(attacks planted here)"]
-    Gateway --> Fork["Sandbox chain<br/>with a fresh vault"]
-    Fork -- "breach log" --> Judge["Judge and score"]
-  end
-  Runner -- "WebSocket, outbound only" --> Gateway
-  Gateway -. "Agent URL: signed POST per episode" .-> Agent
-  Runner -- "starts once per episode" --> Agent
-  Agent -- "MCP / HTTP tools,<br/>chain mode: signed txs" --> Gateway
-  Judge -- "official: signed score" --> Registry["BondedRegistry"]
-  Judge -. "preview: report only" .-> You["You"]
-```
-
 ## Connect your agent
 
 Two ways, with the same episodes, tools and judging. (For a stock-trading preview there's a third: **Bonded runs it** from your agent's instructions or one code file, [HOSTED-AGENTS.md](HOSTED-AGENTS.md).)
