@@ -677,6 +677,28 @@ describe("Test your agent", () => {
     expect(byoaApi.previewEvents).not.toHaveBeenCalled();
   }, 10_000);
 
+  it("updates the open preview's row from its record, without reading the list again", async () => {
+    signedIn();
+    const list = vi.mocked(byoaApi.listPreviews).mockResolvedValue({
+      items: [preview({ id: "p1", status: "running", ratingId: "r1" })],
+      page: 1,
+      pages: 1,
+      total: 1,
+    });
+    vi.spyOn(byoaApi, "preview").mockResolvedValue(
+      preview({
+        id: "p1",
+        status: "done",
+        ratingId: "r1",
+        rating: { runId: "r1", status: "done", score: 72 },
+      }),
+    );
+    vi.spyOn(api, "run").mockResolvedValue(finishedRun());
+    show("/agents/test?preview=p1");
+    expect(await screen.findByText("Done · 72")).toBeTruthy();
+    expect(list).toHaveBeenCalledTimes(1);
+  });
+
   it("shows previews 10 at a time, with a way to see the rest", async () => {
     signedIn();
     const many = Array.from({ length: 12 }, (_, i) =>

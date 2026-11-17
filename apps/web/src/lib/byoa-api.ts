@@ -239,6 +239,20 @@ export type PreviewStatus =
   /** Never started a rating, and older than its runner token's 7 days: closed by the keeper. */
   | "expired";
 
+/** One row of "Your previews" (GET /previews): what the list shows, not the whole record. */
+export type PreviewListItem = Pick<
+  PreviewRecord,
+  "id" | "status" | "world" | "ratingId" | "createdAt"
+> & {
+  rating?: {
+    runId: string;
+    status: string;
+    score?: number;
+    tier?: string | null;
+    findings?: Pick<BrokerageFindings, "attacks">;
+  } | null;
+};
+
 /** The world a preview tests the agent on: the on-chain vault, or a simulated brokerage account. */
 export type PreviewWorld = "vault" | "brokerage";
 
@@ -641,20 +655,22 @@ export const byoaApi = {
     request<PreviewAllowance>(
       `/previews/allowance?wallet=${encodeURIComponent(wallet)}&world=${world}`,
     ),
-  /** GET /previews: the signed-in wallet's previews, newest first. */
-  /** GET /previews: newest first, a numbered page at a time (`page`/`pages`/`total` say where). */
+  /**
+   * GET /previews: the list rows, newest first, a numbered page at a time (`page`/`pages`/`total`
+   * say where). GET /previews/:id has a preview's whole record.
+   */
   listPreviews: (
     session: string,
     q: { page?: number; limit?: number } = {},
-  ): Promise<{ items: PreviewRecord[]; page?: number; pages?: number; total?: number }> => {
+  ): Promise<{ items: PreviewListItem[]; page?: number; pages?: number; total?: number }> => {
     const query = new URLSearchParams();
     if (q.page) query.set("page", String(q.page));
     if (q.limit) query.set("limit", String(q.limit));
     const path = query.size ? `/previews?${query}` : "/previews";
-    return request<{ items: PreviewRecord[]; page?: number; pages?: number; total?: number }>(
+    return request<{ items: PreviewListItem[]; page?: number; pages?: number; total?: number }>(
       path,
       bearer(session),
-    ).then((r) => ({ ...r, items: r.items.map(codedPreview) }));
+    );
   },
   /** POST /previews: a new preview with its mode and connection. Nothing is made on chain. */
   createPreview: (

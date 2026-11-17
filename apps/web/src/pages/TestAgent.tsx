@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
-import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+} from "@tanstack/react-query";
 import { useAccount, useSignMessage } from "wagmi";
 import type { RemoteMode } from "@bondedhq/shared";
 import { deployment } from "../config";
@@ -77,6 +82,8 @@ import { SignInButton } from "../components/sign-in";
 import { ConfirmButton } from "../components/gate/common";
 
 const FINISHED = ["done", "failed", "refused", "stopped", "expired"];
+/** One page of "Your previews", as GET /previews gives it. */
+type PreviewListPage = Awaited<ReturnType<typeof byoaApi.listPreviews>>;
 /** How many previews "Your previews" shows at a time. */
 const PREVIEWS_PAGE = 10;
 /** A preview can be removed unless its rating or a connection check is under way. */
@@ -239,12 +246,36 @@ export function TestAgent() {
     // One stream per preview and session; the record's own updates don't restart it.
   }, [session?.session, previewId, over, missing, loaded]);
   const run = useRatingRun(preview.data?.ratingId ?? undefined, 5000, session?.session);
-  // The list beside the steps follows the open preview's status.
-  const openStatus = preview.data?.status;
-  const refetchList = previews.refetch;
+  // The list beside the steps follows the open preview: its row is updated from the record this
+  // page already has, on whichever page of the list it is, with no new request.
+  const open = preview.data;
+  const openRow = open
+    ? JSON.stringify([open.id, open.status, open.ratingId, open.rating?.status, open.rating?.score])
+    : "";
   useEffect(() => {
-    if (openStatus) void refetchList();
-  }, [openStatus, refetchList]);
+    if (!open) return;
+    queryClient.setQueryData<InfiniteData<PreviewListPage>>(["previews", session?.session], (d) =>
+      d
+        ? {
+            ...d,
+            pages: d.pages.map((pg) => ({
+              ...pg,
+              items: pg.items.map((x) =>
+                x.id === open.id
+                  ? {
+                      ...x,
+                      status: open.status,
+                      ratingId: open.ratingId,
+                      rating: open.rating ?? null,
+                    }
+                  : x,
+              ),
+            })),
+          }
+        : d,
+    );
+    // The row changes only when what it shows does.
+  }, [openRow]);
 
   // A session the API no longer accepts: back to signing in, saying why.
   const authError = [previews.error, preview.error].find(

@@ -440,6 +440,22 @@ export interface PreviewRecord {
   updatedAt: Date;
 }
 
+/** One row of an owner's preview list (`previewListOf`): what the list shows, nothing more. */
+export interface PreviewListItem {
+  id: string;
+  status: string;
+  world: PreviewWorld;
+  ratingId: string | null;
+  createdAt: Date;
+  /** Its latest rating's status and headline, straight from the stored report. */
+  rating: {
+    status: string;
+    score: number | null;
+    tier: string | null;
+    findingsAttacks: Record<string, number> | null;
+  } | null;
+}
+
 /**
  * A live Agent URL. Calls to it are signed by Bonded's key for `createdBy`, the wallet that saved
  * it; the agent checks that wallet is its owner.
@@ -2738,12 +2754,16 @@ export class Database {
       [id],
     );
   }
-  /** A wallet's previews, newest first, a numbered page at a time. */
-  async previewsOf(
+  /**
+   * The "Your previews" list: each row is what the list shows (when, status, world) and its
+   * latest rating's headline, read in one query with the rating joined, not the whole preview
+   * record per row. Newest first, a numbered page at a time; removed previews aren't listed.
+   */
+  async previewListOf(
     owner: string,
     chainId: number,
     q: { page?: number; limit?: number } = {},
-  ): Promise<Page<PreviewRecord>> {
+  ): Promise<Page<PreviewListItem>> {
     const limit = clampLimit(q.limit ?? 10);
     const total = (
       await this.pool.query(
@@ -2753,11 +2773,35 @@ export class Database {
     ).rows[0].n as number;
     const at = pageOf(q.page, total, limit);
     const r = await this.pool.query(
-      `SELECT * FROM previews WHERE owner=$1 AND chain_id=$2 AND removed_at IS NULL
-       ORDER BY created_at DESC, id LIMIT $3 OFFSET $4`,
+      `SELECT v.id, v.status, v.world, v.rating_id, v.created_at,
+         r.status AS rating_status,
+         r.report->'scoring'->>'score' AS score, r.report->'scoring'->>'tier' AS tier,
+         r.report->'findings'->'attacks' AS findings_attacks
+       FROM previews v LEFT JOIN ratings r ON r.id = v.rating_id
+       WHERE v.owner=$1 AND v.chain_id=$2 AND v.removed_at IS NULL
+       ORDER BY v.created_at DESC, v.id LIMIT $3 OFFSET $4`,
       [owner.toLowerCase(), chainId, limit, at.offset],
     );
-    return { items: r.rows.map(previewRow), page: at.page, pages: at.pages, total };
+    return {
+      items: r.rows.map((row) => ({
+        id: row.id as string,
+        status: row.status as string,
+        world: ((row.world as PreviewWorld | undefined) ?? "vault") as PreviewWorld,
+        ratingId: (row.rating_id as string | null) ?? null,
+        createdAt: row.created_at as Date,
+        rating: row.rating_id
+          ? {
+              status: row.rating_status as string,
+              score: row.score === null ? null : Number(row.score),
+              tier: (row.tier as string | null) ?? null,
+              findingsAttacks: (row.findings_attacks as Record<string, number> | null) ?? null,
+            }
+          : null,
+      })),
+      page: at.page,
+      pages: at.pages,
+      total,
+    };
   }
   /** Set a preview's status (and its error, cleared when not given). */
   async setPreviewStatus(id: string, status: string, error?: string) {

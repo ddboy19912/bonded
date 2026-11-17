@@ -60,7 +60,8 @@ export function PreviewReport({
   preview?: PreviewRecord | undefined;
   run: RunRecord;
   /** The wallet's preview before this one that finished with a score: the "before". */
-  previous?: PreviewRecord | undefined;
+  /** The account's previous finished preview, to compare against. */
+  previous?: Pick<PreviewRecord, "ratingId"> | undefined;
   session?: string | undefined;
   /** Start a new preview with the same choices, after a fix. */
   onRateAgain?: () => void;

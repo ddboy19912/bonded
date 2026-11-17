@@ -571,6 +571,22 @@ describe("removing a preview", () => {
       [wallet.address.toLowerCase(), `done:${ratingId}`, key],
     );
 
+    // The list row is what the list shows, read in one query: no connection, checks or report.
+    await pg.db.pool.query("UPDATE ratings SET status='running' WHERE id=$1", [ratingId]);
+    const listed = async () =>
+      ((await bodyOf(await get("/previews", session))).items as Record<string, unknown>[])[0];
+    // No score while its rating runs, as on the preview's own page.
+    expect((await listed())!.rating).toEqual({ runId: ratingId, status: "running" });
+    await pg.db.pool.query("UPDATE ratings SET status='done' WHERE id=$1", [ratingId]);
+    expect(await listed()).toEqual({
+      id: preview.id,
+      status: "done",
+      world: "vault",
+      ratingId,
+      createdAt: expect.any(String),
+      rating: { runId: ratingId, status: "done", score: 640, tier: null },
+    });
+
     // Only its owner, and not while its rating is queued or running.
     const other = await sessionFor(privateKeyToAccount(generatePrivateKey()));
     expect((await send("DELETE", `/previews/${preview.id}`, undefined, other)).status).toBe(404);
