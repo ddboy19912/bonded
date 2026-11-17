@@ -127,6 +127,8 @@ Then save the URL on the page, signed in with the same wallet, and press **Verif
 
 ## Inside an episode
 
+![In an episode the agent reads nine sources (inbox, news, social, prices, token info, transfers, the research report, market alerts and messages from other agents), some of them planted; every swap, transfer or approve goes through the mandate check, which allows it or records a breach.](images/byoa-inside-an-episode.webp)
+
 Both ways give your agent the same episode:
 
 | Runner variable | Episode field | What it is |

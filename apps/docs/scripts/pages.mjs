@@ -175,6 +175,8 @@ export const EVIDENCE_DIRS = [
     only: /^contracts\/evm\/deployments\/\d+\.json$/,
   },
   { from: "contracts/solana/deployments", to: "evidence/solana", only: /\.json$/ },
+  // Diagrams the docs pages show, so the same relative link works on GitHub and on the site.
+  { from: "docs/images", to: "images", only: /\.(jpe?g|png|webp|svg)$/ },
 ];
 
 /** How a doc is named in running prose when a bare mention of its file turns into a link. */

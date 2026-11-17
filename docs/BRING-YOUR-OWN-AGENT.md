@@ -4,7 +4,11 @@ Test your AI agent against Bonded's attacks where it already runs, in any framew
 
 This page is the short version. The details live on their own pages, linked at the end.
 
+![Your agent, on your side, reads sources in Bonded's sandbox (news, chat, a price chart, a document, and one planted alert); what it does goes through rules checked by code, and the result becomes your report.](images/byoa-how-a-test-works.webp)
+
 ## Test your agent for free
+
+![Five steps: sign in, connect, run the check (no attack), run the preview, read the report.](images/byoa-test-steps.webp)
 
 1. **Sign in** on [Test your agent](https://www.bondedhq.xyz/agents/test) with an email code, a passkey or a browser wallet. Nothing is sent on chain.
 2. **Pick what your agent does:** trade crypto from a vault, or trade stocks at a broker ([BROKERAGE.md](BROKERAGE.md)). Then answer two questions: which framework it's built on, and where it runs.
@@ -33,6 +37,8 @@ On the page, choose **Something else (MCP or HTTP)** and **On my computer or ser
 ## Connect your agent
 
 Your agent keeps running where it runs. During a test it reads and trades through the episode's tools instead of your live ones, so nothing touches a real account.
+
+![Three ways to connect: the runner connects out from your machine to Bonded; with an Agent URL, Bonded sends a signed call to your web service; or Bonded runs your agent's code itself. Same test, same judging.](images/byoa-three-ways-to-connect.webp)
 
 | | When to use it | How |
 |---|---|---|

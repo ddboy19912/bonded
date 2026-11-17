@@ -36,6 +36,7 @@ for (const entry of fs.readdirSync(outDir)) {
   if (entry !== "index.mdx") fs.rmSync(path.join(outDir, entry), { recursive: true, force: true });
 }
 fs.rmSync(path.join(publicDir, "evidence"), { recursive: true, force: true });
+fs.rmSync(path.join(publicDir, "images"), { recursive: true, force: true });
 
 // Pages: the fixed list, then every file in the decision and progress folders.
 const pages = PAGES.map((p) => ({ ...p }));
