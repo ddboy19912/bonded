@@ -104,6 +104,9 @@ export default defineRailway(() => {
   // (spelled out so a plan shows them). The API and the worker read the same. 3 a wallet while
   // builders test with us, so "fix it and rate again" works the same day; the code's default is 1.
   const previews = { PREVIEW_PER_WALLET_DAILY: "3", PREVIEW_DAILY: "20" };
+  // Notification email through Resend (docs/DEVELOPING.md): set by the founder in Railway on all
+  // three services, kept here so an apply never deletes them and turns email off.
+  const email = { RESEND_API_KEY: preserve(), EMAIL_FROM: preserve() };
 
   const api = service("api", {
     ...role({ healthcheckPath: "/health", healthcheckTimeout: 120 }),
@@ -128,6 +131,10 @@ export default defineRailway(() => {
       // Signs the payment gate's check receipts (apps/api/GATE.md): a new 32-byte key set by the
       // founder in Railway, never the attester's. Without it, checks are refused.
       GATE_RECEIPT_PRIVATE_KEY: preserve(),
+      // "true" lets the payment gate's card hooks answer Stripe live-mode charges; otherwise they
+      // are declined (apps/api/src/gate-card-hook.ts). Set by the founder in Railway, kept here.
+      GATE_ALLOW_LIVE_CHARGES: preserve(),
+      ...email,
       ...previews,
       // Telegram alerts (docs/PLAN.md, Day 13 workstream 6): set by the founder, kept here.
       TELEGRAM_BOT_TOKEN: preserve(),
@@ -146,6 +153,7 @@ export default defineRailway(() => {
       // file; apps/api/GATE.md). Its own key, not KEEPER_KEY, so the two never race for a nonce;
       // GateAnchor's owner allows its address with setPoster. Set by the founder in Railway.
       GATE_ANCHOR_KEY: preserve(),
+      ...email,
       TELEGRAM_BOT_TOKEN: preserve(),
       TELEGRAM_CHAT_ID: preserve(),
     },
@@ -166,7 +174,12 @@ export default defineRailway(() => {
       AGENT_URL_SECRET_KEY: api.env.AGENT_URL_SECRET_KEY,
       // Signs calls to agents' URLs: the same key the API publishes.
       AGENT_URL_SIGNING_KEY: api.env.AGENT_URL_SIGNING_KEY,
+      ...email,
       ...previews,
+      // Telegram alerts for its own crashes and failing loops (docs/SERVICES.md, "Alerts"): the
+      // same bot and chat as the API, set by the founder, kept here.
+      TELEGRAM_BOT_TOKEN: preserve(),
+      TELEGRAM_CHAT_ID: preserve(),
     },
   });
 
