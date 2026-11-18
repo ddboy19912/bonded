@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { config, grade, walletsFromEnv } from "./checks.mjs";
+import { config, grade, queueResult, walletsFromEnv, watchedFromEnv } from "./checks.mjs";
 
 // anvil's first two public test keys.
 const KEY_A = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
@@ -38,5 +38,42 @@ describe("config", () => {
       minEth: 0.05,
       minOpenRouterUsd: 10,
     });
+  });
+});
+
+describe("watchedFromEnv", () => {
+  it("reads label=address pairs and skips malformed ones", () => {
+    expect(
+      watchedFromEnv({
+        OPS_WATCH_ADDRESSES:
+          "Keeper (Railway)=0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266, bad=0x12,=0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+      }),
+    ).toEqual([
+      { label: "Keeper (Railway)", address: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" },
+    ]);
+    expect(watchedFromEnv({})).toEqual([]);
+  });
+});
+
+describe("queueResult", () => {
+  const lane = { healthy: true, queued: 0, running: 0, oldestQueuedSeconds: null, staleRunning: 0 };
+
+  it("is ok with nothing waiting", () => {
+    expect(queueResult({ lanes: { check: lane, remote: lane } })).toMatchObject({
+      status: "ok",
+      value: "0 running, 0 waiting",
+      detail: "Nothing waiting",
+    });
+  });
+
+  it("is low when a job has waited over 30 minutes or lost its worker", () => {
+    const waiting = { ...lane, queued: 2, running: 1, oldestQueuedSeconds: 2400 };
+    expect(queueResult({ lanes: { remote: waiting } })).toMatchObject({
+      status: "low",
+      value: "1 running, 2 waiting",
+    });
+    expect(
+      queueResult({ lanes: { remote: { ...lane, running: 1, staleRunning: 1 } } }).status,
+    ).toBe("low");
   });
 });
