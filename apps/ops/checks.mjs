@@ -24,6 +24,7 @@ const WALLET_KEYS = [
   ["Agent", "AGENT_KEY"],
   ["User", "USER_KEY"],
   ["Attester", "ATTESTER_KEY"],
+  ["Gate anchor", "GATE_ANCHOR_KEY"],
 ];
 
 // Things with no API worth calling. Shown as reminders with a link.
@@ -49,6 +50,16 @@ const MANUAL = [
     link: "https://github.com/settings/billing",
   },
   {
+    name: "UptimeRobot",
+    detail: "Emails when the API's /health fails",
+    link: "https://dashboard.uptimerobot.com/monitors",
+  },
+  {
+    name: "Resend (email)",
+    detail: "Sends alerts from notify.bondedhq.xyz",
+    link: "https://resend.com/domains",
+  },
+  {
     name: "Domain bondedhq.xyz",
     detail: "Bought 2026-10-11. Renews around 2027-10-11. Keep auto-renew on",
     link: null,
@@ -62,6 +73,42 @@ export function config(env = process.env) {
     rpcUrl: env.RPC_URL || DEFAULTS.rpcUrl,
     minEth: Number(env.OPS_MIN_ETH || DEFAULTS.minEth),
     minOpenRouterUsd: Number(env.OPS_MIN_OPENROUTER_USD || DEFAULTS.minOpenRouterUsd),
+  };
+}
+
+/**
+ * Extra wallets to watch by address alone (no key), for the ones Railway's services sign with
+ * when their keys aren't in this machine's .env: `OPS_WATCH_ADDRESSES="Keeper (Railway)=0x...,
+ * Attester (Railway)=0x..."`. Blank or malformed entries are skipped.
+ */
+export function watchedFromEnv(env = process.env) {
+  const out = [];
+  for (const part of (env.OPS_WATCH_ADDRESSES ?? "").split(",")) {
+    const [label, address] = part.split("=").map((x) => x?.trim());
+    if (label && address && /^0x[0-9a-fA-F]{40}$/.test(address)) out.push({ label, address });
+  }
+  return out;
+}
+
+/** The checks and previews waiting or running, from the API's /status. */
+export function queueResult(body, link) {
+  const lanes = Object.values(body.lanes ?? {});
+  const running = lanes.reduce((n, lane) => n + (lane.running ?? 0), 0);
+  const queued = lanes.reduce((n, lane) => n + (lane.queued ?? 0), 0);
+  const oldest = Math.max(0, ...lanes.map((lane) => lane.oldestQueuedSeconds ?? 0));
+  const stale = lanes.reduce((n, lane) => n + (lane.staleRunning ?? 0), 0);
+  const stuck = stale > 0 || oldest > 30 * 60;
+  return {
+    group: "Services",
+    name: "Test queue",
+    status: stuck ? "low" : "ok",
+    value: `${running} running, ${queued} waiting`,
+    detail: stale
+      ? `${stale} job(s) lost their worker`
+      : queued
+        ? `Oldest waiting ${Math.round(oldest / 60)} min${oldest > 30 * 60 ? " (over 30 min)" : ""}`
+        : "Nothing waiting",
+    link,
   };
 }
 
@@ -124,6 +171,7 @@ async function checkApi(cfg) {
           : `${lanes.length} lanes healthy`,
         link,
       },
+      queueResult(body, link),
     ];
     return results;
   } catch (error) {
@@ -165,6 +213,11 @@ async function checkPage(name, url) {
 
 async function checkWallets(cfg, env) {
   const wallets = walletsFromEnv(env);
+  for (const { label, address } of watchedFromEnv(env)) {
+    const known = wallets.find((w) => w.address.toLowerCase() === address.toLowerCase());
+    if (known) known.roles.push(label);
+    else wallets.push({ address, roles: [label] });
+  }
   if (wallets.length === 0) {
     return [
       {
@@ -242,10 +295,11 @@ async function checkOpenRouter(cfg, env) {
 
 export async function runChecks(env = process.env) {
   const cfg = config(env);
-  const [api, web, blog, wallets, openRouter] = await Promise.all([
+  const [api, web, blog, docs, wallets, openRouter] = await Promise.all([
     checkApi(cfg),
     checkPage("Web app", cfg.webUrl),
     checkPage("Blog", `${cfg.webUrl}/blog/`),
+    checkPage("Docs", `${cfg.webUrl}/docs/`),
     checkWallets(cfg, env),
     checkOpenRouter(cfg, env),
   ]);
@@ -257,6 +311,6 @@ export async function runChecks(env = process.env) {
   }));
   return {
     checkedAt: new Date().toISOString(),
-    results: [...api, web, blog, ...wallets, openRouter, ...manual],
+    results: [...api, web, blog, docs, ...wallets, openRouter, ...manual],
   };
 }
