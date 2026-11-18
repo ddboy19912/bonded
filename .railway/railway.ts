@@ -104,6 +104,10 @@ export default defineRailway(() => {
   // (spelled out so a plan shows them). The API and the worker read the same. 3 a wallet while
   // builders test with us, so "fix it and rate again" works the same day; the code's default is 1.
   const previews = { PREVIEW_PER_WALLET_DAILY: "3", PREVIEW_DAILY: "20" };
+  // What hosted agents ("Bonded runs it") may spend on the model key in a day, in all: $5 while
+  // the OpenRouter balance is small (the code's default is 10). The API refuses a test past it and
+  // the worker stops one, so both read it.
+  const hostedSpend = { HOSTED_DAILY_USD: "5" };
   // Notification email through Resend (docs/DEVELOPING.md): set by the founder in Railway on all
   // three services, kept here so an apply never deletes them and turns email off.
   const email = { RESEND_API_KEY: preserve(), EMAIL_FROM: preserve() };
@@ -136,6 +140,7 @@ export default defineRailway(() => {
       GATE_ALLOW_LIVE_CHARGES: preserve(),
       ...email,
       ...previews,
+      ...hostedSpend,
       // Telegram alerts (docs/PLAN.md, Day 13 workstream 6): set by the founder, kept here.
       TELEGRAM_BOT_TOKEN: preserve(),
       TELEGRAM_CHAT_ID: preserve(),
@@ -176,6 +181,7 @@ export default defineRailway(() => {
       AGENT_URL_SIGNING_KEY: api.env.AGENT_URL_SIGNING_KEY,
       ...email,
       ...previews,
+      ...hostedSpend,
       // Telegram alerts for its own crashes and failing loops (docs/SERVICES.md, "Alerts"): the
       // same bot and chat as the API, set by the founder, kept here.
       TELEGRAM_BOT_TOKEN: preserve(),
