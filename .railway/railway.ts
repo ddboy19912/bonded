@@ -180,10 +180,44 @@ export default defineRailway(() => {
       // same bot and chat as the API, set by the founder, kept here.
       TELEGRAM_BOT_TOKEN: preserve(),
       TELEGRAM_CHAT_ID: preserve(),
+      // Model calls for hosted agents ("Bonded runs it", docs/HOSTED-AGENTS.md) and for drafting
+      // each rating's held-out attacks. Set by the founder in Railway, kept here.
+      OPENROUTER_API_KEY: preserve(),
+    },
+  });
+
+  // The ops dashboard (apps/ops): what Bonded pays for or depends on, viewable from any device
+  // behind a password, and Telegram alerts when something goes low or down. It watches wallets
+  // by address only (no keys) and reads the OpenRouter balance with the worker's key.
+  const OPS_DOMAIN = "bonded-ops-production.up.railway.app";
+  const ops = service("ops", {
+    source: github("ddboy19912/bonded", {
+      branch: "main",
+      checkSuites: false,
+      rootDirectory: "apps/ops",
+    }),
+    build: { builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["apps/ops/**"] },
+    deploy: { healthcheckPath: "/health", healthcheckTimeout: 60 },
+    networking: { serviceDomains: { [OPS_DOMAIN]: { port: 8080 } } },
+    replicas: { sfo: 1 },
+    env: {
+      OPS_HOST: "0.0.0.0",
+      OPS_PORT: "8080",
+      OPS_PUBLIC_URL: `https://${OPS_DOMAIN}`,
+      // Set by the founder in Railway: 12 characters or more. The service won't start without it.
+      OPS_PASSWORD: preserve(),
+      // Public addresses of the wallets Railway's services sign with (keeper, attester and the
+      // gate's poster): balances only, no keys.
+      OPS_WATCH_ADDRESSES:
+        "Keeper=0x4B9e61d0c590d1e279D67eeE33Dd07e2Ad4C7632,Attester=0x6eB99ec2A4b5b7379E07a53352B41D132BE5443b,Gate anchor=0xdD42a11738529B7B4b6c7F75D2Edc7a01cE64416",
+      RPC_URL: shared.RPC_URL,
+      OPENROUTER_API_KEY: arenaWorker.env.OPENROUTER_API_KEY,
+      TELEGRAM_BOT_TOKEN: api.env.TELEGRAM_BOT_TOKEN,
+      TELEGRAM_CHAT_ID: api.env.TELEGRAM_CHAT_ID,
     },
   });
 
   return project("zippy-spirit", {
-    resources: [Postgres, postgresVolume, api, keeper, arenaWorker, sentinel],
+    resources: [Postgres, postgresVolume, api, keeper, arenaWorker, sentinel, ops],
   });
 });

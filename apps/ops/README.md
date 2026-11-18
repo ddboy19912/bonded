@@ -1,12 +1,20 @@
 # Ops dashboard
 
-A small local page that shows whether everything Bonded pays for or depends on is still running. It is never deployed.
+A small page that shows whether everything Bonded pays for or depends on is still running. Run it locally, or open the hosted one from any device.
 
 ```bash
 pnpm ops
 ```
 
 Then open http://127.0.0.1:4545. The page checks again every 5 minutes.
+
+## Hosted
+
+The Railway service `ops` (`.railway/railway.ts`) runs the same page at https://bonded-ops-production.up.railway.app, so it can be checked from any device:
+
+- **Password:** the browser asks for a user name and password. Any user name works; the password is `OPS_PASSWORD`, set in Railway (12 characters or more). The service refuses to start publicly without it. `/health` answers without it, for Railway's health check.
+- **No keys:** it watches the keeper, attester and gate anchor wallets by their public addresses (`OPS_WATCH_ADDRESSES`), and reads the OpenRouter balance with the arena-worker's key.
+- **Telegram alerts:** every 5 minutes (`OPS_ALERT_MS`) it posts to the ops Telegram chat when a check goes low or down, again when it recovers, and once a day while it stays bad. A restart reports only what's already wrong. Messages carry check names and values, never keys or error text.
 
 ## What it checks
 
