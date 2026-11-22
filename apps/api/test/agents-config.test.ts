@@ -68,7 +68,7 @@ it("repeats is optional, a whole number from 1 to 10", () => {
     expect(() => agentConfig.parse({ ...base, repeats: bad })).toThrow();
 });
 
-// The demo agents, as seeded on the contracts deployed Oct 20, 2026 (docs/DEVELOPING.md, "After a
+// The demo agents, as seeded on the contracts deployed Oct 20, 2026 (docs/DEVELOPING-REFERENCE.md, "After a
 // redeployment"): agent 1 is the Gate 1 hardened agent, agent 2 the TEE agent (Agent B), agent 3
 // the demo's partial Agent A.
 describe("the demo agents", () => {

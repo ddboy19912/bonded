@@ -1,7 +1,7 @@
 import { defineRailway, github, postgres, preserve, project, service, volume } from "railway/iac";
 
 // Bonded's Railway project. One Docker image runs as three services; ROLE selects what each does.
-// See docs/DEVELOPING.md ("Deploying"). Signing keys and the API token are secrets set in Railway, never here:
+// See docs/DEVELOPING-REFERENCE.md ("Deploying"). Signing keys and the API token are secrets set in Railway, never here:
 // preserve() keeps the value already stored on Railway.
 export default defineRailway(() => {
   const repo = github("ddboy19912/bonded", { branch: "main", checkSuites: false });
@@ -74,7 +74,7 @@ export default defineRailway(() => {
       SENTINEL_MODEL_REPO: "ddboy19912/bonded-sentinel-laya",
       // Fine-tune v5, two questions: callers must ask the v3 question set (manipulated,
       // injection_in_inputs). Promoted with one recorded exception to gate 2
-      // (docs/SENTINEL-STRESS.md, "v5 gate results"). v1, the rollback, is
+      // (docs/internals/SENTINEL-TRAINING-HISTORY.md, "v5 gate results"). v1, the rollback, is
       // 22d2ad765058158a1a3c7472ac551690a05fe1e6 with the v1 question set.
       SENTINEL_MODEL_REVISION: "f8d305790ca9e6811e91da88d6c00c862554b0f9",
       HF_TOKEN: preserve(),
@@ -108,7 +108,7 @@ export default defineRailway(() => {
   // the OpenRouter balance is small (the code's default is 10). The API refuses a test past it and
   // the worker stops one, so both read it.
   const hostedSpend = { HOSTED_DAILY_USD: "5" };
-  // Notification email through Resend (docs/DEVELOPING.md): set by the founder in Railway on all
+  // Notification email through Resend (docs/DEVELOPING-REFERENCE.md): set by the founder in Railway on all
   // three services, kept here so an apply never deletes them and turns email off.
   const email = { RESEND_API_KEY: preserve(), EMAIL_FROM: preserve() };
 

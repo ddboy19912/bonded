@@ -47,7 +47,7 @@ export type SentinelQuestionKey = keyof typeof SENTINEL_QUESTIONS;
  * - `v3`: `manipulated` and `injection_in_inputs` only. Whether an action is within the mandate
  *   is exact rule-checking (token list, limits, recipients), which the policy guard and the
  *   vault already do in code and the stress suite showed the model does unreliably
- *   (docs/SENTINEL-STRESS.md). The guard computes it in code for a v3 model, and "suspicious"
+ *   (docs/internals/SENTINEL-TRAINING-HISTORY.md, "v3 preparation"). The guard computes it in code for a v3 model, and "suspicious"
  *   is derived: manipulated and within the rules.
  */
 export type SentinelQuestionSet = "v1" | "v3";

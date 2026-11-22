@@ -14,7 +14,7 @@ import {
 
 const USAGE = `Usage: pnpm sentinel:payments-eval --cases <part.jsonl> --scores <scores.json> [options]
 
-Measures a payments Sentinel on a held-out part of the payments dataset (docs/SENTINEL.md,
+Measures a payments Sentinel on a held-out part of the payments dataset (docs/internals/SENTINEL-DATA-AND-EVAL.md,
 "The payments dataset"): attacks blocked and false alarms on benign payments at the block
 threshold, with 95% intervals, against the gate. Exits nonzero when the gate fails.
 

@@ -19,7 +19,7 @@ import {
 import type { MandateRow } from "./offchain/summary.js";
 
 /**
- * The payments dataset's scripted source (docs/SENTINEL.md, "The payments dataset"): the two
+ * The payments dataset's scripted source (docs/internals/SENTINEL-DATA-AND-EVAL.md, "The payments dataset"): the two
  * scripted payables agents (scripted-payables.ts) on every off-chain seed, with the benign twins
  * and controls, judged by the ledger as any run is. No model is called and nothing is spent: the
  * O6 counterparty is scripted too. Each agent's episodes are written as an off-chain results

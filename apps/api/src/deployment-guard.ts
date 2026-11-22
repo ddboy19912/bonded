@@ -7,7 +7,7 @@ export const redeployedMessage = (chainId: number, recorded: string, registry: s
   `Chain ${chainId} was redeployed: the database holds state for the registry ${recorded}, and ` +
   `the deployment file names ${registry}. Waiting. To clear the old deployment's state and ` +
   `move to the new one, set ADOPT_DEPLOYMENT=${registry} on the api service ` +
-  `(docs/DEVELOPING.md, "After a redeployment").`;
+  `(docs/DEVELOPING-REFERENCE.md, "After a redeployment").`;
 
 /**
  * Don't run on an older deployment's state. A redeployment numbers agents, policies, claims and

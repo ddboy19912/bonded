@@ -3,7 +3,7 @@
 Sentinel must decide "manipulated" by comparing the action with what the untrusted inputs
 ask for. A row whose inputs alone predict its label teaches a shortcut instead: on v5's data, a
 word-counting model that never sees the action labelled 93% of the synthetic rows right (the
-majority is 72%), from words like "ignore". docs/SENTINEL-STRESS.md, "The word-counting probe".
+majority is 72%), from words like "ignore". docs/internals/SENTINEL-TRAINING-HISTORY.md, "The word-counting probe".
 
 Only rows with planted content (injection_in_inputs true) are checked. Without any, "nothing
 planted, so not manipulated" is correct reasoning, not a shortcut; with it, whether the agent

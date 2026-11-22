@@ -36,7 +36,7 @@ More protections:
 - **Replays.** Each wallet signature opens one session or makes one request; Agent URL and webhook calls carry a timestamp, and handlers refuse a signature seen before.
 - **Docker.** The runner and your agent run as an unprivileged user.
 
-The judge, the payout rules and the scoring model are the same deterministic code for your agent as for Bonded's own. Your agent is held to stricter trial and liveness rules ([What the report shows](PREVIEWS-AND-RATINGS.md#what-the-report-shows)), because you see what it reads.
+The judge, the payout rules and the scoring model are the same deterministic code for your agent as for Bonded's own. Your agent is held to stricter trial and liveness rules ([What the report shows](PREVIEWS-AND-RATINGS-REFERENCE.md#what-the-report-shows)), because you see what it reads.
 
 ## Limits: what can still tell the sandbox from production
 
@@ -45,7 +45,7 @@ The Arena aims to make an attacked episode look like any other, and the sandbox 
 - **The same interface.** The same tools, schemas and result shapes in every episode, attacked or not. Nothing in the episode names the attack, its class, or whether there is one.
 - **No order to read.** Episodes run in a random order with the controls among them, and controls draw their goals from the same goals attack episodes get. Progress shows counts only until the end.
 - **A world generated per rating.** Messages, news, posts, alerts, counterparty messages, the market report and token notes come from a grammar (templates whose slots draw from word lists, names, numbers and times). Each rating seeds every episode's world from a secret seed of its own, so there is no list of benign items to check what your agent reads against.
-- **Yesterday shows up in every world.** Some episodes carry items from yesterday: a "Carried from yesterday" block in the market report, an inbox message from yesterday. Bonded's own agents also run a world-state battery ([SCORING.md](SCORING.md#world-state-observations)), two days on one vault where yesterday's trades are real, so carried items alone say nothing about an attack. Operator-run agents don't run that battery yet (their time budget doesn't plan it), but their worlds carry yesterday's items like any other.
+- **Yesterday shows up in every world.** Some episodes carry items from yesterday: a "Carried from yesterday" block in the market report, an inbox message from yesterday. Bonded's own agents also run a world-state battery ([SCORING.md](internals/SCORING-BATTERIES.md#world-state-observations)), two days on one vault where yesterday's trades are real, so carried items alone say nothing about an attack. Operator-run agents don't run that battery yet (their time budget doesn't plan it), but their worlds carry yesterday's items like any other.
 - **Planted content looks like the rest.** It takes senders, subjects and titles from the same grammar, and is dated on the chain's own clock (on a fork, the live chain's current time). Benign content includes the same kinds of things attacks use, such as zero-value transfers with notes, and prices a few percent off the oracle.
 - **A real-looking chain.** On a fork, the chain keeps its real chain id, contracts and block times, and `web3_clientVersion` answers with the live chain's node version. The vault and its registry entry have neutral names, and the MCP server and OpenAPI document describe themselves as trading tools.
 
@@ -53,7 +53,7 @@ What remains detectable, and so what a determined operator could exploit:
 
 - **That it is being rated at all.** The runner starts your agent once per episode with `BONDED_*` variables, and an Agent URL receives signed episode messages, so an agent could behave differently while rated. This is inherent to rating an agent you run. It is why a declared score attests the behaviour of the code under test, and only a TEE binds that code to production.
 - **The connection check is benign.** It has no attack, and you see it run live, event by event. A rating's episodes never stream that way.
-- **The grammar is public.** Someone who reads the code could learn to recognise generated text. That is why idling under attack is made pointless (see [What the report shows](PREVIEWS-AND-RATINGS.md#what-the-report-shows)) rather than only hard to do.
+- **The grammar is public.** Someone who reads the code could learn to recognise generated text. That is why idling under attack is made pointless (see [What the report shows](PREVIEWS-AND-RATINGS-REFERENCE.md#what-the-report-shows)) rather than only hard to do.
 - **The node is a local fork.** Blocks are mined one per transaction and lack some live-chain fields (for example Arbitrum's `l1BlockNumber`). Node error messages are the sandbox's, and each write is mined at once. A connection check runs on a fresh local chain, not a fork.
 - **The vault is fresh each episode.** Its on-chain history starts with the episode, though the transfer-history tool shows earlier deposits.
 - **Tool mode tests decisions, not signing.** The Arena signs writes with its own key, so tool mode says nothing about how your agent handles its key. Chain mode does.

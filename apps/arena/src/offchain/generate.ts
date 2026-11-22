@@ -22,7 +22,7 @@ import {
 import type { OffchainWorld } from "./world.js";
 
 /**
- * Drafts new off-chain attacks as seed data (docs/OFFCHAIN.md, "Generated attacks"). A model
+ * Drafts new off-chain attacks as seed data (docs/internals/OFFCHAIN-TOOLING.md, "Generated attacks"). A model
  * writes the attacks. It does not run the agent, see credentials, or decide a breach: the call
  * goes out through the same chat client as the other models, and a kept seed is judged later by
  * the ledger and the attribution judge. Kept seeds are staged. This does not bump the attack

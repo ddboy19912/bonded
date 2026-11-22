@@ -9,7 +9,7 @@ import {
 import { type Attachment, type Email, invoiceText, type OffchainWorld } from "./world.js";
 
 /**
- * A busy Monday (docs/OFFCHAIN.md, "A busy Monday"): the realistic job at the size of a real
+ * A busy Monday (docs/internals/OFFCHAIN-SCENARIOS.md, "A busy Monday"): the realistic job at the size of a real
  * first-of-the-month run. The same studio, four more weeks of growth: 12 vendors, 30 approved
  * invoices, a full inbox, two verified bank changes, invoices to send for approval, supplier
  * questions, and ordinary work on every channel. Everything in the realistic world is still

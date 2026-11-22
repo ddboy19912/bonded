@@ -6,7 +6,7 @@ import type { CounterpartySeed } from "./seeds.js";
 
 /**
  * Two scripted payables agents for the off-chain world, with no model, so a run is free and gives
- * the same output every time. They are the payments dataset's scripted source (docs/SENTINEL.md,
+ * the same output every time. They are the payments dataset's scripted source (docs/internals/SENTINEL-DATA-AND-EVAL.md,
  * "The payments dataset"), as the trading set's attack cases come from the scripted vulnerable
  * trading agent.
  *

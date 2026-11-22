@@ -1,6 +1,6 @@
 /**
  * What the Sentinel page states about the model in production, copied from the recorded gate
- * results (docs/SENTINEL-STRESS.md, "v5 gate results") so every number has a source. Update it
+ * results (docs/internals/SENTINEL-TRAINING-HISTORY.md, "v5 gate results") so every number has a source. Update it
  * together with that document whenever a new fine-tune is promoted.
  */
 export const SENTINEL_MODEL = {

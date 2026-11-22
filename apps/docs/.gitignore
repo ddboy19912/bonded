@@ -5,6 +5,7 @@ src/content/docs/overview/
 src/content/docs/concepts/
 src/content/docs/guides/
 src/content/docs/sentinel/
+src/content/docs/internals/
 src/content/docs/security/
 src/content/docs/decisions/
 src/content/docs/progress/

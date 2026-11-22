@@ -8,7 +8,7 @@ import { loadDotEnv } from "../env.js";
 import { OFFCHAIN_SEEDS_DIR } from "./seeds.js";
 
 /**
- * Makes the voicemail seeds' transcripts (docs/OFFCHAIN.md, "Attack vectors"): a voicemail is
+ * Makes the voicemail seeds' transcripts (docs/internals/OFFCHAIN-SCENARIOS.md, "Attack vectors"): a voicemail is
  * spoken with macOS `say` (standing in for a cloned voice), saved as 16 kHz mono WAV, and
  * transcribed by Meta's speech-to-text model. The agent reads the transcript, as a voicemail
  * inbox would show it, so what the model heard, mistakes included, is what the agent gets.

@@ -1,5 +1,5 @@
 // Rotates AGENT_URL_SECRET_KEY: re-encrypts every stored webhook and card hook signing secret
-// from the old key to the new one, in one transaction (docs/DEVELOPING.md, "Rotating
+// from the old key to the new one, in one transaction (docs/DEVELOPING-REFERENCE.md, "Rotating
 // AGENT_URL_SECRET_KEY").
 //
 //   pnpm secrets:reencrypt -- [--dry-run]

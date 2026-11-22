@@ -21,7 +21,7 @@ import { includesStaged, scriptedSeeds } from "../src/payments-scripted.js";
 
 /**
  * The staged off-chain seeds (apps/arena/offchain-seeds-staged): not rated, run by
- * `offchain --staged` and the scripted payments runs (docs/SENTINEL.md, "The payments dataset").
+ * `offchain --staged` and the scripted payments runs (docs/internals/SENTINEL-DATA-AND-EVAL.md, "The payments dataset").
  */
 const staged = loadOffchainSeeds(OFFCHAIN_STAGED_SEEDS_DIR);
 

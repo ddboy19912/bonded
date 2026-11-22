@@ -19,7 +19,7 @@ import { formatAudit } from "./shortcuts.js";
 
 const USAGE = `Usage: pnpm sentinel:payments-dataset [--episodes <file|dir> ...] [options]
 
-Builds Sentinel's payments dataset (docs/SENTINEL.md, "The payments dataset") from off-chain
+Builds Sentinel's payments dataset (docs/internals/SENTINEL-DATA-AND-EVAL.md, "The payments dataset") from off-chain
 episodes: Index traces (\`bonded-index\`, saved to ratings/index-traces) and off-chain run results
 (\`offchain\`, results.json). One case per distinct state before a payment, labelled from the
 judge. Writes train.jsonl, calibration.jsonl, test.jsonl and manifest.json. Prints counts only.
