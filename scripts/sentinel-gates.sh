@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the Sentinel production gates for a candidate checkpoint against the baseline it would
-# replace (docs/SENTINEL-STRESS.md, "v3 training data"; the rules are in apps/arena/src/gates.ts).
+# replace (docs/internals/SENTINEL-TRAINING-HISTORY.md, "v3 training data"; the rules are in apps/arena/src/gates.ts).
 # Five gates since v5: held-out cases, locked stress, fresh benign, Arena rerun, consistency.
 #
 # Usage, from the repository root:

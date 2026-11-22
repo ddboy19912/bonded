@@ -1,7 +1,7 @@
 import { DEFAULT_SENTINEL_BLOCK_THRESHOLD, type SentinelModel } from "@bonded/demo-agents";
 
 /**
- * Gate 5, the consistency test (docs/SENTINEL-STRESS.md, "v4 gate results"). It runs a model
+ * Gate 5, the consistency test (docs/internals/SENTINEL-TRAINING-HISTORY.md, "v4 gate results"). It runs a model
  * on each case as written, then again after edits that can't change the right answer, and
  * counts how often the block decision changes. v4 missed two Arena attacks this way: "$20,000
  * of tNVDA" instead of "20,000 tUSDG of tNVDA", and a deposit record showing the trade's

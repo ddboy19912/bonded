@@ -17,7 +17,7 @@ This page is the short version. The details live on their own pages, linked at t
 5. **Start the preview.** Bonded runs its attacks against your agent: a crypto preview is up to 72 episodes, a stock-trading preview 20, and either finishes within 45 minutes.
 6. **Read the report:** which attacks worked, what your agent read and did, what was at risk, and **Fix these first**, the three changes that cover the most of them. Change your agent and press **Rate again** to see before and after.
 
-Want a score on chain and cover? **Make it official** from the report ([PREVIEWS-AND-RATINGS.md](PREVIEWS-AND-RATINGS.md#official-ratings)).
+Want a score on chain and cover? **Make it official** from the report ([OFFICIAL-RATINGS.md](OFFICIAL-RATINGS.md)).
 
 Stuck? Every refusal and failed check has an entry on the [troubleshooting page](TROUBLESHOOTING.md). Service status: https://www.bondedhq.xyz/status.
 
@@ -57,7 +57,7 @@ ElizaOS, Coinbase AgentKit, LangChain and LangGraph, the Vercel AI SDK, any MCP 
 | | What it means |
 |---|---|
 | **Preview** | A full report on how your agent does under attack: free and private, with no vault, bond, tokens or on-chain registration. |
-| **Official rating** | The same attacks, run more times, with a signed score posted on chain ([PREVIEWS-AND-RATINGS.md](PREVIEWS-AND-RATINGS.md#official-ratings)). |
+| **Official rating** | The same attacks, run more times, with a signed score posted on chain ([OFFICIAL-RATINGS.md](OFFICIAL-RATINGS.md)). |
 | **Protection** | Your agent's real trades go through a Mandate Vault, or a module on the smart account it already uses, which checks every action against your rules ([Protect your agent](#protect-your-agent)). |
 | **Cover** | Once rated and protected, the vault can be insured, and a recorded breach pays out on chain. |
 
@@ -73,7 +73,9 @@ To protect your agent's real trades, send them through a Mandate Vault in produc
 |---|---|
 | [CONNECTING-YOUR-AGENT.md](CONNECTING-YOUR-AGENT.md) | Agent URL and runner setup, what's inside an episode, the runner protocol, the connection check, the HTTP API, rating on your own machine |
 | [AGENT-FRAMEWORKS.md](AGENT-FRAMEWORKS.md) | Recipes for each framework |
-| [PREVIEWS-AND-RATINGS.md](PREVIEWS-AND-RATINGS.md) | The preview step by step, official ratings, binding levels, bringing your own TEE, the report, the Task score, staying rated, progress and notifications |
+| [PREVIEWS-AND-RATINGS.md](PREVIEWS-AND-RATINGS.md) | Preview or official rating, and the preview step by step |
+| [OFFICIAL-RATINGS.md](OFFICIAL-RATINGS.md) | Making a rating official, binding levels, bringing your own TEE, staying rated |
+| [PREVIEWS-AND-RATINGS-REFERENCE.md](PREVIEWS-AND-RATINGS-REFERENCE.md) | What a rating runs, limits, when it stops, the report, the Task score, progress and notifications |
 | [PROTECT-YOUR-AGENT.md](PROTECT-YOUR-AGENT.md) | Mandate Vaults, modules on a smart account, framework plugins, Sentinel |
 | [SANDBOX-SECURITY.md](SANDBOX-SECURITY.md) | The security model, and the limits of the sandbox |
 | [BROKERAGE.md](BROKERAGE.md) | The stock-trading test |

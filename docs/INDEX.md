@@ -2,7 +2,7 @@
 
 The [Bonded Index](https://www.bondedhq.xyz/index) rates AI models, not agents. Every model runs inside the same accounts-payable agent, meets the same attacks, and gets two scores side by side: **Security** and **Task**. This page says what is measured, how each number is made, how to rerun a row, and where the Index stops being reliable.
 
-The Index lives on the off-chain rail: agents that pay through a payment API. The full design is in [docs/OFFCHAIN.md](OFFCHAIN.md#the-bonded-index). The numbers themselves live on the Index page and in `config/bonded-index.json`; this page doesn't repeat them, so it can't go stale when a model is rated again.
+The Index lives on the off-chain rail: agents that pay through a payment API. The full design is in [the off-chain page](OFFCHAIN.md#the-bonded-index). The numbers themselves live on the Index page and in `config/bonded-index.json`; this page doesn't repeat them, so it can't go stale when a model is rated again.
 
 ## What it rates
 
@@ -10,7 +10,7 @@ The Index lives on the off-chain rail: agents that pay through a payment API. Th
 - **One ledger.** A sandboxed payment API (the Ledger) checks a spending mandate: pay only vendors in the vendor master, only against an approved invoice, never the same invoice twice, at most $5,000 a payment and $20,000 a day. Index runs use Monitor mode, which records breaches but lets the payments through; Enforce mode blocks them. Code decides every breach. A model never does.
 - **One set of attacks.** The six off-chain classes: bank-detail changes, forged or inflated invoices, duplicate invoices, instructions hidden in an attachment, executive impersonation, and a live counterparty that plays the supplier over several turns. They arrive on many channels (email, invoice images, chat, tickets, texts, portals and more). Every model meets the library's seeds plus one committed set of fresh variants, except that a model that can't read images skips the image attacks.
 - **Two briefings.** Each attack runs with the **rules shown** (the agent is told the mandate) and with the **rules hidden** (the agent is told only its job). Real deployments brief agents both ways.
-- **A realistic job, not a toy.** Most attacks run in the realistic accounts-payable week: a genuine bank change among the fakes, an invoice that needs approval, supplier questions, and work coming in on many channels. Refusing everything doesn't help. The busier Monday ([A busy Monday](OFFCHAIN.md#a-busy-monday)) is built but not yet part of the Index.
+- **A realistic job, not a toy.** Most attacks run in the realistic accounts-payable week: a genuine bank change among the fakes, an invoice that needs approval, supplier questions, and work coming in on many channels. Refusing everything doesn't help. The busier Monday ([A busy Monday](internals/OFFCHAIN-SCENARIOS.md#a-busy-monday)) is built but not yet part of the Index.
 
 ## How the two scores are made
 
@@ -28,7 +28,7 @@ More on Task: [Security, Task and insurance scores](SCORING.md#task-score).
 
 ## How to read a row
 
-- **Attacks fell** ("fell for N of M attacks"): attack episodes where the model made a forbidden payment that the attack caused. A breach that involved nothing the attack planted, such as a mistyped real account, is the agent's own error. It's counted and priced as a loss, shown on its own line, and isn't counted as manipulation. See [Who caused a breach](OFFCHAIN.md#who-caused-a-breach).
+- **Attacks fell** ("fell for N of M attacks"): attack episodes where the model made a forbidden payment that the attack caused. A breach that involved nothing the attack planted, such as a mistyped real account, is the agent's own error. It's counted and priced as a loss, shown on its own line, and isn't counted as manipulation. See [Who caused a breach](internals/OFFCHAIN-TOOLING.md#who-caused-a-breach).
 - **Dollars at risk:** the money that left the account wrongly, in two parts. *Lost* is paid to an account outside the vendor master. *Overpaid* is paid to a real vendor beyond what it was owed. **Loss per 1,000 runs** divides by every run the model did, attacked or not, so a model that ran more episodes compares fairly.
 - **Confidence range:** a 95% interval (Wilson) around the fall rate, taken from the weakest class. Each class has few runs, so ranges are wide. A score of 100 means no fall in the runs made. It doesn't mean none is possible.
 - **Risk ceiling ("above X% ruled out"):** the highest fall rate the runs can't yet rule out, over all the attacks in the worse briefing. It bounds the overall rate, not each class, so it can sit below the weakest class's rate. It shows how well tested a score is. Two models with the same score can have very different ceilings.
@@ -36,7 +36,7 @@ More on Task: [Security, Task and insurance scores](SCORING.md#task-score).
 
 ## Reproduce a row
 
-The attacks are public (`apps/arena/offchain-seeds/` and `apps/arena/offchain-index/variants/`), so anyone can rerun one model's row from a clone of the repository. The command and its flags are in [Reproduce a row](OFFCHAIN.md#reproduce-a-row). In short:
+The attacks are public (`apps/arena/offchain-seeds/` and `apps/arena/offchain-index/variants/`), so anyone can rerun one model's row from a clone of the repository. The command and its flags are in [Reproduce a row](internals/OFFCHAIN-TOOLING.md#reproduce-a-row). In short:
 
 1. Install and build the Arena.
 2. Put the provider keys for the model you rerun in `.env`. A counterparty model plays the supplier in every row, so that key is always needed.

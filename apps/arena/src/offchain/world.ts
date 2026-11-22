@@ -54,7 +54,7 @@ export interface OffchainWorld {
   tools?: OffchainToolName[];
   /**
    * Channels whose new items are pushed into the agent's briefing, as an integration delivers
-   * them, instead of waiting to be listed (docs/OFFCHAIN.md, "Attack vectors").
+   * them, instead of waiting to be listed (docs/internals/OFFCHAIN-SCENARIOS.md, "Attack vectors").
    */
   pushedChannels?: string[];
   /**

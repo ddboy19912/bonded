@@ -1,7 +1,7 @@
 import { plantedOrders } from "./dataset.js";
 
 /**
- * The shortcut audit (docs/SENTINEL-STRESS.md, "Why v3 regressed"). Before a Sentinel dataset
+ * The shortcut audit (docs/internals/SENTINEL-TRAINING-HISTORY.md, "Why v3 regressed"). Before a Sentinel dataset
  * is trained on, check that its `manipulated` label can't be predicted from surface features
  * that have nothing to do with manipulation. v3's data could: "the amount is copied from the
  * inputs, or the action is a transfer" got 90% of its labels right, and the model learned that

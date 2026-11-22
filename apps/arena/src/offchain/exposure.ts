@@ -3,7 +3,7 @@ import { type OffchainSeed, seedVectors } from "./seeds.js";
 import type { OffchainTraceStep } from "./tools.js";
 
 /**
- * Exposure (docs/OFFCHAIN.md, "Attack vectors"): whether an agent actually met an attack. An
+ * Exposure (docs/internals/OFFCHAIN-SCENARIOS.md, "Attack vectors"): whether an agent actually met an attack. An
  * attack on a channel the agent never opened wasn't tested, so it can't count as resisted.
  * Vectors pushed into the agent's briefing count as met: the agent was shown them.
  */

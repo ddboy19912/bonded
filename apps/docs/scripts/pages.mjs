@@ -66,6 +66,16 @@ export const PAGES = [
     label: "Previews and official ratings",
   },
   {
+    src: "docs/OFFICIAL-RATINGS.md",
+    slug: "guides/official-ratings",
+    label: "Official ratings",
+  },
+  {
+    src: "docs/PREVIEWS-AND-RATINGS-REFERENCE.md",
+    slug: "guides/previews-and-ratings-reference",
+    label: "Ratings reference",
+  },
+  {
     src: "docs/PROTECT-YOUR-AGENT.md",
     slug: "guides/protect-your-agent",
     label: "Protect your agent",
@@ -107,6 +117,11 @@ export const PAGES = [
     title: "Troubleshooting",
   },
   { src: "docs/DEVELOPING.md", slug: "guides/developing", label: "Developing Bonded" },
+  {
+    src: "docs/DEVELOPING-REFERENCE.md",
+    slug: "guides/developing-reference",
+    label: "Developer reference",
+  },
   { src: "docs/BOUNTIES.md", slug: "guides/bounties", label: "Submit a bounty attack" },
   {
     src: "docs/TEE.md",
@@ -159,7 +174,98 @@ export const PAGES = [
     slug: "reference/deployments",
     label: "Deployments",
   },
+
+  {
+    src: "docs/internals/OFFCHAIN-SCENARIOS.md",
+    slug: "internals/offchain-scenarios",
+    label: "Off-chain: jobs, attacks, channels",
+  },
+  {
+    src: "docs/internals/OFFCHAIN-TOOLING.md",
+    slug: "internals/offchain-tooling",
+    label: "Off-chain: running and tooling",
+  },
+  {
+    src: "docs/internals/ADAPTIVE-ATTACKER-RESULTS.md",
+    slug: "internals/adaptive-attacker-results",
+    label: "Adaptive attacker: results",
+  },
+  {
+    src: "docs/internals/BROKERAGE-DETAILS.md",
+    slug: "internals/brokerage-details",
+    label: "Stock-trading: details",
+  },
+  {
+    src: "docs/internals/SCORING-BATTERIES.md",
+    slug: "internals/scoring-batteries",
+    label: "Scoring: S1, memory and world-state",
+  },
+  {
+    src: "docs/internals/SENTINEL-AUDITS.md",
+    slug: "internals/sentinel-audits",
+    label: "Sentinel: stress-suite audits",
+  },
+  {
+    src: "docs/internals/SENTINEL-TRAINING-HISTORY.md",
+    slug: "internals/sentinel-training-history",
+    label: "Sentinel: training history",
+  },
+  {
+    src: "docs/internals/SENTINEL-DATA-AND-EVAL.md",
+    slug: "internals/sentinel-data-and-eval",
+    label: "Sentinel: payments data and cascade",
+  },
 ];
+
+/**
+ * How a long section of the sidebar is split into smaller groups, in order. A page of the
+ * section that no group names still shows, after the groups, so a new page is never lost.
+ * Slugs are the page's path under /docs/ without the section: `concepts/scoring` is `scoring`.
+ */
+export const SIDEBAR_GROUPS = {
+  concepts: [
+    {
+      label: "What we rate",
+      slugs: ["agents", "offchain", "brokerage", "bonded-index"],
+    },
+    {
+      label: "How ratings work",
+      slugs: [
+        "scoring",
+        "s1-taxonomy",
+        "calibration",
+        "coverage",
+        "adaptive-attacker",
+        "harbinger",
+      ],
+    },
+    {
+      label: "How it is built",
+      slugs: ["architecture", "contracts", "sandbox-security", "bounties-explained"],
+    },
+  ],
+  guides: [
+    {
+      label: "Get your agent rated",
+      slugs: [
+        "bring-your-own-agent",
+        "connecting-your-agent",
+        "agent-frameworks",
+        "previews-and-ratings",
+        "official-ratings",
+        "previews-and-ratings-reference",
+        "approval-in-tests",
+        "protect-your-agent",
+      ],
+    },
+    { label: "Accounts and billing", slugs: ["signing-in", "bonded-runs-it", "payment-gate"] },
+    { label: "Privacy and custody", slugs: ["your-data", "tee"] },
+    {
+      label: "Help and contributing",
+      slugs: ["troubleshooting", "developing", "developing-reference", "bounties"],
+    },
+  ],
+};
 
 /** Folders whose Markdown files each become a page, in file-name order. None for now. */
 export const FOLDERS = [];
@@ -188,6 +294,14 @@ export const SHORT_NAMES = {
   "docs/AGENTS.md": "the agents page",
   "docs/OFFCHAIN.md": "the off-chain page",
   "docs/INDEX.md": "the Index page",
+  "docs/internals/OFFCHAIN-SCENARIOS.md": "the off-chain jobs and attacks page",
+  "docs/internals/OFFCHAIN-TOOLING.md": "the off-chain tooling page",
+  "docs/internals/ADAPTIVE-ATTACKER-RESULTS.md": "the adaptive attacker results page",
+  "docs/internals/BROKERAGE-DETAILS.md": "the brokerage details page",
+  "docs/internals/SCORING-BATTERIES.md": "the scoring batteries page",
+  "docs/internals/SENTINEL-AUDITS.md": "the Sentinel audits page",
+  "docs/internals/SENTINEL-TRAINING-HISTORY.md": "the Sentinel training history page",
+  "docs/internals/SENTINEL-DATA-AND-EVAL.md": "the Sentinel data and cascade page",
   "docs/ADAPTIVE-ATTACKER.md": "the adaptive attacker page",
   "docs/HARBINGER.md": "the Harbinger page",
   "docs/CALIBRATION.md": "the calibration page",
@@ -210,6 +324,9 @@ export const SHORT_NAMES = {
   "docs/BOUNTIES-EXPLAINED.md": "the bounty overview",
   "docs/BOUNTIES.md": "the bounty guide",
   "docs/DEVELOPING.md": "the developer guide",
+  "docs/DEVELOPING-REFERENCE.md": "the developer reference",
+  "docs/OFFICIAL-RATINGS.md": "the official ratings page",
+  "docs/PREVIEWS-AND-RATINGS-REFERENCE.md": "the ratings reference",
   "docs/TEE.md": "the TEE custody page",
   "docs/SENTINEL.md": "the Sentinel page",
   "docs/SENTINEL-STRESS.md": "the stress suite page",

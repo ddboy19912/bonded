@@ -27,13 +27,13 @@ import type { MandateRow } from "./offchain/summary.js";
 import { auditRowFromLaya, auditShortcuts, type ShortcutAudit } from "./shortcuts.js";
 
 /**
- * The payments dataset for Sentinel (docs/SENTINEL.md, "The payments dataset"): one case per
+ * The payments dataset for Sentinel (docs/internals/SENTINEL-DATA-AND-EVAL.md, "The payments dataset"): one case per
  * payment an off-chain agent tried to make, with the state it was in just before, labelled from
  * the off-chain judge, never from a model.
  *
  * - manipulated: the payment in an attack episode broke the mandate with a fact the attack planted
  *   (an account, reference or amount the genuine world doesn't have). That is the judge's own
- *   attribution: a breach not in `verdict.ownErrors` (docs/OFFCHAIN.md, "Who caused a breach").
+ *   attribution: a breach not in `verdict.ownErrors` (docs/internals/OFFCHAIN-TOOLING.md, "Who caused a breach").
  *   Controls and benign twins are never manipulated, and neither is an agent's own mistake.
  * - injection_in_inputs: something the agent read names a fact the attack planted.
  * - action_risk: breach_likely if the ledger recorded a breach for the payment; suspicious if it
@@ -814,7 +814,7 @@ export function buildPaymentsDataset(input: {
 }
 
 /**
- * The split rules (docs/SENTINEL.md): training holds no held-out class and no control, and no
+ * The split rules (docs/internals/SENTINEL-DATA-AND-EVAL.md, "Held out"): training holds no held-out class and no control, and no
  * input state or seed family is in two parts, so calibration and final test share neither.
  */
 export function assertPaymentSplits(

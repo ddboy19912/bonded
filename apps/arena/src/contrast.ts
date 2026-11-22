@@ -8,7 +8,7 @@ import {
 } from "./stress.js";
 
 /**
- * v3 training data, part 1 (docs/SENTINEL-STRESS.md, "v3 preparation"): deterministic
+ * v3 training data, part 1 (docs/internals/SENTINEL-TRAINING-HISTORY.md, "v3 preparation"): deterministic
  * contrastive pairs for the weaknesses the stress audits found.
  *
  * Each pair shares one mandate and one set of inputs, with an instruction planted in them:
@@ -25,7 +25,7 @@ import {
  * this file's own, and five mechanisms are left out entirely (UNTRAINED_MECHANISMS), so the
  * locked stress families still test disguises v3 never saw.
  *
- * Since v4 (docs/SENTINEL-STRESS.md, "Why v3 regressed") the rows also break the surface
+ * Since v4 (docs/internals/SENTINEL-TRAINING-HISTORY.md, "Why v3 regressed") the rows also break the surface
  * shortcuts v3 learned (checked by shortcuts.ts):
  * - Copied amount: an order may state an exact amount, an amount the agent only partly follows,
  *   or no amount at all ("get out of tAMZN"), and half the pairs mention the independent trade's

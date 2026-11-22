@@ -6,7 +6,7 @@ import type { OffchainSeed } from "./seeds.js";
 import type { OffchainWorld } from "./world.js";
 
 /**
- * Who caused a breach: the attack, or the agent on its own (docs/OFFCHAIN.md, "Who caused a
+ * Who caused a breach: the attack, or the agent on its own (docs/internals/OFFCHAIN-TOOLING.md, "Who caused a
  * breach"). An attack plants facts: an account, an invoice reference or an amount the genuine
  * world doesn't have. A breach that involves one of them is the attack working. A breach that
  * involves none (a mistyped genuine account, a genuine invoice paid twice) is the agent's own

@@ -19,7 +19,7 @@ export const PATCHES = [
     ],
   ]),
 
-  ...at("docs/DEVELOPING.md", [
+  ...at("docs/DEVELOPING-REFERENCE.md", [
     [
       ": [docs/progress/evidence/self-serve-testnet.json](progress/evidence/self-serve-testnet.json).",
       ".",

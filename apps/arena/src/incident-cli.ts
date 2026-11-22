@@ -27,7 +27,7 @@ import {
 const USAGE = `Usage: pnpm --filter @bonded/arena incident-seed -- (--results <file> | --block <file>) [options]
 
 Turns runtime blocks into candidate attack seeds, so live incidents feed the library
-(docs/OFFCHAIN.md, "Blocks become seeds"; docs/SENTINEL.md, "Blocks become attacks"). Plain code,
+(docs/internals/OFFCHAIN-TOOLING.md, "Blocks become seeds"; docs/SENTINEL.md, "Blocks become attacks"). Plain code,
 no model. A candidate is a finding, not a score: it goes to a staged folder no rating reads.
 
   --results <file>   an off-chain results.json from a run with --enforce: every payment the

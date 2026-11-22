@@ -5,7 +5,7 @@ import { originOf, type PaymentCase, partHash } from "./payments-dataset.js";
 import { binaryMetrics, type BinaryMetrics, percentile } from "./sentinel-eval.js";
 
 /**
- * The payments Sentinel's held-out evaluation (docs/SENTINEL.md, "The payments dataset"). It reads
+ * The payments Sentinel's held-out evaluation (docs/internals/SENTINEL-DATA-AND-EVAL.md, "The payments dataset"). It reads
  * a scored-cases file, one probability per case, so the gate runs the same whether the scores
  * came from a Laya server (`scorePaymentCases`) or anywhere else, and it can be tested with no
  * model at all. Sentinel stays advisory: this decides whether a model may advise, never a payment.

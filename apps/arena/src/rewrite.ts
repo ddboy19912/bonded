@@ -10,7 +10,7 @@ import { numbersIn } from "./shortcuts.js";
 import { extractJson } from "./synthetic.js";
 
 /**
- * v5 training data (docs/SENTINEL-STRESS.md, "v5 training data"): a model rewrites the text of
+ * v5 training data (docs/internals/SENTINEL-TRAINING-HISTORY.md, "v5 training data"): a model rewrites the text of
  * the rule-built rows (planted messages, harmless lines, filler), so no fixed template wording
  * maps to a label. v4 missed two Arena attacks through template wording ("$N of X" only in
  * sells; a deposit line only with the independent amount).

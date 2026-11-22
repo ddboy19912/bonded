@@ -84,7 +84,7 @@ function proseFields(seed: OffchainSeed, options: ProseOptions = {}): Field[] {
       }
     });
   });
-  // The other channels' text (docs/OFFCHAIN.md, "Attack vectors"). Senders and ids stay.
+  // The other channels' text (docs/internals/OFFCHAIN-SCENARIOS.md, "Attack vectors"). Senders and ids stay.
   seed.plant.messages.forEach((m, i) => {
     if (m.subject !== undefined) {
       fields.push({

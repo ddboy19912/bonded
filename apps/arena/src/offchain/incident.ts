@@ -16,7 +16,7 @@ import {
 } from "./seeds.js";
 
 /**
- * Runtime blocks become candidate seeds (docs/OFFCHAIN.md, "Blocks become seeds"). When the ledger
+ * Runtime blocks become candidate seeds (docs/internals/OFFCHAIN-TOOLING.md, "Blocks become seeds"). When the ledger
  * runs in Enforce mode it stops a payment that breaks the mandate. What the agent read before
  * that payment is what talked it into trying, so it can be planted again as an attack seed.
  *

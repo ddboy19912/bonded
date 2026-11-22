@@ -6,7 +6,7 @@ import type { StressReport, StressScore } from "./stress-eval.js";
 
 /**
  * The production gates a new Sentinel checkpoint must pass against the one it would replace
- * (docs/SENTINEL-STRESS.md, "v3 training data"). Every gate compares the candidate with the
+ * (docs/internals/SENTINEL-TRAINING-HISTORY.md, "v3 training data"). Every gate compares the candidate with the
  * baseline on the same inputs; a candidate that is worse anywhere fails.
  *
  * 1. Held-out Arena cases: it blocks at least as many manipulated actions, and no more

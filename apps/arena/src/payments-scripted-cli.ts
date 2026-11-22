@@ -15,7 +15,7 @@ const USAGE = `Usage: pnpm sentinel:payments-scripted [options]
 
 Runs the two scripted payables agents (no model, free, the same output every time) over every
 off-chain seed, the benign twins and the controls, and writes one results file per agent for the
-payments dataset (docs/SENTINEL.md, "The payments dataset"). The vulnerable agent acts on what it
+payments dataset (docs/internals/SENTINEL-DATA-AND-EVAL.md, "The payments dataset"). The vulnerable agent acts on what it
 reads; the cautious one does the job and ignores it. Seeds that live only in a picture aren't run:
 both agents read text only. Prints counts only.
 

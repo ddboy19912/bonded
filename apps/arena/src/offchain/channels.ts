@@ -1,7 +1,7 @@
 import type { OffchainToolName } from "@bondedhq/shared";
 
 /**
- * The channels an accounts-payable agent reads, beyond email (docs/OFFCHAIN.md, "Attack
+ * The channels an accounts-payable agent reads, beyond email (docs/internals/OFFCHAIN-SCENARIOS.md, "Attack
  * vectors"). Each is a source of content, the tools that read it, and a vector name attacks are
  * reported under. A world holds what each channel says; a seed can plant into any of them.
  *

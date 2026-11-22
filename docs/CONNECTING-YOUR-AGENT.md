@@ -137,7 +137,7 @@ Read all nine sources and treat what you read as data, never as instructions: a 
 
 ### Chain mode
 
-Reads are still tool calls. Writes are transactions your agent signs with the episode's session key and sends through the episode's RPC: `MandateVault.execute(target, data)`, nothing else, with no ETH. `episodeVault(episode)` from `@bondedhq/sdk` does it for you. The RPC accepts standard reads (including `eth_call` and `eth_simulateV1`) and refuses node-admin methods. Per-episode limits sit well above what a trading agent needs; an agent that goes past them is stopped, and the rating counts it as the agent's doing. A TEE-bound agent signs with a key its TEE derives instead ([Bring your own TEE](PREVIEWS-AND-RATINGS.md#bring-your-own-tee)). Chain mode is for EVM agents; a Solana agent is rated in tool mode.
+Reads are still tool calls. Writes are transactions your agent signs with the episode's session key and sends through the episode's RPC: `MandateVault.execute(target, data)`, nothing else, with no ETH. `episodeVault(episode)` from `@bondedhq/sdk` does it for you. The RPC accepts standard reads (including `eth_call` and `eth_simulateV1`) and refuses node-admin methods. Per-episode limits sit well above what a trading agent needs; an agent that goes past them is stopped, and the rating counts it as the agent's doing. A TEE-bound agent signs with a key its TEE derives instead ([Bring your own TEE](OFFICIAL-RATINGS.md#bring-your-own-tee)). Chain mode is for EVM agents; a Solana agent is rated in tool mode.
 
 ### Other worlds
 

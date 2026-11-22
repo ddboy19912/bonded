@@ -83,6 +83,7 @@ describe("links in the main docs", () => {
     "docs/ARCHITECTURE.md",
     "docs/AGENTS.md",
     "docs/DEVELOPING.md",
+    "docs/DEVELOPING-REFERENCE.md",
     "apps/demo-agents/README.md",
   ];
   for (const doc of DOCS) {
