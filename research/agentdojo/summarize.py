@@ -97,6 +97,8 @@ def load(root: Path) -> list[dict[str, Any]]:
             continue
         parts = path.parts
         model = parts[parts.index("accounts_payable") - 4] if "iters-" in str(path) else "?"
+        if "arena-prompt" in parts:
+            model += " (Arena prompt)"
         run = next((p for p in parts if p.startswith("run-")), "run-?")
         row = {
             "model": model,

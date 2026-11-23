@@ -18,9 +18,11 @@ import urllib.request
 from pathlib import Path
 
 from agentdojo.agent_pipeline.tool_execution import ToolsExecutionLoop
+from agentdojo.models import ModelsEnum
 from agentdojo.scripts.benchmark import benchmark_suite
 
 import bonded_ap
+from bonded_ap.prompts import arena_system_prompt
 from bonded_ap.task_suite import task_suite
 
 DEFAULT_ATTACKS = ("bonded_seed", "important_instructions")
@@ -66,6 +68,12 @@ def main() -> int:
         default=2.0,
         help="stop starting new suites once the key has spent this much since start (all processes on the key)",
     )
+    parser.add_argument(
+        "--system-prompt",
+        choices=("agentdojo", "arena"),
+        default="agentdojo",
+        help="AgentDojo's default system message, or the Arena payables agent's (logs go under arena-prompt/)",
+    )
     parser.add_argument("--dry-run", action="store_true", help="print the plan and make no model calls")
     args = parser.parse_args()
 
@@ -80,6 +88,8 @@ def main() -> int:
     print(
         f"attacks: {', '.join(attacks)}; runs: {args.runs}; episodes: {episodes}; turns per episode: {args.max_iters}"
     )
+    system_message = arena_system_prompt() if args.system_prompt == "arena" else None
+    print(f"system prompt: {args.system_prompt}")
     if args.dry_run:
         return 0
     if not os.environ.get("OPENROUTER_API_KEY"):
@@ -94,22 +104,24 @@ def main() -> int:
         return openrouter_usage_usd() - start
 
     for n in [args.only_run] if args.only_run else range(1, args.runs + 1):
-        logdir = args.logdir / args.model.replace("/", "_") / f"iters-{args.max_iters}" / f"run-{n}"
-        common = {
-            "suite": task_suite,
-            "model": "openai-compatible",
-            "logdir": logdir,
-            "force_rerun": False,
-            "benchmark_version": bonded_ap.BENCHMARK_VERSION,
-            "model_id": args.model,
-            "user_tasks": user_ids,
-        }
+        root = args.logdir / "arena-prompt" if system_message else args.logdir
+        logdir = root / args.model.replace("/", "_") / f"iters-{args.max_iters}" / f"run-{n}"
         for attack in ([None] if plain else []) + attacks:
             if spent() > args.max_usd:
                 print(f"stopping: spent ${spent():.2f}, over --max-usd {args.max_usd}", file=sys.stderr)
                 return 2
-            extra = {"injection_tasks": injection_ids} if attack else {}
-            benchmark_suite(**common, **extra, attack=attack)
+            benchmark_suite(
+                suite=task_suite,
+                model=ModelsEnum.OPENAI_COMPATIBLE,
+                logdir=logdir,
+                force_rerun=False,
+                benchmark_version=bonded_ap.BENCHMARK_VERSION,
+                user_tasks=user_ids,
+                injection_tasks=injection_ids if attack else (),
+                model_id=args.model,
+                attack=attack,
+                system_message=system_message,
+            )
             print(f"run {n}, attack {attack or 'none'}: spent so far ${spent():.4f}", flush=True)
     return 0
 
