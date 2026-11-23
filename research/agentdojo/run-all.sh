@@ -15,12 +15,23 @@ PUSH_FLAG=""
 TAG="$SYSTEM_PROMPT"
 if [ -n "${PUSH:-}" ]; then PUSH_FLAG="--push"; TAG="$TAG-pushed"; fi
 mkdir -p runs/logs
+pids=()
+logs=()
 for model in $MODELS; do
   for n in 1 2 3; do
     log="runs/logs/$(echo "$model" | tr / _)-$TAG-run-$n.log"
     uv run -q python run.py --model "$model" --runs 3 --only-run "$n" --max-usd "$MAX_USD" \
       --attacks "$ATTACKS" --system-prompt "$SYSTEM_PROMPT" $PUSH_FLAG >"$log" 2>&1 &
+    pids+=("$!")
+    logs+=("$log")
   done
 done
-wait
+failed=0
+for i in "${!pids[@]}"; do
+  if ! wait "${pids[$i]}"; then
+    echo "did not complete: ${logs[$i]}"
+    failed=1
+  fi
+done
 echo ALL-DONE
+exit "$failed"

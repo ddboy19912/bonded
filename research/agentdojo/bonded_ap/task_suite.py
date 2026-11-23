@@ -16,8 +16,13 @@ DATA_PATH = Path(__file__).resolve().parent / "data" / "suites" / "accounts_paya
 
 
 def _yaml_escape(text: str) -> str:
-    """Escape text for a double-quoted YAML string. JSON's escapes are valid YAML ones."""
-    return json.dumps(text)[1:-1]
+    """Escape text for a double-quoted YAML string. JSON's escapes are valid YAML ones.
+
+    ensure_ascii=False keeps characters outside the Basic Multilingual Plane (an emoji) as they
+    are: JSON would write them as a surrogate pair, which YAML reads back as two broken characters.
+    Quotes, backslashes and control characters are still escaped.
+    """
+    return json.dumps(text, ensure_ascii=False)[1:-1]
 
 
 class APTaskSuite(TaskSuite[APEnvironment]):

@@ -89,10 +89,14 @@ def main() -> int:
     users = len(user_ids) or len(task_suite.user_tasks)
     injections = len(injection_ids) or len(task_suite.injection_tasks)
     plain = 0 if args.no_plain else 1
-    episodes = (1 if args.only_run else args.runs) * users * (plain + injections * len(attacks))
+    # With any attack, AgentDojo also runs each injection task once as the user's own request, to
+    # check its goal can be done. That's done once per run, not once per attack.
+    direct = injections if attacks else 0
+    episodes = (1 if args.only_run else args.runs) * (users * (plain + injections * len(attacks)) + direct)
     print(f"suite accounts_payable ({bonded_ap.BENCHMARK_VERSION}): {users} user tasks x {injections} injection tasks")
     print(
-        f"attacks: {', '.join(attacks)}; runs: {args.runs}; episodes: {episodes}; turns per episode: {args.max_iters}"
+        f"attacks: {', '.join(attacks)}; runs: {args.runs}; episodes: {episodes} (with {direct} direct-ask checks a run); "
+        f"turns per episode: {args.max_iters}. Logs already in the log folder are reused, not run again."
     )
     system_message = arena_system_prompt() if args.system_prompt == "arena" else None
     print(f"system prompt: {args.system_prompt}; channels: {'pushed' if args.push else 'fetched'}")
