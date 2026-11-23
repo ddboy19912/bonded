@@ -129,11 +129,20 @@ describe("Bonded Index", () => {
     expect(within(card).getByText("$28,288")).toBeTruthy();
     // The second tab compares the real job done.
     fireEvent.click(within(card).getByRole("tab", { name: "Finished the job" }));
-    expect(within(card).getByLabelText("Muse Spark 1.3, Bonded: 19%, 58 of 306")).toBeTruthy();
-    expect(within(card).getByLabelText("Muse Spark 1.3, AgentDojo: 86%, 493 of 576")).toBeTruthy();
-    // The table view says AgentDojo doesn't measure money.
+    expect(
+      within(card).getByLabelText("Muse Spark 1.3, Bonded (whole job): 19%, 58 of 306"),
+    ).toBeTruthy();
+    // Beside it, the payments alone: the measure closest to AgentDojo's task check.
+    expect(
+      within(card).getByLabelText("Muse Spark 1.3, Bonded (paid right): 98%, 300 of 306"),
+    ).toBeTruthy();
+    expect(
+      within(card).getByLabelText("Muse Spark 1.3, AgentDojo (user task): 86%, 493 of 576"),
+    ).toBeTruthy();
+    // The table view says AgentDojo measures neither money nor payments alone.
     showTable(card);
-    expect(within(card).getAllByText("not measured")).toHaveLength(2);
+    expect(within(card).getByText("300 of 306 (98%)")).toBeTruthy();
+    expect(within(card).getAllByText("not measured")).toHaveLength(4);
   });
 
   it("ranks models by security under their logos, with no warning on the chart", () => {

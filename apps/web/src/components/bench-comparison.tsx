@@ -117,6 +117,10 @@ function Versus({ rows }: { rows: BenchComparison[] }) {
 
 interface BenchBar {
   bench: BenchKey;
+  /** Which measure, when a bench shows more than one ("Whole job", "Paid right"). */
+  measure?: string;
+  /** A lighter fill for a bench's second measure. */
+  faint?: boolean;
   value: number;
   /** "4 of 178", shown beside the percentage. */
   count: string;
@@ -161,17 +165,32 @@ function barsFor(row: BenchComparison, tab: Tab): BenchBar[] {
   return [
     {
       bench: "bonded",
+      measure: "Whole job",
       value: pct(b.tasksDone, b.tasksTotal),
       count: `${b.tasksDone} of ${b.tasksTotal}`,
       tip: (
         <>
-          <p className="font-medium text-ink">Bonded</p>
-          <p>Includes real changes the AI should act on.</p>
+          <p className="font-medium text-ink">Bonded · whole job</p>
+          <p>Every part done: payments, replies, approvals and real changes.</p>
+        </>
+      ),
+    },
+    {
+      bench: "bonded",
+      measure: "Paid right",
+      faint: true,
+      value: pct(b.paymentsDone, b.tasksTotal),
+      count: `${b.paymentsDone} of ${b.tasksTotal}`,
+      tip: (
+        <>
+          <p className="font-medium text-ink">Bonded · paid right</p>
+          <p>Every invoice paid in full to the right account, nothing to an attacker.</p>
         </>
       ),
     },
     {
       bench: "agentdojo",
+      measure: "User task",
       value: pct(utilityOf(d), pairs),
       count: `${utilityOf(d)} of ${pairs}`,
       tip: (
@@ -198,15 +217,22 @@ function ModelPair({ row, bars }: { row: BenchComparison; bars: BenchBar[] }) {
       <div className="flex flex-col gap-1.5">
         {bars.map((bar) => (
           <div
-            key={bar.bench}
+            key={`${bar.bench}-${bar.measure ?? ""}`}
             className="group relative flex items-center gap-2"
-            aria-label={`${row.label}, ${BENCH[bar.bench].name}: ${pctLabel(bar.value)}, ${bar.count}`}
+            aria-label={`${row.label}, ${BENCH[bar.bench].name}${bar.measure ? ` (${bar.measure.toLowerCase()})` : ""}: ${pctLabel(bar.value)}, ${bar.count}`}
           >
             <BenchMark bench={bar.bench} size={18} />
+            {bar.measure && (
+              <span className="w-16 shrink-0 text-[11px] text-muted">{bar.measure}</span>
+            )}
             <div className="h-5 flex-1 rounded-[4px] bg-white/[0.03]">
               <div
                 className="h-full rounded-[4px]"
-                style={{ width: `max(${bar.value}%, 2px)`, background: BENCH[bar.bench].color }}
+                style={{
+                  width: `max(${bar.value}%, 2px)`,
+                  background: BENCH[bar.bench].color,
+                  opacity: bar.faint ? 0.5 : 1,
+                }}
               />
             </div>
             <span className="w-28 shrink-0 text-right text-xs tabular-nums">
@@ -284,18 +310,31 @@ export function BenchComparisonCard() {
       intro={<Versus rows={rows} />}
       table={
         <DataTable
-          head={["Model", "Test", "Attacks that worked", "Finished the job", "Lost or overpaid"]}
+          head={[
+            "Model",
+            "Test",
+            "Attacks that worked",
+            "Finished the job",
+            "Paid right",
+            "Lost or overpaid",
+          ]}
           rows={rows.flatMap((row) => {
-            const [breach, task] = [barsFor(row, "breach"), barsFor(row, "task")];
-            return (["bonded", "agentdojo"] as const).map((bench, i) => [
-              row.label,
-              BENCH[bench].name,
-              `${breach[i]!.count} (${pctLabel(breach[i]!.value)})`,
-              `${task[i]!.count} (${pctLabel(task[i]!.value)})`,
-              bench === "bonded"
-                ? money(row.bonded.lossUsd + row.bonded.overpaidUsd)
-                : "not measured",
-            ]);
+            const breach = barsFor(row, "breach");
+            const task = barsFor(row, "task");
+            return (["bonded", "agentdojo"] as const).map((bench, i) => {
+              const done = task.find((bar) => bar.bench === bench && !bar.faint)!;
+              const paid = task.find((bar) => bar.bench === bench && bar.faint);
+              return [
+                row.label,
+                BENCH[bench].name,
+                `${breach[i]!.count} (${pctLabel(breach[i]!.value)})`,
+                `${done.count} (${pctLabel(done.value)})`,
+                paid ? `${paid.count} (${pctLabel(paid.value)})` : "not measured",
+                bench === "bonded"
+                  ? money(row.bonded.lossUsd + row.bonded.overpaidUsd)
+                  : "not measured",
+              ];
+            });
           })}
         />
       }
@@ -306,7 +345,8 @@ export function BenchComparisonCard() {
         ))}
         {tab === "task" && (
           <p className="text-xs text-soft">
-            Bonded's jobs include real changes, so refusing everything scores badly.
+            Whole job counts every part, including real changes, so refusing everything scores
+            badly. Paid right counts only the invoices, closer to how AgentDojo checks a task.
           </p>
         )}
         <div className="flex flex-col gap-3">
