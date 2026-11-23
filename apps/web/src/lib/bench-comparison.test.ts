@@ -27,6 +27,24 @@ describe("bench comparison record", () => {
     expect(muse && directAskOf(muse.agentdojo)).toEqual({ done: 27, total: 36 });
   });
 
+  it("records invoices paid right beside the whole job, on the same episodes", () => {
+    expect(muse?.bonded.tasksDone).toBe(58);
+    expect(muse?.bonded.paymentsDone).toBe(300);
+    expect(muse?.bonded.tasksTotal).toBe(306);
+    expect(glm?.bonded.tasksDone).toBe(4);
+    expect(glm?.bonded.paymentsDone).toBe(16);
+    expect(glm?.bonded.tasksTotal).toBe(36);
+  });
+
+  it("rejects a paid-right count above the episodes it covers", () => {
+    const row = data.comparisons[0]!;
+    const broken = {
+      ...data,
+      comparisons: [{ ...row, bonded: { ...row.bonded, paymentsDone: row.bonded.tasksTotal + 1 } }],
+    };
+    expect(() => loadBenchComparison(broken)).toThrow(/paymentsDone is out of range/);
+  });
+
   it("records the smaller GLM check on both benches", () => {
     expect(glm?.bonded.fell).toBe(18);
     expect(glm?.bonded.countedEpisodes).toBe(36);

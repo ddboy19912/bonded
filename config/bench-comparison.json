@@ -18,6 +18,7 @@
         "overpaidUsd": 0,
         "tasksDone": 58,
         "tasksTotal": 306,
+        "paymentsDone": 300,
         "spendUsd": 109.83,
         "spendEstimated": true,
         "falls": [
@@ -110,6 +111,7 @@
         "overpaidUsd": 1728,
         "tasksDone": 4,
         "tasksTotal": 36,
+        "paymentsDone": 16,
         "spendUsd": 0.13,
         "spendEstimated": false,
         "falls": [

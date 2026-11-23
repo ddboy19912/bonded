@@ -22,8 +22,15 @@ export interface BondedBench {
   notMet: number;
   lossUsd: number;
   overpaidUsd: number;
+  /** Episodes where every part of the job was done: payments, replies, approvals, bank changes. */
   tasksDone: number;
   tasksTotal: number;
+  /**
+   * Of the same episodes, those where every required invoice was paid once, in full, to the
+   * vendor's verified account, and nothing went to an attacker. The other parts of the job are
+   * ignored, which is closer to how AgentDojo checks a task. Re-scored from the saved runs.
+   */
+  paymentsDone: number;
   spendUsd: number;
   spendEstimated: boolean;
   falls: BenchFall[];
@@ -94,6 +101,11 @@ export function loadBenchComparison(data: unknown = raw): BenchComparisonFile {
     }
     needNumber(item.bonded, "fell");
     needNumber(item.bonded, "countedEpisodes");
+    const tasksTotal = needNumber(item.bonded, "tasksTotal");
+    const paymentsDone = needNumber(item.bonded, "paymentsDone");
+    if (paymentsDone < 0 || paymentsDone > tasksTotal) {
+      throw new Error(`bench comparison: ${String(item.model)} paymentsDone is out of range`);
+    }
     if (!Array.isArray(item.agentdojo.attacks) || item.agentdojo.attacks.length === 0) {
       throw new Error(`bench comparison: ${String(item.model)} has no AgentDojo attacks`);
     }
