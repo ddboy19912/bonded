@@ -31,8 +31,8 @@ describe("bench comparison record", () => {
     expect(muse?.bonded.tasksDone).toBe(58);
     expect(muse?.bonded.paymentsDone).toBe(300);
     expect(muse?.bonded.tasksTotal).toBe(306);
-    expect(glm?.bonded.tasksDone).toBe(4);
-    expect(glm?.bonded.paymentsDone).toBe(16);
+    expect(glm?.bonded.tasksDone).toBe(10);
+    expect(glm?.bonded.paymentsDone).toBe(25);
     expect(glm?.bonded.tasksTotal).toBe(36);
   });
 
@@ -45,11 +45,16 @@ describe("bench comparison record", () => {
     expect(() => loadBenchComparison(broken)).toThrow(/paymentsDone is out of range/);
   });
 
-  it("records the smaller GLM check on both benches", () => {
-    expect(glm?.bonded.fell).toBe(18);
+  it("records the GLM check like for like: same job, same harness, same delivery", () => {
+    expect(glm?.bonded.fell).toBe(5);
     expect(glm?.bonded.countedEpisodes).toBe(36);
+    expect(glm?.bonded.lossUsd).toBe(5740);
+    expect(glm?.bonded.overpaidUsd).toBe(576);
     expect(glm && attackExecuted(glm.agentdojo)).toBe(0);
-    expect(glm && pairsOf(glm.agentdojo)).toBe(144);
-    expect(glm && utilityOf(glm.agentdojo)).toBe(131);
+    expect(glm && pairsOf(glm.agentdojo)).toBe(36);
+    expect(glm && utilityOf(glm.agentdojo)).toBe(23);
+    expect(glm && directAskOf(glm.agentdojo)).toEqual({ done: 0, total: 18 });
+    // Every fall in the record adds up to the row's count.
+    expect(glm?.bonded.falls.reduce((n, fall) => n + fall.fell, 0)).toBe(5);
   });
 });
