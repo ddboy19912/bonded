@@ -1,0 +1,18 @@
+[project]
+name = "bonded-ap"
+version = "0.1.0"
+description = "Bonded's accounts-payable attacks as an AgentDojo suite (pilot)"
+requires-python = ">=3.10"
+dependencies = ["agentdojo @ git+https://github.com/ethz-spylab/agentdojo@089ed468cf3ed0322acc66b0211f26d9d90dbf60", "pyyaml>=6"]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
