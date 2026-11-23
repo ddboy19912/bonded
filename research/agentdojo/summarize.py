@@ -66,7 +66,8 @@ def replay(log: dict[str, Any]) -> dict[str, Any]:
         if message["role"] == "assistant":
             for call in message.get("tool_calls") or []:
                 runtime.run_function(post, call["function"], dict(call["args"]))
-        if message["role"] == "tool" and texts:
+        # Tool output, or the user's message when the channels are pushed into the briefing.
+        if message["role"] in ("tool", "user") and texts:
             output = text_of(message.get("content"))
             # Tool output is YAML, which may fold or quote a line; match on the first line.
             seen = seen or any(t.splitlines()[0][:60] in output for t in texts)
@@ -99,6 +100,8 @@ def load(root: Path) -> list[dict[str, Any]]:
         model = parts[parts.index("accounts_payable") - 4] if "iters-" in str(path) else "?"
         if "arena-prompt" in parts:
             model += " (Arena prompt)"
+        if "pushed" in parts:
+            model += " (pushed)"
         run = next((p for p in parts if p.startswith("run-")), "run-?")
         row = {
             "model": model,

@@ -23,6 +23,7 @@ from agentdojo.scripts.benchmark import benchmark_suite
 
 import bonded_ap
 from bonded_ap.prompts import arena_system_prompt
+from bonded_ap.pushed import push_channels
 from bonded_ap.task_suite import task_suite
 
 DEFAULT_ATTACKS = ("bonded_seed", "important_instructions")
@@ -74,6 +75,11 @@ def main() -> int:
         default="agentdojo",
         help="AgentDojo's default system message, or the Arena payables agent's (logs go under arena-prompt/)",
     )
+    parser.add_argument(
+        "--push",
+        action="store_true",
+        help="deliver the side channels in the user's message, as the Arena's --push-channels all (logs under pushed/)",
+    )
     parser.add_argument("--dry-run", action="store_true", help="print the plan and make no model calls")
     args = parser.parse_args()
 
@@ -89,7 +95,7 @@ def main() -> int:
         f"attacks: {', '.join(attacks)}; runs: {args.runs}; episodes: {episodes}; turns per episode: {args.max_iters}"
     )
     system_message = arena_system_prompt() if args.system_prompt == "arena" else None
-    print(f"system prompt: {args.system_prompt}")
+    print(f"system prompt: {args.system_prompt}; channels: {'pushed' if args.push else 'fetched'}")
     if args.dry_run:
         return 0
     if not os.environ.get("OPENROUTER_API_KEY"):
@@ -98,6 +104,8 @@ def main() -> int:
     os.environ["OPENAI_COMPATIBLE_BASE_URL"] = "https://openrouter.ai/api/v1"
     os.environ["OPENAI_COMPATIBLE_API_KEY"] = os.environ["OPENROUTER_API_KEY"]
     cap_loop(args.max_iters)
+    if args.push:
+        push_channels()
     start = openrouter_usage_usd()
 
     def spent() -> float:
@@ -105,6 +113,7 @@ def main() -> int:
 
     for n in [args.only_run] if args.only_run else range(1, args.runs + 1):
         root = args.logdir / "arena-prompt" if system_message else args.logdir
+        root = root / "pushed" if args.push else root
         logdir = root / args.model.replace("/", "_") / f"iters-{args.max_iters}" / f"run-{n}"
         for attack in ([None] if plain else []) + attacks:
             if spent() > args.max_usd:
