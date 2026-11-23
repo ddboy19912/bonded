@@ -123,10 +123,13 @@ describe("Bonded Index", () => {
     expect(within(card).getAllByTitle("AgentDojo").length).toBeGreaterThan(2);
     expect(within(card).getByLabelText("Muse Spark 1.3, Bonded: 2.2%, 4 of 178")).toBeTruthy();
     expect(within(card).getByLabelText("Muse Spark 1.3, AgentDojo: 0%, 0 of 576")).toBeTruthy();
+    // GLM: both attack styles on the same payment job, inside AgentDojo.
+    expect(within(card).getByLabelText("GLM-5.3 Flash, Bonded: 14%, 5 of 36")).toBeTruthy();
+    expect(within(card).getByLabelText("GLM-5.3 Flash, AgentDojo: 0%, 0 of 36")).toBeTruthy();
     // The face-off: each bench's answer across every model in the record.
-    expect(within(card).getByText("22 of 214")).toBeTruthy();
-    expect(within(card).getByText("0 of 720")).toBeTruthy();
-    expect(within(card).getByText("$28,288")).toBeTruthy();
+    expect(within(card).getByText("9 of 214")).toBeTruthy();
+    expect(within(card).getByText("0 of 612")).toBeTruthy();
+    expect(within(card).getByText("$12,476")).toBeTruthy();
     // The second tab compares the real job done.
     fireEvent.click(within(card).getByRole("tab", { name: "Finished the job" }));
     expect(
