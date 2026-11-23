@@ -8,7 +8,7 @@ Bonded's off-chain attacks are built from documented payment-fraud patterns (doc
 
 | Category | Status | Where Bonded tests it |
 |---|---|---|
-| LLM01 Prompt injection | Tested | Instructions planted in what the agent reads: emails, invoice images and text, vendor records, chat, tickets, voicemail transcripts, texts, supplier portals, a risk plugin's output, a tool's description, the agent's memory, another agent's messages and the knowledge base (docs/OFFCHAIN.md, "Attack vectors"). Static seeds, held-out variants and the adaptive attacker. |
+| LLM01 Prompt injection | Tested | Instructions planted in what the agent reads: emails, invoice images and text, vendor records, chat, tickets, voicemail transcripts, texts, supplier portals, a risk plugin's output, a tool's description, the agent's memory, another agent's messages and the knowledge base (docs/OFFCHAIN.md, "Attack vectors"). Published seeds and a fixed set of committed variants. Held-out variants and the adaptive attacker run as findings and don't enter the off-chain scores. |
 | LLM02 Sensitive information disclosure | Not tested | The ledger judges payments, not what the agent says. Leaking data isn't scored. |
 | LLM03 Supply chain | Partly | A compromised third-party plugin and a poisoned tool description. Model or package supply chains aren't in scope. |
 | LLM04 Data and model poisoning | Partly | Poisoned retrieval and memory (the knowledge base and the agent's notes). Training-data poisoning is out of scope: Bonded tests deployed agents. |
