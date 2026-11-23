@@ -2,7 +2,7 @@
 
 **Research update, 2026-10-16:** [Product assessment and next experiment](PRODUCT-PROOF-RESEARCH.md), [verified primary sources](AGENT-SECURITY-PRIMARY-RESEARCH.md), and [recounted evidence](progress/evidence/adaptive-research-audit.json). The requested realistic Flash bot that passes the published suite and fails adaptively has **not** been demonstrated. The earlier run-by-run notes are on [the results page](internals/ADAPTIVE-ATTACKER-RESULTS.md). In particular, Enforce-mode `vault_blocked` results are recorded violations with zero loss, even though adaptive summaries exclude them from `breached`.
 
-The Arena's attacks are fixed text: the 40 published seeds and the unpublished held-out set. An agent that ignores all of them has shown it ignores those words, not that an attacker who sees its replies can't find others. This page covers what an adaptive attacker is, what the research says about it, what the first version in `apps/arena/src/adaptive.ts` does, what we found, and what it can't tell us yet. Specification Section 8.3 describes the loop; this is the first working version of it.
+The Arena's attacks are fixed text: the published seeds and the unpublished held-out set. An agent that ignores all of them has shown it ignores those words, not that an attacker who sees its replies can't find others. This page covers what an adaptive attacker is, what the research says about it, what the first version in `apps/arena/src/adaptive.ts` does, what we found, and what it can't tell us yet. Specification Section 8.3 describes the loop; this is the first working version of it.
 
 ## Why it matters for the score
 
@@ -84,7 +84,7 @@ This section describes the current implementation; the earlier first-version des
 
 ## Next steps
 
-1. Run it across all 40 seeds and the template agents with a stronger attacker model, and report breach-within-N with intervals.
+1. Run it across all the published seeds and the template agents with a stronger attacker model, and report breach-within-N with intervals.
 2. Add a model judge on each reply and a real tree (the loop now writes several candidates per round and scores them with a deterministic judge, but does not expand the best ones).
 3. Try other memory designs (a bot that stores raw messages, or whose memory users can write to), and the cheap and open-weight models many custom bots really run on.
 4. Decide how an adaptive result enters the score and the premium. Until then it is evidence, not a rating.
