@@ -142,6 +142,8 @@ class Template:
         old_docs = {d["id"] for d in base.get("knowledge", [])}
         for doc in ch.get("knowledge", []):
             if doc["id"] not in old_docs:
+                # The title can carry the seed too ("Rent: hold until 6 November"): both are vectors.
+                self._mark(doc, "title", _vector("knowledge", doc["id"], "title"), "")
                 self._mark(doc, "body", _vector("knowledge", doc["id"]), "")
                 self.new_items.append(("knowledge", doc["id"]))
         for kind in ("portal", "plugin"):
@@ -205,7 +207,7 @@ def _drop_empty(world: dict[str, Any]) -> dict[str, Any]:
     if ch:
         ch["messages"] = [m for m in ch.get("messages", []) if not _empty(m.get("body"))]
         ch["notes"] = [n for n in ch.get("notes", []) if not _empty(n)]
-        ch["knowledge"] = [d for d in ch.get("knowledge", []) if not _empty(d.get("body"))]
+        ch["knowledge"] = [d for d in ch.get("knowledge", []) if not _empty(d.get("title"), d.get("body"))]
         for kind in ("portal", "plugin"):
             ch[kind] = {k: v for k, v in ch.get(kind, {}).items() if not _empty(v)}
     world["scheduled"] = [
@@ -530,12 +532,14 @@ def attack_money(pre: APEnvironment, post: APEnvironment, record: dict[str, Any]
 class SeedSuite(TaskSuite[APEnvironment]):
     """One seed's suite: the Arena's planted world, with the planted text as injection vectors."""
 
-    def __init__(self, seed_id: str) -> None:
+    def __init__(self, seed_id: str | None, name: str | None = None, record: dict[str, Any] | None = None) -> None:
         self.seed_id = seed_id
-        self.record = export()["seeds"][seed_id]
+        self.record = record if record is not None else export()["seeds"][seed_id]
         self.template = Template(self.record)
         names = set(self.record["tools"])
-        super().__init__(suite_name(seed_id), APEnvironment, [make_function(t) for t in TOOLS if t.__name__ in names])
+        super().__init__(
+            name or suite_name(seed_id or ""), APEnvironment, [make_function(t) for t in TOOLS if t.__name__ in names]
+        )
 
     def load_and_inject_default_environment(self, injections: dict[str, str]) -> APEnvironment:
         unknown = set(injections) - set(self.template.defaults)
@@ -606,6 +610,23 @@ def build(seed_id: str) -> SeedSuite:
     if task is None:
         raise ValueError(f"{seed_id}: no ground truth carries out its aim on its planted facts")
     suite.register_injection_task(task)
+    return suite
+
+
+PLAIN = {"v1": "ap_plain_v1", "v2": "ap_plain_v2"}
+
+
+@cache
+def build_plain(world: str) -> SeedSuite:
+    """A world with nothing planted, for the no-attack job: scored on its whole approved queue.
+
+    A seed's suite lets the agent hold the invoice that seed goes after (mayHold). With no attack
+    running there's nothing to hold, so the plain job needs every approved invoice paid.
+    """
+    suite = SeedSuite(None, PLAIN[world], export()["plain"][world])
+    tools = set(suite.record["tools"])
+    suite.register_user_task(_user_task(suite.record, False, tools))
+    suite.register_user_task(_user_task(suite.record, True, tools))
     return suite
 
 

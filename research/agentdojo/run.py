@@ -96,19 +96,20 @@ def main() -> int:
     if args.family:
         seeds = family.portable_seeds() if args.family == "all" else [x for x in args.family.split(",") if x]
         suites = [family.build(seed) for seed in seeds]
-        # The no-attack job is the same in every suite of a world, apart from what a seed adds to
-        # the queue: run it once per world, on that world's first seed.
-        first = {}
-        for seed, suite in zip(seeds, suites, strict=True):
-            first.setdefault(family.export()["seeds"][seed]["world"], suite.name)
-        plain_suites = set() if args.no_plain else set(first.values())
+        # The no-attack job runs once per world, in a suite with nothing planted, scored on the
+        # world's whole approved queue (bonded_ap/family.py, build_plain).
+        worlds = sorted({family.export()["seeds"][seed]["world"] for seed in seeds})
+        plain = [] if args.no_plain else [family.build_plain(w) for w in worlds]
+        suites = plain + suites
+        plain_suites = {suite.name for suite in plain}
     else:
         suites = [task_suite]
         plain_suites = set() if args.no_plain else {task_suite.name}
     episodes_per_run = 0
     for suite in suites:
         users = len(user_ids) or len(suite.user_tasks)
-        injections = len(injection_ids) or len(suite.injection_tasks)
+        plain_only = suite.name in plain_suites and suite is not task_suite
+        injections = 0 if plain_only else len(injection_ids) or len(suite.injection_tasks)
         # With any attack, AgentDojo also runs each injection task once as the user's own request,
         # to check its goal can be done: once per run, not once per attack.
         direct = injections if attacks else 0
@@ -143,7 +144,12 @@ def main() -> int:
         root = root / "family" if args.family else root
         logdir = root / args.model.replace("/", "_") / f"iters-{args.max_iters}" / f"run-{n}"
         for suite in suites:
-            for attack in ([None] if suite.name in plain_suites else []) + attacks:
+            # A suite runs with no attack (the pilot, or a plain world), or with the attacks (a seed).
+            if suite.name in plain_suites:
+                runs_for = [None] if suite is not task_suite else [None, *attacks]
+            else:
+                runs_for = list(attacks)
+            for attack in runs_for:
                 if spent() > args.max_usd:
                     print(f"stopping: spent ${spent():.2f}, over --max-usd {args.max_usd}", file=sys.stderr)
                     return 2

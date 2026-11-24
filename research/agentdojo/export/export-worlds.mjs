@@ -10,12 +10,15 @@
 import {
   attackScenario,
   loadOffchainSeeds,
+  seedNeedsVision,
   worldFor,
 } from "../../../apps/arena/dist/offchain/seeds.js";
 import {
+  baseWorld,
   PAYMENT_RUN_GOAL,
   REALISTIC_GOAL,
   REALISTIC_TASKS,
+  realisticWorld,
 } from "../../../apps/arena/dist/offchain/scenarios.js";
 import {
   describeLedgerJob,
@@ -49,17 +52,37 @@ for (const seed of loadOffchainSeeds()) {
     tools: [...worldTools(scenario.world)],
     plantedWorld: strip(scenario.world),
     baseWorld: strip(worldFor(seed)),
-    needsVision: seed.plant.replace.some((r) => r.attachments?.some((a) => a.image)) ||
-      seed.plant.emails.some((e) => e.attachments.some((a) => a.image)),
+    // The Arena's own rule: an image whose planted fact is also in the text layer doesn't need vision.
+    needsVision: seedNeedsVision(seed),
     hasCounterparty: Boolean(seed.counterparty),
     hasToolDescriptions: Object.keys(seed.plant.toolDescriptions).length > 0,
     hasPortalSwap: Object.keys(seed.plant.portalSwap).length > 0,
   };
 }
 
+// Each world with nothing planted: the no-attack job, scored on its whole approved queue (a seed's
+// mayHold exemption only applies when that seed's attack is running).
+const plainOf = (world, goal, tasks) => ({
+  world: "plain",
+  goal,
+  jobText: describeLedgerJob(world),
+  mandateText: describeLedgerMandate(world),
+  tools: [...worldTools(world)],
+  mustPay: world.approvedInvoices.map((i) => i.reference),
+  mustReply: tasks?.mustReply ?? null,
+  mustRoute: tasks?.mustRoute ?? null,
+  mustUpdate: tasks?.mustUpdate ?? null,
+  plantedWorld: strip(world),
+  baseWorld: strip(world),
+});
+const plain = {
+  v1: plainOf(baseWorld(), PAYMENT_RUN_GOAL, null),
+  v2: plainOf(realisticWorld(), REALISTIC_GOAL, REALISTIC_TASKS),
+};
+
 process.stdout.write(
   JSON.stringify(
-    { goals: { v1: PAYMENT_RUN_GOAL, v2: REALISTIC_GOAL }, realisticTasks: REALISTIC_TASKS, seeds },
+    { goals: { v1: PAYMENT_RUN_GOAL, v2: REALISTIC_GOAL }, realisticTasks: REALISTIC_TASKS, plain, seeds },
     null,
     1,
   ) + "\n",

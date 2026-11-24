@@ -76,6 +76,9 @@ def suite_for(name: str) -> Any:
     """The pilot suite, or a family suite (ap_<seed>) rebuilt from the Arena's exported worlds."""
     if name == PILOT:
         return task_suite
+    for world, plain in family.PLAIN.items():
+        if name == plain:
+            return family.build_plain(world)
     for seed in family.portable_seeds():
         if family.suite_name(seed) == name:
             return family.build(seed)
@@ -192,7 +195,7 @@ def load(root: Path, incomplete: list[Path] | None = None) -> list[dict[str, Any
             "model": model,
             "run": run,
             "suite": parts[-4],
-            "seed": suite_for(parts[-4]).seed_id if parts[-4] != PILOT else None,
+            "seed": getattr(suite_for(parts[-4]), "seed_id", None),
             "user_task": log["user_task_id"],
             "injection_task": log["injection_task_id"],
             "attack": log["attack_type"],
