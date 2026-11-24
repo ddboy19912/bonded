@@ -11,7 +11,9 @@ It extends the on-chain [disclosure policy](README.md) rather than replacing it.
 | Score, tier, expected loss and premium | At once |
 | Breaches per attack class and per vector (e.g. "O1: 3 of 12 episodes, 2 over SMS") | At once |
 | The agent, model, date and settings rated; which briefings were run | At once |
-| Which staged or held-out attacks broke the agent, and the episode transcripts | Only after the maintainers have been told **and** either they have fixed it or **30 days** have passed |
+| Which staged or held-out attacks broke the agent | Only after the maintainers have been told **and** either they have fixed it or **30 days** have passed |
+| Episode transcripts whose attack text is all published (the library and the staged seeds) | The same: only after the maintainers have been told **and** either they have fixed it or **30 days** have passed. Excerpts in the test world, not raw logs |
+| Episode transcripts that hold a fresh variant, an adaptive rewrite, a held-out attack or a counterparty reply | Never |
 | The wording of fresh variants, adaptive rewrites, held-out attacks and counterparty replies | Never |
 | The generation prompts and model outputs behind those variants | Never, except a test-world image's provenance, committed so a rating can be replayed |
 
@@ -21,11 +23,13 @@ The published attack library (`attacks/`, and the staged seeds in `apps/arena/of
 
 ## Telling the maintainers
 
+The maintainer is whoever can fix it: the project for an open-source agent, the operator for a hosted one, and the model's vendor for a result about a model, such as an Index row or a research run.
+
 1. Rate the agent as its operator runs it. For an open-source template, that means its published prompt and loop with only its tools pointed at the Arena. For a hosted agent, that means the endpoint and settings its operator gave.
 2. Write a note in this folder: what was tested, the class-level and vector-level results, and the mitigations that would have stopped it.
 3. Send it privately, through the project's `SECURITY.md` if it has one, otherwise a GitHub security advisory, the vendor's security contact, or a private email. **Never a public issue, a public pull request or a social post with the details.** A person at Bonded sends it. Bonded's tooling never contacts anyone by itself.
 4. Record the date in the note (`disclosure.status: notified`, `notifiedAt`). Until then the page says "maintainer notice pending".
-5. Publish the specific attack and the transcript only when the maintainer confirms a fix, or 30 days after notice, whichever comes first. If the maintainer is actively fixing it and asks for more time in writing, Bonded may extend the window and says so on the note.
+5. Publish the specific attack, and a transcript whose attack text is all published, only when the maintainer confirms a fix, or 30 days after notice, whichever comes first. If the maintainer is actively fixing it and asks for more time in writing, Bonded may extend the window and says so on the note.
 
 An adaptive run writes a draft note beside its result, and `offchain-findings --results <dir>` rebuilds it from saved results (docs/OFFCHAIN.md, "Findings feed disclosure and bounties"). The draft carries the class and vector result only. A person reviews it, adds the maintainer's contact, and sends it. The tooling never sends anything.
 
@@ -44,7 +48,7 @@ A **kit** is anything that turns a seed into something runnable against a real b
 - mass-generation prompts, fine-tunes or scripts that produce campaign text, especially ones tuned to get past a model's or a vendor's filters;
 - multi-channel playbooks that sequence chat, tickets, voicemail, text, portal, plugin, memory, agent and knowledge-base messages into one campaign;
 - delivery infrastructure: sending code, lookalike domains or mailboxes, call or SMS gateways, credential or payment capture, or QR codes that point at a real account;
-- a transcript, adaptive rewrite or held-out variant that shows a named agent failing to a named input.
+- an adaptive rewrite or held-out variant, or a transcript that contains one (or a fresh variant or a counterparty reply), showing a named agent failing to it.
 
 Never publish any of those. In practice:
 
