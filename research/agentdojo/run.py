@@ -22,6 +22,7 @@ from agentdojo.models import ModelsEnum
 from agentdojo.scripts.benchmark import benchmark_suite
 
 import bonded_ap
+from bonded_ap import family
 from bonded_ap.prompts import arena_system_prompt
 from bonded_ap.pushed import push_channels
 from bonded_ap.task_suite import task_suite
@@ -80,22 +81,44 @@ def main() -> int:
         action="store_true",
         help="deliver the side channels in the user's message, as the Arena's --push-channels all (logs under pushed/)",
     )
+    parser.add_argument(
+        "--family",
+        default="",
+        help="run the one-suite-per-seed family (bonded_ap/family.py): all, or comma-separated seed ids. "
+        "Without it, the six-seed pilot suite runs",
+    )
     parser.add_argument("--dry-run", action="store_true", help="print the plan and make no model calls")
     args = parser.parse_args()
 
     attacks = [a for a in args.attacks.split(",") if a]
     user_ids = tuple(u for u in args.user_tasks.split(",") if u)
     injection_ids = tuple(i for i in args.injection_tasks.split(",") if i)
-    users = len(user_ids) or len(task_suite.user_tasks)
-    injections = len(injection_ids) or len(task_suite.injection_tasks)
-    plain = 0 if args.no_plain else 1
-    # With any attack, AgentDojo also runs each injection task once as the user's own request, to
-    # check its goal can be done. That's done once per run, not once per attack.
-    direct = injections if attacks else 0
-    episodes = (1 if args.only_run else args.runs) * (users * (plain + injections * len(attacks)) + direct)
-    print(f"suite accounts_payable ({bonded_ap.BENCHMARK_VERSION}): {users} user tasks x {injections} injection tasks")
+    if args.family:
+        seeds = family.portable_seeds() if args.family == "all" else [x for x in args.family.split(",") if x]
+        suites = [family.build(seed) for seed in seeds]
+        # The no-attack job runs once per world, in a suite with nothing planted, scored on the
+        # world's whole approved queue (bonded_ap/family.py, build_plain).
+        worlds = sorted({family.export()["seeds"][seed]["world"] for seed in seeds})
+        plain = [] if args.no_plain else [family.build_plain(w) for w in worlds]
+        suites = plain + suites
+        plain_suites = {suite.name for suite in plain}
+    else:
+        suites = [task_suite]
+        plain_suites = set() if args.no_plain else {task_suite.name}
+    episodes_per_run = 0
+    for suite in suites:
+        users = len(user_ids) or len(suite.user_tasks)
+        plain_only = suite.name in plain_suites and suite is not task_suite
+        injections = 0 if plain_only else len(injection_ids) or len(suite.injection_tasks)
+        # With any attack, AgentDojo also runs each injection task once as the user's own request,
+        # to check its goal can be done: once per run, not once per attack.
+        direct = injections if attacks else 0
+        plain = 1 if suite.name in plain_suites else 0
+        episodes_per_run += users * (plain + injections * len(attacks)) + direct
+    episodes = (1 if args.only_run else args.runs) * episodes_per_run
+    print(f"suites: {len(suites)} ({'family: ' + args.family if args.family else 'accounts_payable pilot'})")
     print(
-        f"attacks: {', '.join(attacks)}; runs: {args.runs}; episodes: {episodes} (with {direct} direct-ask checks a run); "
+        f"attacks: {', '.join(attacks)}; runs: {args.runs}; episodes: {episodes} (with direct-ask checks); "
         f"turns per episode: {args.max_iters}. Logs already in the log folder are reused, not run again."
     )
     system_message = arena_system_prompt() if args.system_prompt == "arena" else None
@@ -118,24 +141,31 @@ def main() -> int:
     for n in [args.only_run] if args.only_run else range(1, args.runs + 1):
         root = args.logdir / "arena-prompt" if system_message else args.logdir
         root = root / "pushed" if args.push else root
+        root = root / "family" if args.family else root
         logdir = root / args.model.replace("/", "_") / f"iters-{args.max_iters}" / f"run-{n}"
-        for attack in ([None] if plain else []) + attacks:
-            if spent() > args.max_usd:
-                print(f"stopping: spent ${spent():.2f}, over --max-usd {args.max_usd}", file=sys.stderr)
-                return 2
-            benchmark_suite(
-                suite=task_suite,
-                model=ModelsEnum.OPENAI_COMPATIBLE,
-                logdir=logdir,
-                force_rerun=False,
-                benchmark_version=bonded_ap.BENCHMARK_VERSION,
-                user_tasks=user_ids,
-                injection_tasks=injection_ids if attack else (),
-                model_id=args.model,
-                attack=attack,
-                system_message=system_message,
-            )
-            print(f"run {n}, attack {attack or 'none'}: spent so far ${spent():.4f}", flush=True)
+        for suite in suites:
+            # A suite runs with no attack (the pilot, or a plain world), or with the attacks (a seed).
+            if suite.name in plain_suites:
+                runs_for = [None] if suite is not task_suite else [None, *attacks]
+            else:
+                runs_for = list(attacks)
+            for attack in runs_for:
+                if spent() > args.max_usd:
+                    print(f"stopping: spent ${spent():.2f}, over --max-usd {args.max_usd}", file=sys.stderr)
+                    return 2
+                benchmark_suite(
+                    suite=suite,
+                    model=ModelsEnum.OPENAI_COMPATIBLE,
+                    logdir=logdir,
+                    force_rerun=False,
+                    benchmark_version=bonded_ap.BENCHMARK_VERSION,
+                    user_tasks=user_ids,
+                    injection_tasks=injection_ids if attack else (),
+                    model_id=args.model,
+                    attack=attack,
+                    system_message=system_message,
+                )
+                print(f"run {n}, {suite.name}, attack {attack or 'none'}: spent so far ${spent():.4f}", flush=True)
     return 0
 
 

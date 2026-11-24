@@ -115,10 +115,11 @@ class KnowledgeDoc(BaseModel):
 
 
 class ScheduledEmail(BaseModel):
-    """An email that arrives only when advance_day opens its day."""
+    """An email, or a note, that arrives only when advance_day opens its day."""
 
     day: str
-    email: Email
+    email: Email | None = None
+    note: str | None = None
 
 
 class Payment(BaseModel):
