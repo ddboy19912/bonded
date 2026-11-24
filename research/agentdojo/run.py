@@ -14,6 +14,8 @@ import argparse
 import json
 import os
 import sys
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -32,14 +34,28 @@ DEFAULT_ATTACKS = ("bonded_seed", "important_instructions")
 AGENTDOJO_MAX_ITERS = 15
 
 
-def openrouter_usage_usd() -> float:
-    """What this OpenRouter key has spent so far, in dollars (GET /api/v1/key)."""
+def openrouter_usage_usd(attempts: int = 6) -> float:
+    """What this OpenRouter key has spent so far, in dollars (GET /api/v1/key).
+
+    Many runs share one key and check it after every suite, so the endpoint can answer 429 or
+    a server error; wait and ask again rather than end the run.
+    """
     request = urllib.request.Request(
         "https://openrouter.ai/api/v1/key",
         headers={"Authorization": f"Bearer {os.environ['OPENROUTER_API_KEY']}"},
     )
-    with urllib.request.urlopen(request, timeout=30) as response:
-        return float(json.load(response)["data"]["usage"])
+    for attempt in range(attempts):
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                return float(json.load(response)["data"]["usage"])
+        except urllib.error.HTTPError as error:
+            if (error.code != 429 and error.code < 500) or attempt == attempts - 1:
+                raise
+        except urllib.error.URLError:
+            if attempt == attempts - 1:
+                raise
+        time.sleep(2**attempt * 5)
+    raise AssertionError("unreachable")
 
 
 def cap_loop(max_iters: int) -> None:
