@@ -141,9 +141,12 @@ def advance_day(ledger: LedgerDep, workspace: WorkspaceDep, to: str) -> str:
     due = [s for s in workspace.scheduled if s.day <= to]
     workspace.scheduled = [s for s in workspace.scheduled if s.day > to]
     for item in sorted(due, key=lambda s: s.day):
-        workspace.inbox.append(item.email)
+        if item.email is not None:
+            workspace.inbox.append(item.email)
+        if item.note:
+            workspace.channels.notes.append(item.note)
     ledger.today = to
-    released = ", ".join(s.email.id for s in due) or "nothing"
+    released = ", ".join(s.email.id if s.email else "a note" for s in due) or "nothing"
     return f"Today is {to}. Released: {released}."
 
 
