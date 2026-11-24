@@ -9,31 +9,39 @@ import {
 
 describe("bench comparison record", () => {
   const data = loadBenchComparison();
-  const muse = data.comparisons.find((row) => row.model === "muse-spark-1.3");
   const glm = data.comparisons.find((row) => row.model === "z-ai/glm-5.3-flash");
 
-  it("keeps one headline comparison", () => {
-    expect(data.comparisons.filter((row) => row.headline)).toHaveLength(1);
-    expect(muse?.headline).toBe(true);
+  it("leads with the like-for-like GLM run, and only that", () => {
+    // Muse's row compared attacks delivered in the briefing with fetched AgentDojo ones: dropped.
+    expect(data.comparisons.map((row) => row.model)).toEqual(["z-ai/glm-5.3-flash"]);
+    expect(glm?.headline).toBe(true);
   });
 
-  it("records Muse falling on Bonded and holding on AgentDojo", () => {
-    expect(muse?.bonded.fell).toBe(4);
-    expect(muse?.bonded.countedEpisodes).toBe(178);
-    expect(muse?.bonded.lossUsd).toBe(6160);
-    expect(muse && attackExecuted(muse.agentdojo)).toBe(0);
-    expect(muse && pairsOf(muse.agentdojo)).toBe(576);
-    expect(muse && utilityOf(muse.agentdojo)).toBe(493);
-    expect(muse && directAskOf(muse.agentdojo)).toEqual({ done: 27, total: 36 });
+  it("records every portable seed against AgentDojo's attack, same job, harness and delivery", () => {
+    expect(glm?.bonded.fell).toBe(14);
+    expect(glm?.bonded.countedEpisodes).toBe(208);
+    expect(glm?.bonded.notMet).toBe(14);
+    expect(glm?.bonded.lossUsd).toBe(15440);
+    expect(glm?.bonded.overpaidUsd).toBe(4180);
+    expect(glm && attackExecuted(glm.agentdojo)).toBe(0);
+    expect(glm && pairsOf(glm.agentdojo)).toBe(222);
+    expect(glm && utilityOf(glm.agentdojo)).toBe(214);
+    expect(glm && directAskOf(glm.agentdojo)).toEqual({ done: 0, total: 111 });
+  });
+
+  it("adds up: falls to the count, the loss to the falls, met and unmet to the episodes", () => {
+    const falls = glm?.bonded.falls ?? [];
+    expect(falls.reduce((n, fall) => n + fall.fell, 0)).toBe(glm?.bonded.fell);
+    expect(falls.reduce((n, fall) => n + fall.lossUsd, 0)).toBe(glm?.bonded.lossUsd);
+    expect((glm?.bonded.countedEpisodes ?? 0) + (glm?.bonded.notMet ?? 0)).toBe(
+      glm?.bonded.tasksTotal,
+    );
   });
 
   it("records invoices paid right beside the whole job, on the same episodes", () => {
-    expect(muse?.bonded.tasksDone).toBe(58);
-    expect(muse?.bonded.paymentsDone).toBe(300);
-    expect(muse?.bonded.tasksTotal).toBe(306);
-    expect(glm?.bonded.tasksDone).toBe(10);
-    expect(glm?.bonded.paymentsDone).toBe(25);
-    expect(glm?.bonded.tasksTotal).toBe(36);
+    expect(glm?.bonded.tasksDone).toBe(127);
+    expect(glm?.bonded.paymentsDone).toBe(201);
+    expect(glm?.bonded.tasksTotal).toBe(222);
   });
 
   it("rejects a paid-right count above the episodes it covers", () => {
@@ -43,18 +51,5 @@ describe("bench comparison record", () => {
       comparisons: [{ ...row, bonded: { ...row.bonded, paymentsDone: row.bonded.tasksTotal + 1 } }],
     };
     expect(() => loadBenchComparison(broken)).toThrow(/paymentsDone is out of range/);
-  });
-
-  it("records the GLM check like for like: same job, same harness, same delivery", () => {
-    expect(glm?.bonded.fell).toBe(5);
-    expect(glm?.bonded.countedEpisodes).toBe(36);
-    expect(glm?.bonded.lossUsd).toBe(5740);
-    expect(glm?.bonded.overpaidUsd).toBe(576);
-    expect(glm && attackExecuted(glm.agentdojo)).toBe(0);
-    expect(glm && pairsOf(glm.agentdojo)).toBe(36);
-    expect(glm && utilityOf(glm.agentdojo)).toBe(23);
-    expect(glm && directAskOf(glm.agentdojo)).toEqual({ done: 0, total: 18 });
-    // Every fall in the record adds up to the row's count.
-    expect(glm?.bonded.falls.reduce((n, fall) => n + fall.fell, 0)).toBe(5);
   });
 });

@@ -303,7 +303,7 @@ export function BenchComparisonCard() {
   return (
     <ChartCard
       title="Bonded vs AgentDojo"
-      subtitle="Same models, two attack tests"
+      subtitle={`Same ${rows.length === 1 ? "model" : "models"}, two attack tests`}
       tabs={TABS}
       tab={tab}
       onTab={(id) => setTab(id as Tab)}
