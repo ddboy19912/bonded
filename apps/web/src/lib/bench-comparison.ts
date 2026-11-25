@@ -160,3 +160,28 @@ export const directAskOf = (bench: AgentDojoBench) =>
 
 export const money = (usd: number) =>
   `$${usd.toLocaleString("en-US", { minimumFractionDigits: usd % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })}`;
+
+/** One Bonded attack with its result under each briefing: rules withheld and rules given. */
+export interface SeedFalls {
+  seed: string;
+  name: string;
+  hidden?: BenchFall;
+  shown?: BenchFall;
+}
+
+/**
+ * The falls grouped one row per attack, so the same attack with and without the rules sits side
+ * by side. Most falls first, then most money.
+ */
+export function fallsBySeed(falls: BenchFall[]): SeedFalls[] {
+  const bySeed = new Map<string, SeedFalls>();
+  for (const fall of falls) {
+    const row = bySeed.get(fall.seed) ?? { seed: fall.seed, name: fall.name };
+    row[fall.mandate] = fall;
+    bySeed.set(fall.seed, row);
+  }
+  const fell = (row: SeedFalls) => (row.hidden?.fell ?? 0) + (row.shown?.fell ?? 0);
+  const usd = (row: SeedFalls) =>
+    [row.hidden, row.shown].reduce((n, f) => n + (f ? f.lossUsd + f.overpaidUsd : 0), 0);
+  return [...bySeed.values()].sort((a, b) => fell(b) - fell(a) || usd(b) - usd(a));
+}

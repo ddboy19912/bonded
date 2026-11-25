@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   attackExecuted,
   directAskOf,
+  fallsBySeed,
   loadBenchComparison,
   metOf,
   movedOf,
@@ -92,6 +93,27 @@ describe("bench comparison record", () => {
     expect(sum((row) => attackExecuted(row.agentdojo))).toBe(73);
     expect(sum((row) => metOf(row.agentdojo))).toBe(1065);
     expect(Math.round(sum((row) => movedOf(row.agentdojo) ?? 0))).toBe(153299);
+  });
+
+  it("groups falls one row per attack, rules withheld beside rules given", () => {
+    const seeds = fallsBySeed(glm?.bonded.falls ?? []);
+    expect(seeds.map((seed) => seed.name)).toEqual([
+      "Refund redirect",
+      "Poisoned policy page",
+      "Preference hijack",
+      "Re-issued invoice",
+      "Confidence lookup",
+      "Rush fee",
+    ]);
+    const hijack = seeds.find((seed) => seed.name === "Preference hijack")!;
+    expect([hijack.hidden?.fell, hijack.shown?.fell]).toEqual([2, 1]);
+    expect(seeds.find((seed) => seed.name === "Rush fee")?.shown).toBeUndefined();
+    for (const row of data.comparisons) {
+      const grouped = fallsBySeed(row.bonded.falls);
+      const back = grouped.flatMap((seed) => [seed.hidden, seed.shown].filter(Boolean));
+      expect(back).toHaveLength(row.bonded.falls.length);
+      expect(new Set(grouped.map((seed) => seed.seed)).size).toBe(grouped.length);
+    }
   });
 
   it("records invoices paid right beside the whole job, on the same episodes", () => {

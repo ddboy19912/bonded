@@ -6,6 +6,7 @@ import { ChartCard, ProviderLogo } from "./index-charts";
 import {
   attackExecuted,
   directAskOf,
+  fallsBySeed,
   loadBenchComparison,
   metOf,
   money,
@@ -13,6 +14,7 @@ import {
   pairsOf,
   utilityOf,
   type BenchComparison,
+  type BenchFall,
 } from "../lib/bench-comparison";
 
 /**
@@ -236,72 +238,115 @@ function barsFor(row: BenchComparison, tab: Tab): BenchBar[] {
   ];
 }
 
-/** One model's two bars on a 0–100% track, each named by its bench's logo and value. */
-function ModelPair({ row, bars }: { row: BenchComparison; bars: BenchBar[] }) {
+/**
+ * One model's bars on a 0–100% track, each named by its bench's logo and value. The model's name
+ * opens its details right under its bars, so they sit next to what they explain.
+ */
+function ModelPair({
+  row,
+  bars,
+  open,
+  onToggle,
+}: {
+  row: BenchComparison;
+  bars: BenchBar[];
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const panel = `bench-detail-${rowKey(row).replaceAll(/[^a-z0-9-]/gi, "-")}`;
   return (
-    <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[11rem_1fr] sm:items-center sm:gap-4">
-      <div className="flex items-center gap-2 sm:items-start">
-        <ProviderLogo provider={providerOf(row.model)} size={18} />
-        <div className="leading-tight">
-          <p className="text-sm font-medium text-ink">{row.label}</p>
-          <p className="text-[11px] text-muted">attack {DELIVERY[row.channels]}</p>
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[11rem_1fr] sm:items-center sm:gap-4">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          aria-controls={panel}
+          className="group/model flex items-center gap-2 rounded-md text-left sm:items-start"
+        >
+          <ProviderLogo provider={providerOf(row.model)} size={18} />
+          <span className="leading-tight">
+            <span className="block text-sm font-medium text-ink">{row.label}</span>
+            <span className="block text-[11px] text-muted">attack {DELIVERY[row.channels]}</span>
+            <span className="mt-1 flex items-center gap-1 text-[11px] text-soft group-hover/model:text-ink">
+              <svg
+                aria-hidden
+                viewBox="0 0 12 12"
+                className={`size-2.5 transition-transform ${open ? "rotate-90" : ""}`}
+              >
+                <path d="M4 2.5 7.5 6 4 9.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+              </svg>
+              {open ? "Hide details" : "Details"}
+            </span>
+          </span>
+        </button>
+        <div className="flex flex-col gap-1.5">
+          {bars.map((bar) => (
+            <div
+              key={`${bar.bench}-${bar.measure ?? ""}`}
+              className="group relative flex items-center gap-2"
+              aria-label={`${row.label}, ${BENCH[bar.bench].name}${bar.measure ? ` (${bar.measure.toLowerCase()})` : ""}: ${pctLabel(bar.value)}, ${bar.count}`}
+            >
+              <BenchMark bench={bar.bench} size={18} />
+              {bar.measure && (
+                <span className="w-16 shrink-0 text-[11px] text-muted">{bar.measure}</span>
+              )}
+              <div className="h-5 flex-1 rounded-[4px] bg-white/[0.03]">
+                <div
+                  className="h-full rounded-[4px]"
+                  style={{
+                    width: `max(${bar.value}%, 2px)`,
+                    background: BENCH[bar.bench].color,
+                    opacity: bar.faint ? 0.5 : 1,
+                  }}
+                />
+              </div>
+              <span className="w-28 shrink-0 text-right text-xs tabular-nums">
+                <span className="font-semibold text-ink">{pctLabel(bar.value)}</span>{" "}
+                <span className="text-muted">{bar.count}</span>
+              </span>
+              <div
+                role="tooltip"
+                className="pointer-events-none absolute bottom-full left-8 z-10 mb-1 hidden max-w-72 rounded-lg border border-line-strong bg-raised px-3 py-2 text-xs text-soft shadow-xl group-hover:block"
+              >
+                {bar.tip}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
-      <div className="flex flex-col gap-1.5">
-        {bars.map((bar) => (
-          <div
-            key={`${bar.bench}-${bar.measure ?? ""}`}
-            className="group relative flex items-center gap-2"
-            aria-label={`${row.label}, ${BENCH[bar.bench].name}${bar.measure ? ` (${bar.measure.toLowerCase()})` : ""}: ${pctLabel(bar.value)}, ${bar.count}`}
-          >
-            <BenchMark bench={bar.bench} size={18} />
-            {bar.measure && (
-              <span className="w-16 shrink-0 text-[11px] text-muted">{bar.measure}</span>
-            )}
-            <div className="h-5 flex-1 rounded-[4px] bg-white/[0.03]">
-              <div
-                className="h-full rounded-[4px]"
-                style={{
-                  width: `max(${bar.value}%, 2px)`,
-                  background: BENCH[bar.bench].color,
-                  opacity: bar.faint ? 0.5 : 1,
-                }}
-              />
-            </div>
-            <span className="w-28 shrink-0 text-right text-xs tabular-nums">
-              <span className="font-semibold text-ink">{pctLabel(bar.value)}</span>{" "}
-              <span className="text-muted">{bar.count}</span>
-            </span>
-            <div
-              role="tooltip"
-              className="pointer-events-none absolute bottom-full left-8 z-10 mb-1 hidden max-w-72 rounded-lg border border-line-strong bg-raised px-3 py-2 text-xs text-soft shadow-xl group-hover:block"
-            >
-              {bar.tip}
-            </div>
-          </div>
-        ))}
-      </div>
+      {open && <Detail id={panel} row={row} />}
     </div>
   );
 }
 
-function Detail({ row }: { row: BenchComparison }) {
+/** One briefing's result for an attack: "2 of 3 · $3,680", or a dash when it never worked. */
+function FallCell({ fall }: { fall?: BenchFall }) {
+  if (!fall) return <span className="text-muted">–</span>;
+  return (
+    <>
+      <span className="text-ink">
+        {fall.fell} of {fall.runs}
+      </span>
+      <span className="text-muted"> · {dollars(fall.lossUsd + fall.overpaidUsd)}</span>
+    </>
+  );
+}
+
+function Detail({ id, row }: { id: string; row: BenchComparison }) {
   const ask = directAskOf(row.agentdojo);
   return (
-    <details className="border-t border-line pt-3 text-xs">
-      <summary className="cursor-pointer text-muted hover:text-ink">
-        {row.label}, attack {DELIVERY[row.channels]}: details
-      </summary>
-      <div className="mt-3 flex flex-col gap-3">
+    // Under the bars, on a hairline, so it reads as part of this model's row.
+    <div id={id} className="flex flex-col gap-3 border-l border-line pl-4 text-xs sm:ml-[12rem]">
+      <div className="flex flex-col gap-3">
         {row.scope && <p className="text-muted">{row.scope}</p>}
         {row.bonded.falls.length > 0 && (
           <DataTable
-            head={["Bonded attack", "Rules given", "Worked", "Lost or overpaid"]}
-            rows={row.bonded.falls.map((fall) => [
-              fall.name,
-              fall.mandate === "shown" ? "yes" : "no",
-              `${fall.fell} of ${fall.runs}`,
-              money(fall.lossUsd + fall.overpaidUsd),
+            head={["Bonded attack that worked", "Rules withheld", "Rules given"]}
+            rows={fallsBySeed(row.bonded.falls).map((seed) => [
+              seed.name,
+              <FallCell key="hidden" fall={seed.hidden} />,
+              <FallCell key="shown" fall={seed.shown} />,
             ])}
           />
         )}
@@ -326,7 +371,7 @@ function Detail({ row }: { row: BenchComparison }) {
           ))}
         </ul>
       </div>
-    </details>
+    </div>
   );
 }
 
@@ -334,6 +379,8 @@ function Detail({ row }: { row: BenchComparison }) {
 export function BenchComparisonCard() {
   const data = loadBenchComparison();
   const [tab, setTab] = useState<Tab>("breach");
+  // One model's details open at a time.
+  const [openKey, setOpenKey] = useState<string | null>(null);
   // The headline comparison first, then the rest in the record's order.
   const rows = [...data.comparisons].sort((a, b) => Number(b.headline) - Number(a.headline));
   const models = new Set(rows.map((row) => row.model)).size;
@@ -382,7 +429,13 @@ export function BenchComparisonCard() {
     >
       <div className="flex flex-col gap-5">
         {rows.map((row) => (
-          <ModelPair key={rowKey(row)} row={row} bars={barsFor(row, tab)} />
+          <ModelPair
+            key={rowKey(row)}
+            row={row}
+            bars={barsFor(row, tab)}
+            open={openKey === rowKey(row)}
+            onToggle={() => setOpenKey((key) => (key === rowKey(row) ? null : rowKey(row)))}
+          />
         ))}
         {tab === "task" && (
           <p className="text-xs text-soft">
@@ -390,11 +443,6 @@ export function BenchComparisonCard() {
             badly. Paid right counts only the invoices, closer to how AgentDojo checks a task.
           </p>
         )}
-        <div className="flex flex-col gap-3">
-          {rows.map((row) => (
-            <Detail key={rowKey(row)} row={row} />
-          ))}
-        </div>
       </div>
     </ChartCard>
   );
