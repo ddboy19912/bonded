@@ -157,7 +157,7 @@ describe("the Index section", () => {
     }) as BondedIndexEntry;
   const index = (entries: BondedIndexEntry[]) => ({ ...loadBondedIndex(), entries });
 
-  it("puts every model on the map, named with both scores, and lists them for screen readers", () => {
+  it("puts every model on the map, named with both scores, and lists them in a ledger beside it", () => {
     reduceMotion();
     show(
       <LandingIndex
@@ -171,6 +171,8 @@ describe("the Index section", () => {
       "Model A",
       "Model B",
     ]);
+    // The ledger is on the page for everyone, not only for screen readers.
+    expect(screen.getByRole("table").className).not.toContain("sr-only");
     expect(screen.getByRole("link", { name: /See the full Index/ }).getAttribute("href")).toBe(
       "/index",
     );
@@ -483,44 +485,22 @@ describe("the live agents band", () => {
   });
 });
 
-describe("the light behind the page", () => {
+describe("the page's ground", () => {
   const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "landing.css"), "utf8");
-  const wash = (id: string) => {
-    const start = css.indexOf(`#${id}::before {\n  top`);
-    return css.slice(start, css.indexOf("\n}", start));
-  };
 
-  it("is warm behind the attack walkthrough and cool behind what answers it", () => {
-    const warm = "rgb(255 154 128";
-    expect(wash("how")).toContain(warm);
-    expect(wash("how")).toContain("rgb(60 107 255");
-    for (const id of ["who", "score", "index", "sentinel", "gate", "bring", "faq"])
-      expect(wash(id), id).not.toContain(warm);
+  it("is flat: no glow washes behind the sections", () => {
+    expect(css).not.toContain("radial-gradient");
+    expect(css).not.toMatch(/#\w+::before/);
   });
 
-  it("fades to nothing at its top and bottom, and is as wide as the screen", () => {
-    const shared = css.slice(css.indexOf("#numbers::before,"), css.indexOf("#numbers::before {"));
-    expect(shared).toContain("width: 100vw");
-    expect(shared).toMatch(/mask-image: linear-gradient\(\s*to bottom,\s*transparent,/);
-    expect(shared).not.toMatch(/width: \d+px/);
+  it("holds everything still for readers who ask for less motion", () => {
+    const still = css.slice(css.lastIndexOf("@media (prefers-reduced-motion: reduce)"));
+    // The cage never drops, nothing waits to be revealed, and nothing loops.
+    for (const part of [".l-cage", ".l-rv", ".l-verdict", ".l-mq", ".l-tape", ".l-orbit"])
+      expect(still, part).toContain(part);
   });
 
-  it("keeps its warm light off the walkthrough's cards", () => {
-    // Each step has its own glow behind its card; a second light on that side would stack on it.
-    const how = wash("how");
-    const positions = [...how.matchAll(/ellipse at (\d+)%/g)].map((m) => Number(m[1]));
-    expect(positions.length).toBeGreaterThan(0);
-    for (const x of positions) expect(x, how).toBeLessThan(25);
-  });
-
-  it("sits behind the content and never moves", () => {
-    expect(css).toContain("z-index: -1");
-    expect(css).toContain("pointer-events: none");
-    expect(css).not.toContain("night sky");
-    expect(css).not.toContain("animation-timeline");
-  });
-
-  it("lets the body show it through on the landing page only", () => {
+  it("sets its own ground on the landing page only", () => {
     expect(css).toContain("body:has(.landing)");
   });
 });

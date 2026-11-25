@@ -1,180 +1,995 @@
-/* The landing page's hero composition and its motion. Plain CSS, so the timings read in one place. */
+/*
+ * The landing page. Type-led: large Geist on a near-black ground, one blue, orange for the red team,
+ * thin rules in place of cards. Plain CSS, so the timings read in one place.
+ */
 
-.hero-ui {
-  position: relative;
-  max-width: 1180px;
-  height: 600px;
-  margin: 56px auto 0;
-  perspective: 2200px;
+.landing {
+  --l-bg: #07080a;
+  --l-ink: #f1f2f4;
+  --l-dim: #6b7079;
+  --l-muted: #8a8f9a;
+  --l-soft: #9db5ff;
+  --l-blue: #3c6bff;
+  --l-orange: #ff7a45;
+  --l-amber: #ffb347;
+  --l-line: rgb(255 255 255 / 0.12);
+  --l-pad: clamp(18px, 2.6vw, 40px);
+  --l-sans: "Geist Variable", "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+  --l-mono:
+    "JetBrains Mono Variable", "JetBrains Mono", "JetBrains Mono Fallback", ui-monospace, monospace;
+  --l-ease: cubic-bezier(0.19, 1, 0.22, 1);
+  /* Where the demo's light stream runs, down from the top of its lane. */
+  --l-lane-y: 44%;
+  /* The app's colour names, on this page's ground. */
+  --color-paper: #07080a;
+  --color-muted: #8a8f9a;
+  --color-line: rgb(255 255 255 / 0.12);
+  background: var(--l-bg);
+  color: var(--l-ink);
 }
-.hero-tilt {
+body:has(.landing) {
+  background: #07080a;
+}
+
+/* Shared pieces */
+.l-sec {
+  padding: clamp(90px, 13vh, 150px) var(--l-pad);
+  border-top: 1px solid var(--l-line);
+  scroll-margin-top: 68px;
+}
+.l-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 5fr);
+  gap: 24px;
+}
+.l-lab {
+  font: 400 13px/1.35 var(--l-mono);
+  color: var(--l-muted);
+}
+.l-h2 {
+  font: 500 clamp(40px, 6.4vw, 104px) / 0.9 var(--l-sans);
+  letter-spacing: -0.06em;
+}
+.l-h2 .dim,
+.l-h3 .dim {
+  color: var(--l-dim);
+}
+.l-h3 {
+  font: 500 clamp(26px, 3vw, 46px) / 1 var(--l-sans);
+  letter-spacing: -0.045em;
+}
+.l-lede {
+  margin-top: 28px;
+  max-width: 60ch;
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--l-muted);
+}
+.l-body {
+  margin-top: clamp(40px, 7vh, 80px);
+}
+.l-actions {
+  margin-top: 30px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+}
+.l-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 22px;
+  border-radius: 999px;
+  font: 500 15px/1 var(--l-sans);
+  white-space: nowrap;
+  overflow: hidden;
+  isolation: isolate;
+  transition: color 0.3s;
+}
+.l-btn::before {
+  content: "";
   position: absolute;
   inset: 0;
-  transform: rotateX(14deg);
-  transform-origin: 50% 0;
-  transform-style: preserve-3d;
+  z-index: -1;
+  transform: translateY(101%);
+  transition: transform 0.5s var(--l-ease);
 }
-.pane {
-  position: absolute;
-  box-sizing: border-box;
-  border-radius: 22px;
-  border: 1px solid rgb(255 255 255 / 0.12);
-  background: linear-gradient(180deg, rgb(22 28 44 / 0.92), rgb(10 13 22 / 0.94));
-  box-shadow:
-    0 40px 80px -20px rgb(0 0 0 / 0.7),
-    inset 0 1px 0 rgb(255 255 255 / 0.08);
-  backdrop-filter: blur(16px);
+.l-btn:hover::before,
+.l-btn:focus-visible::before {
+  transform: none;
 }
-.pane-agent {
-  left: 50%;
-  top: 30px;
-  width: 470px;
-  margin-left: -235px;
-  padding: 26px;
-  z-index: 3;
-  animation: hero-float 7s ease-in-out infinite;
+.l-btn-p {
+  background: #2f5ff5;
+  color: #fff;
 }
-.pane-feed {
-  left: 0;
-  top: 120px;
-  width: 350px;
-  padding: 20px 20px 8px;
-  z-index: 2;
-  animation: hero-float 8s ease-in-out 0.8s infinite;
+.l-btn-p::before {
+  background: var(--l-ink);
 }
-.pane-vault {
-  right: 0;
-  top: 96px;
-  width: 340px;
-  padding: 20px;
-  z-index: 2;
-  animation: hero-float 9s ease-in-out 1.6s infinite;
+.l-btn-p:hover,
+.l-btn-p:focus-visible {
+  color: #000;
 }
-.pane-toast {
-  left: 50%;
-  top: 430px;
-  width: 440px;
-  margin-left: -220px;
-  padding: 14px 18px;
-  border-radius: 16px;
-  z-index: 4;
-  border-color: rgb(127 160 255 / 0.5);
-  background: linear-gradient(180deg, rgb(25 45 110 / 0.95), rgb(13 26 70 / 0.95));
-  animation: hero-toast 12s ease infinite;
+.l-btn-s {
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.2);
 }
-.feed-window {
-  height: 260px;
+.l-btn-s::before {
+  background: rgb(255 255 255 / 0.1);
+}
+.l-link {
+  display: inline-flex;
+  gap: 8px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid currentColor;
+  transition: color 0.2s;
+}
+.l-link:hover {
+  color: var(--l-soft);
+}
+
+/* Things rise into place the first time they come on screen. */
+.l-rv {
+  opacity: 0;
+  transform: translateY(36px);
+  transition:
+    opacity 1s ease,
+    transform 1.2s var(--l-ease);
+}
+.l-rv[data-in="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+/* Hero: the cage lifts, the headline relaxes, the rest follows. */
+.l-hero {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  height: calc(100svh - 68px);
+  min-height: 620px;
+  max-height: 1100px;
+  padding: 0 var(--l-pad);
   overflow: hidden;
-  mask-image: linear-gradient(180deg, transparent, #000 12%, #000 88%, transparent);
 }
-.feed-list {
-  animation: hero-feed 12s cubic-bezier(0.7, 0, 0.3, 1) infinite;
+.l-cage {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 var(--l-pad);
+  pointer-events: none;
 }
-.limit-used {
-  animation: hero-use 12s ease-in-out infinite;
+.l-cage i {
+  width: 3px;
+  height: 100%;
+  background: var(--l-ink);
+  animation: l-lift 1.05s cubic-bezier(0.76, 0, 0.24, 1) both;
 }
-.blocked {
-  animation: hero-block 12s ease infinite;
+@keyframes l-lift {
+  to {
+    transform: translateY(-101%);
+  }
 }
-.agent-swap {
-  animation: rise 0.6s ease both;
+.l-late {
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+.l-hero[data-on="true"] .l-late {
+  opacity: 1;
+}
+.l-tapes {
+  position: absolute;
+  inset: 26px 0 auto 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 60%, transparent 86%);
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 60%, transparent 86%);
+}
+.l-tape {
+  display: flex;
+  width: max-content;
+  white-space: nowrap;
+  font: 400 13px/1 var(--l-mono);
+  color: rgb(255 122 69 / 0.62);
+  animation: l-slide 70s linear infinite;
+}
+.l-tape:nth-child(2) {
+  animation-duration: 95s;
+  animation-direction: reverse;
+}
+.l-tape:nth-child(3) {
+  animation-duration: 60s;
+}
+.l-tape:nth-child(4) {
+  animation-duration: 110s;
+  animation-direction: reverse;
+}
+.l-tape span {
+  padding-right: 2.2em;
+}
+.l-tape b {
+  font-weight: 400;
+  color: var(--l-soft);
+}
+@keyframes l-slide {
+  to {
+    transform: translateX(-50%);
+  }
+}
+.l-intro {
+  position: absolute;
+  right: var(--l-pad);
+  top: clamp(150px, 24vh, 230px);
+  width: min(370px, 34vw);
+  transition-delay: 0.15s;
+}
+.l-intro p + p {
+  margin-top: 12px;
+  font-size: 17px;
+  line-height: 1.45;
+}
+.l-h1 {
+  position: relative;
+  margin-left: -0.04em;
+  font: 400 clamp(52px, min(13.4vw, 23.5vh), 230px) / 0.84 var(--l-sans);
+  letter-spacing: -0.065em;
+  user-select: none;
+}
+.l-ln {
+  display: block;
+  white-space: nowrap;
+}
+.l-ln.dim {
+  color: var(--l-dim);
+}
+.l-ln.blue {
+  color: var(--l-blue);
+}
+.l-ch {
+  display: inline-block;
+  font-variation-settings: "wght" 300;
+}
+.l-ledger {
+  margin-top: clamp(18px, 3vh, 30px);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr) auto;
+  gap: 20px;
+  align-items: baseline;
+  padding: 16px 0 22px;
+  border-top: 1px solid var(--l-line);
+  font: 400 13px/1.3 var(--l-mono);
+  color: var(--l-muted);
+  transition-delay: 0.3s;
+  scroll-margin-top: 68px;
+}
+.l-ledger b {
+  margin-right: 10px;
+  font: 500 15px/1 var(--l-mono);
+  color: var(--l-ink);
+  font-variant-numeric: tabular-nums;
 }
 
-@keyframes hero-float {
-  50% {
-    transform: translateY(-10px);
-  }
+/* The works-with carousel: two copies of the row; the track moves half its width and starts again. */
+.l-works {
+  padding: 40px 0;
+  border-top: 1px solid var(--l-line);
 }
-@keyframes hero-use {
-  0%,
-  10% {
-    width: 18%;
-  }
-  40%,
-  94% {
-    width: 62%;
-  }
-  100% {
-    width: 18%;
-  }
+.logo-marquee {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 7%, #000 93%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 7%, #000 93%, transparent);
 }
-@keyframes hero-block {
-  0%,
-  38% {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  42%,
-  62% {
-    opacity: 1;
-    transform: none;
-    box-shadow:
-      0 0 0 1px rgb(255 92 58 / 0.6),
-      0 0 30px rgb(255 92 58 / 0.25);
-  }
-  66%,
-  100% {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
+.logo-track {
+  display: flex;
+  width: max-content;
+  animation: l-slide 64s linear infinite;
 }
-@keyframes hero-toast {
-  0%,
-  66% {
-    opacity: 0;
-    transform: translateY(24px) scale(0.97);
-  }
-  70%,
-  92% {
-    opacity: 1;
-    transform: none;
-  }
-  96%,
-  100% {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
+.logo-marquee:hover .logo-track,
+.logo-marquee:focus-within .logo-track {
+  animation-play-state: paused;
 }
-@keyframes hero-feed {
-  0%,
-  10% {
-    transform: translateY(0);
-  }
-  12.5%,
-  22.5% {
-    transform: translateY(-52px);
-  }
-  25%,
-  35% {
-    transform: translateY(-104px);
-  }
-  37.5%,
-  47.5% {
-    transform: translateY(-156px);
-  }
-  50%,
-  60% {
-    transform: translateY(-208px);
-  }
-  62.5%,
-  72.5% {
-    transform: translateY(-260px);
-  }
-  75%,
-  85% {
-    transform: translateY(-312px);
-  }
-  87.5%,
-  97.5% {
-    transform: translateY(-364px);
-  }
-  100% {
-    transform: translateY(-416px);
-  }
+.logo-copy > li {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.36em;
+  padding-left: 0.55em;
+  font: 500 clamp(26px, 3.2vw, 46px) / 1.25 var(--l-sans);
+  letter-spacing: -0.05em;
+  white-space: nowrap;
+}
+.logo-copy > li::after {
+  content: "/";
+  padding-left: 0.55em;
+  color: var(--l-dim);
+  font-weight: 300;
+}
+.logo-copy > li:nth-child(even) {
+  color: var(--l-dim);
+}
+.logo-copy > li > [role="img"] {
+  flex-shrink: 0;
+  height: 0.78em;
+  background: currentColor;
 }
 
-/* Sentinel flow: the line between two cards, and the dot that travels along it. Vertical when the
-   cards stack, horizontal from 1024px. */
+/* The problem, said once, large. Words light up in turn. */
+.l-mani {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 5fr);
+  gap: 24px;
+  padding: clamp(110px, 18vh, 190px) var(--l-pad);
+}
+.l-mani-text {
+  max-width: 20ch;
+  font: 400 clamp(30px, 4.7vw, 76px) / 1.02 var(--l-sans);
+  letter-spacing: -0.045em;
+}
+.l-mani-text span {
+  opacity: 0.14;
+  transition: opacity 0.7s ease;
+}
+.l-mani-text[data-in="true"] span {
+  opacity: 1;
+}
+.l-mani-text .blue {
+  color: var(--l-blue);
+}
+
+/* The attack demo: pick an attack, a stream of orange light runs into the agent, then to the vault. */
+.l-try {
+  padding-inline: 0;
+}
+.l-try > .l-head,
+.l-note {
+  padding-inline: var(--l-pad);
+}
+.l-atks {
+  margin-top: 56px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 0 var(--l-pad);
+  border-top: 1px solid var(--l-line);
+}
+.l-atk {
+  position: relative;
+  display: block;
+  min-height: 44px;
+  padding: 20px 18px 28px;
+  border-left: 1px solid var(--l-line);
+  text-align: left;
+  color: var(--l-dim);
+  cursor: pointer;
+  transition: color 0.25s;
+}
+.l-atk:first-child {
+  border-left: 0;
+  padding-left: 0;
+}
+.l-atk::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -1px;
+  height: 2px;
+  background: var(--l-orange);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  transition: transform 0.7s var(--l-ease);
+}
+.l-atk[aria-pressed="true"]::before {
+  transform: scaleX(1);
+}
+.l-atk:hover,
+.l-atk[aria-pressed="true"] {
+  color: var(--l-ink);
+}
+.l-atk-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font: 400 13px/1 var(--l-mono);
+  color: var(--l-muted);
+}
+.l-atk[aria-pressed="true"] .l-atk-meta span:first-child {
+  color: var(--l-orange);
+}
+.l-atk-name {
+  display: block;
+  margin-top: 18px;
+  font: 500 clamp(24px, 3vw, 44px) / 1 var(--l-sans);
+  letter-spacing: -0.05em;
+}
+.l-lane {
+  position: relative;
+  height: 480px;
+  border-top: 1px solid var(--l-line);
+  border-bottom: 1px solid var(--l-line);
+  overflow: hidden;
+}
+.l-lanegl {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.l-plant {
+  position: absolute;
+  left: var(--l-pad);
+  top: var(--l-lane-y);
+  width: 21%;
+  transform: translateY(-50%);
+}
+.l-quote {
+  margin-top: 14px;
+  padding-left: 18px;
+  border-left: 2px solid var(--l-orange);
+  font: 400 clamp(17px, 1.6vw, 24px) / 1.3 var(--l-sans);
+  letter-spacing: -0.025em;
+}
+.l-quote b {
+  font: 400 0.8em var(--l-mono);
+  letter-spacing: 0;
+  color: var(--l-orange);
+}
+.l-node {
+  position: absolute;
+  top: var(--l-lane-y);
+}
+.l-agent {
+  left: 46%;
+  width: 190px;
+  height: 190px;
+  margin: -95px 0 0 -95px;
+}
+.l-vault {
+  left: 86%;
+  width: 150px;
+  height: 150px;
+  margin: -75px 0 0 -75px;
+}
+.l-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px var(--l-orange);
+  opacity: 0;
+}
+.l-vault .l-pulse {
+  border-radius: 34px;
+  box-shadow: inset 0 0 0 1px var(--l-blue);
+}
+.l-lane[data-phase="1"] .l-agent .l-pulse,
+.l-lane[data-phase="4"][data-verdict="held"] .l-vault .l-pulse {
+  animation: l-pulse 1.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.l-lane[data-phase="1"] .l-agent .l-pulse + .l-pulse {
+  animation-delay: 0.2s;
+}
+@keyframes l-pulse {
+  0% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+.l-orbit {
+  position: absolute;
+  left: -18px;
+  top: -18px;
+  width: 226px;
+  height: 226px;
+  animation: l-spin 26s linear infinite;
+}
+.l-orbit circle {
+  fill: none;
+  stroke: rgb(255 255 255 / 0.34);
+  stroke-width: 1;
+  stroke-dasharray: 2 9;
+  transition: stroke 0.4s;
+}
+@keyframes l-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.l-core {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--l-bg);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.3);
+  transition:
+    box-shadow 0.4s,
+    transform 0.6s var(--l-ease);
+}
+.l-vault .l-core {
+  border-radius: 34px;
+}
+.l-core svg {
+  width: 56px;
+  height: 56px;
+  transition:
+    stroke 0.4s,
+    fill 0.4s;
+}
+.l-agent .l-core svg {
+  fill: none;
+  stroke: var(--l-ink);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.l-vault .l-core svg {
+  fill: var(--l-ink);
+}
+.l-vring {
+  position: absolute;
+  inset: -16px;
+  border-radius: 48px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.16);
+  transition: box-shadow 0.4s;
+}
+/* The agent: orange from the moment it reads the message; blue again if the vault stops it. */
+.l-lane:is([data-phase="1"], [data-phase="2"], [data-phase="3"]) .l-agent .l-core,
+.l-lane[data-phase="4"][data-verdict="breach"] .l-agent .l-core {
+  box-shadow: inset 0 0 0 2px var(--l-orange);
+}
+.l-lane:is([data-phase="1"], [data-phase="2"], [data-phase="3"]) .l-agent svg,
+.l-lane[data-phase="4"][data-verdict="breach"] .l-agent svg,
+.l-lane:is([data-phase="1"], [data-phase="2"], [data-phase="3"]) .l-orbit circle,
+.l-lane[data-phase="4"][data-verdict="breach"] .l-orbit circle {
+  stroke: var(--l-orange);
+}
+.l-lane[data-phase="1"] .l-agent .l-core {
+  transform: scale(1.06);
+}
+.l-lane[data-phase="4"][data-verdict="held"] .l-agent .l-core {
+  box-shadow: inset 0 0 0 2px var(--l-blue);
+}
+.l-lane[data-phase="4"][data-verdict="held"] .l-orbit circle {
+  stroke: var(--l-blue);
+}
+.l-lane[data-phase="4"][data-verdict="breach"] .l-orbit {
+  animation-play-state: paused;
+}
+/* The vault: wakes when the action reaches it, then takes the colour of its answer. */
+.l-lane[data-phase="3"] .l-vault .l-core {
+  box-shadow: inset 0 0 0 2px var(--l-ink);
+  transform: scale(1.06);
+}
+.l-lane[data-phase="4"][data-verdict="held"] .l-vault .l-core {
+  box-shadow: inset 0 0 0 2px var(--l-blue);
+}
+.l-lane[data-phase="4"][data-verdict="held"] .l-vault svg {
+  fill: var(--l-blue);
+}
+.l-lane[data-phase="4"][data-verdict="held"] .l-vring {
+  box-shadow: inset 0 0 0 1px var(--l-blue);
+}
+.l-lane[data-phase="4"][data-verdict="breach"] .l-vault .l-core {
+  box-shadow: inset 0 0 0 2px var(--l-orange);
+}
+.l-lane[data-phase="4"][data-verdict="breach"] .l-vault svg {
+  fill: var(--l-orange);
+}
+.l-nname {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 30px);
+  transform: translateX(-50%);
+  text-align: center;
+  white-space: nowrap;
+  font: 500 20px/1 var(--l-sans);
+  letter-spacing: -0.04em;
+}
+.l-vault .l-nname {
+  top: calc(100% + 50px);
+}
+.l-nname .l-lab {
+  display: block;
+  margin-top: 8px;
+  letter-spacing: 0;
+}
+/* What the agent tries: a ticket that slides out from the agent, on the stream, toward the vault. */
+.l-ticket {
+  position: absolute;
+  left: 66%;
+  top: var(--l-lane-y);
+  padding: 14px 20px 16px;
+  border-radius: 16px;
+  background: var(--l-bg);
+  box-shadow: inset 0 0 0 1px rgb(255 122 69 / 0.6);
+  white-space: nowrap;
+  opacity: 0;
+  transform: translate(-50%, -50%) translateX(-70px);
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
+}
+.l-ticket code {
+  display: block;
+  margin-top: 10px;
+  font: 500 17px/1.35 var(--l-mono);
+  color: var(--l-ink);
+}
+.l-ticket code b {
+  display: block;
+  font-weight: 500;
+  color: var(--l-orange);
+}
+.l-lane:is([data-phase="2"], [data-phase="3"], [data-phase="4"]) .l-ticket {
+  opacity: 1;
+  transform: translate(-50%, -50%);
+  transition:
+    opacity 0.4s ease,
+    transform 0.9s var(--l-ease),
+    box-shadow 0.4s;
+}
+.l-lane[data-phase="4"][data-verdict="held"] .l-ticket {
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.22);
+}
+.l-mode {
+  position: absolute;
+  left: 86%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--l-bg);
+  box-shadow: inset 0 0 0 1px var(--l-line);
+}
+.l-mode button {
+  height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font: 500 15px/1 var(--l-sans);
+  color: var(--l-muted);
+  cursor: pointer;
+  transition:
+    color 0.25s,
+    background 0.25s;
+}
+.l-mode button:hover {
+  color: var(--l-ink);
+}
+.l-mode button[aria-pressed="true"] {
+  background: var(--l-ink);
+  color: #000;
+}
+.l-resp {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: clamp(24px, 5vw, 90px);
+  align-items: end;
+  padding: 44px var(--l-pad) 0;
+}
+.l-out {
+  margin-top: 14px;
+}
+.l-out li {
+  display: grid;
+  grid-template-columns: 4ch minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: baseline;
+  padding: 15px 0;
+  border-top: 1px solid var(--l-line);
+  font-size: 17px;
+  letter-spacing: -0.02em;
+  opacity: 0;
+  transform: translateY(14px);
+}
+.l-out li[data-on="true"] {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 0.5s ease,
+    transform 0.7s var(--l-ease);
+}
+.l-out li[data-on="true"]:nth-child(2) {
+  transition-delay: 0.3s;
+}
+.l-out li[data-on="true"]:nth-child(3) {
+  transition-delay: 0.6s;
+}
+.l-out .n,
+.l-out .a {
+  font: 400 13px/1 var(--l-mono);
+  letter-spacing: 0;
+  color: var(--l-muted);
+}
+.l-out .a {
+  color: var(--l-soft);
+}
+.l-out li[data-ok="false"] .a {
+  color: var(--l-orange);
+}
+.l-verdict {
+  opacity: 0;
+  transform: translateY(40px);
+}
+.l-verdict[data-on="true"] {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 0.6s ease,
+    transform 0.9s var(--l-ease);
+}
+.l-vv {
+  font: 500 clamp(76px, 10vw, 150px) / 0.85 var(--l-sans);
+  letter-spacing: -0.07em;
+  font-variation-settings: "wght" 900;
+}
+.l-verdict[data-on="true"] .l-vv {
+  font-variation-settings: "wght" 500;
+  transition: font-variation-settings 1.5s var(--l-ease);
+}
+.l-verdict[data-verdict="held"] .l-vv {
+  color: var(--l-blue);
+}
+.l-verdict[data-verdict="breach"] .l-vv {
+  color: var(--l-orange);
+}
+.l-vt {
+  margin-top: 18px;
+  max-width: 44ch;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--l-muted);
+}
+.l-note {
+  margin-top: 22px;
+}
+
+/* How an attack plays out: five steps, each with its own numeral. */
+.l-how {
+  padding-block: 0;
+}
+.l-how-h {
+  padding: 90px 0 40px;
+}
+.l-how-h h2 {
+  margin-top: 10px;
+  font: 500 clamp(24px, 2.4vw, 36px) / 1.05 var(--l-sans);
+  letter-spacing: -0.04em;
+}
+.l-step {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: clamp(24px, 5vw, 90px);
+  align-items: center;
+  padding: 48px 0;
+  border-top: 1px solid var(--l-line);
+}
+.l-numeral {
+  margin-left: -0.05em;
+  font: 300 clamp(120px, 19vw, 300px) / 0.8 var(--l-sans);
+  letter-spacing: -0.08em;
+}
+.l-numeral small {
+  display: block;
+  margin: 22px 0 0 0.05em;
+  font: 400 13px/1 var(--l-mono);
+  letter-spacing: 0;
+  color: var(--l-muted);
+}
+.l-step h3 {
+  max-width: 16ch;
+  font: 500 clamp(28px, 3.3vw, 52px) / 1 var(--l-sans);
+  letter-spacing: -0.045em;
+}
+.l-step-text {
+  margin-top: 18px;
+  max-width: 44ch;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--l-muted);
+}
+.l-vis {
+  margin-top: 40px;
+  max-width: 560px;
+}
+.l-vis .l-quote {
+  margin-top: 14px;
+  font-size: clamp(20px, 2vw, 30px);
+}
+.l-rows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 15px 0;
+  border-top: 1px solid var(--l-line);
+  font-size: 17px;
+  letter-spacing: -0.02em;
+}
+.l-rows > div span:last-child {
+  font: 400 13px/1.6 var(--l-mono);
+  letter-spacing: 0;
+  color: var(--l-muted);
+}
+.l-rows > div.bad span:last-child {
+  color: var(--l-orange);
+}
+.l-send {
+  font: 400 clamp(20px, 2.1vw, 30px) / 1.45 var(--l-mono);
+}
+.l-send b {
+  font-weight: 400;
+  color: var(--l-orange);
+}
+.l-modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+}
+.l-modes b {
+  display: block;
+  margin-top: 12px;
+  font: 500 clamp(40px, 5vw, 76px) / 0.9 var(--l-sans);
+  letter-spacing: -0.06em;
+}
+.l-modes p + p,
+.l-modes b + p {
+  margin-top: 12px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--l-muted);
+}
+.l-amount {
+  font: 500 clamp(76px, 10vw, 150px) / 0.85 var(--l-sans);
+  letter-spacing: -0.07em;
+}
+.l-paybar {
+  margin-top: 26px;
+  display: flex;
+  gap: 3px;
+  height: 10px;
+}
+.l-paybar i:nth-child(1) {
+  flex: 80;
+  background: var(--l-blue);
+}
+.l-paybar i:nth-child(2) {
+  flex: 10;
+  background: var(--l-soft);
+}
+.l-paybar i:nth-child(3) {
+  flex: 10;
+  background: rgb(255 255 255 / 0.16);
+}
+.l-leg {
+  margin-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font: 400 13px/1.3 var(--l-mono);
+  color: var(--l-muted);
+}
+
+/* Columns split by thin rules: who it's for, the live agents. */
+.l-cols {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--l-line);
+}
+.l-cols > * {
+  padding: 26px 24px 0;
+  border-left: 1px solid var(--l-line);
+}
+.l-cols > :first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+.l-cols p {
+  margin-top: 16px;
+  max-width: 40ch;
+  line-height: 1.55;
+  color: var(--l-muted);
+}
+
+/* The insurance tiers, across the page as one scale. The one under the pointer opens up. */
+.l-tiers {
+  display: flex;
+  border-top: 1px solid var(--l-line);
+}
+.l-tiers > li {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 20px 14px 10px;
+  border-left: 1px solid var(--l-line);
+  transition:
+    flex-grow 0.7s var(--l-ease),
+    opacity 0.4s;
+}
+.l-tiers > li:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+.l-tiers:hover > li {
+  opacity: 0.35;
+}
+.l-tiers > li:hover {
+  flex-grow: 2.1;
+  opacity: 1;
+}
+.l-tier {
+  display: block;
+  font: 500 clamp(30px, 5.2vw, 88px) / 0.9 var(--l-sans);
+  letter-spacing: -0.07em;
+}
+.l-tier-range {
+  display: block;
+  margin-top: 16px;
+  font: 400 13px/1 var(--l-mono);
+}
+.l-tier-bond {
+  display: block;
+  margin-top: 8px;
+  max-width: 16ch;
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--l-muted);
+}
+
+/* The Index: the map on one side, every model as a ledger row on the other. */
+.l-index {
+  display: grid;
+  grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+  gap: clamp(28px, 4vw, 72px);
+  align-items: start;
+}
+.l-ledger-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.l-ledger-table thead th {
+  padding: 0 10px 10px;
+  text-align: left;
+  font: 400 13px/1.3 var(--l-mono);
+  color: var(--l-muted);
+}
+.l-ledger-table tbody tr {
+  border-top: 1px solid var(--l-line);
+}
+.l-ledger-table tbody th,
+.l-ledger-table tbody td {
+  padding: 13px 10px;
+  text-align: left;
+  transition:
+    background 0.3s,
+    color 0.3s;
+}
+.l-ledger-table tbody th {
+  font: 500 clamp(19px, 1.9vw, 28px) / 1.1 var(--l-sans);
+  letter-spacing: -0.045em;
+}
+.l-ledger-table tbody td {
+  font: 400 clamp(18px, 1.8vw, 26px) / 1.1 var(--l-sans);
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.l-ledger-table tbody tr:hover th,
+.l-ledger-table tbody tr:hover td {
+  background: #2f5ff5;
+  color: #fff;
+}
+
+/* Sentinel flow: the line between two stages, and the dot that travels along it. Vertical when the
+   stages stack, horizontal from 1024px. */
 .sflow-line {
   left: 50%;
   top: 0;
@@ -200,11 +1015,6 @@
     animation-name: sflow-x;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .sflow-dot {
-    display: none;
-  }
-}
 @keyframes sflow-y {
   from {
     top: 0;
@@ -222,48 +1032,6 @@
   }
 }
 
-/* Phones and small tablets: the cards stack, flat and still. */
-@media (max-width: 1100px) {
-  .hero-ui {
-    height: auto;
-    perspective: none;
-  }
-  .hero-tilt {
-    position: static;
-    transform: none;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 14px;
-  }
-  .pane {
-    position: relative;
-    inset: auto;
-    margin: 0;
-    width: min(470px, 100%);
-    animation: none;
-  }
-  .pane-toast {
-    opacity: 1;
-  }
-}
-
-/* The "works with" carousel: two copies of the row, the track moves half its width and starts again.
-   It pauses under the pointer and keyboard focus, and holds still for anyone who asks for less motion. */
-.logo-marquee {
-  overflow: hidden;
-  -webkit-mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
-  mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
-}
-.logo-track {
-  display: flex;
-  width: max-content;
-  animation: logo-scroll 48s linear infinite;
-}
-.logo-marquee:hover .logo-track,
-.logo-marquee:focus-within .logo-track {
-  animation-play-state: paused;
-}
 /* The payment gate's decision, stamped on the payment. */
 .gate-stamp {
   transform: rotate(-9deg);
@@ -279,24 +1047,171 @@
     transform: rotate(-9deg) scale(1);
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .gate-stamp {
-    animation: none;
+
+/* The close: the line again, twice, drifting opposite ways and leaning with the scroll. */
+.l-end {
+  padding: clamp(70px, 12vh, 110px) 0 clamp(90px, 14vh, 140px);
+  border-top: 1px solid var(--l-line);
+  overflow: hidden;
+  text-align: center;
+}
+.l-lean {
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.l-mq {
+  display: flex;
+  width: max-content;
+  white-space: nowrap;
+  font: 500 clamp(90px, 19vw, 300px) / 0.86 var(--l-sans);
+  letter-spacing: -0.075em;
+  animation: l-slide 46s linear infinite;
+}
+.l-mq + .l-mq {
+  animation-direction: reverse;
+}
+.l-mq span {
+  padding-right: 0.28em;
+}
+.l-mq span:nth-child(even) {
+  color: transparent;
+  -webkit-text-stroke: 1.5px var(--l-dim);
+}
+.l-mq + .l-mq span:nth-child(odd) {
+  color: var(--l-blue);
+}
+.l-end-copy {
+  margin: clamp(40px, 7vh, 64px) auto 0;
+  padding: 0 var(--l-pad);
+}
+.l-end-copy h2 {
+  font: 500 clamp(24px, 2.4vw, 36px) / 1.05 var(--l-sans);
+  letter-spacing: -0.04em;
+}
+.l-end-copy p {
+  margin: 14px auto 0;
+  max-width: 52ch;
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--l-muted);
+}
+.l-end-copy .l-actions {
+  justify-content: center;
+}
+
+/* Narrow screens: one column, and the demo's lane stacks. */
+@media (max-width: 900px) {
+  .l-head,
+  .l-mani,
+  .l-step,
+  .l-resp,
+  .l-index,
+  .l-atks,
+  .l-cols {
+    grid-template-columns: 1fr;
+  }
+  .l-intro {
+    position: static;
+    width: auto;
+    margin-bottom: 26px;
+  }
+  .l-ledger {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .l-atk,
+  .l-cols > * {
+    padding-left: 0;
+    border-left: 0;
+  }
+  .l-cols > * {
+    padding-bottom: 30px;
+    border-top: 1px solid var(--l-line);
+  }
+  .l-cols {
+    border-top: 0;
+  }
+  .l-lane {
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+    height: auto;
+    padding: 30px var(--l-pad);
+  }
+  .l-plant,
+  .l-mode,
+  .l-lane[data-phase] .l-ticket {
+    position: relative;
+    left: auto;
+    top: auto;
+    bottom: auto;
+    width: auto;
+    transform: none;
+  }
+  .l-lane[data-phase] .l-ticket,
+  .l-mode {
+    width: max-content;
+    max-width: 100%;
+    margin-inline: auto;
+  }
+  .l-node {
+    position: relative;
+    left: auto;
+    top: auto;
+    margin: 18px auto 86px;
+  }
+  .l-mode {
+    margin: 0 auto;
+  }
+  .l-tiers {
+    flex-wrap: wrap;
+  }
+  .l-tiers > li {
+    flex: 1 1 40%;
+    padding-left: 0;
+    border-left: 0;
+    border-top: 1px solid var(--l-line);
+  }
+  .l-tiers {
+    border-top: 0;
   }
 }
 
-@keyframes logo-scroll {
-  to {
-    transform: translateX(-50%);
-  }
-}
+/*
+ * Less motion: nothing waits to be revealed, nothing loops. The carousel becomes a still row that
+ * wraps: the list itself wraps (it is the list, not the track around it, that holds the logos), and
+ * the copy that only exists to loop the animation is hidden.
+ */
 @media (prefers-reduced-motion: reduce) {
+  .l-cage,
+  .l-tapes,
+  .sflow-dot {
+    display: none;
+  }
+  .l-rv,
+  .l-late,
+  .l-mani-text span,
+  .l-out li,
+  .l-verdict,
+  .l-lane .l-ticket {
+    opacity: 1;
+    transform: none;
+  }
+  .l-lane .l-ticket {
+    transform: translate(-50%, -50%);
+  }
+  .l-vv {
+    font-variation-settings: "wght" 500;
+  }
+  .gate-stamp,
+  .l-mq,
+  .l-tape,
+  .l-orbit {
+    animation: none;
+  }
   .logo-marquee {
     -webkit-mask-image: none;
     mask-image: none;
   }
-  /* Still, the logos have to fit the screen: the row of logos itself wraps (it is the list, not the
-     track around it, that holds them), and the spacing between them is tighter. */
   .logo-track {
     display: block;
     width: 100%;
@@ -305,117 +1220,10 @@
   .logo-copy {
     flex-wrap: wrap;
     justify-content: center;
-    row-gap: 1.75rem;
+    row-gap: 1.25rem;
     width: 100%;
-  }
-  .logo-copy > li {
-    margin-inline: 1.25rem;
   }
   .logo-copy[aria-hidden="true"] {
     display: none;
   }
-}
-
-/* Light behind the page that follows the story. Warm (the red team's orange) at the edge of the
-   attack walkthrough, turning to cool blue where it resolves, and cool behind everything that answers
-   it. Wide, desaturated washes: still, behind the content, as wide as the screen, and faded to nothing
-   at their top and bottom so there is no edge. They never catch a click. In the walkthrough they sit
-   on the text side only: each step already has its own glow behind its card, and a second light there
-   would stack and wash the card out. The page colour comes from the html element, so the body is
-   transparent on the landing page and lets them show through. */
-body:has(.landing) {
-  background: transparent;
-}
-#numbers,
-#how,
-#who,
-#score,
-#index,
-#sentinel,
-#gate,
-#bring,
-#faq {
-  position: relative;
-}
-#numbers::before,
-#how::before,
-#who::before,
-#score::before,
-#index::before,
-#sentinel::before,
-#gate::before,
-#bring::before,
-#faq::before {
-  content: "";
-  position: absolute;
-  left: 50%;
-  width: 100vw;
-  transform: translateX(-50%);
-  z-index: -1;
-  pointer-events: none;
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent,
-    #000 160px,
-    #000 calc(100% - 160px),
-    transparent
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    transparent,
-    #000 160px,
-    #000 calc(100% - 160px),
-    transparent
-  );
-}
-#numbers::before {
-  top: -140px;
-  height: 640px;
-  background: radial-gradient(ellipse at 50% 45%, rgb(60 107 255 / 0.1), transparent 60%);
-}
-/* The walkthrough is tall: warm at the top of the text column, where the attack is planted, and cool at
-   the bottom, where it is checked and paid. Both at the left edge, away from the cards. */
-#how::before {
-  top: -240px;
-  bottom: -240px;
-  background:
-    radial-gradient(ellipse at 6% 22%, rgb(255 154 128 / 0.09), transparent 40%),
-    radial-gradient(ellipse at 6% 82%, rgb(60 107 255 / 0.1), transparent 42%);
-}
-#who::before {
-  top: -200px;
-  height: 960px;
-  background:
-    radial-gradient(ellipse at 82% 40%, rgb(60 107 255 / 0.15), transparent 58%),
-    radial-gradient(ellipse at 10% 82%, rgb(29 78 216 / 0.08), transparent 52%);
-}
-#score::before {
-  top: -220px;
-  height: 960px;
-  background: radial-gradient(ellipse at 14% 45%, rgb(29 78 216 / 0.14), transparent 56%);
-}
-#sentinel::before {
-  top: -200px;
-  bottom: -200px;
-  background: radial-gradient(ellipse at 90% 40%, rgb(60 107 255 / 0.1), transparent 55%);
-}
-#index::before {
-  top: -200px;
-  bottom: -200px;
-  background: radial-gradient(ellipse at 84% 62%, rgb(60 107 255 / 0.12), transparent 55%);
-}
-#gate::before {
-  top: -200px;
-  bottom: -200px;
-  background: radial-gradient(ellipse at 78% 50%, rgb(29 78 216 / 0.13), transparent 55%);
-}
-#bring::before {
-  top: -200px;
-  height: 960px;
-  background: radial-gradient(ellipse at 86% 48%, rgb(60 107 255 / 0.14), transparent 58%);
-}
-#faq::before {
-  top: -180px;
-  height: 920px;
-  background: radial-gradient(ellipse at 12% 40%, rgb(60 107 255 / 0.12), transparent 56%);
 }

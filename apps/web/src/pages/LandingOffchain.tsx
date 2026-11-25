@@ -2,13 +2,10 @@ import type { BondedIndex, BondedIndexEntry } from "@bondedhq/shared";
 import { AppLink } from "../components/app-link";
 import { useEffect, useRef, useState } from "react";
 import { ProviderLogo } from "../components/index-charts";
-import { buttonClass } from "../components/ui";
 import { byScore, loadBondedIndex, taskScore } from "../lib/bonded-index";
+import { Reveal } from "../lib/reveal";
 import { DOCS_GATE } from "../lib/routes";
 import { useReducedMotion } from "./LandingSentinel";
-
-const SECTION =
-  "mx-auto max-w-[1180px] scroll-mt-24 px-4 sm:px-6 py-24 sm:min-h-svh sm:justify-center sm:py-28 sm:flex sm:flex-col";
 
 /** A score's place across the plot, in percent, with room at both edges for a marker. */
 const at = (v: number) => 4 + v * 0.92;
@@ -116,7 +113,10 @@ export function placeLabels(
   return out;
 }
 
-/** Security across, Task up: every model on one map, with the corner you want lit. */
+/**
+ * Security across, Task up: every model on one map, with the corner you want marked. Beside it, the
+ * same models as a ledger, best Security first.
+ */
 function TradeoffMap({ entries }: { entries: BondedIndexEntry[] }) {
   const reduced = useReducedMotion();
   const plot = useRef<HTMLDivElement>(null);
@@ -164,7 +164,7 @@ function TradeoffMap({ entries }: { entries: BondedIndexEntry[] }) {
   const focus = points.find((p) => p.entry.model === active);
 
   return (
-    <div className="panel p-5 pb-4 sm:p-8 sm:pb-6">
+    <div className="l-index l-body">
       <div className="relative ml-8 sm:ml-11">
         <p className="absolute top-1/2 -left-8 origin-center -translate-x-1/2 -translate-y-1/2 -rotate-90 text-sm whitespace-nowrap text-soft sm:-left-11 sm:text-base">
           <span className="font-semibold text-ink">Task</span>: still pays the real bills{" "}
@@ -178,7 +178,7 @@ function TradeoffMap({ entries }: { entries: BondedIndexEntry[] }) {
           {/* The corner where a model is both hard to trick and still does the job. */}
           <div
             aria-hidden
-            className="absolute top-0 right-0 rounded-tr-xl bg-[radial-gradient(ellipse_at_80%_20%,rgb(126_226_176/.22),transparent_70%)]"
+            className="absolute top-0 right-0 bg-[rgb(126_226_176/.06)]"
             style={{ left: `${at(50)}%`, bottom: `${at(50)}%` }}
           />
           <span
@@ -195,7 +195,7 @@ function TradeoffMap({ entries }: { entries: BondedIndexEntry[] }) {
             <span
               key={`${q.s}-${q.t}`}
               aria-hidden
-              className={`absolute max-w-[40%] -translate-x-1/2 translate-y-1/2 text-center text-[10px] font-semibold tracking-[0.14em] uppercase sm:text-[11px] ${q.goal ? "text-safe" : "text-muted/70"}`}
+              className={`absolute max-w-[40%] -translate-x-1/2 translate-y-1/2 text-center font-mono text-[10px] sm:text-[11px] ${q.goal ? "text-safe" : "text-muted"}`}
               style={{ left: `${at(q.s)}%`, bottom: `${at(q.t)}%` }}
             >
               {size.width && size.width < 520 ? cornerShort(q.s, q.t) : corner(q.s, q.t)}
@@ -261,7 +261,7 @@ function TradeoffMap({ entries }: { entries: BondedIndexEntry[] }) {
                 ).map(([name, value]) => (
                   <div key={name}>
                     <dt className="text-xs text-muted">{name}</dt>
-                    <dd className="mt-1 font-serif text-4xl leading-none text-ink tabular-nums">
+                    <dd className="mt-1 text-4xl leading-none font-medium tracking-[-0.04em] text-ink tabular-nums">
                       {value}
                     </dd>
                   </div>
@@ -281,8 +281,8 @@ function TradeoffMap({ entries }: { entries: BondedIndexEntry[] }) {
         </p>
       </div>
 
-      <table className="sr-only">
-        <caption>AI models by Security score, with their Task score</caption>
+      <table className="l-ledger-table">
+        <caption className="sr-only">AI models by Security score, with their Task score</caption>
         <thead>
           <tr>
             <th scope="col">Model</th>
@@ -308,26 +308,26 @@ function TradeoffMap({ entries }: { entries: BondedIndexEntry[] }) {
 export function LandingIndex({ index = loadBondedIndex() }: { index?: BondedIndex }) {
   if (index.entries.length === 0) return null;
   return (
-    <section id="index" className={SECTION}>
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+    <section id="index" className="l-sec">
+      <div className="l-head">
+        <p className="l-lab">Bonded Index · AI models</p>
         <div>
-          <p className="eyebrow !text-accent">Bonded Index · AI models</p>
-          <h2 className="mt-3 max-w-3xl font-serif text-5xl leading-none">
-            Which AI model is hardest to trick into paying?
-          </h2>
-          <p className="mt-5 max-w-[62ch] text-lg leading-relaxed text-muted">
+          <Reveal as="h2" className="l-h2">
+            Which AI model is hardest <span className="dim">to trick into paying?</span>
+          </Reveal>
+          <p className="l-lede">
             Every model runs the same agent that pays invoices, and meets the same attacks: fake
             bank changes, forged invoices, fake bosses. Security is how hard it is to trick. Task is
             whether it still pays the real bills.
           </p>
+          <div className="l-actions">
+            <AppLink to="/index" className="l-btn l-btn-s">
+              See the full Index <span aria-hidden>→</span>
+            </AppLink>
+          </div>
         </div>
-        <AppLink to="/index" className={buttonClass("secondary", "lg")}>
-          See the full Index <span aria-hidden>→</span>
-        </AppLink>
       </div>
-      <div className="mt-10">
-        <TradeoffMap entries={byScore(index.entries)} />
-      </div>
+      <TradeoffMap entries={byScore(index.entries)} />
     </section>
   );
 }
@@ -465,7 +465,7 @@ function Checkpoint() {
   const done = shown >= last;
 
   return (
-    <div className="panel p-5 sm:p-7">
+    <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-0.5 rounded-full border border-line p-1 sm:gap-1" role="group">
           {STOPS.map((st, i) => (
@@ -477,13 +477,13 @@ function Checkpoint() {
                 setIndex(i);
                 setStep(0);
               }}
-              className={`rounded-full px-2.5 py-1.5 text-xs transition sm:px-3 sm:text-sm ${i === index ? "bg-white/[0.08] font-semibold text-ink" : "text-muted hover:text-soft"}`}
+              className={`rounded-full px-3 py-2 text-xs transition sm:px-4 sm:text-sm ${i === index ? "bg-ink font-medium text-black" : "text-muted hover:text-ink"}`}
             >
               {st.tab}
             </button>
           ))}
         </div>
-        <span className="text-xs text-muted">Illustration</span>
+        <span className="l-lab">Illustration</span>
       </div>
 
       <div
@@ -582,30 +582,32 @@ const WAYS: [string, string][] = [
 /** The payment gate: what it does, the three ways to connect, and a payment going through it. */
 export function LandingGate() {
   return (
-    <section id="gate" className={SECTION}>
-      <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
+    <section id="gate" className="l-sec">
+      <div className="l-head">
+        <p className="l-lab">Payment gate · for agents that pay</p>
+        <Reveal as="h2" className="l-h2">
+          Check every payment <span className="dim">before it leaves.</span>
+        </Reveal>
+      </div>
+      <div className="l-body grid items-start gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-[clamp(24px,5vw,90px)]">
         <div>
-          <p className="eyebrow !text-accent">Payment gate · for agents that pay</p>
-          <h2 className="mt-3 font-serif text-5xl leading-none sm:text-6xl">
-            Check every payment before it leaves.
-          </h2>
-          <p className="mt-6 max-w-lg text-lg leading-relaxed text-muted">
+          <p className="max-w-lg text-lg leading-relaxed text-muted">
             The gate checks your agent's payments against your rules, by bank, card or wallet, and
             signs a receipt anyone can check. Bonded never holds a key that can move your money.
           </p>
-          <ul className="mt-8 flex max-w-lg flex-col gap-5">
+          <ul className="mt-8 max-w-lg border-b border-line">
             {WAYS.map(([title, line]) => (
-              <li key={title} className="border-l border-line-strong pl-4">
-                <span className="block font-semibold">{title}</span>
-                <span className="mt-0.5 block text-muted">{line}</span>
+              <li key={title} className="border-t border-line py-4">
+                <span className="block text-xl font-medium tracking-[-0.03em]">{title}</span>
+                <span className="mt-1 block text-muted">{line}</span>
               </li>
             ))}
           </ul>
-          <div className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-3">
-            <AppLink to="/gate" className={buttonClass("primary", "lg")}>
+          <div className="l-actions">
+            <AppLink to="/gate" className="l-btn l-btn-p">
               Open the payment gate
             </AppLink>
-            <a href={DOCS_GATE} className="text-accent hover:underline">
+            <a href={DOCS_GATE} className="l-link">
               Read the guide <span aria-hidden>→</span>
             </a>
           </div>

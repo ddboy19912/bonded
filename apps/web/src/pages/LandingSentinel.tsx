@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { AppLink } from "../components/app-link";
+import { Reveal } from "../lib/reveal";
 import { SENTINEL_GATES, SENTINEL_MODEL } from "../lib/sentinel-facts";
-import { buttonClass } from "../components/ui";
 
 interface Scenario {
   id: string;
@@ -86,7 +86,7 @@ function SentinelFlow() {
   const tone = s.manipulated ? "text-breach" : "text-safe";
 
   return (
-    <div className="panel p-5 sm:p-7">
+    <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-1 rounded-full border border-line p-1" role="group">
           {SCENARIOS.map((sc, i) => (
@@ -95,18 +95,18 @@ function SentinelFlow() {
               type="button"
               aria-pressed={i === index}
               onClick={() => choose(i)}
-              className={`rounded-full px-3.5 py-1.5 text-sm transition ${i === index ? "bg-white/[0.08] font-semibold text-ink" : "text-muted hover:text-soft"}`}
+              className={`rounded-full px-4 py-2 text-sm transition ${i === index ? "bg-ink font-medium text-black" : "text-muted hover:text-ink"}`}
             >
               {sc.label}
             </button>
           ))}
         </div>
-        <span className="text-xs text-muted">Illustration. Scores are examples.</span>
+        <span className="l-lab">Illustration. Scores are examples.</span>
       </div>
 
       <div
         key={s.id}
-        className="mt-6 grid items-stretch gap-0 lg:grid-cols-[minmax(0,1fr)_64px_minmax(0,1.25fr)_64px_minmax(0,1fr)]"
+        className="mt-8 grid items-stretch gap-0 lg:grid-cols-[minmax(0,1fr)_72px_minmax(0,1.25fr)_72px_minmax(0,1fr)]"
       >
         <FlowCard title="Agent" lit={shown >= 0}>
           <p className="text-xs text-muted">Read</p>
@@ -162,7 +162,7 @@ function SentinelFlow() {
         <FlowCard title="Outcome" lit={shown >= 4}>
           {shown >= 4 ? (
             <div className="[animation:rise_.4s_ease_both]">
-              <p className={`font-serif text-3xl leading-tight ${tone}`}>
+              <p className={`text-4xl leading-none font-medium tracking-[-0.05em] ${tone}`}>
                 {s.manipulated ? "Blocked" : "Goes ahead"}
               </p>
               <p className="mt-2 text-sm text-muted">
@@ -195,15 +195,11 @@ function FlowCard({
 }) {
   return (
     <div
-      className={`rounded-[20px] border p-5 transition duration-500 ${accent ? "border-accent/30 bg-accent-soft/40" : "border-line bg-white/[0.03]"} ${lit ? "opacity-100" : "opacity-60"}`}
+      className={`border-t pt-5 pb-2 transition duration-500 ${accent ? "border-accent" : "border-line-strong"} ${lit ? "opacity-100" : "opacity-50"}`}
     >
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <p className="eyebrow">{title}</p>
-        {tag && (
-          <span className="rounded-full bg-white/[0.06] px-2 py-0.5 font-mono text-[11px] text-soft">
-            {tag}
-          </span>
-        )}
+      <div className="mb-5 flex items-baseline justify-between gap-2">
+        <p className="text-xl font-medium tracking-[-0.03em]">{title}</p>
+        {tag && <span className="l-lab">{tag}</span>}
       </div>
       {children}
     </div>
@@ -259,38 +255,39 @@ export function LandingSentinel() {
     `per check on a GPU: one pass of a small model. About ${SENTINEL_MODEL.speed.cpu} on today's CPU server.`,
   ]);
   return (
-    <section
-      id="sentinel"
-      className="mx-auto max-w-[1180px] scroll-mt-24 px-4 sm:px-6 py-24 sm:min-h-svh sm:justify-center sm:py-28 sm:flex sm:flex-col"
-    >
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+    <section id="sentinel" className="l-sec">
+      <div className="l-head">
+        <p className="l-lab">Sentinel · Bonded's own guard</p>
         <div>
-          <p className="eyebrow !text-accent">Sentinel · Bonded's own guard</p>
-          <h2 className="mt-3 font-serif text-5xl leading-none">
-            Catch the trick before the trade.
-          </h2>
-          <p className="mt-5 max-w-[62ch] text-lg leading-relaxed text-muted">
+          <Reveal as="h2" className="l-h2">
+            Catch the trick <span className="dim">before the trade.</span>
+          </Reveal>
+          <p className="l-lede">
             Sentinel is the guard we built for Bonded, powered by Laya: an open-source decision
             model fast enough to run inline before every trade, and fine-tuned on attacks from our
             own Arena. It reads the mandate, the proposed action, and what the agent saw in real
             time, then blocks the trade when outside text is pulling the strings. The vault on chain
             stays the backstop.
           </p>
+          <div className="l-actions">
+            <AppLink to="/sentinel" className="l-btn l-btn-s">
+              See Sentinel live <span aria-hidden>→</span>
+            </AppLink>
+          </div>
         </div>
-        <AppLink to="/sentinel" className={buttonClass("secondary", "lg")}>
-          See Sentinel live <span aria-hidden>→</span>
-        </AppLink>
       </div>
 
-      <div className="mt-10">
+      <div className="l-body">
         <SentinelFlow />
       </div>
 
-      <div className="mt-10 grid gap-8 sm:grid-cols-3">
+      <div className="l-cols mt-16">
         {stats.map(([value, label]) => (
-          <div key={label} className="border-t border-line pt-5">
-            <p className="font-serif text-[50px] leading-none tabular-nums">{value}</p>
-            <p className="mt-2 text-base text-muted">{label}</p>
+          <div key={label}>
+            <p className="!mt-0 text-[clamp(48px,6vw,96px)] leading-[0.9] font-medium tracking-[-0.06em] !text-ink tabular-nums">
+              {value}
+            </p>
+            <p>{label}</p>
           </div>
         ))}
       </div>

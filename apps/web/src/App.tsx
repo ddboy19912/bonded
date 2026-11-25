@@ -310,13 +310,13 @@ export function SiteLayout() {
   if (onAppHost() && pathname === "/") return <Navigate to="/overview" replace />;
   return (
     <div className="flex min-h-screen flex-col overflow-x-clip">
-      <header className="sticky top-0 z-30 px-4 pt-5 sm:px-6">
-        <div className="mx-auto flex min-h-[60px] max-w-[1180px] flex-wrap items-center gap-6 rounded-full border border-line bg-surface/80 py-2 pr-2 pl-6 backdrop-blur-md">
+      <header className="sticky top-0 z-30 border-b border-line bg-paper/75 backdrop-blur-md">
+        <div className="flex h-[68px] items-center gap-6 px-[clamp(18px,2.6vw,40px)]">
           <Link to="/" aria-label="Bonded home">
             <Logo className="h-[26px]" />
           </Link>
           <nav
-            className="mx-auto hidden items-center gap-7 text-sm text-soft md:flex"
+            className="mx-auto hidden items-center gap-7 font-mono text-[13px] text-muted md:flex"
             aria-label="Site"
           >
             <a href="#how" className="hover:text-ink">
@@ -340,8 +340,8 @@ export function SiteLayout() {
       <main className="flex-1">
         <Outlet />
       </main>
-      <footer className="border-t border-line px-4 py-10 sm:px-6">
-        <div className="mx-auto flex max-w-[1180px] flex-wrap items-start justify-between gap-6">
+      <footer className="border-t border-line px-[clamp(18px,2.6vw,40px)] py-10">
+        <div className="flex flex-wrap items-start justify-between gap-6">
           <div className="flex flex-col items-start gap-3">
             <Logo className="h-9" />
             <p className="max-w-sm text-sm text-muted">

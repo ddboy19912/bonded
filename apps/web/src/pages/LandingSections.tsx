@@ -3,64 +3,68 @@ import { AppLink } from "../components/app-link";
 import { Accordion } from "../components/collapsible";
 import { CopyBlock } from "../components/copy";
 import { FrameworkLogo } from "../components/framework-questions";
-import { ScoreRing, Skeleton, TierBadge, buttonClass, tierTone } from "../components/ui";
+import { ScoreRing, Skeleton, TierBadge, tierTone } from "../components/ui";
 import { useAgents, useClaims, waterfall } from "../lib/chain";
 import { FRAMEWORKS, FRAMEWORK_TEXT } from "../lib/frameworks";
 import { bps, usd } from "../lib/format";
 import { blogPostPath, formatPostDate, useLatestPosts } from "../lib/blog";
+import { Reveal } from "../lib/reveal";
 import { BLOG_HOME, DOCS_BYOA, DOCS_HOME, DOCS_SECURITY, TEST_AGENT } from "../lib/routes";
 
-/** What Bonded works with, logo only: the frameworks agents are built on, and the chains and accounts it runs on. */
-const INTEGRATIONS = [
-  { name: "ElizaOS", src: "/brand/frameworks/eliza.svg", size: "h-7 w-7" },
+/**
+ * What Bonded works with: the frameworks agents are built on, and the chains and accounts it runs
+ * on. `shown` is the word set beside the mark, and `wide` is a mark's width over its height where it
+ * is not square (Coinbase's is its wordmark, so only "AgentKit" is set beside it).
+ */
+const INTEGRATIONS: { name: string; shown: string; src: string; wide?: number }[] = [
+  { name: "ElizaOS", shown: "ElizaOS", src: "/brand/frameworks/eliza.svg" },
   {
     name: "Coinbase AgentKit",
+    shown: "AgentKit",
     src: "/brand/integrations/coinbase.svg",
-    size: "h-[22px] w-[123px]",
+    wide: 5.6,
   },
-  { name: "LangChain", src: "/brand/frameworks/langchain.svg", size: "h-7 w-7" },
-  { name: "Vercel AI SDK", src: "/brand/frameworks/ai-sdk.svg", size: "h-6 w-6" },
-  { name: "Model Context Protocol", src: "/brand/frameworks/mcp.svg", size: "h-7 w-7" },
-  { name: "Python", src: "/brand/frameworks/python.svg", size: "h-7 w-7" },
-  { name: "Robinhood Chain", src: "/brand/integrations/robinhood.svg", size: "h-7 w-7" },
-  { name: "Ethereum", src: "/brand/integrations/ethereum.svg", size: "h-7 w-7" },
-  { name: "Arbitrum", src: "/brand/integrations/arbitrum.svg", size: "h-8 w-8" },
-  { name: "Solana", src: "/brand/integrations/solana.svg", size: "h-7 w-7" },
-  { name: "Safe", src: "/brand/integrations/safe.svg", size: "h-8 w-8" },
-] as const;
+  { name: "LangChain", shown: "LangChain", src: "/brand/frameworks/langchain.svg" },
+  { name: "Vercel AI SDK", shown: "Vercel AI SDK", src: "/brand/frameworks/ai-sdk.svg" },
+  { name: "Model Context Protocol", shown: "MCP", src: "/brand/frameworks/mcp.svg" },
+  { name: "Python", shown: "Python", src: "/brand/frameworks/python.svg" },
+  { name: "Robinhood Chain", shown: "Robinhood Chain", src: "/brand/integrations/robinhood.svg" },
+  { name: "Ethereum", shown: "Ethereum", src: "/brand/integrations/ethereum.svg" },
+  { name: "Arbitrum", shown: "Arbitrum", src: "/brand/integrations/arbitrum.svg" },
+  { name: "Solana", shown: "Solana", src: "/brand/integrations/solana.svg" },
+  { name: "Safe", shown: "Safe", src: "/brand/integrations/safe.svg" },
+];
 
-function Logo({ name, src, size }: { name: string; src: string; size: string }) {
+function Logo({ name, shown, src, wide }: (typeof INTEGRATIONS)[number]) {
   const url = `url(${src})`;
+  const height = wide ? 0.44 : 0.78;
   return (
-    <li
-      title={name}
-      className="mx-9 flex shrink-0 items-center text-muted transition-colors hover:text-ink sm:mx-12"
-    >
+    <li title={name}>
       <span
         role="img"
         aria-label={name}
-        className={`${size} bg-current`}
         style={{
           mask: `${url} center / contain no-repeat`,
           WebkitMask: `${url} center / contain no-repeat`,
+          width: `${height * (wide ?? 1)}em`,
+          height: `${height}em`,
         }}
       />
+      {/* The mark already carries the name for assistive technology. */}
+      <span aria-hidden>{shown}</span>
     </li>
   );
 }
 
 /**
- * A carousel of what Bonded works with, under the hero. Logos only. It runs on its own, pauses on
- * hover or focus, and is a still, wrapped row under reduced motion. The second copy is hidden from
- * assistive technology, so each name is read once.
+ * A carousel of what Bonded works with, under the hero: each mark with its name, in the page's large
+ * type. It runs on its own, pauses on hover or focus, and is a still, wrapped row under reduced
+ * motion. The second copy is hidden from assistive technology, so each name is read once.
  */
 export function WorksWith() {
   return (
-    <section aria-label="Works with" className="px-4 pt-24 sm:px-6">
-      <p className="mx-auto max-w-xl text-center text-sm text-muted">
-        Works with the frameworks agents are built on, and the chains they trade on.
-      </p>
-      <div className="logo-marquee mx-auto mt-8 max-w-[1180px]">
+    <section aria-label="Works with" className="l-works">
+      <div className="logo-marquee">
         <div className="logo-track">
           {[false, true].map((copy) => (
             <ul
@@ -79,90 +83,104 @@ export function WorksWith() {
   );
 }
 
-/** Who Bonded is for: the operator gets the large panel, depositors and underwriters share the rest. */
+/** Who Bonded is for: operators, depositors and underwriters, side by side. */
 export function Roles() {
   return (
-    <section
-      id="who"
-      className="mx-auto max-w-[1180px] scroll-mt-24 px-4 sm:px-6 py-24 sm:min-h-svh sm:justify-center sm:py-28 sm:flex sm:flex-col"
-    >
-      <h2 className="max-w-2xl font-serif text-5xl leading-none sm:text-6xl">
-        Pick your side of the loop.
-      </h2>
-      <div className="mt-12 grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-        <div className="panel relative flex flex-col justify-between gap-10 overflow-hidden bg-[radial-gradient(ellipse_at_85%_0%,rgb(29_78_216/.28),transparent_55%)] p-8 sm:p-10">
-          <div>
-            <h3 className="font-serif text-4xl leading-tight sm:text-5xl">Building an agent?</h3>
-            <p className="mt-4 max-w-md text-lg leading-relaxed text-muted">
-              Find out how it scores before it holds anyone's money. A free preview rating needs
-              only an email address. Make it official and the score goes on chain, with a vault and
-              cover to match.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <AppLink to={TEST_AGENT} className={buttonClass("primary", "lg")}>
+    <section id="who" className="l-sec">
+      <div className="l-head">
+        <p className="l-lab">Who it's for</p>
+        <Reveal as="h2" className="l-h2">
+          Pick your side <span className="dim">of the loop.</span>
+        </Reveal>
+      </div>
+      <div className="l-cols l-body">
+        <Reveal>
+          <p className="l-lab">01 · Operators</p>
+          <h3 className="l-h3 mt-5">Building an agent?</h3>
+          <p>
+            Find out how it scores before it holds anyone's money. A free preview rating needs only
+            an email address. Make it official and the score goes on chain, with a vault and cover
+            to match.
+          </p>
+          <div className="l-actions">
+            <AppLink to={TEST_AGENT} className="l-btn l-btn-p">
               Test your agent, free
             </AppLink>
-            <AppLink to="/agents/new" className={buttonClass("secondary", "lg")}>
+            <AppLink to="/agents/new" className="l-btn l-btn-s">
               Onboard an agent
             </AppLink>
           </div>
-        </div>
-        <div className="flex flex-col justify-center gap-10 lg:pl-6">
-          <div>
-            <h3 className="text-2xl font-bold">Putting money behind an agent?</h3>
-            <p className="mt-3 max-w-md leading-relaxed text-muted">
-              Choose a rated agent, deposit into its vault and buy cover priced from its insurance
-              score. If it breaks its rules, the claim is paid automatically.
-            </p>
-            <AppLink to="/vaults" className="mt-4 inline-block text-accent hover:underline">
+        </Reveal>
+        <Reveal delay={90}>
+          <p className="l-lab">02 · Depositors</p>
+          <h3 className="l-h3 mt-5">Putting money behind an agent?</h3>
+          <p>
+            Choose a rated agent, deposit into its vault and buy cover priced from its insurance
+            score. If it breaks its rules, the claim is paid automatically.
+          </p>
+          <div className="l-actions">
+            <AppLink to="/vaults" className="l-link">
               Browse vaults <span aria-hidden>→</span>
             </AppLink>
           </div>
-          <div>
-            <h3 className="text-2xl font-bold">Want to earn from the risk?</h3>
-            <p className="mt-3 max-w-md leading-relaxed text-muted">
-              Fund the pool that pays claims once the operator's bond is spent, and earn 80% of
-              every premium.
-            </p>
-            <AppLink to="/underwrite" className="mt-4 inline-block text-accent hover:underline">
+        </Reveal>
+        <Reveal delay={180}>
+          <p className="l-lab">03 · Underwriters</p>
+          <h3 className="l-h3 mt-5">Want to earn from the risk?</h3>
+          <p>
+            Fund the pool that pays claims once the operator's bond is spent, and earn 80% of every
+            premium.
+          </p>
+          <div className="l-actions">
+            <AppLink to="/underwrite" className="l-link">
               Underwrite the pool <span aria-hidden>→</span>
             </AppLink>
           </div>
-        </div>
+        </Reveal>
       </div>
     </section>
   );
 }
 
+/** Blue for the tiers that hold up, amber for the middling ones, orange for the rest. */
+function tierColour(minScore: number): string {
+  const tone = tierTone(minScore);
+  return tone === "brand"
+    ? "var(--l-blue)"
+    : tone === "warn"
+      ? "var(--l-amber)"
+      : "var(--l-orange)";
+}
+
 /** The tiers, from the contracts' own rules, across the page as one scale. */
 export function ScoreScale() {
   return (
-    <section
-      id="score"
-      className="mx-auto max-w-[1180px] scroll-mt-24 px-4 sm:px-6 py-24 sm:min-h-svh sm:justify-center sm:py-28 sm:flex sm:flex-col"
-    >
-      <h2 className="max-w-3xl font-serif text-5xl leading-none sm:text-6xl">
-        Security measured. Insurance priced.
-      </h2>
-      <p className="mt-6 max-w-2xl text-lg leading-relaxed text-muted">
-        Every agent is attacked with the same published library, plus attacks held back and
-        unpublished. The Security score measures resistance to manipulation from 0 to 100. A
-        separate insurance score measures loss after containment and prices cover. These insurance
-        tiers set how much bond the operator must stake against the cover.
-      </p>
-      <ol className="mt-12 grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-4 lg:grid-cols-7">
+    <section id="score" className="l-sec">
+      <div className="l-head">
+        <p className="l-lab">The score</p>
+        <div>
+          <Reveal as="h2" className="l-h2">
+            Security measured. <span className="dim">Insurance priced.</span>
+          </Reveal>
+          <p className="l-lede">
+            Every agent is attacked with the same published library, plus attacks held back and
+            unpublished. The Security score measures resistance to manipulation from 0 to 100. A
+            separate insurance score measures loss after containment and prices cover. These
+            insurance tiers set how much bond the operator must stake against the cover.
+          </p>
+        </div>
+      </div>
+      <Reveal as="ol" className="l-tiers l-body">
         {TIER_RULES.map((t, i) => {
           const above = TIER_RULES[i - 1];
           const range = above ? `${t.minScore} to ${above.minScore - 1}` : `${t.minScore} to 100`;
-          const tone = tierTone(t.minScore);
-          const colour =
-            tone === "brand" ? "text-held" : tone === "warn" ? "text-warn" : "text-breach";
           return (
-            <li key={t.tier} className="flex flex-col gap-1.5">
-              <span className={`font-serif text-5xl leading-none ${colour}`}>{t.tier}</span>
-              <span className="mt-2 font-mono text-sm text-soft">{range}</span>
-              <span className="text-sm text-muted">
+            <li key={t.tier}>
+              <span className="l-tier" style={{ color: tierColour(t.minScore) }}>
+                {t.tier}
+              </span>
+              <span className="l-tier-range">{range}</span>
+              <span className="l-tier-bond">
                 {t.insurable
                   ? `Bond of at least ${t.minBondBps / 100}% of the cover`
                   : "Not insurable"}
@@ -170,8 +188,8 @@ export function ScoreScale() {
             </li>
           );
         })}
-      </ol>
-      <p className="mt-10 max-w-2xl text-sm text-muted">
+      </Reveal>
+      <p className="l-lab mt-10 max-w-2xl">
         The attack library uses fixed seeds, so a score is an in-library result. Everything runs on
         testnets with test tokens.
       </p>
@@ -182,16 +200,16 @@ export function ScoreScale() {
 /** Bring any agent: the one command, and the frameworks it wires in. */
 export function BringYourAgent() {
   return (
-    <section
-      id="bring"
-      className="mx-auto max-w-[1180px] scroll-mt-24 px-4 sm:px-6 py-24 sm:min-h-svh sm:justify-center sm:py-28 sm:flex sm:flex-col"
-    >
-      <div className="grid items-start gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+    <section id="bring" className="l-sec">
+      <div className="l-head">
+        <p className="l-lab">Bring your agent</p>
+        <Reveal as="h2" className="l-h2">
+          Bring any agent, <span className="dim">in any framework.</span>
+        </Reveal>
+      </div>
+      <div className="l-body grid items-start gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-[clamp(24px,5vw,90px)]">
         <div>
-          <h2 className="font-serif text-5xl leading-none sm:text-6xl">
-            Bring any agent, in any framework.
-          </h2>
-          <p className="mt-6 max-w-lg text-lg leading-relaxed text-muted">
+          <p className="max-w-lg text-lg leading-relaxed text-muted">
             Connect it by its HTTPS address, or with a small runner next to it that connects out to
             our attack sandbox. A connection check tells you what to fix before any rating, and the
             report shows, for each breach, what the agent read, what it did and what would have
@@ -200,24 +218,29 @@ export function BringYourAgent() {
           <div className="mt-8 max-w-lg">
             <CopyBlock label="Wire it into a Node agent" text="npx @bondedhq/runner init" />
           </div>
-          <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
-            <AppLink to={TEST_AGENT} className={buttonClass("primary", "lg")}>
+          <div className="l-actions">
+            <AppLink to={TEST_AGENT} className="l-btn l-btn-p">
               Test your agent, free
             </AppLink>
-            <a href={DOCS_BYOA} className="text-accent hover:underline">
+            <a href={DOCS_BYOA} className="l-link">
               Read the guide <span aria-hidden>→</span>
             </a>
           </div>
         </div>
-        <ul className="grid gap-x-8 gap-y-7 sm:grid-cols-2 lg:pt-3">
+        <ul>
           {FRAMEWORKS.map((f) => (
-            <li key={f} className="flex items-start gap-3.5">
-              <span className="mt-0.5 text-soft">
+            <li
+              key={f}
+              className="grid grid-cols-[28px_minmax(0,1fr)] items-baseline gap-x-4 border-t border-line py-4 sm:grid-cols-[28px_minmax(0,2fr)_minmax(0,3fr)]"
+            >
+              <span className="self-center text-soft">
                 <FrameworkLogo framework={f} size="size-6" />
               </span>
-              <span>
-                <span className="block font-semibold">{FRAMEWORK_TEXT[f].title}</span>
-                <span className="mt-0.5 block text-sm text-muted">{FRAMEWORK_TEXT[f].line}</span>
+              <span className="text-xl font-medium tracking-[-0.03em]">
+                {FRAMEWORK_TEXT[f].title}
+              </span>
+              <span className="col-start-2 text-sm text-muted sm:col-start-3">
+                {FRAMEWORK_TEXT[f].line}
               </span>
             </li>
           ))}
@@ -284,19 +307,21 @@ export function LatestPosts() {
   const posts = useLatestPosts();
   if (!posts.data?.length) return null;
   return (
-    <section
-      id="blog"
-      className="mx-auto max-w-[1180px] scroll-mt-24 px-4 sm:px-6 py-24 sm:min-h-svh sm:justify-center sm:py-28 sm:flex sm:flex-col"
-    >
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <h2 className="max-w-2xl font-serif text-5xl leading-none sm:text-6xl">
-          Notes from the red team.
-        </h2>
-        <a href={BLOG_HOME} className="text-accent hover:underline">
-          Read the blog <span aria-hidden>→</span>
-        </a>
+    <section id="blog" className="l-sec">
+      <div className="l-head">
+        <p className="l-lab">Blog</p>
+        <div>
+          <h2 className="l-h2">
+            Notes from <span className="dim">the red team.</span>
+          </h2>
+          <div className="l-actions">
+            <a href={BLOG_HOME} className="l-link">
+              Read the blog <span aria-hidden>→</span>
+            </a>
+          </div>
+        </div>
       </div>
-      <ul className="mt-12 grid gap-8 md:grid-cols-3">
+      <ul className="l-body grid gap-x-8 gap-y-12 md:grid-cols-3">
         {posts.data.map((p) => (
           <li key={p.slug}>
             <a href={blogPostPath(p.slug)} className="group flex h-full flex-col gap-4">
@@ -306,10 +331,12 @@ export function LatestPosts() {
                 width={800}
                 height={420}
                 loading="lazy"
-                className="aspect-[800/420] w-full rounded-2xl object-cover"
+                className="aspect-[800/420] w-full rounded-xl object-cover"
               />
-              <span className="text-sm text-muted">{formatPostDate(p.publishedAt)}</span>
-              <span className="text-xl font-semibold group-hover:underline">{p.title}</span>
+              <span className="l-lab">{formatPostDate(p.publishedAt)}</span>
+              <span className="text-2xl leading-tight font-medium tracking-[-0.035em] group-hover:underline">
+                {p.title}
+              </span>
               <span className="leading-relaxed text-muted">{p.description}</span>
             </a>
           </li>
@@ -321,37 +348,34 @@ export function LatestPosts() {
 
 /**
  * Plain questions in an accordion, one open at a time. The title and the way into the docs sit on
- * the left; the answers take the rest of the width, and the open one is lifted onto a soft panel.
+ * the left; the answers take the rest of the width, split by thin rules.
  */
 export function Faq() {
   return (
-    <section
-      id="faq"
-      className="mx-auto max-w-[1180px] scroll-mt-24 px-4 sm:px-6 py-24 sm:min-h-svh sm:justify-center sm:py-28 sm:flex sm:flex-col"
-    >
-      <div className="grid gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-20">
-        <div className="lg:sticky lg:top-24 lg:self-start">
-          <h2 className="font-serif text-5xl leading-none sm:text-6xl">
+    <section id="faq" className="l-sec">
+      <div className="grid gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-[clamp(24px,5vw,90px)]">
+        <div className="lg:sticky lg:top-28 lg:self-start">
+          <p className="l-lab">Questions</p>
+          <h2 className="l-h3 mt-4 !text-[clamp(34px,4.4vw,68px)] !leading-[0.95]">
             Frequently asked questions
           </h2>
           <p className="mt-5 max-w-sm text-lg leading-relaxed text-muted">
             The short answers. The docs go into the rest.
           </p>
-          <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2">
-            <a href={DOCS_HOME} className="text-accent hover:underline">
+          <div className="l-actions">
+            <a href={DOCS_HOME} className="l-link">
               Read the docs <span aria-hidden>→</span>
             </a>
-            <a href={DOCS_SECURITY} className="text-accent hover:underline">
+            <a href={DOCS_SECURITY} className="l-link">
               Security policy <span aria-hidden>→</span>
             </a>
           </div>
         </div>
         <Accordion
           defaultOpen="paid"
-          className="flex flex-col gap-2"
-          itemClassName="rounded-2xl px-5 py-5 transition-colors duration-300 hover:bg-white/[0.02] sm:px-6"
-          openItemClassName="bg-white/[0.045] hover:bg-white/[0.045]"
-          triggerClassName="text-xl font-semibold"
+          className="flex flex-col border-b border-line"
+          itemClassName="border-t border-line py-6"
+          triggerClassName="text-xl font-medium tracking-[-0.03em] sm:text-2xl"
           contentClassName="pt-3 pr-8"
           items={QUESTIONS.map(({ id, q, a }) => ({
             id,
@@ -376,7 +400,7 @@ export function claimSources(fromBond: bigint, fromPool: bigint): string {
 
 /**
  * The agents behind the scores, and the biggest claim paid so far: real numbers from the chain,
- * the same source as the hero and the stats. It shows only scores that are still current (the
+ * the same source as the hero's numbers. It shows only scores that are still current (the
  * registry keeps the last one after it lapses, and the Agents page marks those expired), waits for
  * the data, and hides if no agent has a current score. A claim's size is what reached the vault:
  * the award less any unpaid premium netted off it, which is what the bond and the pool paid.
@@ -397,21 +421,21 @@ export function LiveAgents() {
   const w = biggest ? waterfall(biggest) : undefined;
   const sources = w ? claimSources(w.fromBond, w.fromPool) : "";
   return (
-    <section
-      id="agents"
-      className="mx-auto max-w-[1180px] scroll-mt-24 px-4 sm:px-6 py-24 sm:min-h-svh sm:justify-center sm:py-28 sm:flex sm:flex-col"
-    >
-      <h2 className="max-w-2xl font-serif text-5xl leading-none sm:text-6xl">
-        Scores you can check, straight from the chain.
-      </h2>
-      <ul className="mt-12 grid grid-cols-2 gap-x-6 gap-y-10 lg:grid-cols-4">
+    <section id="agents" className="l-sec">
+      <div className="l-head">
+        <p className="l-lab">Live agents</p>
+        <h2 className="l-h2">
+          Scores you can check, <span className="dim">straight from the chain.</span>
+        </h2>
+      </div>
+      <ul className="l-body grid grid-cols-2 gap-x-6 gap-y-10 border-t border-line pt-8 lg:grid-cols-4">
         {agents.data
           ? rated.map((a) => (
               <li key={String(a.agentId)}>
                 <AppLink to={`/agents/${a.agentId}`} className="group flex items-center gap-4">
                   <ScoreRing score={a.score!.securityScore} size={76} />
                   <span className="flex flex-col gap-1.5">
-                    <span className="font-semibold group-hover:underline">
+                    <span className="text-xl font-medium tracking-[-0.03em] group-hover:underline">
                       Agent {String(a.agentId)}
                     </span>
                     <span>
