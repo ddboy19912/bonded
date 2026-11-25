@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import http.client
 import io
 import json
 import urllib.error
@@ -33,7 +34,17 @@ def _answers(monkeypatch: pytest.MonkeyPatch, answers: list[object]) -> None:
     monkeypatch.setattr(run.urllib.request, "urlopen", urlopen)
 
 
-@pytest.mark.parametrize("busy", [_error(429), _error(502), urllib.error.URLError("reset")])
+@pytest.mark.parametrize(
+    "busy",
+    [
+        _error(429),
+        _error(502),
+        urllib.error.URLError("reset"),
+        http.client.RemoteDisconnected("closed"),
+        http.client.IncompleteRead(b""),
+        ConnectionResetError("reset"),
+    ],
+)
 def test_a_busy_endpoint_is_asked_again(monkeypatch: pytest.MonkeyPatch, no_wait: list[float], busy: Exception) -> None:
     _answers(monkeypatch, [busy, busy, 12.5])
     assert run.openrouter_usage_usd() == 12.5

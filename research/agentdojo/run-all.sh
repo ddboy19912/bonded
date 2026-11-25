@@ -16,7 +16,7 @@ PUSH_FLAG=""
 TAG="$SYSTEM_PROMPT"
 if [ -n "${PUSH:-}" ]; then PUSH_FLAG="--push"; TAG="$TAG-pushed"; fi
 FAMILY_FLAG=()
-if [ -n "${FAMILY:-}" ]; then FAMILY_FLAG=(--family "$FAMILY"); TAG="$TAG-family"; fi
+if [ -n "${FAMILY:-}" ]; then FAMILY_FLAG=(--family "$FAMILY"); TAG="$TAG-family-$(printf '%s' "$FAMILY" | tr -c 'A-Za-z0-9-' '_')"; fi
 mkdir -p runs/logs
 pids=()
 logs=()
@@ -24,7 +24,7 @@ for model in $MODELS; do
   for n in 1 2 3; do
     log="runs/logs/$(echo "$model" | tr / _)-$TAG-run-$n.log"
     uv run -q python run.py --model "$model" --runs 3 --only-run "$n" --max-usd "$MAX_USD" \
-      --attacks "$ATTACKS" --system-prompt "$SYSTEM_PROMPT" $PUSH_FLAG "${FAMILY_FLAG[@]}" >"$log" 2>&1 &
+      --attacks "$ATTACKS" --system-prompt "$SYSTEM_PROMPT" $PUSH_FLAG ${FAMILY_FLAG[@]+"${FAMILY_FLAG[@]}"} >"$log" 2>&1 &
     pids+=("$!")
     logs+=("$log")
   done

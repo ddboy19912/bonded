@@ -11,6 +11,7 @@ pair runs once per attack per run, plus each user task with no attack.
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import os
 import sys
@@ -51,7 +52,8 @@ def openrouter_usage_usd(attempts: int = 6) -> float:
         except urllib.error.HTTPError as error:
             if (error.code != 429 and error.code < 500) or attempt == attempts - 1:
                 raise
-        except urllib.error.URLError:
+        except (urllib.error.URLError, http.client.HTTPException, OSError):
+            # A dropped connection or a cut-off body is not wrapped in URLError.
             if attempt == attempts - 1:
                 raise
         time.sleep(2**attempt * 5)
