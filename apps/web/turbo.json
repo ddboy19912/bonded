@@ -4,17 +4,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "../docs/**",
-        "../blog/**",
-        "../../docs/**",
-        "../../README.md",
-        "../../SECURITY.md",
-        "../../contracts/evm/README.md",
-        "../../contracts/evm/deployments/**",
-        "../../contracts/solana/deployments/**"
-      ],
+      "inputs": ["$TURBO_DEFAULT$", "../blog/**"],
       "outputs": ["dist/**"],
       "cache": false
     }

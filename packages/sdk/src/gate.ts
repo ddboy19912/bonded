@@ -64,7 +64,7 @@ export interface GateDecision {
   input?: GateInput | null;
   mandate: { version: number; hash: Hex };
   createdAt: string;
-  /** Bonded's signed receipt. Anyone can check it at bondedhq.xyz/gate/verify. */
+  /** Bonded's signed receipt. Anyone can check it at app.bondedhq.xyz/gate/verify. */
   receipt: SignedGateReceipt;
 }
 
@@ -88,7 +88,7 @@ export interface GateReceiptProof {
 }
 
 export interface PaymentGateOptions {
-  /** The gate account's API key (`bonded_gk_...`), from bondedhq.xyz/gate. Keep it server side. */
+  /** The gate account's API key (`bonded_gk_...`), from app.bondedhq.xyz/gate. Keep it server side. */
   apiKey: string;
   /** Default: Bonded's hosted API. */
   apiUrl?: string;
@@ -115,7 +115,7 @@ const TRIES = 2;
 /**
  * The hosted payment gate: every payment goes to Bonded before it is made, and comes back allowed
  * or blocked with a signed receipt. The rules are the ones the Arena rates agents against, the
- * vendors and invoices are the gate account's (set up at bondedhq.xyz/gate), and the decisions are
+ * vendors and invoices are the gate account's (set up at app.bondedhq.xyz/gate), and the decisions are
  * logged where the owner can see them and anyone can check them.
  *
  * It fails closed: if the gate can't be reached, or its answer doesn't check out, your pay function

@@ -1,5 +1,6 @@
 import { UNKNOWN_PROBLEM, isNote, problemCode } from "@bondedhq/shared";
 import { ApiError } from "./api";
+import { docsUrl } from "./hosts";
 
 /**
  * Every problem, warning or refusal the app shows links to its entry on the troubleshooting page,
@@ -8,7 +9,7 @@ import { ApiError } from "./api";
  * the health panel, `code` on a refusal); a sentence that comes without one is read with the same
  * table the API uses (`problemCode`), so the page and the API never disagree.
  */
-export const DOCS_TROUBLESHOOTING = "/docs/guides/troubleshooting/";
+export const DOCS_TROUBLESHOOTING = docsUrl("/guides/troubleshooting/");
 
 /** A sentence from the API, with its code when the API gives one. */
 export type ApiMessage = string | { code?: string | null; message: string };

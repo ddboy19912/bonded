@@ -130,7 +130,7 @@ describe("the email sender", () => {
     expect(text.subject).toBe("Bonded: your preview rating finished");
     expect(text.text).toMatch(/finished; insurance score 812 \(A\)/);
     expect(text.text).toMatch(/private, not published/);
-    expect(text.text).toContain("Open the report: https://www.bondedhq.xyz/agents/test?preview=p");
+    expect(text.text).toContain("Open the report: https://app.bondedhq.xyz/agents/test?preview=p");
   });
   it("sends an HTML version in the shared layout, linking to the page it's about", () => {
     const preview = emailText({
@@ -147,7 +147,7 @@ describe("the email sender", () => {
     expect(preview.html).toContain("Your preview rating finished");
     expect(preview.html).toContain("Security score");
     expect(preview.html).toContain(">42<");
-    expect(preview.html).toContain('href="https://www.bondedhq.xyz/agents/test?preview=p%201"');
+    expect(preview.html).toContain('href="https://app.bondedhq.xyz/agents/test?preview=p%201"');
     expect(preview.html).toContain("Rating r1");
     expect(preview.html).toContain("notification settings");
 
@@ -160,9 +160,9 @@ describe("the email sender", () => {
       reason: "Your runner isn't connected.",
       at: "",
     });
-    expect(refused.html).toContain('href="https://www.bondedhq.xyz/agents/7"');
+    expect(refused.html).toContain('href="https://app.bondedhq.xyz/agents/7"');
     expect(refused.html).toContain("How to fix this");
-    expect(refused.html).toContain("/docs/guides/troubleshooting/#");
+    expect(refused.html).toContain("https://docs.bondedhq.xyz/guides/troubleshooting/#");
     expect(refused.html).not.toContain("Security score");
 
     // Words that came from outside (a vendor's name in a gate alert) can't become markup.
@@ -177,11 +177,11 @@ describe("the email sender", () => {
     });
     expect(gate.html).not.toContain("<script>");
     expect(gate.html).toContain("&lt;script&gt;");
-    expect(gate.html).toContain('href="https://www.bondedhq.xyz/gate/g1"');
+    expect(gate.html).toContain('href="https://app.bondedhq.xyz/gate/g1"');
     expect(gate.html).toContain(
-      'href="https://www.bondedhq.xyz/docs/guides/troubleshooting/#payment-blocked"',
+      'href="https://docs.bondedhq.xyz/guides/troubleshooting/#payment-blocked"',
     );
-    expect(gate.text).toContain("Open the gate account: https://www.bondedhq.xyz/gate/g1");
+    expect(gate.text).toContain("Open the gate account: https://app.bondedhq.xyz/gate/g1");
   });
 });
 

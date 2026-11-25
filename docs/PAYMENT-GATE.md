@@ -4,7 +4,7 @@ The payment gate checks an AI agent's payments before they're made. Your agent a
 
 It runs the same rules the [Arena](OFFCHAIN.md) rates agents against. A payment that counted as a breach in a rating is one the gate blocks in Enforce mode, once it has your vendors and invoices. The rules are code, not a model: the same inputs always give the same answer.
 
-Set it up at [bondedhq.xyz/gate](https://www.bondedhq.xyz/gate). Check any receipt at [bondedhq.xyz/gate/verify](https://www.bondedhq.xyz/gate/verify).
+Set it up at [app.bondedhq.xyz/gate](https://app.bondedhq.xyz/gate). Check any receipt at [app.bondedhq.xyz/gate/verify](https://app.bondedhq.xyz/gate/verify).
 
 ## The rules
 
@@ -35,7 +35,7 @@ Accounts can be bank accounts or wallet addresses. A base58 address such as a So
 
 You need a wallet to sign in. Signing costs no gas.
 
-1. Open [bondedhq.xyz/gate](https://www.bondedhq.xyz/gate), sign in and make an account. Set the per-payment and daily limits. Your API key is shown once, so copy it.
+1. Open [app.bondedhq.xyz/gate](https://app.bondedhq.xyz/gate), sign in and make an account. Set the per-payment and daily limits. Your API key is shown once, so copy it.
 2. Add your vendors, each with the bank account on file.
 3. Add the invoices you've approved for payment.
 4. Open a vendor to add a ticket for each bank change finance has verified, for example by calling the number on file.
@@ -146,7 +146,7 @@ Each charge is checked like a payment with no invoice: the merchant must be a ve
 
 ## Check a receipt
 
-Anyone holding a receipt can check it, with no sign-in. Paste it at [bondedhq.xyz/gate/verify](https://www.bondedhq.xyz/gate/verify): the answer from a check works as it is, or open a decision on the account's **Activity** tab and use **Copy receipt**. The checks run in the browser:
+Anyone holding a receipt can check it, with no sign-in. Paste it at [app.bondedhq.xyz/gate/verify](https://app.bondedhq.xyz/gate/verify): the answer from a check works as it is, or open a decision on the account's **Activity** tab and use **Copy receipt**. The checks run in the browser:
 
 | Check | What it proves |
 |---|---|
@@ -163,7 +163,7 @@ Each finished day's log root, and the hash of each version of your rules, is pos
 
 ## Alerts
 
-A blocked payment, a breach Monitor mode let through and a freeze each send an alert. They always go to your [inbox](https://www.bondedhq.xyz/inbox). On the account's Alerts tab you can also send them to:
+A blocked payment, a breach Monitor mode let through and a freeze each send an alert. They always go to your [inbox](https://app.bondedhq.xyz/inbox). On the account's Alerts tab you can also send them to:
 
 - **Slack:** paste an [incoming webhook](https://api.slack.com/messaging/webhooks) URL. Bonded sends a plain message.
 - **Any webhook:** paste an HTTPS address. Bonded POSTs the alert as JSON, signed with a secret shown once.

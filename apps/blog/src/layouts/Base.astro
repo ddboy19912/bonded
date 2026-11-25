@@ -27,14 +27,14 @@ const {
 const base = import.meta.env.BASE_URL;
 const url = new URL(Astro.url.pathname, Astro.site).href;
 const rss = new URL("rss.xml", new URL(base, Astro.site)).href;
-// The blog is served under the web app's domain, so these are the app's own routes.
+// The blog is served on the public site (www.bondedhq.xyz); the docs and the app have their own hosts.
 const site = {
   home: "/",
   how: "/#how",
   numbers: "/#numbers",
-  docs: "/docs/",
-  security: "/docs/security/policy/",
-  app: "/overview",
+  docs: "https://docs.bondedhq.xyz/",
+  security: "https://docs.bondedhq.xyz/security/policy/",
+  app: "https://app.bondedhq.xyz/overview",
 };
 ---
 

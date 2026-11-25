@@ -150,5 +150,9 @@ export function noticeEmailHtml({
   return emailLayout({ title, preheader, body: parts.join("\n"), footnote });
 }
 
-/** Links in emails go to the public site. */
+/** A page on the public site. */
 export const siteUrl = (path: string) => `${SITE}${path}`;
+/** A page in the app (app.bondedhq.xyz): gate accounts, reports, agents, the inbox. */
+export const appUrl = (path: string) => `https://app.bondedhq.xyz${path}`;
+/** A page on the docs site (docs.bondedhq.xyz). */
+export const docsUrl = (path: string) => `https://docs.bondedhq.xyz${path}`;

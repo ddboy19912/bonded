@@ -326,7 +326,7 @@ describe("the payment gate's rules page", () => {
     wallet.address = undefined;
     show();
     expect(screen.getByRole("link", { name: "How to connect an agent" }).getAttribute("href")).toBe(
-      "/docs/guides/payment-gate/",
+      "https://docs.bondedhq.xyz/guides/payment-gate/",
     );
     expect(screen.getByRole("link", { name: "Check a receipt" }).getAttribute("href")).toBe(
       "/gate/verify",

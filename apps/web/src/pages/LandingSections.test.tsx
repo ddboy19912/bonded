@@ -114,7 +114,7 @@ describe("the payment gate section", () => {
       within(section)
         .getByRole("link", { name: /Read the guide/ })
         .getAttribute("href"),
-    ).toBe("/docs/guides/payment-gate/");
+    ).toBe("https://docs.bondedhq.xyz/guides/payment-gate/");
     // The payments going through it are examples, and say so.
     expect(within(section).getByText("Illustration")).toBeTruthy();
   });
@@ -313,9 +313,11 @@ describe("the questions", () => {
 
   it("points at the docs and the security policy", () => {
     show(<Faq />);
-    expect(screen.getByRole("link", { name: /Read the docs/ }).getAttribute("href")).toBe("/docs/");
+    expect(screen.getByRole("link", { name: /Read the docs/ }).getAttribute("href")).toBe(
+      "https://docs.bondedhq.xyz/",
+    );
     expect(screen.getByRole("link", { name: /Security policy/ }).getAttribute("href")).toBe(
-      "/docs/security/policy/",
+      "https://docs.bondedhq.xyz/security/policy/",
     );
   });
 });

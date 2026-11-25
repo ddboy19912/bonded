@@ -49,7 +49,9 @@ export function webAuthnFromEnv(
   env: Record<string, string | undefined> = process.env,
 ): WebAuthnConfig {
   const rpId = env.WEBAUTHN_RP_ID?.trim() || "bondedhq.xyz";
-  const origins = (env.WEBAUTHN_ORIGINS ?? "https://www.bondedhq.xyz,https://bondedhq.xyz")
+  const origins = (
+    env.WEBAUTHN_ORIGINS ?? "https://app.bondedhq.xyz,https://www.bondedhq.xyz,https://bondedhq.xyz"
+  )
     .split(",")
     .map((o) => o.trim())
     .filter(Boolean);

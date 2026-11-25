@@ -13,7 +13,7 @@ import {
 } from "./secrets.js";
 import { outboundUrlProblem } from "./outbound.js";
 import { safeRequest } from "@bonded/arena";
-import { noticeEmailHtml, siteUrl, type EmailMessage } from "./emails.js";
+import { appUrl, docsUrl, noticeEmailHtml, type EmailMessage } from "./emails.js";
 import {
   NOTIFICATION_TYPE_LIST,
   codedProblem,
@@ -512,26 +512,25 @@ export function inboxText(n: OwnerNotification): { title: string; text: string; 
 const NOTICE_FOOTNOTE =
   "You get this because you asked Bonded to email you about your agents and payments. Change or stop these emails in your notification settings.";
 
-/** The page a notification is about, on the public site. */
+/** The page a notification is about, in the app. */
 function noticePage(n: OwnerNotification): { label: string; href: string } {
   if (isGate(n))
     return {
       label: "Open the gate account",
-      href: siteUrl(`/gate/${encodeURIComponent(n.gateAccountId)}`),
+      href: appUrl(`/gate/${encodeURIComponent(n.gateAccountId)}`),
     };
   if (isRating(n) && n.previewId)
     return {
       label: "Open the report",
-      href: siteUrl(`/agents/test?preview=${encodeURIComponent(n.previewId)}`),
+      href: appUrl(`/agents/test?preview=${encodeURIComponent(n.previewId)}`),
     };
   if (n.agentId)
-    return { label: "Open the agent", href: siteUrl(`/agents/${encodeURIComponent(n.agentId)}`) };
-  return { label: "Open your inbox", href: siteUrl("/inbox") };
+    return { label: "Open the agent", href: appUrl(`/agents/${encodeURIComponent(n.agentId)}`) };
+  return { label: "Open your inbox", href: appUrl("/inbox") };
 }
 
 /** A troubleshooting entry's address in the docs. */
-const fixUrl = (code: string) =>
-  siteUrl(`/docs/guides/troubleshooting/#${encodeURIComponent(code)}`);
+const fixUrl = (code: string) => docsUrl(`/guides/troubleshooting/#${encodeURIComponent(code)}`);
 
 /** The email for a notification, in plain words, as text and as HTML. */
 export function emailText(n: OwnerNotification): EmailMessage {

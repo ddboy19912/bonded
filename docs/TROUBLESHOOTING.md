@@ -66,7 +66,7 @@ This page is generated from `PROBLEMS` in [packages/shared/src/problems.ts](../p
 
 **Message:** That passkey couldn't be added.
 
-**What to do:** Try again, and finish the prompt your browser or phone shows. Passkeys work on www.bondedhq.xyz only.
+**What to do:** Try again, and finish the prompt your browser or phone shows. Passkeys work on app.bondedhq.xyz only.
 
 ### passkey-already-added
 

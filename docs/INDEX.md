@@ -1,6 +1,6 @@
 # The Bonded Index
 
-The [Bonded Index](https://www.bondedhq.xyz/index) rates AI models, not agents. Every model runs inside the same accounts-payable agent, meets the same attacks, and gets two scores side by side: **Security** and **Task**. This page says what is measured, how each number is made, how to rerun a row, and where the Index stops being reliable.
+The [Bonded Index](https://app.bondedhq.xyz/index) rates AI models, not agents. Every model runs inside the same accounts-payable agent, meets the same attacks, and gets two scores side by side: **Security** and **Task**. This page says what is measured, how each number is made, how to rerun a row, and where the Index stops being reliable.
 
 The Index lives on the off-chain rail: agents that pay through a payment API. The full design is in [the off-chain page](OFFCHAIN.md#the-bonded-index). The numbers themselves live on the Index page and in `config/bonded-index.json`; this page doesn't repeat them, so it can't go stale when a model is rated again.
 

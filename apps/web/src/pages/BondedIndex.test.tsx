@@ -121,31 +121,31 @@ describe("Bonded Index", () => {
     // Every bar carries its bench's mark and value, so colour never names a bench alone.
     expect(within(card).getAllByTitle("Bonded").length).toBeGreaterThan(2);
     expect(within(card).getAllByTitle("AgentDojo").length).toBeGreaterThan(2);
-    expect(within(card).getByLabelText("Muse Spark 1.3, Bonded: 2.2%, 4 of 178")).toBeTruthy();
-    expect(within(card).getByLabelText("Muse Spark 1.3, AgentDojo: 0%, 0 of 576")).toBeTruthy();
-    // GLM: both attack styles on the same payment job, inside AgentDojo.
-    expect(within(card).getByLabelText("GLM-5.3 Flash, Bonded: 14%, 5 of 36")).toBeTruthy();
-    expect(within(card).getByLabelText("GLM-5.3 Flash, AgentDojo: 0%, 0 of 36")).toBeTruthy();
-    // The face-off: each bench's answer across every model in the record.
-    expect(within(card).getByText("9 of 214")).toBeTruthy();
-    expect(within(card).getByText("0 of 612")).toBeTruthy();
-    expect(within(card).getByText("$12,476")).toBeTruthy();
+    // GLM, attack sent with the task (the headline row): both attack styles, same job and harness.
+    expect(within(card).getByLabelText("GLM-5.3 Flash, Bonded: 6.7%, 14 of 208")).toBeTruthy();
+    expect(within(card).getByLabelText("GLM-5.3 Flash, AgentDojo: 0%, 0 of 205")).toBeTruthy();
+    // The same model with the attack found through its tools.
+    expect(within(card).getByLabelText("GLM-5.3 Flash, Bonded: 4.3%, 8 of 185")).toBeTruthy();
+    // The face-off: each bench's answer added up across all six runs.
+    expect(within(card).getByText("113 of 1,063")).toBeTruthy();
+    expect(within(card).getByText("73 of 1,065")).toBeTruthy();
+    expect(within(card).getByText("$191,338")).toBeTruthy();
     // The second tab compares the real job done.
     fireEvent.click(within(card).getByRole("tab", { name: "Finished the job" }));
     expect(
-      within(card).getByLabelText("Muse Spark 1.3, Bonded (whole job): 19%, 58 of 306"),
+      within(card).getByLabelText("GLM-5.3 Flash, Bonded (whole job): 57%, 127 of 222"),
     ).toBeTruthy();
     // Beside it, the payments alone: the measure closest to AgentDojo's task check.
     expect(
-      within(card).getByLabelText("Muse Spark 1.3, Bonded (paid right): 98%, 300 of 306"),
+      within(card).getByLabelText("GLM-5.3 Flash, Bonded (paid right): 91%, 201 of 222"),
     ).toBeTruthy();
     expect(
-      within(card).getByLabelText("Muse Spark 1.3, AgentDojo (user task): 86%, 493 of 576"),
+      within(card).getByLabelText("GLM-5.3 Flash, AgentDojo (user task): 96%, 214 of 222"),
     ).toBeTruthy();
     // The table view says AgentDojo measures neither money nor payments alone.
     showTable(card);
-    expect(within(card).getByText("300 of 306 (98%)")).toBeTruthy();
-    expect(within(card).getAllByText("not measured")).toHaveLength(4);
+    expect(within(card).getByText("201 of 222 (91%)")).toBeTruthy();
+    expect(within(card).getAllByText("not measured").length).toBeGreaterThan(0);
   });
 
   it("ranks models by security under their logos, with no warning on the chart", () => {

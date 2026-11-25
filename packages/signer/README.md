@@ -24,7 +24,7 @@ In Monitor mode a payment that breaks a rule is signed and logged as a breach, a
 
 ## Set it up
 
-1. **A gate account.** At [bondedhq.xyz/gate](https://www.bondedhq.xyz/gate), turn **Match invoices** off, add each x402 service's `payTo` address as a vendor, set the per-payment and daily limits, and switch to Enforce when the decisions look right. Copy the API key.
+1. **A gate account.** At [app.bondedhq.xyz/gate](https://app.bondedhq.xyz/gate), turn **Match invoices** off, add each x402 service's `payTo` address as a vendor, set the per-payment and daily limits, and switch to Enforce when the decisions look right. Copy the API key.
 2. **A key.** Best: a secp256k1 key in a KMS, so the key can't be copied off the server.
    - AWS: a KMS key with spec `ECC_SECG_P256K1` and usage `SIGN_VERIFY`. Give the signer's role `kms:GetPublicKey` and `kms:Sign` on that key only.
    - Google Cloud: a key with algorithm `EC_SIGN_SECP256K1_SHA256`. Give the signer's service account `cloudkms.cryptoKeyVersions.useToSign` and `cloudkms.cryptoKeyVersions.viewPublicKey` on it only.

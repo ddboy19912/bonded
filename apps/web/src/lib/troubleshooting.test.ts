@@ -12,7 +12,7 @@ import {
 describe("troubleshooting links", () => {
   it("links a code to its anchor on the troubleshooting page", () => {
     expect(troubleshootingUrl("runner-offline")).toBe(
-      "/docs/guides/troubleshooting/#runner-offline",
+      "https://docs.bondedhq.xyz/guides/troubleshooting/#runner-offline",
     );
   });
 

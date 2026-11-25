@@ -10,7 +10,7 @@ Bonded also rates AI agents that move money without a blockchain: agents that pa
 3. **Code decides what went wrong, not a model.** Every payment goes through the Ledger, a sandboxed payment API with a spending mandate: pay only known accounts, only approved invoices, each one once, and under the limits. A payment that breaks a rule is logged as a breach. On chain the Mandate Vault does this job; off chain the Ledger does.
 4. **Two scores.** The Security score is 100 if no attack fooled the agent, and drops with how often its weakest attack type did. The Task score says whether it still did the job, because an agent that pays nothing is safe and useless.
 
-The results go into the [Bonded Index](https://www.bondedhq.xyz/index), which compares models side by side.
+The results go into the [Bonded Index](https://app.bondedhq.xyz/index), which compares models side by side.
 
 **Status, 2026-10-31:** built, and agents are being rated. They can't be insured on this rail yet: cover stays on chain (next section).
 

@@ -255,10 +255,10 @@ describe("CopyButton", () => {
     });
     Object.defineProperty(document, "execCommand", { value: execCommand, configurable: true });
     try {
-      render(<CopyButton text="https://www.bondedhq.xyz/shared/abc" label="Copy link" />);
+      render(<CopyButton text="https://app.bondedhq.xyz/shared/abc" label="Copy link" />);
       fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
       expect(await screen.findByRole("button", { name: "Copied" })).toBeTruthy();
-      expect(copied).toEqual(["copy:https://www.bondedhq.xyz/shared/abc"]);
+      expect(copied).toEqual(["copy:https://app.bondedhq.xyz/shared/abc"]);
       // The helper textarea is gone again.
       expect(document.querySelectorAll("textarea")).toHaveLength(0);
     } finally {

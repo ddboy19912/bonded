@@ -151,7 +151,7 @@ describe("the health panel", () => {
       within(problems)
         .getByRole("link", { name: /How to fix this/ })
         .getAttribute("href"),
-    ).toBe("/docs/guides/troubleshooting/#runner-offline");
+    ).toBe("https://docs.bondedhq.xyz/guides/troubleshooting/#runner-offline");
     expect(screen.getByText("1 to look at")).toBeTruthy();
     expect(screen.getByText(/hasn't traded through its vault in the last 7 days/)).toBeTruthy();
     expect(screen.getByText(/low on gas: it has 0.0001 ETH/)).toBeTruthy();
@@ -219,8 +219,8 @@ describe("problem links", () => {
     );
     const links = screen.getAllByRole("link", { name: /How to fix this/ });
     expect(links.map((l) => l.getAttribute("href"))).toEqual([
-      "/docs/guides/troubleshooting/#url-slow",
-      "/docs/guides/troubleshooting/#no-passing-check",
+      "https://docs.bondedhq.xyz/guides/troubleshooting/#url-slow",
+      "https://docs.bondedhq.xyz/guides/troubleshooting/#no-passing-check",
     ]);
   });
 });
@@ -444,7 +444,7 @@ describe("status and notifications", () => {
     await waitFor(() => expect(read).toHaveBeenCalledWith("sess", { ids: ["41"] }));
     expect(screen.getByRole("link", { name: "Agent 12" }).getAttribute("href")).toBe("/agents/12");
     expect(screen.getByRole("link", { name: /How to fix this/ }).getAttribute("href")).toBe(
-      "/docs/guides/troubleshooting/#low-gas",
+      "https://docs.bondedhq.xyz/guides/troubleshooting/#low-gas",
     );
     // The unread one is marked as new, under the day it falls in.
     expect(screen.getByText("New")).toBeTruthy();

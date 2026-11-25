@@ -1,5 +1,5 @@
-import { Link } from "react-router";
 import { TIER_RULES } from "@bondedhq/shared";
+import { AppLink } from "../components/app-link";
 import { Accordion } from "../components/collapsible";
 import { CopyBlock } from "../components/copy";
 import { FrameworkLogo } from "../components/framework-questions";
@@ -100,12 +100,12 @@ export function Roles() {
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Link to={TEST_AGENT} className={buttonClass("primary", "lg")}>
+            <AppLink to={TEST_AGENT} className={buttonClass("primary", "lg")}>
               Test your agent, free
-            </Link>
-            <Link to="/agents/new" className={buttonClass("secondary", "lg")}>
+            </AppLink>
+            <AppLink to="/agents/new" className={buttonClass("secondary", "lg")}>
               Onboard an agent
-            </Link>
+            </AppLink>
           </div>
         </div>
         <div className="flex flex-col justify-center gap-10 lg:pl-6">
@@ -115,9 +115,9 @@ export function Roles() {
               Choose a rated agent, deposit into its vault and buy cover priced from its insurance
               score. If it breaks its rules, the claim is paid automatically.
             </p>
-            <Link to="/vaults" className="mt-4 inline-block text-accent hover:underline">
+            <AppLink to="/vaults" className="mt-4 inline-block text-accent hover:underline">
               Browse vaults <span aria-hidden>→</span>
-            </Link>
+            </AppLink>
           </div>
           <div>
             <h3 className="text-2xl font-bold">Want to earn from the risk?</h3>
@@ -125,9 +125,9 @@ export function Roles() {
               Fund the pool that pays claims once the operator's bond is spent, and earn 80% of
               every premium.
             </p>
-            <Link to="/underwrite" className="mt-4 inline-block text-accent hover:underline">
+            <AppLink to="/underwrite" className="mt-4 inline-block text-accent hover:underline">
               Underwrite the pool <span aria-hidden>→</span>
-            </Link>
+            </AppLink>
           </div>
         </div>
       </div>
@@ -201,9 +201,9 @@ export function BringYourAgent() {
             <CopyBlock label="Wire it into a Node agent" text="npx @bondedhq/runner init" />
           </div>
           <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
-            <Link to={TEST_AGENT} className={buttonClass("primary", "lg")}>
+            <AppLink to={TEST_AGENT} className={buttonClass("primary", "lg")}>
               Test your agent, free
-            </Link>
+            </AppLink>
             <a href={DOCS_BYOA} className="text-accent hover:underline">
               Read the guide <span aria-hidden>→</span>
             </a>
@@ -408,7 +408,7 @@ export function LiveAgents() {
         {agents.data
           ? rated.map((a) => (
               <li key={String(a.agentId)}>
-                <Link to={`/agents/${a.agentId}`} className="group flex items-center gap-4">
+                <AppLink to={`/agents/${a.agentId}`} className="group flex items-center gap-4">
                   <ScoreRing score={a.score!.securityScore} size={76} />
                   <span className="flex flex-col gap-1.5">
                     <span className="font-semibold group-hover:underline">
@@ -421,7 +421,7 @@ export function LiveAgents() {
                       Insurance {a.score!.score} · loss {bps(a.score!.expectedLossBps)}
                     </span>
                   </span>
-                </Link>
+                </AppLink>
               </li>
             ))
           : [0, 1, 2, 3].map((i) => (
@@ -442,9 +442,9 @@ export function LiveAgents() {
           ${usd(w.toVault, 0)} of a ${usd(w.loss, 0)} loss, {sources}.
           {w.premiumNetted > 0n &&
             ` The award was $${usd(biggest.payout, 0)}; $${usd(w.premiumNetted, 0)} of unpaid premium was netted off it.`}{" "}
-          <Link to="/claims" className="whitespace-nowrap text-accent hover:underline">
+          <AppLink to="/claims" className="whitespace-nowrap text-accent hover:underline">
             See every claim <span aria-hidden>→</span>
-          </Link>
+          </AppLink>
         </p>
       )}
     </section>

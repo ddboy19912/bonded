@@ -12,8 +12,8 @@ const dirs = new Set(["apps/api", "contracts/evm"]);
 
 const ctx = {
   targets: new Map([
-    ["docs/PLAN.md", "/docs/overview/plan/"],
-    ["docs", "/docs/"],
+    ["docs/PLAN.md", "/overview/plan/"],
+    ["docs", "/"],
   ]),
   evidence: [{ from: "docs/progress/evidence", to: "evidence" }],
   exists: (p) => files.has(p),
@@ -26,15 +26,15 @@ const ctx = {
 test("a relative link to another doc points at its page and keeps the anchor", () => {
   assert.equal(
     resolveHref("PLAN.md#section-9", "docs/AGENTS.md", ctx),
-    "/docs/overview/plan/#section-9",
+    "/overview/plan/#section-9",
   );
-  assert.equal(resolveHref("docs/PLAN.md", "README.md", ctx), "/docs/overview/plan/");
+  assert.equal(resolveHref("docs/PLAN.md", "README.md", ctx), "/overview/plan/");
 });
 
 test("a GitHub link to a doc in this repo points at the page", () => {
   assert.equal(
     resolveHref(`${REPO}/blob/main/docs/PLAN.md#x`, "README.md", ctx),
-    "/docs/overview/plan/#x",
+    "/overview/plan/#x",
   );
 });
 
@@ -58,10 +58,7 @@ test("other sites and evidence files are kept", () => {
     resolveHref("https://github.com/coinbase/agentkit", "README.md", ctx),
     "https://github.com/coinbase/agentkit",
   );
-  assert.equal(
-    resolveHref("progress/evidence/a.json", "docs/AGENTS.md", ctx),
-    "/docs/evidence/a.json",
-  );
+  assert.equal(resolveHref("progress/evidence/a.json", "docs/AGENTS.md", ctx), "/evidence/a.json");
   assert.equal(resolveHref("progress/evidence/missing.json", "docs/AGENTS.md", ctx), null);
 });
 
@@ -80,7 +77,7 @@ test("transform adds front matter, drops the h1 and rewrites links outside code 
   const out = transform(md, "contracts/evm/README.md", ctx);
   assert.match(out, /^---\ntitle: "Agents in Bonded"\n/);
   assert.doesNotMatch(out, /^# /m);
-  assert.match(out, /\[the plan\]\(\/docs\/overview\/plan\/\), \[the plan\]/);
+  assert.match(out, /\[the plan\]\(\/overview\/plan\/\), \[the plan\]/);
   assert.match(
     out,
     /\[`apps\/api`\]\(https:\/\/github\.com\/ddboy19912\/bonded\/tree\/main\/apps\/api\)/,

@@ -1,6 +1,6 @@
 # Bring your own agent
 
-Test your AI agent against Bonded's attacks where it already runs, in any framework or language. A preview is free, private and needs no wallet, tokens or vault: start at [www.bondedhq.xyz/agents/test](https://www.bondedhq.xyz/agents/test).
+Test your AI agent against Bonded's attacks where it already runs, in any framework or language. A preview is free, private and needs no wallet, tokens or vault: start at [app.bondedhq.xyz/agents/test](https://app.bondedhq.xyz/agents/test).
 
 This page is the short version. The details live on their own pages, linked at the end.
 
@@ -10,7 +10,7 @@ This page is the short version. The details live on their own pages, linked at t
 
 ![Five steps: sign in, connect, run the check (no attack), run the preview, read the report.](images/byoa-test-steps.webp)
 
-1. **Sign in** on [Test your agent](https://www.bondedhq.xyz/agents/test) with an email code, a passkey or a browser wallet. Nothing is sent on chain.
+1. **Sign in** on [Test your agent](https://app.bondedhq.xyz/agents/test) with an email code, a passkey or a browser wallet. Nothing is sent on chain.
 2. **Pick what your agent does:** trade crypto from a vault, or trade stocks at a broker ([BROKERAGE.md](BROKERAGE.md)). Then answer two questions: which framework it's built on, and where it runs.
 3. **Connect it**, one of three ways ([Connect your agent](#connect-your-agent)).
 4. **Run the connection check:** one episode with no attack, streamed live, ending with what to fix if anything failed.
@@ -19,7 +19,7 @@ This page is the short version. The details live on their own pages, linked at t
 
 Want a score on chain and cover? **Make it official** from the report ([OFFICIAL-RATINGS.md](OFFICIAL-RATINGS.md)).
 
-Stuck? Every refusal and failed check has an entry on the [troubleshooting page](TROUBLESHOOTING.md). Service status: https://www.bondedhq.xyz/status.
+Stuck? Every refusal and failed check has an entry on the [troubleshooting page](TROUBLESHOOTING.md). Service status: https://app.bondedhq.xyz/status.
 
 ### No agent yet?
 

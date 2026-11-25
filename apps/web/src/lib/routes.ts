@@ -3,27 +3,29 @@ export const TEST_AGENT = "/agents/test";
 /** Where "Launch app" goes from the public site. */
 export const APP_HOME = "/overview";
 
+import { docsUrl, siteHref } from "./hosts";
+
 /**
- * The documentation site (apps/docs) is built into this app's output under /docs. These are
+ * The documentation site (apps/docs) lives at docs.bondedhq.xyz (lib/hosts.ts). These are
  * plain links, not router links: the router doesn't own those pages.
  */
-export const DOCS_HOME = "/docs/";
-/** The blog (apps/blog), built into this app's output under /blog the same way. */
-export const BLOG_HOME = "/blog/";
-export const DOCS_SECURITY = "/docs/security/policy/";
+export const DOCS_HOME = docsUrl("/");
+/** The blog (apps/blog), built into this app's output under /blog, on the public site. */
+export const BLOG_HOME = siteHref("/blog/");
+export const DOCS_SECURITY = docsUrl("/security/policy/");
 /** The privacy page, on the public site. */
-export const PRIVACY = "/privacy";
+export const PRIVACY = siteHref("/privacy");
 /** The public contact address (forwards to the team inbox). */
 export const CONTACT_EMAIL = "hello@bondedhq.xyz";
-export const DOCS_BOUNTY_GUIDE = "/docs/guides/bounties/#try-it-locally-first";
-export const DOCS_DISCLOSURES = "/docs/security/disclosures/";
+export const DOCS_BOUNTY_GUIDE = docsUrl("/guides/bounties/#try-it-locally-first");
+export const DOCS_DISCLOSURES = docsUrl("/security/disclosures/");
 /** How the Security score and the insurance score are worked out (docs/SCORING.md). */
-export const DOCS_SCORING = "/docs/concepts/scoring/";
+export const DOCS_SCORING = docsUrl("/concepts/scoring/");
 /** The market-data (S1) and memory batteries (docs/S1-TAXONOMY.md). */
-export const DOCS_S1 = "/docs/concepts/s1-taxonomy/";
+export const DOCS_S1 = docsUrl("/concepts/s1-taxonomy/");
 /** The guide to connecting your own agent: protect, rate, bind (docs/BRING-YOUR-OWN-AGENT.md). */
-export const DOCS_BYOA = "/docs/guides/bring-your-own-agent/";
+export const DOCS_BYOA = docsUrl("/guides/bring-your-own-agent/");
 /** How to set up the payment gate and connect an agent to it. */
-export const DOCS_GATE = "/docs/guides/payment-gate/";
+export const DOCS_GATE = docsUrl("/guides/payment-gate/");
 /** A report its owner shared by a read-only link. */
 export const sharedReportPath = (token: string) => `/shared/${encodeURIComponent(token)}`;

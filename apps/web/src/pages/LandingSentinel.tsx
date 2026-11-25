@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Link } from "react-router";
+import { AppLink } from "../components/app-link";
 import { SENTINEL_GATES, SENTINEL_MODEL } from "../lib/sentinel-facts";
 import { buttonClass } from "../components/ui";
 
@@ -277,9 +277,9 @@ export function LandingSentinel() {
             stays the backstop.
           </p>
         </div>
-        <Link to="/sentinel" className={buttonClass("secondary", "lg")}>
+        <AppLink to="/sentinel" className={buttonClass("secondary", "lg")}>
           See Sentinel live <span aria-hidden>→</span>
-        </Link>
+        </AppLink>
       </div>
 
       <div className="mt-10">

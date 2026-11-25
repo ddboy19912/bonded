@@ -53,7 +53,7 @@ export const MARKER = INIT_MARKER;
 /** What the Agent URL handler's owner says until the owner fills in their wallet. */
 export const OWNER_PLACEHOLDER = "0xYOUR_WALLET";
 /** The guide on the docs site (generated from docs/BRING-YOUR-OWN-AGENT.md). */
-const GUIDE = "https://www.bondedhq.xyz/docs/guides/bring-your-own-agent/";
+const GUIDE = "https://docs.bondedhq.xyz/guides/bring-your-own-agent/";
 
 /** The production vault's variables (`bondedVaultFromEnv` in @bondedhq/sdk). */
 export const VAULT_ENV = ["BONDED_VAULT_ADDRESS", "BONDED_AGENT_KEY", "BONDED_ROUTER_ADDRESS"];

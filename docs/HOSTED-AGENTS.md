@@ -1,6 +1,6 @@
 # Bonded runs it: hosted agents
 
-Most people who want to test a trading agent don't have a server to run it on, or don't want to change and redeploy their app for a test. So on [Test your agent](https://www.bondedhq.xyz/agents/test) there is a third way in, next to the runner and the Agent URL: give Bonded the agent, and Bonded runs it.
+Most people who want to test a trading agent don't have a server to run it on, or don't want to change and redeploy their app for a test. So on [Test your agent](https://app.bondedhq.xyz/agents/test) there is a third way in, next to the runner and the Agent URL: give Bonded the agent, and Bonded runs it.
 
 **Status, 2026-11-13:** built, for stock-trading previews ([BROKERAGE.md](BROKERAGE.md)). The crypto-trading world and official ratings still need a runner or an Agent URL.
 

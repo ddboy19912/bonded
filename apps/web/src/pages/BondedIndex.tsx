@@ -4,6 +4,7 @@ import {
   type BondedIndexEntry,
   OFFCHAIN_LIBRARY_VERSION,
 } from "@bondedhq/shared";
+import { docsUrl } from "../lib/hosts";
 import * as Popover from "@radix-ui/react-popover";
 import { useRef, useState } from "react";
 import { Link } from "react-router";
@@ -50,7 +51,7 @@ import {
   worstRow,
 } from "../lib/bonded-index";
 
-const DOCS_INDEX = "https://www.bondedhq.xyz/docs/concepts/bonded-index/";
+const DOCS_INDEX = docsUrl("/concepts/bonded-index/");
 
 /** Under a model's name in the results: joined runs, when they apply. */
 const resultNote = (e: BondedIndexEntry) => (e.provenance ? "joined runs †" : undefined);

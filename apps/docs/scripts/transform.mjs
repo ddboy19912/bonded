@@ -1,6 +1,7 @@
 import path from "node:path";
 
-export const BASE = "/docs";
+/** The docs site is served at the root of docs.bondedhq.xyz, so page URLs have no prefix. */
+export const BASE = "";
 /** The repository, for links to code. */
 export const GITHUB = "https://github.com/ddboy19912/bonded";
 const REPO_URL = /^https?:\/\/github\.com\/ddboy19912\/bonded(?:\/|$)/;
@@ -17,7 +18,7 @@ const KNOWN_HTML = new Set([
   "i",
 ]);
 
-/** `README.md` -> `/docs/overview/introduction/` for every repo path that has a page. */
+/** `README.md` -> `/overview/introduction/` for every repo path that has a page. */
 export function pageUrl(slug) {
   return `${BASE}/${slug}/`;
 }
