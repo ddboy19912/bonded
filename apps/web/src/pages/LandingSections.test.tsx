@@ -17,7 +17,7 @@ import {
   WorksWith,
   claimSources,
 } from "./LandingSections";
-import { LandingGate, LandingIndex, STOPS, corner, placeLabels } from "./LandingOffchain";
+import { LandingGate, LandingIndex, STOPS } from "./LandingOffchain";
 import { loadBondedIndex } from "../lib/bonded-index";
 import type { BondedIndexEntry } from "@bondedhq/shared";
 
@@ -157,77 +157,57 @@ describe("the Index section", () => {
     }) as BondedIndexEntry;
   const index = (entries: BondedIndexEntry[]) => ({ ...loadBondedIndex(), entries });
 
-  it("puts every model on the map, named with both scores, and lists them in a ledger beside it", () => {
-    reduceMotion();
+  it("lists every model as a ledger row, hardest to trick first, with both scores", () => {
     show(
       <LandingIndex
         index={index([entry("b", "Model B", 60, 90), entry("a", "Model A", 95, 20)])}
       />,
     );
-    expect(screen.getByRole("button", { name: "Model A: Security 95, Task 20" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Model B: Security 60, Task 90" })).toBeTruthy();
     const rows = screen.getAllByRole("row").slice(1);
     expect(rows.map((r) => within(r).getByRole("rowheader").textContent)).toEqual([
       "Model A",
       "Model B",
     ]);
-    // The ledger is on the page for everyone, not only for screen readers.
+    expect(
+      rows.map((r) =>
+        within(r)
+          .getAllByRole("cell")
+          .map((c) => c.textContent),
+      ),
+    ).toEqual([
+      ["01", "95", "20"],
+      ["02", "60", "90"],
+    ]);
+    // On the page for everyone, and nothing else beside it: no chart.
     expect(screen.getByRole("table").className).not.toContain("sr-only");
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
     expect(screen.getByRole("link", { name: /See the full Index/ }).getAttribute("href")).toBe(
       "/index",
     );
   });
 
-  it("leaves a model with no measured Task score off the map, rather than plotting it at 0", () => {
-    reduceMotion();
+  it("says which score each column is", () => {
+    show(<LandingIndex index={index([entry("a", "Model A", 95, 20)])} />);
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
+      "No.",
+      "Model",
+      "Security: harder to trick",
+      "Task: still pays the real bills",
+    ]);
+  });
+
+  it("still lists a model with no measured Task score, with a dash rather than a 0", () => {
     const unmeasured = {
       ...entry("u", "Model U", 80, 0),
       task: { ...loadBondedIndex().entries[0]!.task!, score: null },
     } as BondedIndexEntry;
     show(<LandingIndex index={index([entry("a", "Model A", 95, 20), unmeasured])} />);
-    expect(screen.getByRole("button", { name: /Model A/ })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Model U/ })).toBeNull();
-    expect(screen.queryByText("Model U")).toBeNull();
-  });
-
-  it("shows both scores when a model is picked", () => {
-    reduceMotion();
-    show(<LandingIndex index={index([entry("a", "Model A", 95, 20)])} />);
-    fireEvent.click(screen.getByRole("button", { name: /Model A/ }));
-    const card = screen.getByRole("status");
-    expect(within(card).getByText("Security").nextElementSibling?.textContent).toBe("95");
-    expect(within(card).getByText("Task").nextElementSibling?.textContent).toBe("20");
-  });
-
-  it("names the corners by both scores", () => {
-    expect(corner(92, 100)).toBe("Hard to trick, and does the job");
-    expect(corner(100, 29)).toBe("Safe because it refuses");
-    expect(corner(29, 80)).toBe("Does the job, easy to trick");
-    expect(corner(29, 5)).toBe("Easy to trick, little done");
-  });
-
-  it("places names inside the plot without overlapping, or leaves one off on a phone", () => {
-    const points = loadBondedIndex().entries.map((e) => ({
-      entry: e,
-      security: e.score,
-      task: e.task?.score ?? 0,
-    }));
-    for (const [width, height] of [
-      [1000, 460],
-      [300, 400],
-    ] as const) {
-      const placed = [...placeLabels(points, width, height).values()].filter((p) => p !== null);
-      for (const p of placed) {
-        expect(p.left).toBeGreaterThanOrEqual(0);
-        expect(p.top).toBeGreaterThanOrEqual(0);
-      }
-      // No two names start at the same spot.
-      expect(new Set(placed.map((p) => `${p.left},${p.top}`)).size).toBe(placed.length);
-    }
+    const row = screen.getByRole("rowheader", { name: "Model U" }).closest("tr")!;
+    expect(within(row).getByLabelText("not measured").textContent).toBe("–");
+    expect(within(row).queryByText("0")).toBeNull();
   });
 
   it("shows every model in the published Index", () => {
-    reduceMotion();
     show(<LandingIndex />);
     expect(screen.getAllByRole("row")).toHaveLength(loadBondedIndex().entries.length + 1);
   });
@@ -498,6 +478,15 @@ describe("the page's ground", () => {
     // The cage never drops, nothing waits to be revealed, and nothing loops.
     for (const part of [".l-cage", ".l-rv", ".l-verdict", ".l-mq", ".l-tape", ".l-orbit"])
       expect(still, part).toContain(part);
+  });
+
+  it("never lets moving decoration hold the scroll position", () => {
+    // A refresh at the top of the page used to jump a screen down: the browser put the page back
+    // against a lifted cage bar, which is back down on reload.
+    const rule = css.slice(0, css.indexOf("overflow-anchor: none"));
+    const selectors = rule.slice(rule.lastIndexOf("}") + 1);
+    for (const part of [".l-cage", ".l-tapes", ".logo-track", ".l-lean"])
+      expect(selectors, part).toContain(part);
   });
 
   it("sets its own ground on the landing page only", () => {

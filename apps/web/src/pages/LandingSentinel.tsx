@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { AppLink } from "../components/app-link";
 import { Reveal } from "../lib/reveal";
 import { SENTINEL_GATES, SENTINEL_MODEL } from "../lib/sentinel-facts";
@@ -14,7 +14,7 @@ interface Scenario {
   manipulated: boolean;
 }
 
-const SCENARIOS: Scenario[] = [
+export const SCENARIOS: Scenario[] = [
   {
     id: "clean",
     label: "Ordinary trade",
@@ -34,6 +34,7 @@ const SCENARIOS: Scenario[] = [
 ];
 
 const BLOCK_AT = 0.7;
+const FIELDS = ["Mandate", "Proposed action", "Untrusted input"];
 /** Phases of one pass: proposed, travelling, read, scored, outcome. */
 const LAST_PHASE = 4;
 const PHASE_MS = 900;
@@ -51,11 +52,28 @@ export function useReducedMotion() {
   return reduced;
 }
 
+/** A whole number that runs up to `to` while `run` is true. Still, it is simply `to`. */
+function useCount(to: number, run: boolean, still: boolean) {
+  const [n, setN] = useState(0);
+  const animate = run && !still && typeof requestAnimationFrame !== "undefined";
+  useEffect(() => {
+    if (!animate) return;
+    const start = performance.now();
+    let frame = requestAnimationFrame(function tick(now) {
+      const p = Math.min(1, (now - start) / 800);
+      setN(Math.round(to * (1 - (1 - p) ** 3)));
+      if (p < 1) frame = requestAnimationFrame(tick);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [to, animate]);
+  return animate ? n : to;
+}
+
 /**
- * The Sentinel flow as a looping illustration: an agent proposes a trade, Sentinel reads the three
- * fields and scores it, and the trade either goes on to the vault or stops. It alternates between
- * an ordinary trade and a planted instruction. Reduced-motion readers get the finished state and
- * switch scenarios with the buttons.
+ * Sentinel at work, as a looping illustration: what the agent read and wants to do on one side; on
+ * the other, Sentinel's answer to one question, "manipulated?", as a large number against the line
+ * it blocks at, and what happens to the trade. It alternates between an ordinary trade and a planted
+ * instruction. Reduced-motion readers get the finished state and switch with the two buttons.
  */
 function SentinelFlow() {
   const reduced = useReducedMotion();
@@ -83,152 +101,78 @@ function SentinelFlow() {
     setIndex(i);
     setPhase(0);
   };
-  const tone = s.manipulated ? "text-breach" : "text-safe";
+  const read = shown >= 2;
+  const scored = shown >= 3;
+  const decided = shown >= 4;
+  const score = Math.round(s.score * 100);
+  const counted = useCount(score, scored, reduced);
 
   return (
-    <div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-1 rounded-full border border-line p-1" role="group">
-          {SCENARIOS.map((sc, i) => (
-            <button
-              key={sc.id}
-              type="button"
-              aria-pressed={i === index}
-              onClick={() => choose(i)}
-              className={`rounded-full px-4 py-2 text-sm transition ${i === index ? "bg-ink font-medium text-black" : "text-muted hover:text-ink"}`}
-            >
-              {sc.label}
-            </button>
-          ))}
-        </div>
-        <span className="l-lab">Illustration. Scores are examples.</span>
+    <div className="l-sen" data-tone={s.manipulated ? "attack" : "clean"}>
+      <div className="l-atks l-picks" role="group" aria-label="What the agent read">
+        {SCENARIOS.map((sc, i) => (
+          <button
+            key={sc.id}
+            type="button"
+            className="l-atk"
+            aria-pressed={i === index}
+            onClick={() => choose(i)}
+            style={
+              { "--pick": sc.manipulated ? "var(--l-orange)" : "var(--l-blue)" } as CSSProperties
+            }
+          >
+            <span className="l-atk-meta">
+              <span>{String(i + 1).padStart(2, "0")}</span>
+              <span>{sc.manipulated ? "An attack" : "No attack"}</span>
+            </span>
+            <span className="l-atk-name">{sc.label}</span>
+          </button>
+        ))}
       </div>
 
-      <div
-        key={s.id}
-        className="mt-8 grid items-stretch gap-0 lg:grid-cols-[minmax(0,1fr)_72px_minmax(0,1.25fr)_72px_minmax(0,1fr)]"
-      >
-        <FlowCard title="Agent" lit={shown >= 0}>
-          <p className="text-xs text-muted">Read</p>
-          <p className={`mt-1 text-sm ${s.manipulated ? "text-breach" : "text-soft"}`}>{s.read}</p>
-          <p className="mt-4 text-xs text-muted">Wants to</p>
-          <p className="mt-1 font-mono text-sm">{s.action}</p>
-        </FlowCard>
-
-        <Track moving={shown === 1} done={shown >= 2} tone="bg-accent" />
-
-        <FlowCard title="Sentinel" tag="v5 · on Laya" lit={shown >= 2} accent>
-          <ul className="grid gap-2 text-sm">
-            {["Mandate", "Proposed action", "Untrusted input"].map((field, i) => (
-              <li
-                key={field}
-                className="flex items-center justify-between gap-3 transition-opacity duration-300"
-                style={{ opacity: shown >= 2 ? 1 : 0.35, transitionDelay: `${i * 180}ms` }}
-              >
-                <span className="text-soft">{field}</span>
-                <span className="text-xs text-muted">{shown >= 2 ? "read" : "…"}</span>
-              </li>
+      <div key={s.id} className="l-sen-grid">
+        <div>
+          <p className="l-lab">The agent read</p>
+          <p className="l-quote">{s.read}</p>
+          <p className="l-lab mt-8">It wants to</p>
+          <p className="l-send mt-2">{s.action}</p>
+          <p className="l-lab mt-10 mb-1">Sentinel reads</p>
+          <div className="l-rows">
+            {FIELDS.map((field, i) => (
+              <div key={field} style={{ opacity: read ? 1 : 0.4, transitionDelay: `${i * 180}ms` }}>
+                <span>{field}</span>
+                <span>{read ? "read" : "…"}</span>
+              </div>
             ))}
-          </ul>
-          <div className="mt-5">
-            <div className="flex justify-between text-xs text-muted">
-              <span>Manipulated?</span>
-              <span className="tabular-nums">
-                {shown >= 3 ? `${Math.round(s.score * 100)}%` : "…"}
-              </span>
-            </div>
-            <div className="relative mt-2 h-2 rounded-full bg-white/[0.08]">
-              <div
-                className={`h-full rounded-full transition-[width] duration-700 ease-out ${s.manipulated ? "bg-breach-solid" : "bg-safe"}`}
-                style={{ width: shown >= 3 ? `${s.score * 100}%` : "0%" }}
-              />
-              <span
-                className="absolute -top-1 h-4 w-px bg-ink/70"
-                style={{ left: `${BLOCK_AT * 100}%` }}
-                aria-hidden
-              />
-            </div>
-            <p className="mt-1.5 text-right text-[11px] text-muted">blocks at {BLOCK_AT * 100}%</p>
           </div>
-        </FlowCard>
+        </div>
 
-        <Track
-          moving={shown === 4 && !s.manipulated}
-          done={shown >= 4 && !s.manipulated}
-          cut={shown >= 4 && s.manipulated}
-          tone="bg-safe"
-        />
-
-        <FlowCard title="Outcome" lit={shown >= 4}>
-          {shown >= 4 ? (
-            <div className="[animation:rise_.4s_ease_both]">
-              <p className={`text-4xl leading-none font-medium tracking-[-0.05em] ${tone}`}>
-                {s.manipulated ? "Blocked" : "Goes ahead"}
-              </p>
-              <p className="mt-2 text-sm text-muted">
-                {s.manipulated
-                  ? "The agent drops the trade before signing it. No funds move."
-                  : "Sent to the vault, which checks it against the mandate on chain."}
-              </p>
-            </div>
-          ) : (
-            <p className="text-sm text-muted">Waiting for Sentinel…</p>
-          )}
-        </FlowCard>
+        <div>
+          <p className="l-lab flex flex-wrap justify-between gap-x-6 gap-y-1">
+            <span>Manipulated?</span>
+            <span>Illustration. Scores are examples.</span>
+          </p>
+          <p className="l-score" data-on={scored}>
+            {scored ? counted : "–"}
+            <small>%</small>
+          </p>
+          <div className="l-meter" aria-hidden>
+            <i style={{ width: scored ? `${score}%` : "0%" }} />
+            <u style={{ left: `${BLOCK_AT * 100}%` }} />
+          </div>
+          <p className="l-lab l-meter-note" style={{ marginLeft: `${BLOCK_AT * 100}%` }}>
+            blocks at {BLOCK_AT * 100}%
+          </p>
+          <div className="l-sen-verdict" data-on={decided} aria-hidden={!decided}>
+            <p className="l-h3">{s.manipulated ? "Blocked" : "Goes ahead"}</p>
+            <p>
+              {s.manipulated
+                ? "The agent drops the trade before signing it. No funds move."
+                : "Sent to the vault, which checks it against the mandate on chain."}
+            </p>
+          </div>
+        </div>
       </div>
-    </div>
-  );
-}
-
-function FlowCard({
-  title,
-  tag,
-  lit,
-  accent = false,
-  children,
-}: {
-  title: string;
-  tag?: string;
-  lit: boolean;
-  accent?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <div
-      className={`border-t pt-5 pb-2 transition duration-500 ${accent ? "border-accent" : "border-line-strong"} ${lit ? "opacity-100" : "opacity-50"}`}
-    >
-      <div className="mb-5 flex items-baseline justify-between gap-2">
-        <p className="text-xl font-medium tracking-[-0.03em]">{title}</p>
-        {tag && <span className="l-lab">{tag}</span>}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-/** The link between two cards: a line, a dot that travels along it, or a cut when blocked. */
-function Track({
-  moving,
-  done,
-  cut = false,
-  tone,
-}: {
-  moving: boolean;
-  done: boolean;
-  cut?: boolean;
-  tone: string;
-}) {
-  return (
-    <div className="sflow-track relative h-10 lg:h-auto" aria-hidden>
-      <span
-        className={`sflow-line absolute transition-colors duration-500 ${cut ? "bg-breach/40" : done ? tone : "bg-line-strong"}`}
-      />
-      {moving && <span className={`sflow-dot absolute size-2.5 rounded-full ${tone}`} />}
-      {cut && (
-        <span className="absolute top-1/2 left-1/2 flex size-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-breach/60 bg-[#1a0d0b] text-xs text-breach">
-          ✕
-        </span>
-      )}
     </div>
   );
 }
@@ -241,7 +185,7 @@ export function asRate(fraction: string): string {
 
 const gate = (name: string) => SENTINEL_GATES.find((g) => g.name === name);
 
-/** The landing page's Sentinel section: what it is, how well it works, and the flow. */
+/** The landing page's Sentinel section: what it is, the flow, and how well it works. */
 export function LandingSentinel() {
   const heldOut = gate("Held-out Arena cases");
   const benign = gate("Fresh benign episodes");
@@ -281,12 +225,10 @@ export function LandingSentinel() {
         <SentinelFlow />
       </div>
 
-      <div className="l-cols mt-16">
+      <div className="l-cols mt-20">
         {stats.map(([value, label]) => (
           <div key={label}>
-            <p className="!mt-0 text-[clamp(48px,6vw,96px)] leading-[0.9] font-medium tracking-[-0.06em] !text-ink tabular-nums">
-              {value}
-            </p>
+            <p className="l-stat">{value}</p>
             <p>{label}</p>
           </div>
         ))}
