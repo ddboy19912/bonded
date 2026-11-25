@@ -52,6 +52,9 @@ const DELIVERY: Record<BenchComparison["channels"], string> = {
 
 const rowKey = (row: BenchComparison) => `${row.model}-${row.channels}`;
 
+/** Counts with thousands separators, for the big numbers. */
+const count = (n: number) => n.toLocaleString("en-US");
+
 /** Whole dollars for the big numbers; the tables keep the cents. */
 const dollars = (usd: number) => money(Math.round(usd));
 
@@ -85,11 +88,15 @@ function BenchMark({ bench, size = 20 }: { bench: BenchKey; size?: number }) {
   );
 }
 
-/** The two benches face to face on the headline run: who made each, and what each found. */
-function Versus({ row }: { row: BenchComparison }) {
-  const moved = row.bonded.lossUsd + row.bonded.overpaidUsd;
-  const ran = attackExecuted(row.agentdojo);
-  const theirs = movedOf(row.agentdojo) ?? 0;
+/** The two benches face to face, added up across every row: who made each, and what each found. */
+function Versus({ rows }: { rows: BenchComparison[] }) {
+  const sum = (part: (row: BenchComparison) => number) => rows.reduce((n, row) => n + part(row), 0);
+  const fell = sum((row) => row.bonded.fell);
+  const met = sum((row) => row.bonded.countedEpisodes);
+  const moved = sum((row) => row.bonded.lossUsd + row.bonded.overpaidUsd);
+  const ran = sum((row) => attackExecuted(row.agentdojo));
+  const theirMet = sum((row) => metOf(row.agentdojo));
+  const theirs = sum((row) => movedOf(row.agentdojo) ?? 0);
   const side = (bench: BenchKey, maker: string, answer: string, detail: ReactNode) => (
     // Centred in its half on wide screens, so both benches sit the same distance from the badge.
     <div className="flex min-w-0 flex-col sm:items-center sm:text-center">
@@ -109,7 +116,7 @@ function Versus({ row }: { row: BenchComparison }) {
       {side(
         "bonded",
         "Payment attacks",
-        `${row.bonded.fell} of ${row.bonded.countedEpisodes}`,
+        `${count(fell)} of ${count(met)}`,
         <>
           attacks worked · <span className="text-breach">{dollars(moved)}</span> paid wrongly
         </>,
@@ -124,7 +131,7 @@ function Versus({ row }: { row: BenchComparison }) {
       {side(
         "agentdojo",
         "ETH Zurich benchmark",
-        `${ran} of ${metOf(row.agentdojo)}`,
+        `${count(ran)} of ${count(theirMet)}`,
         theirs > 0 ? (
           <>
             attacks worked · <span className="text-breach">{dollars(theirs)}</span> paid wrongly
@@ -134,7 +141,7 @@ function Versus({ row }: { row: BenchComparison }) {
         ),
       )}
       <p className="text-xs text-muted sm:col-span-3 sm:text-center">
-        {row.label}, attack {DELIVERY[row.channels]}. Every model and delivery is below.
+        All {rows.length} runs below, added up.
       </p>
     </div>
   );
@@ -329,7 +336,6 @@ export function BenchComparisonCard() {
   const [tab, setTab] = useState<Tab>("breach");
   // The headline comparison first, then the rest in the record's order.
   const rows = [...data.comparisons].sort((a, b) => Number(b.headline) - Number(a.headline));
-  const headline = rows[0]!;
   const models = new Set(rows.map((row) => row.model)).size;
   return (
     <ChartCard
@@ -338,7 +344,7 @@ export function BenchComparisonCard() {
       tabs={TABS}
       tab={tab}
       onTab={(id) => setTab(id as Tab)}
-      intro={<Versus row={headline} />}
+      intro={<Versus rows={rows} />}
       table={
         <DataTable
           head={[

@@ -83,6 +83,17 @@ describe("bench comparison record", () => {
     }
   });
 
+  it("adds up to the card's top numbers across all six rows", () => {
+    const sum = (part: (row: BenchComparison) => number) =>
+      data.comparisons.reduce((n, row) => n + part(row), 0);
+    expect(sum((row) => row.bonded.fell)).toBe(113);
+    expect(sum((row) => row.bonded.countedEpisodes)).toBe(1063);
+    expect(Math.round(sum((row) => row.bonded.lossUsd + row.bonded.overpaidUsd))).toBe(191338);
+    expect(sum((row) => attackExecuted(row.agentdojo))).toBe(73);
+    expect(sum((row) => metOf(row.agentdojo))).toBe(1065);
+    expect(Math.round(sum((row) => movedOf(row.agentdojo) ?? 0))).toBe(153299);
+  });
+
   it("records invoices paid right beside the whole job, on the same episodes", () => {
     expect(glm?.bonded.tasksDone).toBe(127);
     expect(glm?.bonded.paymentsDone).toBe(201);
