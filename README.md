@@ -12,7 +12,9 @@ Runs on **Robinhood Chain**, with scores readable on **Arbitrum, Ethereum and So
 
 | | |
 |---|---|
-| **Web app** (Robinhood Chain testnet) | https://www.bondedhq.xyz |
+| **Web app** (Robinhood Chain testnet) | https://app.bondedhq.xyz |
+| **Website** | https://www.bondedhq.xyz |
+| **Docs** | https://docs.bondedhq.xyz |
 | **Test your agent**: a free preview rating of your own agent, any framework | https://app.bondedhq.xyz/agents/test |
 | **Agent Safety Leaderboard**: open-source agent templates, rated | https://app.bondedhq.xyz/leaderboard |
 | **Bonded Index**: AI models rated on the same payment attacks | https://app.bondedhq.xyz/index |

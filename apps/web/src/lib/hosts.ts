@@ -9,10 +9,10 @@
  */
 export const SITE_ORIGIN = "https://www.bondedhq.xyz";
 export const APP_ORIGIN = "https://app.bondedhq.xyz";
-/** The docs site; a local docs server can stand in with VITE_DOCS_URL=http://localhost:4321. */
-export const DOCS_ORIGIN =
-  (import.meta.env.VITE_DOCS_URL as string | undefined)?.replace(/\/$/, "") ||
-  "https://docs.bondedhq.xyz";
+/** The docs site, or a local docs server named by VITE_DOCS_URL (e.g. http://localhost:4321). */
+export const docsOrigin = (configured?: string) =>
+  configured?.trim().replace(/\/$/, "") || "https://docs.bondedhq.xyz";
+export const DOCS_ORIGIN = docsOrigin(import.meta.env.VITE_DOCS_URL as string | undefined);
 
 const SITE_HOSTS = new Set(["www.bondedhq.xyz", "bondedhq.xyz"]);
 const APP_HOST = "app.bondedhq.xyz";

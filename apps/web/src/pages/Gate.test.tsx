@@ -1,4 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { docsUrl } from "../lib/hosts";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router";
@@ -326,7 +327,7 @@ describe("the payment gate's rules page", () => {
     wallet.address = undefined;
     show();
     expect(screen.getByRole("link", { name: "How to connect an agent" }).getAttribute("href")).toBe(
-      "https://docs.bondedhq.xyz/guides/payment-gate/",
+      docsUrl("/guides/payment-gate/"),
     );
     expect(screen.getByRole("link", { name: "Check a receipt" }).getAttribute("href")).toBe(
       "/gate/verify",

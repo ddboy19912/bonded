@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { docsUrl } from "./hosts";
 import { ApiError } from "./api";
 import {
   errorCode,
@@ -12,7 +13,7 @@ import {
 describe("troubleshooting links", () => {
   it("links a code to its anchor on the troubleshooting page", () => {
     expect(troubleshootingUrl("runner-offline")).toBe(
-      "https://docs.bondedhq.xyz/guides/troubleshooting/#runner-offline",
+      docsUrl("/guides/troubleshooting/#runner-offline"),
     );
   });
 

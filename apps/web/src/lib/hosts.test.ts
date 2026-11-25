@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { APP_ORIGIN, appHref, docsUrl, onAppHost, onSiteHost, siteHref } from "./hosts";
+import {
+  APP_ORIGIN,
+  DOCS_ORIGIN,
+  appHref,
+  docsOrigin,
+  docsUrl,
+  onAppHost,
+  onSiteHost,
+  siteHref,
+} from "./hosts";
 
 describe("hosts", () => {
   it("knows the public site's hosts and the app's", () => {
@@ -27,8 +36,14 @@ describe("hosts", () => {
     }
   });
 
-  it("links docs pages on docs.bondedhq.xyz, with no /docs prefix", () => {
-    expect(docsUrl("/guides/payment-gate/")).toBe("https://docs.bondedhq.xyz/guides/payment-gate/");
-    expect(docsUrl()).toBe("https://docs.bondedhq.xyz/");
+  it("uses docs.bondedhq.xyz unless VITE_DOCS_URL names a local docs server", () => {
+    expect(docsOrigin(undefined)).toBe("https://docs.bondedhq.xyz");
+    expect(docsOrigin("")).toBe("https://docs.bondedhq.xyz");
+    expect(docsOrigin("http://localhost:4321/")).toBe("http://localhost:4321");
+  });
+
+  it("links docs pages at the docs origin, with no /docs prefix", () => {
+    expect(docsUrl("/guides/payment-gate/")).toBe(`${DOCS_ORIGIN}/guides/payment-gate/`);
+    expect(docsUrl()).toBe(`${DOCS_ORIGIN}/`);
   });
 });
