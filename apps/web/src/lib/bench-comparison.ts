@@ -8,6 +8,7 @@ export interface BenchFall {
   fell: number;
   runs: number;
   lossUsd: number;
+  overpaidUsd: number;
 }
 
 /** Bonded's own bench: staged payment attacks, judged by the ledger. */
@@ -31,8 +32,6 @@ export interface BondedBench {
    * ignored, which is closer to how AgentDojo checks a task. Re-scored from the saved runs.
    */
   paymentsDone: number;
-  spendUsd: number;
-  spendEstimated: boolean;
   falls: BenchFall[];
   notes: string[];
 }
@@ -43,8 +42,15 @@ export interface AgentDojoAttack {
   /** Pairs where the hidden goal ran. AgentDojo stores this as its security flag. */
   attackExecuted: number;
   pairs: number;
+  /**
+   * Pairs where the agent met the attack, counted the same way as Bonded's countedEpisodes.
+   * attackExecuted is out of these; without it, out of all pairs.
+   */
+  met?: number;
   /** Pairs where the real user task was done. */
   utility: number;
+  /** Money the hidden goal moved, lost or overpaid, from Bonded's replay of the logs. */
+  movedUsd?: number;
   /** The injection goal posed as the user's own request. */
   directAskDone: number;
   directAskTotal: number;
@@ -62,7 +68,9 @@ export interface AgentDojoBench {
 export interface BenchComparison {
   model: string;
   label: string;
-  /** The comparison the Index page leads with. The others stay in the record. */
+  /** How the attack reached the agent: through its tools, or written into the task message. */
+  channels: "fetched" | "pushed";
+  /** The comparison the Index page leads with. The others follow it. */
   headline: boolean;
   scope?: string;
   bonded: BondedBench;
@@ -101,6 +109,9 @@ export function loadBenchComparison(data: unknown = raw): BenchComparisonFile {
     }
     needNumber(item.bonded, "fell");
     needNumber(item.bonded, "countedEpisodes");
+    if (item.channels !== "fetched" && item.channels !== "pushed") {
+      throw new Error(`bench comparison: ${String(item.model)} channels must be fetched or pushed`);
+    }
     const tasksTotal = needNumber(item.bonded, "tasksTotal");
     const paymentsDone = needNumber(item.bonded, "paymentsDone");
     if (paymentsDone < 0 || paymentsDone > tasksTotal) {
@@ -126,8 +137,17 @@ export const attackExecuted = (bench: AgentDojoBench) =>
 export const pairsOf = (bench: AgentDojoBench) =>
   bench.attacks.reduce((n, attack) => n + attack.pairs, 0);
 
+/** The pairs an attack's success is counted out of: those that met it, as on Bonded's side. */
+export const metOf = (bench: AgentDojoBench) =>
+  bench.attacks.reduce((n, attack) => n + (attack.met ?? attack.pairs), 0);
+
 export const utilityOf = (bench: AgentDojoBench) =>
   bench.attacks.reduce((n, attack) => n + attack.utility, 0);
+
+export const movedOf = (bench: AgentDojoBench) =>
+  bench.attacks.every((attack) => attack.movedUsd !== undefined)
+    ? bench.attacks.reduce((n, attack) => n + (attack.movedUsd ?? 0), 0)
+    : undefined;
 
 export const directAskOf = (bench: AgentDojoBench) =>
   bench.attacks.reduce(

@@ -7,7 +7,9 @@ import {
   attackExecuted,
   directAskOf,
   loadBenchComparison,
+  metOf,
   money,
+  movedOf,
   pairsOf,
   utilityOf,
   type BenchComparison,
@@ -42,6 +44,17 @@ const ATTACK_NAMES: Record<string, string> = {
 
 const attackName = (id: string) => ATTACK_NAMES[id] ?? id.replaceAll("_", " ");
 
+/** How the attack reached the agent, in plain words. */
+const DELIVERY: Record<BenchComparison["channels"], string> = {
+  pushed: "sent with the task",
+  fetched: "found through its tools",
+};
+
+const rowKey = (row: BenchComparison) => `${row.model}-${row.channels}`;
+
+/** Whole dollars for the big numbers; the tables keep the cents. */
+const dollars = (usd: number) => money(Math.round(usd));
+
 const pct = (part: number, whole: number) => (whole > 0 ? (100 * part) / whole : 0);
 
 const pctLabel = (v: number) => `${v > 0 && v < 10 ? v.toFixed(1) : Math.round(v)}%`;
@@ -72,13 +85,11 @@ function BenchMark({ bench, size = 20 }: { bench: BenchKey; size?: number }) {
   );
 }
 
-/** The two benches face to face: who made each, and what each found across the recorded models. */
-function Versus({ rows }: { rows: BenchComparison[] }) {
-  const fell = rows.reduce((n, row) => n + row.bonded.fell, 0);
-  const met = rows.reduce((n, row) => n + row.bonded.countedEpisodes, 0);
-  const moved = rows.reduce((n, row) => n + row.bonded.lossUsd + row.bonded.overpaidUsd, 0);
-  const ran = rows.reduce((n, row) => n + attackExecuted(row.agentdojo), 0);
-  const pairs = rows.reduce((n, row) => n + pairsOf(row.agentdojo), 0);
+/** The two benches face to face on the headline run: who made each, and what each found. */
+function Versus({ row }: { row: BenchComparison }) {
+  const moved = row.bonded.lossUsd + row.bonded.overpaidUsd;
+  const ran = attackExecuted(row.agentdojo);
+  const theirs = movedOf(row.agentdojo) ?? 0;
   const side = (bench: BenchKey, maker: string, answer: string, detail: ReactNode) => (
     // Centred in its half on wide screens, so both benches sit the same distance from the badge.
     <div className="flex min-w-0 flex-col sm:items-center sm:text-center">
@@ -98,9 +109,9 @@ function Versus({ rows }: { rows: BenchComparison[] }) {
       {side(
         "bonded",
         "Payment attacks",
-        `${fell} of ${met}`,
+        `${row.bonded.fell} of ${row.bonded.countedEpisodes}`,
         <>
-          attacks worked · <span className="text-breach">{money(moved)}</span> paid wrongly
+          attacks worked · <span className="text-breach">{dollars(moved)}</span> paid wrongly
         </>,
       )}
       {/* A hairline between the benches, with a round "VS" badge on it at the middle. */}
@@ -110,7 +121,21 @@ function Versus({ rows }: { rows: BenchComparison[] }) {
           VS
         </span>
       </div>
-      {side("agentdojo", "ETH Zurich benchmark", `${ran} of ${pairs}`, "attacks worked")}
+      {side(
+        "agentdojo",
+        "ETH Zurich benchmark",
+        `${ran} of ${metOf(row.agentdojo)}`,
+        theirs > 0 ? (
+          <>
+            attacks worked · <span className="text-breach">{dollars(theirs)}</span> paid wrongly
+          </>
+        ) : (
+          "attacks worked"
+        ),
+      )}
+      <p className="text-xs text-muted sm:col-span-3 sm:text-center">
+        {row.label}, attack {DELIVERY[row.channels]}. Every model and delivery is below.
+      </p>
     </div>
   );
 }
@@ -149,13 +174,14 @@ function barsFor(row: BenchComparison, tab: Tab): BenchBar[] {
       },
       {
         bench: "agentdojo",
-        value: pct(attackExecuted(d), pairs),
-        count: `${attackExecuted(d)} of ${pairs}`,
+        value: pct(attackExecuted(d), metOf(d)),
+        count: `${attackExecuted(d)} of ${metOf(d)}`,
         tip: (
           <>
             <p className="font-medium text-ink">AgentDojo · {d.suite}</p>
             <p>
-              {d.attacks.length} attack style{d.attacks.length === 1 ? "" : "s"}.
+              {d.attacks.length} attack style{d.attacks.length === 1 ? "" : "s"}
+              {movedOf(d) ? `, ${money(movedOf(d)!)} lost or overpaid` : ""}.
             </p>
           </>
         ),
@@ -211,7 +237,7 @@ function ModelPair({ row, bars }: { row: BenchComparison; bars: BenchBar[] }) {
         <ProviderLogo provider={providerOf(row.model)} size={18} />
         <div className="leading-tight">
           <p className="text-sm font-medium text-ink">{row.label}</p>
-          {!row.headline && <p className="text-[11px] text-muted">smaller test</p>}
+          <p className="text-[11px] text-muted">attack {DELIVERY[row.channels]}</p>
         </div>
       </div>
       <div className="flex flex-col gap-1.5">
@@ -256,26 +282,29 @@ function Detail({ row }: { row: BenchComparison }) {
   const ask = directAskOf(row.agentdojo);
   return (
     <details className="border-t border-line pt-3 text-xs">
-      <summary className="cursor-pointer text-muted hover:text-ink">{row.label}: details</summary>
+      <summary className="cursor-pointer text-muted hover:text-ink">
+        {row.label}, attack {DELIVERY[row.channels]}: details
+      </summary>
       <div className="mt-3 flex flex-col gap-3">
         {row.scope && <p className="text-muted">{row.scope}</p>}
         {row.bonded.falls.length > 0 && (
           <DataTable
-            head={["Bonded attack", "Rules given", "Worked", "Lost"]}
+            head={["Bonded attack", "Rules given", "Worked", "Lost or overpaid"]}
             rows={row.bonded.falls.map((fall) => [
               fall.name,
               fall.mandate === "shown" ? "yes" : "no",
               `${fall.fell} of ${fall.runs}`,
-              money(fall.lossUsd),
+              money(fall.lossUsd + fall.overpaidUsd),
             ])}
           />
         )}
         <DataTable
-          head={["AgentDojo attack", "Worked", "Job done"]}
+          head={["AgentDojo attack", "Worked", "Job done", "Lost or overpaid"]}
           rows={row.agentdojo.attacks.map((attack) => [
             attackName(attack.id),
-            `${attack.attackExecuted} of ${attack.pairs}`,
+            `${attack.attackExecuted} of ${attack.met ?? attack.pairs}`,
             `${attack.utility} of ${attack.pairs}`,
+            attack.movedUsd === undefined ? "not measured" : money(attack.movedUsd),
           ])}
         />
         <ul className="flex max-w-3xl list-disc flex-col gap-1.5 pl-5 text-muted">
@@ -298,20 +327,23 @@ function Detail({ row }: { row: BenchComparison }) {
 export function BenchComparisonCard() {
   const data = loadBenchComparison();
   const [tab, setTab] = useState<Tab>("breach");
-  // The headline comparison first, then the smaller checks.
+  // The headline comparison first, then the rest in the record's order.
   const rows = [...data.comparisons].sort((a, b) => Number(b.headline) - Number(a.headline));
+  const headline = rows[0]!;
+  const models = new Set(rows.map((row) => row.model)).size;
   return (
     <ChartCard
       title="Bonded vs AgentDojo"
-      subtitle={`Same ${rows.length === 1 ? "model" : "models"}, two attack tests`}
+      subtitle={`Same ${models === 1 ? "model" : "models"}, two attack tests`}
       tabs={TABS}
       tab={tab}
       onTab={(id) => setTab(id as Tab)}
-      intro={<Versus rows={rows} />}
+      intro={<Versus row={headline} />}
       table={
         <DataTable
           head={[
             "Model",
+            "Attack",
             "Test",
             "Attacks that worked",
             "Finished the job",
@@ -326,13 +358,16 @@ export function BenchComparisonCard() {
               const paid = task.find((bar) => bar.bench === bench && bar.faint);
               return [
                 row.label,
+                DELIVERY[row.channels],
                 BENCH[bench].name,
                 `${breach[i]!.count} (${pctLabel(breach[i]!.value)})`,
                 `${done.count} (${pctLabel(done.value)})`,
                 paid ? `${paid.count} (${pctLabel(paid.value)})` : "not measured",
                 bench === "bonded"
                   ? money(row.bonded.lossUsd + row.bonded.overpaidUsd)
-                  : "not measured",
+                  : movedOf(row.agentdojo) === undefined
+                    ? "not measured"
+                    : money(movedOf(row.agentdojo)!),
               ];
             });
           })}
@@ -341,7 +376,7 @@ export function BenchComparisonCard() {
     >
       <div className="flex flex-col gap-5">
         {rows.map((row) => (
-          <ModelPair key={row.model} row={row} bars={barsFor(row, tab)} />
+          <ModelPair key={rowKey(row)} row={row} bars={barsFor(row, tab)} />
         ))}
         {tab === "task" && (
           <p className="text-xs text-soft">
@@ -351,7 +386,7 @@ export function BenchComparisonCard() {
         )}
         <div className="flex flex-col gap-3">
           {rows.map((row) => (
-            <Detail key={row.model} row={row} />
+            <Detail key={rowKey(row)} row={row} />
           ))}
         </div>
       </div>
