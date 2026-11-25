@@ -7,25 +7,45 @@
   "redirects": [
     {
       "source": "/",
-      "has": [{ "type": "host", "value": "app.bondedhq.xyz" }],
+      "has": [
+        {
+          "type": "host",
+          "value": "app.bondedhq.xyz"
+        }
+      ],
       "destination": "/overview",
       "permanent": false
     },
     {
-      "source": "/:page(privacy|blog)/:rest*",
-      "has": [{ "type": "host", "value": "app.bondedhq.xyz" }],
-      "destination": "https://www.bondedhq.xyz/:page/:rest*",
+      "source": "/((?:privacy|blog)(?:/.*)?)",
+      "has": [
+        {
+          "type": "host",
+          "value": "app.bondedhq.xyz"
+        }
+      ],
+      "destination": "https://www.bondedhq.xyz/$1",
       "permanent": true
     },
     {
-      "source": "/:page(overview|arena|attacks|sentinel|agents|vaults|underwrite|claims|leaderboard|index|bounties|status|inbox|gate|shared)/:rest*",
-      "has": [{ "type": "host", "value": "www.bondedhq.xyz" }],
-      "destination": "https://app.bondedhq.xyz/:page/:rest*",
+      "source": "/((?:overview|arena|attacks|sentinel|agents|vaults|underwrite|claims|leaderboard|index|bounties|status|inbox|gate|shared)(?:/.*)?)",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.bondedhq.xyz"
+        }
+      ],
+      "destination": "https://app.bondedhq.xyz/$1",
       "permanent": true
     },
     {
-      "source": "/docs/:rest*",
-      "destination": "https://docs.bondedhq.xyz/:rest*",
+      "source": "/docs",
+      "destination": "https://docs.bondedhq.xyz/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/(.*)",
+      "destination": "https://docs.bondedhq.xyz/$1",
       "permanent": true
     }
   ],
