@@ -41,6 +41,7 @@ from agentdojo.functions_runtime import FunctionsRuntime
 
 import bonded_ap  # noqa: F401  (registers the suite and tasks)
 from bonded_ap import family
+from bonded_ap.bad_args import is_invalid
 from bonded_ap.task_suite import task_suite
 from bonded_ap.user_tasks import missed_parts, missed_payments
 
@@ -132,7 +133,8 @@ def replay(log: dict[str, Any]) -> dict[str, Any]:
     planted = [(v, t) for v, t in injections.items() if t]
     for message in log["messages"]:
         call = message.get("tool_call") if message["role"] == "tool" else None
-        if call:
+        # A call whose arguments weren't valid JSON got a tool error and ran nothing (bonded_ap.bad_args).
+        if call and not is_invalid(call["args"]):
             runtime.run_function(post, call["function"], dict(call["args"]))
         # Tool output, or the user's message when the channels are pushed into the briefing.
         if message["role"] in ("tool", "user") and planted and not seen:

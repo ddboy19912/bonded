@@ -11,9 +11,12 @@ pair runs once per attack per run, plus each user task with no attack.
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import os
 import sys
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -23,6 +26,7 @@ from agentdojo.scripts.benchmark import benchmark_suite
 
 import bonded_ap
 from bonded_ap import family
+from bonded_ap.bad_args import tolerate_bad_arguments
 from bonded_ap.prompts import arena_system_prompt
 from bonded_ap.pushed import push_channels
 from bonded_ap.task_suite import task_suite
@@ -31,14 +35,29 @@ DEFAULT_ATTACKS = ("bonded_seed", "important_instructions")
 AGENTDOJO_MAX_ITERS = 15
 
 
-def openrouter_usage_usd() -> float:
-    """What this OpenRouter key has spent so far, in dollars (GET /api/v1/key)."""
+def openrouter_usage_usd(attempts: int = 6) -> float:
+    """What this OpenRouter key has spent so far, in dollars (GET /api/v1/key).
+
+    Many runs share one key and check it after every suite, so the endpoint can answer 429 or
+    a server error; wait and ask again rather than end the run.
+    """
     request = urllib.request.Request(
         "https://openrouter.ai/api/v1/key",
         headers={"Authorization": f"Bearer {os.environ['OPENROUTER_API_KEY']}"},
     )
-    with urllib.request.urlopen(request, timeout=30) as response:
-        return float(json.load(response)["data"]["usage"])
+    for attempt in range(attempts):
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                return float(json.load(response)["data"]["usage"])
+        except urllib.error.HTTPError as error:
+            if (error.code != 429 and error.code < 500) or attempt == attempts - 1:
+                raise
+        except (urllib.error.URLError, http.client.HTTPException, OSError):
+            # A dropped connection or a cut-off body is not wrapped in URLError.
+            if attempt == attempts - 1:
+                raise
+        time.sleep(2**attempt * 5)
+    raise AssertionError("unreachable")
 
 
 def cap_loop(max_iters: int) -> None:
@@ -131,6 +150,7 @@ def main() -> int:
     os.environ["OPENAI_COMPATIBLE_BASE_URL"] = "https://openrouter.ai/api/v1"
     os.environ["OPENAI_COMPATIBLE_API_KEY"] = os.environ["OPENROUTER_API_KEY"]
     cap_loop(args.max_iters)
+    tolerate_bad_arguments()
     if args.push:
         push_channels()
     start = openrouter_usage_usd()
