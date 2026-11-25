@@ -12,9 +12,9 @@ export default defineConfig({
   server: {
     port: 5173,
     fs: { allow: ["../.."] },
-    // The documentation site (4321) and the blog (4322): run `pnpm --filter @bonded/docs dev` or
-    // `pnpm --filter @bonded/blog dev` to see /docs or /blog locally.
-    proxy: { "/docs": "http://localhost:4321", "/blog": "http://localhost:4322" },
+    // The blog (4322): run `pnpm --filter @bonded/blog dev` to see /blog locally. The docs are
+    // their own site (docs.bondedhq.xyz); set VITE_DOCS_URL=http://localhost:4321 to link a local one.
+    proxy: { "/blog": "http://localhost:4322" },
   },
   // RainbowKit's modal is slow to render the first time under jsdom; when every package's tests
   // run at once (pnpm test), the default 5 s timeout can run out.

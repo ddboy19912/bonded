@@ -1,6 +1,6 @@
 import type { BondedIndex, BondedIndexEntry } from "@bondedhq/shared";
+import { AppLink } from "../components/app-link";
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router";
 import { ProviderLogo } from "../components/index-charts";
 import { buttonClass } from "../components/ui";
 import { byScore, loadBondedIndex, taskScore } from "../lib/bonded-index";
@@ -321,9 +321,9 @@ export function LandingIndex({ index = loadBondedIndex() }: { index?: BondedInde
             whether it still pays the real bills.
           </p>
         </div>
-        <Link to="/index" className={buttonClass("secondary", "lg")}>
+        <AppLink to="/index" className={buttonClass("secondary", "lg")}>
           See the full Index <span aria-hidden>→</span>
-        </Link>
+        </AppLink>
       </div>
       <div className="mt-10">
         <TradeoffMap entries={byScore(index.entries)} />
@@ -602,9 +602,9 @@ export function LandingGate() {
             ))}
           </ul>
           <div className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-3">
-            <Link to="/gate" className={buttonClass("primary", "lg")}>
+            <AppLink to="/gate" className={buttonClass("primary", "lg")}>
               Open the payment gate
-            </Link>
+            </AppLink>
             <a href={DOCS_GATE} className="text-accent hover:underline">
               Read the guide <span aria-hidden>→</span>
             </a>

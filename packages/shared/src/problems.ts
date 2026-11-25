@@ -116,7 +116,7 @@ export const PROBLEMS: readonly ProblemEntry[] = [
     "passkey-not-added",
     "sign-in",
     "That passkey couldn't be added.",
-    "Try again, and finish the prompt your browser or phone shows. Passkeys work on www.bondedhq.xyz only.",
+    "Try again, and finish the prompt your browser or phone shows. Passkeys work on app.bondedhq.xyz only.",
     /passkey couldn't be added/i,
   ),
   entry(

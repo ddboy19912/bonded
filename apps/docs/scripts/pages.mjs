@@ -2,7 +2,7 @@
  * Which repository documents become pages, and where. The repo's Markdown stays the single
  * source: the site is generated from it, so the two cannot drift.
  *
- * `src` is relative to the repository root; `slug` is the page's path under /docs/.
+ * `src` is relative to the repository root; `slug` is the page's path on docs.bondedhq.xyz.
  */
 export const PAGES = [
   { src: "README.md", slug: "overview/introduction", label: "Introduction", title: "Introduction" },
@@ -220,7 +220,7 @@ export const PAGES = [
 /**
  * How a long section of the sidebar is split into smaller groups, in order. A page of the
  * section that no group names still shows, after the groups, so a new page is never lost.
- * Slugs are the page's path under /docs/ without the section: `concepts/scoring` is `scoring`.
+ * Slugs are the page's path on the docs site without the section: `concepts/scoring` is `scoring`.
  */
 export const SIDEBAR_GROUPS = {
   concepts: [

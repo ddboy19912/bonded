@@ -17,7 +17,7 @@ Both use the same judge and the same scoring model. Start with a preview, fix wh
 
 ## Test your agent for free
 
-The **Test your agent** page ([www.bondedhq.xyz/agents/test](https://www.bondedhq.xyz/agents/test), Robinhood Chain testnet) takes you from nothing to a preview report. You need an email, a passkey or a browser wallet to sign in (not to pay: a preview costs you nothing on chain) and your agent, either reachable at a public HTTPS address or able to run next to the runner.
+The **Test your agent** page ([app.bondedhq.xyz/agents/test](https://app.bondedhq.xyz/agents/test), Robinhood Chain testnet) takes you from nothing to a preview report. You need an email, a passkey or a browser wallet to sign in (not to pay: a preview costs you nothing on chain) and your agent, either reachable at a public HTTPS address or able to run next to the runner.
 
 ![Five steps: sign in, connect, run the check (no attack), run the preview, read the report.](images/byoa-test-steps.webp)
 
@@ -47,7 +47,7 @@ A preview is a rating of your agent with nothing to commit: it belongs to your w
 
 **What it is not.** The score and report are worked out exactly as for an official rating, but **never signed, posted or attested**, and they can't be used for a cover quote. The report and every page that shows it say "Preview: private, not published". Only you (the account or wallet that started it) can see it, unless you share it.
 
-**Share a report.** Under a finished report, **Make a link** gives a read-only link (`www.bondedhq.xyz/shared/…`) to send to someone, a colleague or a team you're talking to. It shows the report and when it ran, and nothing else: not who ran it, the agent's address, its code or its instructions. Making a link again gives the same one; **Stop sharing** turns it off at once, and a new link after that is a different one. A shared report is labelled "Preview: not published" and stays off the leaderboard and the Index. The [privacy page](https://www.bondedhq.xyz/privacy) says what Bonded keeps and for how long.
+**Share a report.** Under a finished report, **Make a link** gives a read-only link (`app.bondedhq.xyz/shared/…`) to send to someone, a colleague or a team you're talking to. It shows the report and when it ran, and nothing else: not who ran it, the agent's address, its code or its instructions. Making a link again gives the same one; **Stop sharing** turns it off at once, and a new link after that is a different one. A shared report is labelled "Preview: not published" and stays off the leaderboard and the Index. The [privacy page](https://www.bondedhq.xyz/privacy) says what Bonded keeps and for how long.
 
 **Remove a preview.** **Remove**, next to a preview under "Your previews", asks first, then deletes everything in it at once: its report, its episodes, its share link, its runner tokens, Agent URL and the instructions or code Bonded ran for it, and its connection checks. It leaves your list and every page (`DELETE /previews/:id`). A preview can't be removed while its rating is queued or running, or a connection check is: stop it or wait. A removed preview still counts toward the day's [limits](PREVIEWS-AND-RATINGS-REFERENCE.md#preview-limits), so removing one doesn't give you another.
 
@@ -59,7 +59,7 @@ An official rating is attested: the attester signs the score and posts it to the
 
 The path, in short:
 
-1. **Onboard** your agent ([www.bondedhq.xyz/agents/new](https://www.bondedhq.xyz/agents/new), or **Make it official** on a preview's report): choose your framework and where it runs, create a vault (or choose a module) and stake an operator bond.
+1. **Onboard** your agent ([app.bondedhq.xyz/agents/new](https://app.bondedhq.xyz/agents/new), or **Make it official** on a preview's report): choose your framework and where it runs, create a vault (or choose a module) and stake an operator bond.
 2. **Connect** it and **run the connection check**.
 3. **Rate my agent.** It runs the published library three times over, plus a held-out set made for it alone.
 4. **Use your vault** so your agent's trades go through it, then **buy cover** within the cap for the score's binding level.

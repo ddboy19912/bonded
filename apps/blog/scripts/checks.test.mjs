@@ -19,7 +19,7 @@ const good = () => ({
         span("rule breaches", ["strong"]),
         span(", not market losses."),
       ],
-      markDefs: [{ _type: "link", _key: "a", href: "https://www.bondedhq.xyz/agents/test" }],
+      markDefs: [{ _type: "link", _key: "a", href: "https://app.bondedhq.xyz/agents/test" }],
     },
     {
       _type: "dataTable",
@@ -84,7 +84,7 @@ test("postText collects titles, body text, table cells and link targets", () => 
     "Sandboxed isn't safe",
     "rule breaches",
     "Fake margin call",
-    "https://www.bondedhq.xyz/agents/test",
+    "https://app.bondedhq.xyz/agents/test",
   ])
     assert.ok(text.includes(s), s);
 });

@@ -44,10 +44,9 @@ function rehypeWrapTables() {
   return wrap;
 }
 
-// Served at /docs on the same domain as the web app (see apps/web/build/include-docs.mjs).
+// Served at the root of docs.bondedhq.xyz, as its own Vercel project (apps/docs/vercel.json).
 export default defineConfig({
-  site: "https://www.bondedhq.xyz",
-  base: "/docs",
+  site: "https://docs.bondedhq.xyz",
   trailingSlash: "always",
   markdown: { rehypePlugins: [rehypeWrapTables] },
   integrations: [
@@ -90,7 +89,7 @@ export default defineConfig({
       logo: { src: "./src/assets/logo.svg", alt: "Bonded", replacesTitle: true },
       favicon: "/brand/favicon.svg",
       head: [
-        { tag: "link", attrs: { rel: "icon", href: "/docs/brand/favicon.ico", sizes: "any" } },
+        { tag: "link", attrs: { rel: "icon", href: "/brand/favicon.ico", sizes: "any" } },
         { tag: "meta", attrs: { name: "theme-color", content: "#05070d" } },
         {
           // Click a diagram or an image in a page to open it full screen; click again or press

@@ -85,7 +85,7 @@ service (the secret is stored encrypted with it); without it they are refused.
 ## Testing in CI
 
 A CI run is a preview rating of your own preview: the same flow as **Start preview rating** on the
-[Test your agent](https://www.bondedhq.xyz/agents/test) page, with the same connection check, the
+[Test your agent](https://app.bondedhq.xyz/agents/test) page, with the same connection check, the
 same caps and the same costs. Set it up once on the page: make a preview that connects by **Agent
 URL**, give your agent its secret and verify the URL. Then pass that preview's id from CI.
 

@@ -11,7 +11,7 @@ npm install @bondedhq/sdk viem
 
 ESM only, Node 22 or later. Inside the Bonded repository, depend on it with
 `"@bondedhq/sdk": "workspace:*"`. To get your own agent rated, start at
-[Test your agent](https://www.bondedhq.xyz/agents/test).
+[Test your agent](https://app.bondedhq.xyz/agents/test).
 
 | Entry point | What it is | Peer dependency |
 |---|---|---|
@@ -318,9 +318,9 @@ A payment the signer won't sign fails with a `BondedError` (`SIGNER_REFUSED`, `S
 
 The same rules as the guard, run by Bonded instead of inside your process. Your vendors, approved
 invoices and limits live in a gate account (set up at
-[bondedhq.xyz/gate](https://www.bondedhq.xyz/gate)), every decision is logged, and each comes back
+[app.bondedhq.xyz/gate](https://app.bondedhq.xyz/gate)), every decision is logged, and each comes back
 with a signed receipt anyone can check at
-[bondedhq.xyz/gate/verify](https://www.bondedhq.xyz/gate/verify).
+[app.bondedhq.xyz/gate/verify](https://app.bondedhq.xyz/gate/verify).
 
 ```ts
 import { guardPayments, paymentGate } from "@bondedhq/sdk";
@@ -346,7 +346,7 @@ helpers above. Or call it directly: `gate.pay(payment, send)`, `gate.check(payme
   you asked about, or nothing is paid. Pass `receiptKey` to pin the signing address; by default it
   reads the published one once.
 - **Enforce** throws `PaymentBlockedError`, **Monitor** pays and reports to `onBreach`, and a frozen
-  account throws `PaymentFrozenError` until the owner lifts the freeze at bondedhq.xyz/gate.
+  account throws `PaymentFrozenError` until the owner lifts the freeze at app.bondedhq.xyz/gate.
 - **Retries:** the gate counts an allowed payment as made, so if your bank call fails and you try
   again, pass the same `requestId` both times (in the payment, or from `toPayment`). The gate gives
   back the first decision instead of a duplicate breach. A new id is made when you don't pass one.

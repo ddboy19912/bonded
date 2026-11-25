@@ -9,7 +9,7 @@ const at = (src, pairs) => pairs.map(([from, to]) => ({ src, from, to }));
 export const PATCHES = [
   ...at("README.md", [
     [
-      "The same pages are published as a searchable site at `/docs` on the web app (built from these files by `apps/docs`; run it locally with `pnpm docs:dev`).\n",
+      "The same pages are published as a searchable site at [docs.bondedhq.xyz](https://docs.bondedhq.xyz) (built from these files by `apps/docs`; run it locally with `pnpm docs:dev`).\n",
       "",
     ],
     ["| | |\n|---|---|\n| **Web app**", "| What | Where |\n|---|---|\n| **Web app**"],

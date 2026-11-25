@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Link } from "react-router";
+import { AppLink } from "../components/app-link";
 import { useReadContracts } from "wagmi";
 import { bondedRegistryAbi, coverPoolAbi, tierForScore } from "@bondedhq/shared";
 import { deployment } from "../config";
@@ -77,9 +77,9 @@ function Hero() {
             <a href="#how" className={buttonClass("primary", "lg")}>
               See how it works <span aria-hidden>↓</span>
             </a>
-            <Link to={TEST_AGENT} className={buttonClass("secondary", "lg")}>
+            <AppLink to={TEST_AGENT} className={buttonClass("secondary", "lg")}>
               Test your agent, free
-            </Link>
+            </AppLink>
           </div>
         </div>
         <MarkField className="-mt-4 lg:mt-0" />
@@ -610,9 +610,9 @@ function FinalCta() {
           or underwrite.
         </p>
         <div className="relative mt-8 flex justify-center">
-          <Link to={APP_HOME} className={buttonClass("primary", "lg")}>
+          <AppLink to={APP_HOME} className={buttonClass("primary", "lg")}>
             Launch app <span aria-hidden>→</span>
-          </Link>
+          </AppLink>
         </div>
       </div>
     </section>

@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
+import { docsUrl } from "../lib/hosts";
 import { getCodeBlock } from "../test/code";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -114,7 +115,7 @@ describe("the payment gate section", () => {
       within(section)
         .getByRole("link", { name: /Read the guide/ })
         .getAttribute("href"),
-    ).toBe("/docs/guides/payment-gate/");
+    ).toBe(docsUrl("/guides/payment-gate/"));
     // The payments going through it are examples, and say so.
     expect(within(section).getByText("Illustration")).toBeTruthy();
   });
@@ -313,9 +314,11 @@ describe("the questions", () => {
 
   it("points at the docs and the security policy", () => {
     show(<Faq />);
-    expect(screen.getByRole("link", { name: /Read the docs/ }).getAttribute("href")).toBe("/docs/");
+    expect(screen.getByRole("link", { name: /Read the docs/ }).getAttribute("href")).toBe(
+      docsUrl("/"),
+    );
     expect(screen.getByRole("link", { name: /Security policy/ }).getAttribute("href")).toBe(
-      "/docs/security/policy/",
+      docsUrl("/security/policy/"),
     );
   });
 });

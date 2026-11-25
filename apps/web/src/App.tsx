@@ -1,8 +1,10 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { Link, Outlet, useLocation, useNavigate } from "react-router";
+import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router";
 import { useAccount } from "wagmi";
 import { isAddress } from "viem";
+import { AppLink } from "./components/app-link";
 import { HeaderSignIn } from "./components/sign-in";
+import { APP_ORIGIN, onAppHost, onSiteHost } from "./lib/hosts";
 import { InboxBell } from "./components/inbox-bell";
 import { StatusIndicator } from "./components/status-indicator";
 import { Logo, buttonClass } from "./components/ui";
@@ -230,8 +232,13 @@ function Search() {
 /** The signed-in app: a sidebar on wide screens, a drawer on phones, and a top bar with the wallet. */
 export function AppLayout() {
   const [open, setOpen] = useState(false);
-  const { pathname } = useLocation();
+  const { pathname, search, hash } = useLocation();
   useEffect(() => setOpen(false), [pathname]);
+  // The app lives on app.bondedhq.xyz: a link followed inside the public site lands here.
+  if (onSiteHost()) {
+    window.location.replace(`${APP_ORIGIN}${pathname}${search}${hash}`);
+    return null;
+  }
   return (
     <div className="flex min-h-screen">
       <a
@@ -281,9 +288,9 @@ export function AppLayout() {
           <div className="mx-auto flex max-w-[1180px] flex-wrap items-center justify-between gap-3">
             <span>{networkName} · test tokens only, nothing here has real value.</span>
             <div className="flex items-center gap-4">
-              <Link className="hover:text-ink" to={PRIVACY}>
+              <a className="hover:text-ink" href={PRIVACY}>
                 Privacy
-              </Link>
+              </a>
               <a className="hover:text-ink" href={`mailto:${CONTACT_EMAIL}`}>
                 Contact
               </a>
@@ -298,6 +305,9 @@ export function AppLayout() {
 
 /** The public site (the landing page): a floating pill nav and a simple footer. */
 export function SiteLayout() {
+  const { pathname } = useLocation();
+  // On app.bondedhq.xyz the home page is the Overview, not the landing page.
+  if (onAppHost() && pathname === "/") return <Navigate to="/overview" replace />;
   return (
     <div className="flex min-h-screen flex-col overflow-x-clip">
       <header className="sticky top-0 z-30 px-4 pt-5 sm:px-6">
@@ -322,9 +332,9 @@ export function SiteLayout() {
               Payment gate
             </a>
           </nav>
-          <Link to={APP_HOME} className={`${buttonClass("light")} ml-auto md:ml-0`}>
+          <AppLink to={APP_HOME} className={`${buttonClass("light")} ml-auto md:ml-0`}>
             Launch app <span aria-hidden>→</span>
-          </Link>
+          </AppLink>
         </div>
       </header>
       <main className="flex-1">
@@ -348,9 +358,9 @@ export function SiteLayout() {
             <a className="hover:text-ink" href={BLOG_HOME}>
               Blog
             </a>
-            <Link className="hover:text-ink" to={PRIVACY}>
+            <a className="hover:text-ink" href={PRIVACY}>
               Privacy
-            </Link>
+            </a>
             <a className="hover:text-ink" href={`mailto:${CONTACT_EMAIL}`}>
               Contact
             </a>

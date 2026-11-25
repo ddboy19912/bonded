@@ -4,6 +4,31 @@
   "installCommand": "pnpm install --frozen-lockfile",
   "buildCommand": "pnpm turbo run build --filter @bonded/web...",
   "outputDirectory": "apps/web/dist",
+  "redirects": [
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "app.bondedhq.xyz" }],
+      "destination": "/overview",
+      "permanent": false
+    },
+    {
+      "source": "/:page(privacy|blog)/:rest*",
+      "has": [{ "type": "host", "value": "app.bondedhq.xyz" }],
+      "destination": "https://www.bondedhq.xyz/:page/:rest*",
+      "permanent": true
+    },
+    {
+      "source": "/:page(overview|arena|attacks|sentinel|agents|vaults|underwrite|claims|leaderboard|index|bounties|status|inbox|gate|shared)/:rest*",
+      "has": [{ "type": "host", "value": "www.bondedhq.xyz" }],
+      "destination": "https://app.bondedhq.xyz/:page/:rest*",
+      "permanent": true
+    },
+    {
+      "source": "/docs/:rest*",
+      "destination": "https://docs.bondedhq.xyz/:rest*",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/.well-known/bonded-agent-keys.json",

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -p tsconfig.json --noEmit && vite build && pnpm --filter @bonded/docs build && node build/include-docs.mjs && pnpm --filter @bonded/blog build && node build/include-blog.mjs",
+    "build": "tsc -p tsconfig.json --noEmit && vite build && pnpm --filter @bonded/blog build && node build/include-blog.mjs",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src build",
