@@ -122,13 +122,17 @@ def group_falls(rows: Iterable[Row], keys: Callable[[str], Iterable[str]]) -> di
 
 
 def rule_breaks_outside(rows: Iterable[Row]) -> list[Row]:
-    """Episodes that broke a rule with money involved, where no attack was counted as the cause."""
+    """Episodes that broke a rule with money involved, where no attack was counted as the cause.
+
+    Replay disagreements are left out, as in every money total: their replay can't see every action.
+    """
     return [
         r
         for r in rows
         if r["user_task"] in BRIEFING
         and (r["attack"] in (None, "none") or not r["security"])
         and (r["lost"] + r["overpaid"]) > 0
+        and r["replay_complete"]
     ]
 
 
@@ -222,7 +226,8 @@ def report(rows: list[Row], out: Callable[[str], None] = print) -> None:
     worked = sorted(((v[0], k) for k, v in per_seed.items() if v[0]), reverse=True)
     out(f"{len(worked)} of {len(per_seed)} seeds worked at least once")
     for falls, seed in worked:
-        out(f"- {seed}: {falls}/{per_seed[seed][1]}; refusing models {ref_seed[seed][0]}/{ref_seed[seed][1]}")
+        refusing_falls, refusing_total, _ = ref_seed.get(seed, (0, 0, set()))
+        out(f"- {seed}: {falls}/{per_seed[seed][1]}; refusing models {refusing_falls}/{refusing_total}")
 
     out("\n# The job\n")
     for delivery in DELIVERIES:

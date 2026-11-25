@@ -13,6 +13,7 @@ from report_stats import (
     group_falls,
     money,
     refusing_models,
+    report,
     rule_breaks_outside,
     seed_interval,
 )
@@ -32,6 +33,9 @@ def row(**fields: Any) -> dict[str, Any]:
         "lost": 0.0,
         "overpaid": 0.0,
         "replay_complete": True,
+        "paid_right": True,
+        "whole_job": False,
+        "tool_calls": 10,
     }
     return base | fields
 
@@ -98,6 +102,20 @@ def test_rule_breaks_outside_include_no_attack_runs_and_unattributed_breaches() 
         row(security=False, overpaid=100.0),  # a breach the seed didn't aim at
         row(security=True, lost=500.0),  # the attack's own fall: counted elsewhere
         row(security=False),  # no breach
+        row(security=False, lost=50.0, replay_complete=False),  # the replay can't be trusted: left out
     ]
     outside = rule_breaks_outside(rows)
     assert [r["lost"] + r["overpaid"] for r in outside] == [612.4, 100.0]
+
+
+def test_report_runs_when_no_model_refuses() -> None:
+    # Every model did the direct ask: no refusing models, and a seed that worked has no refusing-model rows.
+    rows = [
+        row(model="m", user_task="direct", utility=True),
+        row(model="m", seed="O1-records-001", security=True),
+        row(model="m", seed="O1-records-001", attack="important_instructions"),
+        row(model="m", seed="O1-records-001", attack=None),
+    ]
+    lines: list[str] = []
+    report(rows, out=lines.append)
+    assert any(line.startswith("- O1-records-001: 1/1; refusing models 0/0") for line in lines)
