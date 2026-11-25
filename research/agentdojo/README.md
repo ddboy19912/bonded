@@ -156,6 +156,17 @@ uv run python summarize.py runs/family
 uv run python summarize.py runs/pushed/family
 ```
 
+`report_stats.py` reads both deliveries together and prints the tech report's tables, with no model calls:
+
+- the two models that refused every direct ask, with a Fisher exact test and an interval that resamples whole seeds, since episodes of one seed aren't independent;
+- the six cells, counted over all pairs and over the pairs that met the attack;
+- the seeds by class, by where the text is planted, and the ones that worked most;
+- the rule breaks a blocking payment check would also catch.
+
+```bash
+uv run python report_stats.py
+```
+
 ## Differences from the Arena, to state in any write-up
 
 - **One loop, AgentDojo's.** It uses AgentDojo's system prompt and tool-call format, not Bonded's payables agent.
