@@ -1109,85 +1109,120 @@ body:has(.landing) {
   color: var(--l-ink);
 }
 
-/* The payment gate, to be read at a glance: the amount on one side, the decision on the other, the
-   rules as a row of ticks. Under it, the three ways to connect, with the one this payment used
-   marked. */
-.l-picks-4 {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+/* The payment gate in one picture: the owner's rules on one side, the payments the agent tries on
+   the other, each with the gate's answer. The picked payment marks the rules it breaks. Under it,
+   the three ways to connect, with the one that payment used marked. */
+.l-gate-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: clamp(24px, 5vw, 90px);
+  align-items: start;
 }
-.l-pay {
-  margin: 16px 0 0 -0.03em;
-  font: 500 clamp(64px, 9vw, 136px) / 0.85 var(--l-sans);
-  letter-spacing: -0.07em;
-  font-variant-numeric: tabular-nums;
+.l-rules,
+.l-pays {
+  margin-top: 14px;
+  border-bottom: 1px solid var(--l-line);
 }
-.l-payee {
-  margin-top: 22px;
-  font: 400 clamp(20px, 2vw, 30px) / 1.2 var(--l-sans);
-  letter-spacing: -0.03em;
-  color: var(--l-muted);
-}
-.l-payee b {
-  font-weight: 500;
-  color: var(--l-ink);
-}
-.l-gate-verdict {
-  margin-top: 16px;
-}
-.l-gate-verdict .l-vv {
-  font-size: clamp(64px, 9vw, 136px);
-}
-.l-why {
-  margin-top: 22px;
-  max-width: 34ch;
-  font: 400 clamp(20px, 2vw, 30px) / 1.2 var(--l-sans);
-  letter-spacing: -0.03em;
-}
-.l-marks {
-  margin-top: 30px;
-  padding-top: 20px;
-  border-top: 1px solid var(--l-line);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 26px;
-}
-.l-marks li {
-  display: inline-flex;
+.l-rules li {
+  display: grid;
+  grid-template-columns: 4ch minmax(0, 1fr) auto;
+  gap: 12px;
   align-items: baseline;
-  gap: 8px;
-  font-size: 16px;
-  color: var(--l-muted);
-  opacity: 0.25;
-  transition:
-    opacity 0.3s ease,
-    color 0.3s ease;
+  padding: 20px 0;
+  border-top: 1px solid var(--l-line);
+  font: 500 clamp(20px, 2vw, 30px) / 1.15 var(--l-sans);
+  letter-spacing: -0.04em;
+  transition: color 0.35s;
 }
-.l-marks li > span:first-child {
+.l-rules .n,
+.l-rules .m {
   font: 400 13px/1 var(--l-mono);
-  color: var(--l-dim);
-  transition: color 0.3s ease;
+  letter-spacing: 0;
+  color: var(--l-muted);
+  transition: color 0.35s;
 }
-.l-marks li[data-on="true"] {
-  opacity: 1;
-}
-.l-marks li[data-on="true"][data-ok="true"] > span:first-child {
+.l-rules .m {
+  font-size: 16px;
   color: var(--l-soft);
 }
-.l-marks li[data-on="true"][data-ok="false"] {
-  color: var(--l-ink);
-}
-.l-marks li[data-on="true"][data-ok="false"] > span:first-child {
+.l-rules li[data-ok="false"],
+.l-rules li[data-ok="false"] .n,
+.l-rules li[data-ok="false"] .m {
   color: var(--l-orange);
 }
-.l-receipt {
-  margin-top: 18px;
+.l-payrow {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto;
+  gap: 6px 22px;
+  align-items: baseline;
+  width: 100%;
+  min-height: 44px;
+  padding: 20px 0;
+  border-top: 1px solid var(--l-line);
+  text-align: left;
+  color: var(--l-dim);
+  cursor: pointer;
   opacity: 0;
-  transition: opacity 0.5s ease 0.3s;
+  transform: translateY(16px);
+  transition:
+    opacity 0.6s ease var(--d, 0s),
+    transform 0.8s var(--l-ease) var(--d, 0s),
+    color 0.3s;
 }
-.l-receipt[data-on="true"] {
+.l-gate[data-in="true"] .l-payrow {
+  opacity: 1;
+  transform: none;
+}
+.l-payrow::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -1px;
+  height: 2px;
+  background: var(--pick);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  transition: transform 0.6s var(--l-ease);
+}
+.l-payrow[aria-pressed="true"] {
+  color: var(--l-ink);
+}
+.l-payrow[aria-pressed="true"]::before {
+  transform: scaleX(1);
+}
+.l-payrow .amt,
+.l-payrow .v {
+  font: 500 clamp(24px, 2.8vw, 42px) / 1 var(--l-sans);
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+}
+.l-payrow .to {
+  font-size: 17px;
+  line-height: 1.3;
+}
+.l-payrow .v {
+  color: var(--pick);
+  opacity: 0.5;
+  transition: opacity 0.3s;
+}
+.l-payrow[aria-pressed="true"] .v {
   opacity: 1;
 }
-.l-receipt span {
+.l-gate-sum {
+  margin-top: 24px;
+  min-height: 3.6em;
+  font: 400 clamp(18px, 1.7vw, 24px) / 1.3 var(--l-sans);
+  letter-spacing: -0.02em;
+}
+.l-gate-sum .l-lab {
+  display: block;
+  margin-top: 10px;
+  letter-spacing: 0;
+}
+.l-gate-sum b {
+  font-weight: 400;
   color: var(--l-orange);
 }
 .l-ways {
@@ -1282,9 +1317,16 @@ body:has(.landing) {
   .l-resp,
   .l-sen-grid,
   .l-atks,
-  .l-picks-4,
+  .l-gate-grid,
   .l-cols {
     grid-template-columns: 1fr;
+  }
+  .l-payrow {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .l-payrow .to {
+    grid-column: 1 / -1;
+    order: 3;
   }
   .l-intro {
     position: static;
@@ -1367,8 +1409,7 @@ body:has(.landing) {
   .l-late,
   .l-mani-text span,
   .l-out li,
-  .l-marks li,
-  .l-receipt,
+  .l-payrow,
   .l-verdict,
   .l-sen-verdict,
   .l-lane .l-ticket {
