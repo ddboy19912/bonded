@@ -154,12 +154,21 @@ const TONE_COLOUR: Record<Tone, string> = {
   warn: "var(--l-orange)",
 };
 
-/** The three ways to connect. Watch is the one that only sees a payment after it has left. */
-const WAYS = ["Ask first", "Card hooks", "Watch"];
+/**
+ * How each of the three ways to connect (Ask first, Card hooks, Watch) reached the gate, said
+ * plainly under the payment. Watch is the one that only sees a payment after it has left.
+ */
+export const HOW: Record<string, string> = {
+  "Ask first": "Your agent asks first",
+  "Card hooks": "Your card asks first",
+  Watch: "Seen after it pays",
+};
 
 /** One run: 0 the payment is on its way to the gate, 1 the rules are checked, 2 the answer. */
 const DECIDED = 2;
-export const GATE_STEP_MS = [700, 900];
+export const GATE_STEP_MS = [900, 1500];
+/** The rules are ticked one after another, this far apart, before the answer lands. */
+const RULE_GAP_MS = 250;
 
 const MARK = [
   "M7 0H130C159 0 182 23 182 51C182 75 170 90 149 101L112 121Q101 127 101 114V75Q101 49 73 61L7 90Q0 94 0 86V7Q0 0 7 0Z",
@@ -266,13 +275,16 @@ function PlaceGlyph({ place }: { place: Place }) {
  * in the middle; where the money is headed on the right. Pick a payment and it travels to the gate,
  * the owner's four rules are ticked or crossed, and one word says what happened. An allowed payment
  * carries on to its payee; a blocked one stops at the gate. The wallet payment arrives by Watch,
- * which only sees it after it has left, so it gets through and the gate raises a breach. The first
- * payment plays once when it comes on screen and then holds; nothing loops. Reduced-motion readers
- * get each one finished.
+ * which only sees it after it has left, so it gets through and the gate raises a breach. The rules
+ * sit above the picture so they are read first, and the first payment waits until the picture is
+ * well up the screen, plays once, and then holds; nothing loops. Reduced-motion readers get each
+ * one finished.
  */
 function GateDemo() {
   const reduced = useReducedMotion();
-  const [ref, seen] = useInView<HTMLDivElement>();
+  // Not on first sight: only once the picture is 40% of the way up the screen, so the reader
+  // has the rules and the payment in view before anything happens.
+  const [ref, seen] = useInView<HTMLDivElement>("0px 0px -40% 0px");
   // It opens on the bank change: a payment the gate stops, for one rule.
   const [index, setIndex] = useState(1);
   const [step, setStep] = useState(0);
@@ -293,7 +305,7 @@ function GateDemo() {
   const broken = s.breaks.map((id) => RULES.find((r) => r.id === id)!.text);
 
   return (
-    <div ref={ref}>
+    <div>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="l-seg" role="group" aria-label="Pick a payment">
           {STOPS.map((stop, i) => (
@@ -316,53 +328,6 @@ function GateDemo() {
         <span className="l-lab">Illustration</span>
       </div>
 
-      <div
-        key={s.id}
-        className="l-flow"
-        data-phase={phase}
-        data-through={through}
-        style={{ "--tone": TONE_COLOUR[s.tone] } as CSSProperties}
-      >
-        <div className="l-asset">
-          <PaymentAsset kind={s.id} amount={s.amount} />
-        </div>
-        <span className="l-wire" aria-hidden>
-          <i />
-        </span>
-        <div className="l-gnode">
-          <svg viewBox="0 0 224 224" aria-hidden>
-            <g transform="translate(12 6)">
-              {MARK.map((d) => (
-                <path key={d} d={d} />
-              ))}
-            </g>
-          </svg>
-        </div>
-        <span className="l-wire l-wire-out" aria-hidden>
-          <i />
-        </span>
-        <div className="l-place">
-          <PlaceGlyph place={s.place} />
-        </div>
-
-        <p className="l-cap l-cap-pay">{s.tab}</p>
-        <div className="l-gout">
-          <p className="l-gverdict" data-on={decided} aria-hidden={!decided}>
-            {s.verdict}
-          </p>
-          <p className="l-lab l-gnote" data-on={decided} aria-hidden={!decided}>
-            {s.receipt ? "Receipt signed by Bonded" : "Alert sent to Slack"}
-          </p>
-          <p className="sr-only" aria-live="polite">
-            {decided &&
-              (allowed
-                ? `${s.verdict}: it keeps every rule.`
-                : `${s.verdict}: it breaks ${broken.join(" and ")}.`)}
-          </p>
-        </div>
-        <p className="l-cap l-cap-place">{s.payee}</p>
-      </div>
-
       <div className="l-rulebar">
         <p className="l-lab">Your rules</p>
         <ul>
@@ -373,7 +338,7 @@ function GateDemo() {
                 key={rule.id}
                 data-on={phase >= 1}
                 data-ok={ok}
-                style={{ transitionDelay: `${i * 150}ms` }}
+                style={{ transitionDelay: `${i * RULE_GAP_MS}ms` }}
               >
                 <span aria-hidden>{ok ? "✓" : "✕"}</span>
                 {rule.text}
@@ -383,14 +348,58 @@ function GateDemo() {
         </ul>
       </div>
 
-      <p className="l-waybar">
-        <span className="l-lab">Connect by</span>
-        {WAYS.map((way) => (
-          <span key={way} data-on={way === s.via}>
-            {way}
+      <div ref={ref}>
+        <div
+          key={s.id}
+          className="l-flow"
+          data-ready={reduced || seen}
+          data-phase={phase}
+          data-through={through}
+          style={{ "--tone": TONE_COLOUR[s.tone] } as CSSProperties}
+        >
+          <div className="l-asset">
+            <PaymentAsset kind={s.id} amount={s.amount} />
+          </div>
+          <span className="l-wire" aria-hidden>
+            <i />
           </span>
-        ))}
-      </p>
+          <div className="l-gnode">
+            <svg viewBox="0 0 224 224" aria-hidden>
+              <g transform="translate(12 6)">
+                {MARK.map((d) => (
+                  <path key={d} d={d} />
+                ))}
+              </g>
+            </svg>
+          </div>
+          <span className="l-wire l-wire-out" aria-hidden>
+            <i />
+          </span>
+          <div className="l-place">
+            <PlaceGlyph place={s.place} />
+          </div>
+
+          <p className="l-cap l-cap-pay">
+            {s.tab}
+            <span className="l-cap-how">{HOW[s.via]}</span>
+          </p>
+          <div className="l-gout">
+            <p className="l-gverdict" data-on={decided} aria-hidden={!decided}>
+              {s.verdict}
+            </p>
+            <p className="l-lab l-gnote" data-on={decided} aria-hidden={!decided}>
+              {s.receipt ? "Receipt signed by Bonded" : "Alert sent to Slack"}
+            </p>
+            <p className="sr-only" aria-live="polite">
+              {decided &&
+                (allowed
+                  ? `${s.verdict}: it keeps every rule.`
+                  : `${s.verdict}: it breaks ${broken.join(" and ")}.`)}
+            </p>
+          </div>
+          <p className="l-cap l-cap-place">{s.payee}</p>
+        </div>
+      </div>
     </div>
   );
 }

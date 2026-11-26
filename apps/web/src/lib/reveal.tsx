@@ -7,44 +7,55 @@ import {
   type ReactNode,
 } from "react";
 
-/** One observer for the whole page: each element is told once, the first time it comes on screen. */
-let observer: IntersectionObserver | null = null;
+/**
+ * One observer per kind of "seen" for the whole page: each element is told once, the first time it
+ * counts as on screen.
+ */
+const observers = new Map<string, IntersectionObserver>();
 const waiting = new Map<Element, () => void>();
 
-function watch(el: Element, onSeen: () => void): () => void {
+function watch(el: Element, onSeen: () => void, rootMargin: string): () => void {
   // No observer (old browsers, the test environment): show everything straight away.
   if (typeof IntersectionObserver === "undefined") {
     onSeen();
     return () => {};
   }
-  observer ??= new IntersectionObserver(
-    (entries) => {
-      for (const entry of entries) {
-        if (!entry.isIntersecting) continue;
-        waiting.get(entry.target)?.();
-        waiting.delete(entry.target);
-        observer?.unobserve(entry.target);
-      }
-    },
-    { threshold: 0.12 },
-  );
+  let observer = observers.get(rootMargin);
+  if (!observer) {
+    observer = new IntersectionObserver(
+      (entries, self) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          waiting.get(entry.target)?.();
+          waiting.delete(entry.target);
+          self.unobserve(entry.target);
+        }
+      },
+      { threshold: 0.12, rootMargin },
+    );
+    observers.set(rootMargin, observer);
+  }
   waiting.set(el, onSeen);
   observer.observe(el);
   return () => {
     waiting.delete(el);
-    observer?.unobserve(el);
+    observer.unobserve(el);
   };
 }
 
-/** A ref, and whether its element has come on screen yet. It never goes back to false. */
-export function useInView<T extends Element>() {
+/**
+ * A ref, and whether its element has come on screen yet. It never goes back to false. `rootMargin`
+ * moves the line it must cross: "0px 0px -40% 0px" waits until it is 40% of the way up the screen,
+ * which works however tall the element is.
+ */
+export function useInView<T extends Element>(rootMargin = "0px") {
   const ref = useRef<T>(null);
   const [seen, setSeen] = useState(false);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    return watch(el, () => setSeen(true));
-  }, []);
+    return watch(el, () => setSeen(true), rootMargin);
+  }, [rootMargin]);
   return [ref, seen] as const;
 }
 

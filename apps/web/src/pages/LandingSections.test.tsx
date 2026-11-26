@@ -17,7 +17,7 @@ import {
   WorksWith,
   claimSources,
 } from "./LandingSections";
-import { GATE_STEP_MS, LandingGate, LandingIndex, RULES, STOPS } from "./LandingOffchain";
+import { GATE_STEP_MS, HOW, LandingGate, LandingIndex, RULES, STOPS } from "./LandingOffchain";
 import { loadBondedIndex } from "../lib/bonded-index";
 import type { BondedIndexEntry } from "@bondedhq/shared";
 
@@ -106,16 +106,13 @@ describe("the payment gate section", () => {
   const pick = (tab: string) => fireEvent.click(screen.getByRole("button", { name: tab }));
   const flow = () => document.querySelector(".l-flow")!;
 
-  it("says what the gate does, the three ways in, and links to it and its guide", () => {
+  it("says what the gate does and links to it and its guide", () => {
     motion(true);
     show(<LandingGate />);
     const section = document.getElementById("gate")!;
     expect(
       within(section).getByRole("heading", { name: "Check every payment before it leaves." }),
     ).toBeTruthy();
-    for (const way of ["Ask first", "Card hooks", "Watch"]) {
-      expect(within(section).getAllByText(way).length).toBeGreaterThan(0);
-    }
     expect(within(section).getByText(/never holds a key that can move your money/)).toBeTruthy();
     expect(
       within(section).getByRole("link", { name: "Open the payment gate" }).getAttribute("href"),
@@ -203,16 +200,62 @@ describe("the payment gate section", () => {
     }
   });
 
-  it("marks how the picked payment reached the gate among the three ways to connect", () => {
+  it("says in plain words how the picked payment reached the gate, with nothing to click", () => {
     motion(true);
     show(<LandingGate />);
-    const marked = () =>
-      [...document.querySelectorAll('.l-waybar [data-on="true"]')].map((w) => w.textContent);
-    expect(marked()).toEqual(["Ask first"]);
+    const how = () => document.querySelector(".l-cap-how")!;
+    expect(how().textContent).toBe("Your agent asks first");
+    expect(how().closest("button, a")).toBeNull();
     pick("Card");
-    expect(marked()).toEqual(["Card hooks"]);
+    expect(how().textContent).toBe("Your card asks first");
     pick("Wallet");
-    expect(marked()).toEqual(["Watch"]);
+    expect(how().textContent).toBe("Seen after it pays");
+    // Every way a payment arrives has its line.
+    for (const stop of STOPS) expect(HOW[stop.via], stop.id).toBeTruthy();
+  });
+
+  it("puts the rules before the picture, so they are read first", () => {
+    motion(true);
+    show(<LandingGate />);
+    const bar = document.querySelector(".l-rulebar")!;
+    expect(bar.compareDocumentPosition(flow()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("waits to play until the picture is on screen", () => {
+    motion(false);
+    let fire: (() => void) | undefined;
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(cb: IntersectionObserverCallback) {
+          fire = () => {
+            const target = document.querySelector(".l-flow")!.parentElement!;
+            cb(
+              [{ isIntersecting: true, target } as unknown as IntersectionObserverEntry],
+              this as unknown as IntersectionObserver,
+            );
+          };
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    vi.useFakeTimers();
+    try {
+      show(<LandingGate />);
+      act(() => void vi.advanceTimersByTime(10_000));
+      expect(flow().getAttribute("data-phase")).toBe("0");
+      expect(flow().getAttribute("data-ready")).toBe("false");
+      act(() => fire!());
+      expect(flow().getAttribute("data-ready")).toBe("true");
+      act(() => void vi.advanceTimersByTime(GATE_STEP_MS[0]!));
+      expect(flow().getAttribute("data-phase")).toBe("1");
+      act(() => void vi.advanceTimersByTime(GATE_STEP_MS[1]!));
+      expect(flow().getAttribute("data-phase")).toBe("2");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("plays the picked payment once, then holds: it arrives, the rules are checked, the answer lands", () => {
