@@ -4,7 +4,7 @@ import { getCodeBlock } from "../test/code";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -17,7 +17,7 @@ import {
   WorksWith,
   claimSources,
 } from "./LandingSections";
-import { LandingGate, LandingIndex, RULES, STOPS, outcome } from "./LandingOffchain";
+import { GATE_STEP_MS, LandingGate, LandingIndex, RULES, STOPS } from "./LandingOffchain";
 import { loadBondedIndex } from "../lib/bonded-index";
 import type { BondedIndexEntry } from "@bondedhq/shared";
 
@@ -88,15 +88,26 @@ describe("who it is for", () => {
   });
 });
 
+/** The gate's picture asks whether motion is reduced; jsdom has no matchMedia. Reduced shows each payment finished. */
+const motion = (reduced: boolean) =>
+  vi.stubGlobal("matchMedia", () => ({
+    matches: reduced,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+
 describe("the payment gate section", () => {
+  afterEach(() => vi.unstubAllGlobals());
   const rules = () =>
-    [...document.querySelectorAll(".l-rules li")].map((li) => ({
-      text: li.children[1]!.textContent,
+    [...document.querySelectorAll(".l-rulebar li")].map((li) => ({
+      text: li.lastChild!.textContent,
       kept: li.getAttribute("data-ok") === "true",
     }));
-  const pick = (amount: RegExp) => fireEvent.click(screen.getByRole("button", { name: amount }));
+  const pick = (tab: string) => fireEvent.click(screen.getByRole("button", { name: tab }));
+  const flow = () => document.querySelector(".l-flow")!;
 
   it("says what the gate does, the three ways in, and links to it and its guide", () => {
+    motion(true);
     show(<LandingGate />);
     const section = document.getElementById("gate")!;
     expect(
@@ -118,91 +129,114 @@ describe("the payment gate section", () => {
     expect(within(section).getByText("Illustration")).toBeTruthy();
   });
 
-  it("shows the owner's rules in plain words, so a limit is a rule the reader can see", () => {
+  it("keeps its words few: four short rules, said to be the owner's, and one word for the answer", () => {
+    motion(true);
     show(<LandingGate />);
-    expect(screen.getByText("You set the rules")).toBeTruthy();
+    expect(screen.getByText("Your rules")).toBeTruthy();
     expect(rules().map((r) => r.text)).toEqual([
-      "Only pay vendors on my list.",
-      "Bank details must match the vendor's.",
-      "No payment over $2,000.",
-      "No gambling, cash or money orders.",
+      "On your vendor list",
+      "Bank details match",
+      "Under your $2,000 limit",
+      "Not gambling",
     ]);
+    for (const rule of RULES) expect(rule.text.split(" ").length).toBeLessThanOrEqual(4);
+    for (const stop of STOPS) expect(stop.verdict.split(" ")).toHaveLength(1);
   });
 
-  it("shows every payment with the gate's answer at once, with nothing to wait for", () => {
+  it("opens on a blocked payment: drawn with its amount, stopped at the gate, one rule crossed", () => {
+    motion(true);
     show(<LandingGate />);
-    const rows = screen
-      .getAllByRole("button")
-      .map((b) => [b.children[0]!.textContent, b.children[2]!.textContent]);
-    expect(rows).toEqual([
-      ["$612.40", "Allowed"],
-      ["$1,240.00", "Blocked"],
-      ["$450.00", "Declined"],
-      ["$5,000.00", "Breach"],
-    ]);
-  });
-
-  it("opens on a blocked payment, and marks the one rule it breaks", () => {
-    show(<LandingGate />);
-    expect(screen.getByRole("button", { name: /\$1,240\.00/ }).getAttribute("aria-pressed")).toBe(
+    expect(screen.getByRole("button", { name: "Bank change" }).getAttribute("aria-pressed")).toBe(
       "true",
     );
+    expect(document.querySelector(".l-asset svg text.amt")?.textContent).toBe("$1,240.00");
+    expect(screen.getByText("Blocked")).toBeTruthy();
+    expect(flow().getAttribute("data-through")).toBe("false");
     expect(
       rules()
         .filter((r) => !r.kept)
         .map((r) => r.text),
-    ).toEqual(["Bank details must match the vendor's."]);
-    expect(screen.getByText(/Breaks rule 02, so it never leaves\./)).toBeTruthy();
+    ).toEqual(["Bank details match"]);
   });
 
-  it("marks the rules each payment breaks, and says what follows", () => {
+  it("lets an allowed payment through to its payee, and stops the others at the gate", () => {
+    motion(true);
     show(<LandingGate />);
-    pick(/\$612\.40/);
+    pick("Invoice");
+    expect(screen.getByText("Allowed")).toBeTruthy();
     expect(rules().every((r) => r.kept)).toBe(true);
-    expect(screen.getByText(/Passes every rule, so it goes through\./)).toBeTruthy();
+    expect(flow().getAttribute("data-through")).toBe("true");
+    expect(screen.getByText("Nimbus Print")).toBeTruthy();
 
-    pick(/\$450\.00/);
+    pick("Card");
+    expect(screen.getByText("Declined")).toBeTruthy();
+    expect(flow().getAttribute("data-through")).toBe("false");
     expect(
       rules()
         .filter((r) => !r.kept)
         .map((r) => r.text),
-    ).toEqual(["Only pay vendors on my list.", "No gambling, cash or money orders."]);
-    expect(screen.getByText(/Breaks rules 01 and 04, so the card is declined\./)).toBeTruthy();
-
-    pick(/\$5,000\.00/);
-    expect(
-      rules()
-        .filter((r) => !r.kept)
-        .map((r) => r.text),
-    ).toEqual(["Only pay vendors on my list.", "No payment over $2,000."]);
-    expect(screen.getByText(/only seen after it was paid/)).toBeTruthy();
+    ).toEqual(["On your vendor list", "Not gambling"]);
   });
 
-  it("gives a receipt only when the gate decided first, and an alert when it could only watch", () => {
+  it("shows the wallet payment getting through, because Watch only sees it afterwards", () => {
+    motion(true);
     show(<LandingGate />);
-    const receipt: [RegExp, boolean][] = [
-      [/\$612\.40/, true],
-      [/\$1,240\.00/, true],
-      [/\$450\.00/, true],
-      [/\$5,000\.00/, false],
-    ];
-    for (const [amount, signed] of receipt) {
-      pick(amount);
-      expect(!!screen.queryByText(/Receipt signed by Bonded/), String(amount)).toBe(signed);
-    }
-    // Watch saw the wallet payment after it left: no receipt, an alert instead.
+    pick("Wallet");
+    expect(screen.getByText("Breach")).toBeTruthy();
+    expect(flow().getAttribute("data-through")).toBe("true");
+    expect(
+      rules()
+        .filter((r) => !r.kept)
+        .map((r) => r.text),
+    ).toEqual(["On your vendor list", "Under your $2,000 limit"]);
+    // No receipt for a payment the gate did not decide: an alert instead.
     expect(screen.getByText("Alert sent to Slack")).toBeTruthy();
+    expect(screen.queryByText("Receipt signed by Bonded")).toBeNull();
+  });
+
+  it("signs a receipt whenever the gate decided first", () => {
+    motion(true);
+    show(<LandingGate />);
+    for (const tab of ["Invoice", "Bank change", "Card"]) {
+      pick(tab);
+      expect(screen.getByText("Receipt signed by Bonded"), tab).toBeTruthy();
+    }
   });
 
   it("marks how the picked payment reached the gate among the three ways to connect", () => {
+    motion(true);
     show(<LandingGate />);
     const marked = () =>
-      [...document.querySelectorAll('.l-ways > [data-on="true"] h3')].map((h) => h.textContent);
+      [...document.querySelectorAll('.l-waybar [data-on="true"]')].map((w) => w.textContent);
     expect(marked()).toEqual(["Ask first"]);
-    pick(/\$450\.00/);
+    pick("Card");
     expect(marked()).toEqual(["Card hooks"]);
-    pick(/\$5,000\.00/);
+    pick("Wallet");
     expect(marked()).toEqual(["Watch"]);
+  });
+
+  it("plays the picked payment once, then holds: it arrives, the rules are checked, the answer lands", () => {
+    motion(false);
+    vi.useFakeTimers();
+    try {
+      show(<LandingGate />);
+      const answer = () => screen.getByText("Blocked");
+      expect(flow().getAttribute("data-phase")).toBe("0");
+      expect(answer().getAttribute("data-on")).toBe("false");
+      act(() => void vi.advanceTimersByTime(GATE_STEP_MS[0]!));
+      expect(flow().getAttribute("data-phase")).toBe("1");
+      act(() => void vi.advanceTimersByTime(GATE_STEP_MS[1]!));
+      expect(flow().getAttribute("data-phase")).toBe("2");
+      expect(answer().getAttribute("data-on")).toBe("true");
+      // A long wait later it is still the same payment, finished.
+      for (let i = 0; i < 10; i++) act(() => void vi.advanceTimersByTime(6_000));
+      expect(screen.getByRole("button", { name: "Bank change" }).getAttribute("aria-pressed")).toBe(
+        "true",
+      );
+      expect(flow().getAttribute("data-phase")).toBe("2");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("allows a payment only when it breaks no rule, and uses every rule at least once", () => {
@@ -213,7 +247,8 @@ describe("the payment gate section", () => {
         STOPS.some((stop) => stop.breaks.includes(rule.id)),
         rule.text,
       ).toBe(true);
-    expect(outcome(STOPS[0]!)).toBe("Passes every rule, so it goes through.");
+    // Only a payment seen after the fact goes without a receipt.
+    for (const stop of STOPS) expect(stop.receipt, stop.id).toBe(stop.via !== "Watch");
   });
 });
 

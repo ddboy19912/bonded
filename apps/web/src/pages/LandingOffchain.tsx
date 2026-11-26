@@ -1,9 +1,10 @@
 import type { BondedIndex } from "@bondedhq/shared";
 import { AppLink } from "../components/app-link";
-import { useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { byScore, loadBondedIndex, taskScore } from "../lib/bonded-index";
 import { Reveal, useInView } from "../lib/reveal";
 import { DOCS_GATE } from "../lib/routes";
+import { useReducedMotion } from "./LandingSentinel";
 
 /**
  * The Index's models as one ledger, hardest to trick first, each with its two scores side by side,
@@ -61,82 +62,88 @@ export function LandingIndex({ index = loadBondedIndex() }: { index?: BondedInde
 }
 
 /**
- * The rules the gate holds a payment to, written the way an owner would say them. They are the
- * gate's real kinds of rule (a vendor list, matching bank details, a payment limit, blocked kinds
- * of spending); the $2,000 is an example of a limit the owner sets.
+ * The owner's rules, a few words each. They are the gate's real kinds of rule (a vendor list,
+ * matching bank details, a payment limit, blocked kinds of spending); the $2,000 is an example of a
+ * limit the owner sets.
  */
 export const RULES = [
-  { id: "vendor", text: "Only pay vendors on my list." },
-  { id: "bank", text: "Bank details must match the vendor's." },
-  { id: "limit", text: "No payment over $2,000." },
-  { id: "kind", text: "No gambling, cash or money orders." },
+  { id: "vendor", text: "On your vendor list" },
+  { id: "bank", text: "Bank details match" },
+  { id: "limit", text: "Under your $2,000 limit" },
+  { id: "kind", text: "Not gambling" },
 ] as const;
 
 type RuleId = (typeof RULES)[number]["id"];
 type Tone = "safe" | "breach" | "warn";
+type Kind = "invoice" | "bank" | "card" | "wallet";
+type Place = "vendor" | "bank" | "casino" | "unknown";
 
 interface Stop {
-  id: string;
+  id: Kind;
+  tab: string;
   amount: string;
-  /** Who it is going to, as a reader would say it. */
-  to: string;
+  /** Where the money is headed: the picture, and its name. */
+  place: Place;
+  payee: string;
   /** Which of the three ways brought it to the gate. */
   via: string;
   /** The rules this payment breaks. None means it is allowed. */
   breaks: RuleId[];
   verdict: string;
-  /** What follows from the rules, to finish the sentence "Breaks rule 02, ...". */
-  then: string;
   tone: Tone;
-  /** The receipt's short hash, or null when the payment was only seen after it was made. */
-  receipt: string | null;
+  /** Whether the gate decided before the money moved, and so signed a receipt. */
+  receipt: boolean;
 }
 
 /** Four payments an agent tries to make. Made up for the illustration. */
 export const STOPS: Stop[] = [
   {
     id: "invoice",
+    tab: "Invoice",
     amount: "$612.40",
-    to: "to Nimbus Print, a vendor",
-    via: "Asks first",
+    place: "vendor",
+    payee: "Nimbus Print",
+    via: "Ask first",
     breaks: [],
     verdict: "Allowed",
-    then: "so it goes through.",
     tone: "safe",
-    receipt: "0x7a3c…e91f",
+    receipt: true,
   },
   {
-    id: "bank-change",
+    id: "bank",
+    tab: "Bank change",
     amount: "$1,240.00",
-    to: "to Nimbus Print, at a new bank account",
-    via: "Asks first",
+    place: "bank",
+    payee: "A new bank account",
+    via: "Ask first",
     breaks: ["bank"],
     verdict: "Blocked",
-    then: "so it never leaves.",
     tone: "breach",
-    receipt: "0x19be…04c2",
+    receipt: true,
   },
   {
     id: "card",
+    tab: "Card",
     amount: "$450.00",
-    to: "at Lucky Spins, a casino",
-    via: "Card hook",
+    place: "casino",
+    payee: "Lucky Spins casino",
+    via: "Card hooks",
     breaks: ["vendor", "kind"],
     verdict: "Declined",
-    then: "so the card is declined.",
     tone: "breach",
-    receipt: "0x5d02…a7b3",
+    receipt: true,
   },
   {
     id: "wallet",
+    tab: "Wallet",
     amount: "$5,000.00",
-    to: "to a wallet nobody knows",
+    place: "unknown",
+    payee: "An unknown wallet",
     via: "Watch",
     breaks: ["vendor", "limit"],
     verdict: "Breach",
-    then: "but it was only seen after it was paid.",
     tone: "warn",
-    receipt: null,
+    receipt: false,
   },
 ];
 
@@ -147,112 +154,248 @@ const TONE_COLOUR: Record<Tone, string> = {
   warn: "var(--l-orange)",
 };
 
-/** The three ways to connect, each with the `via` of the example payments that arrive that way. */
-const WAYS: { title: string; line: string; via: string }[] = [
-  { title: "Ask first", line: "One call before each payment.", via: "Asks first" },
-  { title: "Card hooks", line: "Your card program asks Bonded first.", via: "Card hook" },
-  { title: "Watch", line: "Reads payments after, and alerts.", via: "Watch" },
+/** The three ways to connect. Watch is the one that only sees a payment after it has left. */
+const WAYS = ["Ask first", "Card hooks", "Watch"];
+
+/** One run: 0 the payment is on its way to the gate, 1 the rules are checked, 2 the answer. */
+const DECIDED = 2;
+export const GATE_STEP_MS = [700, 900];
+
+const MARK = [
+  "M7 0H130C159 0 182 23 182 51C182 75 170 90 149 101L112 121Q101 127 101 114V75Q101 49 73 61L7 90Q0 94 0 86V7Q0 0 7 0Z",
+  "M0 130Q0 122 8 118L58 92Q77 82 77 101V137Q77 159 97 149L169 113Q175 110 180 117C193 129 200 143 200 158C200 190 172 212 136 212H6Q0 212 0 206Z",
 ];
 
-const number = (i: number) => String(i + 1).padStart(2, "0");
+/** Small line icons for the four payments, on a 24-unit grid. */
+const TAB_ICON: Record<Kind, string> = {
+  invoice: "M7 3h7l4 4v14H7zM14 3v4h4M10 12h5M10 16h5",
+  bank: "M3 10l9-5 9 5M5 10v8M10 10v8M14 10v8M19 10v8M3 20h18",
+  card: "M3 6h18v12H3zM3 10h18M6 15h4",
+  wallet: "M3 7h15a3 3 0 0 1 3 3v8H3zM3 7V6a2 2 0 0 1 2-2h11M16 13h2",
+};
 
-/** "Breaks rules 01 and 04, so the card is declined." for the picked payment. */
-export function outcome(stop: Stop): string {
-  const broken = stop.breaks.map((id) => number(RULES.findIndex((r) => r.id === id)));
-  const start =
-    broken.length === 0
-      ? "Passes every rule"
-      : `Breaks rule${broken.length > 1 ? "s" : ""} ${broken.join(" and ")}`;
-  return `${start}, ${stop.then}`;
+/** The payment itself, drawn: a sheet for an invoice or a bank change, a card, a wallet. */
+function PaymentAsset({ kind, amount }: { kind: Kind; amount: string }) {
+  return (
+    <svg viewBox="0 0 280 180" aria-hidden>
+      {(kind === "invoice" || kind === "bank") && (
+        <>
+          <path d="M52 2h126l50 50v126H52z" />
+          <path d="M178 2v50h50" />
+          <path d="M76 44h62" />
+          {kind === "invoice" ? (
+            <path d="M76 78h128M76 100h96" className="soft" />
+          ) : (
+            <>
+              <path d="M76 78h128" className="soft" />
+              <path d="M76 100h70" className="soft" />
+              <path d="M70 100h82" className="hot" />
+              <path d="M162 100h42" className="hot" />
+            </>
+          )}
+          <text x="76" y="152" className="amt">
+            {amount}
+          </text>
+        </>
+      )}
+      {kind === "card" && (
+        <>
+          <rect x="2" y="2" width="276" height="176" rx="20" />
+          <rect x="28" y="40" width="46" height="34" rx="7" />
+          <path d="M28 57h46M43 40v34M58 40v34" className="soft" />
+          <path d="M214 38a14 14 0 0 1 0 28M226 30a24 24 0 0 1 0 44M238 22a34 34 0 0 1 0 60" />
+          <text x="28" y="118" className="sm">
+            •••• 4821
+          </text>
+          <text x="28" y="152" className="amt">
+            {amount}
+          </text>
+        </>
+      )}
+      {kind === "wallet" && (
+        <>
+          <path d="M22 44V34a16 16 0 0 1 16-16h170a14 14 0 0 1 14 14v12" />
+          <rect x="22" y="44" width="236" height="132" rx="18" />
+          <path d="M258 92h-44a18 18 0 0 0 0 36h44" />
+          <circle cx="216" cy="110" r="5" className="dot" />
+          <text x="44" y="152" className="amt">
+            {amount}
+          </text>
+        </>
+      )}
+    </svg>
+  );
+}
+
+/** Where the money is headed, as one small line drawing. */
+function PlaceGlyph({ place }: { place: Place }) {
+  return (
+    <svg viewBox="0 0 48 48" aria-hidden>
+      {place === "vendor" && (
+        <path d="M8 20l4-10h24l4 10M10 21v17h28V21M8 20a4 4 0 0 0 8 0a4 4 0 0 0 8 0a4 4 0 0 0 8 0a4 4 0 0 0 8 0M20 38V28h8v10" />
+      )}
+      {place === "bank" && (
+        <path d="M6 20l18-11 18 11M10 20v15M18 20v15M30 20v15M38 20v15M6 39h36M8 35h32" />
+      )}
+      {place === "casino" && (
+        <>
+          <rect x="9" y="9" width="30" height="30" rx="7" />
+          {[
+            [17, 17],
+            [31, 17],
+            [24, 24],
+            [17, 31],
+            [31, 31],
+          ].map(([cx, cy]) => (
+            <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="1.9" className="dot" />
+          ))}
+        </>
+      )}
+      {place === "unknown" && (
+        <>
+          <circle cx="24" cy="24" r="17" />
+          <path d="M19 19.5a5 5 0 1 1 7.2 4.5c-1.6.9-2.2 1.9-2.2 3.6M24 32.5v.6" />
+        </>
+      )}
+    </svg>
+  );
 }
 
 /**
- * The gate in one picture: the owner's rules on the left, in their own words, and on the right
- * four payments the agent tries to make, each with the gate's answer. So the limit means something:
- * it is a rule the reader can see, not a number on its own. Point at a payment (or pick it) and the
- * rules it breaks are marked, one line says what follows, and the way it reached the gate is marked
- * among the three ways to connect. Nothing plays or loops: the rows arrive once, as they come on
- * screen, and everything is there to read.
+ * The gate as a picture, with as few words as it needs: the payment on the left, drawn; the gate
+ * in the middle; where the money is headed on the right. Pick a payment and it travels to the gate,
+ * the owner's four rules are ticked or crossed, and one word says what happened. An allowed payment
+ * carries on to its payee; a blocked one stops at the gate. The wallet payment arrives by Watch,
+ * which only sees it after it has left, so it gets through and the gate raises a breach. The first
+ * payment plays once when it comes on screen and then holds; nothing loops. Reduced-motion readers
+ * get each one finished.
  */
 function GateDemo() {
+  const reduced = useReducedMotion();
   const [ref, seen] = useInView<HTMLDivElement>();
   // It opens on the bank change: a payment the gate stops, for one rule.
   const [index, setIndex] = useState(1);
+  const [step, setStep] = useState(0);
   const s = STOPS[index]!;
+  const phase = reduced ? DECIDED : step;
+
+  useEffect(() => {
+    if (reduced || !seen || step >= DECIDED) return;
+    const t = setTimeout(() => setStep(step + 1), GATE_STEP_MS[step]);
+    return () => clearTimeout(t);
+  }, [step, reduced, seen]);
+
+  const decided = phase >= DECIDED;
+  const allowed = s.breaks.length === 0;
+  // Watch sees a payment only after it has left: it is through before the gate can answer.
+  const after = s.via === "Watch";
+  const through = after ? phase >= 1 : decided && allowed;
+  const broken = s.breaks.map((id) => RULES.find((r) => r.id === id)!.text);
 
   return (
-    <div ref={ref} className="l-gate" data-in={seen}>
-      <div className="l-gate-grid">
-        <div>
-          <p className="l-lab">You set the rules</p>
-          <ol className="l-rules">
-            {RULES.map((rule, i) => {
-              const broken = s.breaks.includes(rule.id);
-              return (
-                <li key={rule.id} data-ok={!broken}>
-                  <span className="n">{number(i)}</span>
-                  <span>{rule.text}</span>
-                  <span className="m" aria-hidden>
-                    {broken ? "✕" : "✓"}
-                  </span>
-                  <span className="sr-only">{broken ? "Broken by this payment" : "Kept"}</span>
-                </li>
-              );
-            })}
-          </ol>
+    <div ref={ref}>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="l-seg" role="group" aria-label="Pick a payment">
+          {STOPS.map((stop, i) => (
+            <button
+              key={stop.id}
+              type="button"
+              aria-pressed={i === index}
+              onClick={() => {
+                setIndex(i);
+                setStep(0);
+              }}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden>
+                <path d={TAB_ICON[stop.id]} />
+              </svg>
+              {stop.tab}
+            </button>
+          ))}
+        </div>
+        <span className="l-lab">Illustration</span>
+      </div>
+
+      <div
+        key={s.id}
+        className="l-flow"
+        data-phase={phase}
+        data-through={through}
+        style={{ "--tone": TONE_COLOUR[s.tone] } as CSSProperties}
+      >
+        <div className="l-asset">
+          <PaymentAsset kind={s.id} amount={s.amount} />
+        </div>
+        <span className="l-wire" aria-hidden>
+          <i />
+        </span>
+        <div className="l-gnode">
+          <svg viewBox="0 0 224 224" aria-hidden>
+            <g transform="translate(12 6)">
+              {MARK.map((d) => (
+                <path key={d} d={d} />
+              ))}
+            </g>
+          </svg>
+        </div>
+        <span className="l-wire l-wire-out" aria-hidden>
+          <i />
+        </span>
+        <div className="l-place">
+          <PlaceGlyph place={s.place} />
         </div>
 
-        <div>
-          <p className="l-lab flex justify-between gap-6">
-            <span>Your agent tries to pay</span>
-            <span>Illustration</span>
+        <p className="l-cap l-cap-pay">{s.tab}</p>
+        <div className="l-gout">
+          <p className="l-gverdict" data-on={decided} aria-hidden={!decided}>
+            {s.verdict}
           </p>
-          <div className="l-pays" role="group" aria-label="Example payments">
-            {STOPS.map((stop, i) => (
-              <button
-                key={stop.id}
-                type="button"
-                className="l-payrow"
-                aria-pressed={i === index}
-                onClick={() => setIndex(i)}
-                onMouseEnter={() => setIndex(i)}
-                onFocus={() => setIndex(i)}
-                style={{ "--pick": TONE_COLOUR[stop.tone], "--d": `${i * 130}ms` } as CSSProperties}
+          <p className="l-lab l-gnote" data-on={decided} aria-hidden={!decided}>
+            {s.receipt ? "Receipt signed by Bonded" : "Alert sent to Slack"}
+          </p>
+          <p className="sr-only" aria-live="polite">
+            {decided &&
+              (allowed
+                ? `${s.verdict}: it keeps every rule.`
+                : `${s.verdict}: it breaks ${broken.join(" and ")}.`)}
+          </p>
+        </div>
+        <p className="l-cap l-cap-place">{s.payee}</p>
+      </div>
+
+      <div className="l-rulebar">
+        <p className="l-lab">Your rules</p>
+        <ul>
+          {RULES.map((rule, i) => {
+            const ok = !s.breaks.includes(rule.id);
+            return (
+              <li
+                key={rule.id}
+                data-on={phase >= 1}
+                data-ok={ok}
+                style={{ transitionDelay: `${i * 150}ms` }}
               >
-                <span className="amt">{stop.amount}</span>
-                <span className="to">{stop.to}</span>
-                <span className="v">{stop.verdict}</span>
-              </button>
-            ))}
-          </div>
-          <p className="l-gate-sum" aria-live="polite">
-            {outcome(s)}
-            <span className="l-lab">
-              {s.receipt ? (
-                <>Receipt signed by Bonded {s.receipt}</>
-              ) : (
-                <>
-                  No receipt · <b>Alert sent to Slack</b>
-                </>
-              )}
-            </span>
-          </p>
-        </div>
+                <span aria-hidden>{ok ? "✓" : "✕"}</span>
+                {rule.text}
+              </li>
+            );
+          })}
+        </ul>
       </div>
 
-      <div className="l-cols l-ways">
+      <p className="l-waybar">
+        <span className="l-lab">Connect by</span>
         {WAYS.map((way) => (
-          <div key={way.title} data-on={way.via === s.via}>
-            <h3>{way.title}</h3>
-            <p>{way.line}</p>
-          </div>
+          <span key={way} data-on={way === s.via}>
+            {way}
+          </span>
         ))}
-      </div>
+      </p>
     </div>
   );
 }
 
-/** The payment gate: what it does, a payment going through it, and the three ways to connect. */
+/** The payment gate: one line on what it does, and a payment going through it. */
 export function LandingGate() {
   return (
     <section id="gate" className="l-sec">
@@ -263,8 +406,8 @@ export function LandingGate() {
             Check every payment <span className="dim">before it leaves.</span>
           </Reveal>
           <p className="l-lede">
-            The gate checks your agent's payments against your rules, by bank, card or wallet, and
-            signs a receipt anyone can check. Bonded never holds a key that can move your money.
+            Your rules, checked before your agent pays. Bonded never holds a key that can move your
+            money.
           </p>
           <div className="l-actions">
             <AppLink to="/gate" className="l-btn l-btn-p">
