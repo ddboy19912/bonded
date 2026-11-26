@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { LandingSentinel, SCENARIOS, asRate } from "./LandingSentinel";
 
@@ -15,37 +15,59 @@ it("turns a gate's count into the rate the landing page shows", () => {
 });
 
 describe("the Sentinel illustration", () => {
-  // Reduced motion shows each scenario finished, which is what there is to check.
-  const show = () => {
+  const motion = (reduced: boolean) =>
     vi.stubGlobal("matchMedia", () => ({
-      matches: true,
+      matches: reduced,
       addEventListener: () => {},
       removeEventListener: () => {},
     }));
+  // Reduced motion shows each scenario finished, which is what there is to check.
+  const show = (reduced = true) => {
+    motion(reduced);
     render(
       <MemoryRouter>
         <LandingSentinel />
       </MemoryRouter>,
     );
   };
+  const picked = () =>
+    screen
+      .getAllByRole("button")
+      .filter((b) => b.getAttribute("aria-pressed") === "true")
+      .map((b) => b.textContent);
 
-  it("lets an ordinary trade go ahead, with a score under the line", () => {
+  it("opens on the planted instruction, blocked with a score over the line", () => {
     show();
-    expect(
-      screen.getByRole("button", { name: /Ordinary trade/ }).getAttribute("aria-pressed"),
-    ).toBe("true");
-    expect(screen.getByText("Goes ahead")).toBeTruthy();
-    expect(document.querySelector(".l-score")?.textContent).toBe("4%");
-    expect(screen.getByText("blocks at 70%")).toBeTruthy();
-  });
-
-  it("blocks a planted instruction, with a score over the line", () => {
-    show();
-    fireEvent.click(screen.getByRole("button", { name: /Planted instruction/ }));
+    expect(picked()).toEqual(["02An attackPlanted instruction"]);
     expect(screen.getByText("Blocked")).toBeTruthy();
     expect(document.querySelector(".l-score")?.textContent).toBe("93%");
     expect(screen.getByText(/drops the trade before signing it/)).toBeTruthy();
     expect(screen.getByText(/your payout address changed/)).toBeTruthy();
+    expect(screen.getByText("blocks at 70%")).toBeTruthy();
+  });
+
+  it("lets an ordinary trade go ahead, with a score under the line", () => {
+    show();
+    fireEvent.click(screen.getByRole("button", { name: /Ordinary trade/ }));
+    expect(screen.getByText("Goes ahead")).toBeTruthy();
+    expect(document.querySelector(".l-score")?.textContent).toBe("4%");
+  });
+
+  it("plays through once and then holds, so it can be read: it never switches by itself", () => {
+    vi.useFakeTimers();
+    try {
+      show(false);
+      const outcome = () => screen.getByText("Blocked").parentElement!;
+      expect(outcome().getAttribute("data-on")).toBe("false");
+      // One phase per tick: proposed, read, scored, outcome.
+      for (let i = 0; i < 4; i++) act(() => void vi.advanceTimersByTime(900));
+      expect(outcome().getAttribute("data-on")).toBe("true");
+      for (let i = 0; i < 10; i++) act(() => void vi.advanceTimersByTime(6_000));
+      expect(picked()).toEqual(["02An attackPlanted instruction"]);
+      expect(outcome().getAttribute("data-on")).toBe("true");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("says its scores are examples, and that a score only blocks above the line", () => {

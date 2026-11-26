@@ -1109,20 +1109,83 @@ body:has(.landing) {
   color: var(--l-ink);
 }
 
-/* The payment gate's decision, stamped on the payment. */
-.gate-stamp {
-  transform: rotate(-9deg);
-  animation: gate-stamp 0.35s cubic-bezier(0.2, 0.8, 0.3, 1.2) both;
+/* The payment gate: the payment on one side; your rules, the decision and the receipt on the other.
+   Under it, the three ways to connect, with the one this payment used marked. */
+.l-picks-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
-@keyframes gate-stamp {
-  from {
-    opacity: 0;
-    transform: rotate(-9deg) scale(1.9);
-  }
-  to {
-    opacity: 1;
-    transform: rotate(-9deg) scale(1);
-  }
+.l-pay {
+  margin: 14px 0 0 -0.03em;
+  font: 500 clamp(56px, 7vw, 104px) / 0.9 var(--l-sans);
+  letter-spacing: -0.06em;
+  font-variant-numeric: tabular-nums;
+}
+.l-payee {
+  margin-top: 20px;
+  font: 400 clamp(20px, 2vw, 30px) / 1.2 var(--l-sans);
+  letter-spacing: -0.03em;
+  color: var(--l-muted);
+}
+.l-payee b {
+  font-weight: 500;
+  color: var(--l-ink);
+}
+.l-payee + .l-step-text {
+  margin-top: 8px;
+}
+.l-out.l-out-seq li[data-on="true"]:nth-child(n) {
+  transition-delay: 0s;
+}
+.l-out small {
+  display: block;
+  margin-top: 5px;
+  font: 400 13px/1.3 var(--l-mono);
+  letter-spacing: 0;
+  color: var(--l-orange);
+}
+.l-vt code {
+  font: 400 0.88em var(--l-mono);
+  color: var(--l-ink);
+}
+.l-receipt {
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+.l-receipt[data-on="true"] {
+  opacity: 1;
+}
+.l-receipt span {
+  color: var(--l-orange);
+}
+.l-ways {
+  margin-top: 80px;
+}
+.l-ways > div {
+  position: relative;
+  color: var(--l-dim);
+  transition: color 0.4s;
+}
+.l-ways > div::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -1px;
+  height: 2px;
+  background: var(--l-ink);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  transition: transform 0.7s var(--l-ease);
+}
+.l-ways > div[data-on="true"] {
+  color: var(--l-ink);
+}
+.l-ways > div[data-on="true"]::before {
+  transform: scaleX(1);
+}
+.l-ways h3 {
+  font: 500 clamp(22px, 2.2vw, 32px) / 1.05 var(--l-sans);
+  letter-spacing: -0.04em;
 }
 
 /* The close: the line again, twice, drifting opposite ways and leaning with the scroll. */
@@ -1183,6 +1246,7 @@ body:has(.landing) {
   .l-resp,
   .l-sen-grid,
   .l-atks,
+  .l-picks-4,
   .l-cols {
     grid-template-columns: 1fr;
   }
@@ -1279,7 +1343,6 @@ body:has(.landing) {
   .l-vv {
     font-variation-settings: "wght" 500;
   }
-  .gate-stamp,
   .l-mq,
   .l-tape,
   .l-orbit {

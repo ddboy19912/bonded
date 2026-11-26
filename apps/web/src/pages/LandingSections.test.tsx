@@ -4,7 +4,7 @@ import { getCodeBlock } from "../test/code";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -120,7 +120,7 @@ describe("the payment gate section", () => {
     expect(within(section).getByText("Illustration")).toBeTruthy();
   });
 
-  it("stamps each example payment with the gate's decision, and a receipt only when it decided first", () => {
+  it("gives each example payment the gate's decision, and a receipt only when it decided first", () => {
     reduceMotion();
     show(<LandingGate />);
     const expected: Record<string, [string, boolean]> = {
@@ -130,12 +130,57 @@ describe("the payment gate section", () => {
       Wallet: ["Breach", false],
     };
     for (const [tab, [verdict, receipt]] of Object.entries(expected)) {
-      fireEvent.click(screen.getByRole("button", { name: tab }));
+      fireEvent.click(screen.getByRole("button", { name: new RegExp(`${tab}$`) }));
       expect(screen.getByText(verdict)).toBeTruthy();
       expect(!!screen.queryByText(/Receipt signed by Bonded/)).toBe(receipt);
     }
     // Watch saw the wallet payment after it left: no receipt, an alert instead.
     expect(screen.getByText("Alert sent to Slack")).toBeTruthy();
+  });
+
+  it("shows the picked payment, its checks answered yes or no, and marks how it reached the gate", () => {
+    reduceMotion();
+    show(<LandingGate />);
+    fireEvent.click(screen.getByRole("button", { name: /Bank change$/ }));
+    expect(screen.getByText("$1,240.00")).toBeTruthy();
+    const failed = screen.getByText("Bank details match the vendor's").closest("li")!;
+    expect(within(failed).getByText("no")).toBeTruthy();
+    expect(within(failed).getByText("Changed, with no finance ticket")).toBeTruthy();
+    const marked = () =>
+      [...document.querySelectorAll('.l-ways > [data-on="true"] h3')].map((h) => h.textContent);
+    expect(marked()).toEqual(["Ask first"]);
+    fireEvent.click(screen.getByRole("button", { name: /Card$/ }));
+    expect(marked()).toEqual(["Card hooks"]);
+    fireEvent.click(screen.getByRole("button", { name: /Wallet$/ }));
+    expect(marked()).toEqual(["Watch"]);
+  });
+
+  it("plays the first payment once and then holds, without moving on to the next", () => {
+    vi.stubGlobal("matchMedia", () => ({
+      matches: false,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    vi.useFakeTimers();
+    try {
+      show(<LandingGate />);
+      const picked = () =>
+        screen
+          .getAllByRole("button")
+          .filter((b) => b.getAttribute("aria-pressed") === "true")
+          .map((b) => b.textContent);
+      expect(picked()).toEqual(["01Asks firstInvoice"]);
+      expect(screen.getByText("Allowed").parentElement!.getAttribute("data-on")).toBe("false");
+      // One step per tick: each rule, then the decision, then the receipt.
+      for (let i = 0; i < 6; i++) act(() => void vi.advanceTimersByTime(650));
+      expect(screen.getByText("Allowed").parentElement!.getAttribute("data-on")).toBe("true");
+      // A long wait later it is still the same payment, finished.
+      for (let i = 0; i < 10; i++) act(() => void vi.advanceTimersByTime(6_000));
+      expect(picked()).toEqual(["01Asks firstInvoice"]);
+      expect(screen.getByText("Allowed").parentElement!.getAttribute("data-on")).toBe("true");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("allows a payment only when every check passes", () => {

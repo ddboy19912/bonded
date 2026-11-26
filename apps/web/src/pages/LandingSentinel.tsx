@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { AppLink } from "../components/app-link";
-import { Reveal } from "../lib/reveal";
+import { Reveal, useInView } from "../lib/reveal";
 import { SENTINEL_GATES, SENTINEL_MODEL } from "../lib/sentinel-facts";
 
 interface Scenario {
@@ -38,7 +38,8 @@ const FIELDS = ["Mandate", "Proposed action", "Untrusted input"];
 /** Phases of one pass: proposed, travelling, read, scored, outcome. */
 const LAST_PHASE = 4;
 const PHASE_MS = 900;
-const HOLD_MS = 2600;
+/** The scenario shown first: the planted instruction, which is the one Sentinel is there to stop. */
+const FIRST = SCENARIOS.findIndex((s) => s.manipulated);
 
 export function useReducedMotion() {
   const [reduced, setReduced] = useState(false);
@@ -70,32 +71,25 @@ function useCount(to: number, run: boolean, still: boolean) {
 }
 
 /**
- * Sentinel at work, as a looping illustration: what the agent read and wants to do on one side; on
- * the other, Sentinel's answer to one question, "manipulated?", as a large number against the line
- * it blocks at, and what happens to the trade. It alternates between an ordinary trade and a planted
- * instruction. Reduced-motion readers get the finished state and switch with the two buttons.
+ * Sentinel at work, as an illustration: what the agent read and wants to do on one side; on the
+ * other, Sentinel's answer to one question, "manipulated?", as a large number against the line it
+ * blocks at, and what happens to the trade. It plays through once when it comes on screen, then
+ * holds so it can be read; picking the other scenario plays that one. Nothing loops. Reduced-motion
+ * readers get the finished state.
  */
 function SentinelFlow() {
   const reduced = useReducedMotion();
-  const [index, setIndex] = useState(0);
+  const [ref, seen] = useInView<HTMLDivElement>();
+  const [index, setIndex] = useState(FIRST);
   const [phase, setPhase] = useState(0);
   const shown = reduced ? LAST_PHASE : phase;
   const s = SCENARIOS[index]!;
 
   useEffect(() => {
-    if (reduced) return;
-    const t = setTimeout(
-      () => {
-        if (phase < LAST_PHASE) setPhase(phase + 1);
-        else {
-          setIndex((i) => (i + 1) % SCENARIOS.length);
-          setPhase(0);
-        }
-      },
-      phase < LAST_PHASE ? PHASE_MS : HOLD_MS,
-    );
+    if (reduced || !seen || phase >= LAST_PHASE) return;
+    const t = setTimeout(() => setPhase(phase + 1), PHASE_MS);
     return () => clearTimeout(t);
-  }, [phase, reduced]);
+  }, [phase, reduced, seen]);
 
   const choose = (i: number) => {
     setIndex(i);
@@ -108,7 +102,7 @@ function SentinelFlow() {
   const counted = useCount(score, scored, reduced);
 
   return (
-    <div className="l-sen" data-tone={s.manipulated ? "attack" : "clean"}>
+    <div ref={ref} className="l-sen" data-tone={s.manipulated ? "attack" : "clean"}>
       <div className="l-atks l-picks" role="group" aria-label="What the agent read">
         {SCENARIOS.map((sc, i) => (
           <button
