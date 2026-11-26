@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router";
 import { useAccount } from "wagmi";
+import { useQuery } from "@tanstack/react-query";
 import { isAddress } from "viem";
 import { AppLink } from "./components/app-link";
 import { HeaderSignIn } from "./components/sign-in";
@@ -11,7 +12,10 @@ import { Logo, buttonClass } from "./components/ui";
 import { explorerUrl, networkName } from "./config";
 import { useAgents, useClaims } from "./lib/chain";
 import { searchTarget } from "./lib/search";
-import { isNavActive } from "./lib/nav";
+import { isNavActive, isOnChainPath } from "./lib/nav";
+import { useOwnerSession } from "./lib/owner-session";
+import { byoaApi } from "./lib/byoa-api";
+import { gateApi } from "./lib/gate";
 import {
   APP_HOME,
   BLOG_HOME,
@@ -19,6 +23,7 @@ import {
   DOCS_HOME,
   DOCS_SECURITY,
   PRIVACY,
+  TEST_AGENT,
 } from "./lib/routes";
 
 /** Stroke icons for the sidebar, drawn on a 24-unit grid. */
@@ -38,6 +43,9 @@ const ICONS = {
   sentinel: "M12 3l8 3v6c0 5-3.5 8-8 9c-4.5-1-8-4-8-9V6zM8.5 12l2.5 2.5 4.5-5",
   docs: "M4 5a2 2 0 0 1 2-2h14v16H6a2 2 0 0 0-2 2zM8 7h8M8 11h6",
   gate: "M3 10l9-6 9 6M5 10v9M19 10v9M9.5 10v9M14.5 10v9M3 20h18",
+  test: "M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3M7.5 15h9",
+  receipt: "M6 3h12v18l-3-2-3 2-3-2-3 2zM9 9l2 2 4-4M9 15h6",
+  chevron: "M9 6l6 6-6 6",
 } as const;
 
 function Icon({ d, className = "size-[18px]" }: { d: string; className?: string }) {
@@ -57,10 +65,13 @@ function Icon({ d, className = "size-[18px]" }: { d: string; className?: string 
   );
 }
 
-function Count({ n }: { n?: number }) {
+function Count({ n, label }: { n?: number; label?: string }) {
   if (n === undefined) return null;
   return (
-    <span className="rounded-full bg-white/[0.06] px-2 py-px font-mono text-[11px] text-muted">
+    <span
+      className="font-mono text-[11px] text-dim"
+      aria-label={label ? `${n} ${label}` : undefined}
+    >
       {n}
     </span>
   );
@@ -72,24 +83,29 @@ function Item({
   label,
   extra,
   end,
+  except,
 }: {
   to: string;
   icon: string;
   label: string;
   extra?: ReactNode;
   end?: boolean;
+  /** Child pages with their own link, where this one stays quiet. */
+  except?: readonly string[];
 }) {
   const { pathname, search } = useLocation();
-  const isActive = isNavActive(to, pathname, search, end);
+  const isActive = isNavActive(to, pathname, search, end, except);
   return (
     <Link
       to={to}
       aria-current={isActive ? "page" : undefined}
-      className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${
-        isActive ? "bg-accent-soft text-ink" : "text-muted hover:bg-white/[0.05] hover:text-ink"
+      className={`relative flex items-center gap-3 px-3 py-2 text-[14px] tracking-[-0.01em] transition ${
+        isActive
+          ? "text-ink before:absolute before:top-1/2 before:left-0 before:h-4 before:w-[2px] before:-translate-y-1/2 before:bg-brand-bright"
+          : "text-muted hover:text-ink"
       }`}
     >
-      <Icon d={icon} />
+      <Icon d={icon} className={`size-4 ${isActive ? "text-ink" : "text-dim"}`} />
       <span className="flex-1">{label}</span>
       {extra}
     </Link>
@@ -98,65 +114,145 @@ function Item({
 
 function Group({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <p className="eyebrow mb-1.5 px-3">{label}</p>
+    <div className="flex flex-col">
+      <p className="eyebrow mb-1 px-3">{label}</p>
       {children}
     </div>
   );
 }
 
-function Sidebar() {
+/** The on-chain pages, folded away unless you are on one of them. */
+function OnChainGroup({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation();
+  const here = isOnChainPath(pathname);
+  const [open, setOpen] = useState(here);
+  useEffect(() => {
+    if (here) setOpen(true);
+  }, [here]);
+  return (
+    <div className="flex flex-col">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls="nav-onchain"
+        onClick={() => setOpen(!open)}
+        className="eyebrow mb-1 flex items-center gap-1.5 px-3 text-left hover:text-ink"
+      >
+        On-chain
+        <Icon
+          d={ICONS.chevron}
+          className={`size-3 transition-transform ${open ? "rotate-90" : ""}`}
+        />
+      </button>
+      <div id="nav-onchain" hidden={!open} className="flex flex-col">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * How many tests and gate accounts the signed-in owner has (email, passkey or wallet session), for
+ * the counts beside Test your agent and Payment gate. Nothing is asked until someone is signed in.
+ */
+function useOwnCounts() {
+  const { session } = useOwnerSession();
+  const token = session?.session;
+  const tests = useQuery({
+    queryKey: ["previews-total", token],
+    queryFn: () => byoaApi.listPreviews(token!, { limit: 1 }),
+    enabled: Boolean(token),
+    retry: false,
+  });
+  const accounts = useQuery({
+    queryKey: ["gate-accounts", token],
+    queryFn: () => gateApi.accounts(token!),
+    enabled: Boolean(token),
+    retry: false,
+  });
+  return {
+    tests: tests.data?.total ?? tests.data?.items.length,
+    accounts: accounts.data?.items.length,
+  };
+}
+
+/** A wallet's on-chain roles. Signed in by email or passkey, there is nothing here to show. */
+function YoursGroup() {
   const { isConnected } = useAccount();
+  if (!isConnected) return null;
+  return (
+    <Group label="Yours">
+      <Item to="/agents?mine=1" icon={ICONS.mine} label="Your agents" />
+      <Item to="/underwrite?mine=1" icon={ICONS.deposits} label="Your underwriting" />
+    </Group>
+  );
+}
+
+/**
+ * The app's sidebar, grouped by what you came to do: protect an agent first, then what is yours,
+ * the public benchmarks, and the on-chain pages folded at the bottom. The TESTNET badge shows only
+ * on the on-chain pages.
+ */
+export function Sidebar() {
+  const { pathname } = useLocation();
   const agents = useAgents();
   const claims = useClaims();
+  const own = useOwnCounts();
   return (
-    <div className="flex h-full flex-col gap-6 px-3.5 py-5">
-      <Link to="/" className="flex items-center justify-between px-2" aria-label="Bonded home">
-        <Logo className="h-[26px]" />
-        <span className="rounded-md border border-line-strong px-1.5 py-0.5 font-mono text-[10px] text-muted">
-          TESTNET
-        </span>
+    <div className="flex h-full flex-col gap-7 px-3 py-5">
+      <Link to="/" className="flex items-center justify-between px-3" aria-label="Bonded home">
+        <Logo className="h-[24px]" />
+        {isOnChainPath(pathname) && (
+          <span className="font-mono text-[11px] text-muted">Testnet</span>
+        )}
       </Link>
-      <nav aria-label="App" className="flex flex-col gap-5">
-        <Group label="Discover">
+      <nav aria-label="App" className="flex flex-col gap-6">
+        <div className="flex flex-col">
           <Item to="/overview" icon={ICONS.overview} label="Overview" />
+        </div>
+        <Group label="Protect">
           <Item
-            to="/agents"
-            icon={ICONS.agents}
-            label="Agents"
-            extra={<Count n={agents.data?.length} />}
+            to={TEST_AGENT}
+            icon={ICONS.test}
+            label="Test your agent"
+            extra={<Count n={own.tests || undefined} label="your tests" />}
           />
-          <Item to="/leaderboard" icon={ICONS.leaderboard} label="Leaderboard" />
+          <Item
+            to="/gate"
+            icon={ICONS.gate}
+            label="Payment gate"
+            except={["/gate/verify"]}
+            extra={<Count n={own.accounts || undefined} label="your gate accounts" />}
+          />
+          <Item to="/gate/verify" icon={ICONS.receipt} label="Verify a receipt" />
+        </Group>
+        <YoursGroup />
+        <Group label="Benchmarks">
           <Item to="/index" icon={ICONS.index} label="Index" />
+          <Item to="/leaderboard" icon={ICONS.leaderboard} label="Leaderboard" />
           <Item
             to="/arena"
             icon={ICONS.arena}
             label="Arena"
             extra={
               <span
-                className="size-[7px] rounded-full bg-breach-solid shadow-[0_0_8px_#ff5c3a] [animation:blink_1.4s_infinite]"
+                className="size-[6px] rounded-full bg-breach-solid [animation:blink_1.4s_infinite]"
                 aria-label="live"
               />
             }
           />
           <Item to="/attacks" icon={ICONS.redteam} label="Red team" />
           <Item to="/sentinel" icon={ICONS.sentinel} label="Sentinel" />
-          <Item to="/gate" icon={ICONS.gate} label="Payment gate" />
+        </Group>
+        <OnChainGroup>
+          <Item
+            to="/agents"
+            icon={ICONS.agents}
+            label="Agents"
+            except={[TEST_AGENT]}
+            extra={<Count n={agents.data?.length} />}
+          />
           <Item to="/vaults" icon={ICONS.vaults} label="Vaults" />
-        </Group>
-        <Group label="Yours">
-          {isConnected ? (
-            <>
-              <Item to="/agents?mine=1" icon={ICONS.mine} label="Your agents" />
-              <Item to="/underwrite?mine=1" icon={ICONS.deposits} label="Your underwriting" />
-            </>
-          ) : (
-            <p className="mx-1 rounded-2xl border border-dashed border-line-strong p-3.5 text-[13px] leading-relaxed text-muted">
-              Connect a wallet to see your agents, deposits and underwriting here.
-            </p>
-          )}
-        </Group>
-        <Group label="Protocol">
           <Item
             to="/claims"
             icon={ICONS.claims}
@@ -165,14 +261,14 @@ function Sidebar() {
           />
           <Item to="/underwrite" icon={ICONS.pool} label="Cover pool" />
           <Item to="/bounties" icon={ICONS.bounties} label="Bounties" />
-        </Group>
+        </OnChainGroup>
       </nav>
-      <div className="mt-auto flex flex-col gap-1">
+      <div className="mt-auto flex flex-col">
         <a
           href={DOCS_HOME}
-          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-muted hover:bg-white/[0.05] hover:text-ink"
+          className="flex items-center gap-3 px-3 py-2 text-[14px] text-muted hover:text-ink"
         >
-          <Icon d={ICONS.docs} />
+          <Icon d={ICONS.docs} className="size-4 text-dim" />
           Docs
         </a>
       </div>
@@ -247,7 +343,7 @@ export function AppLayout() {
       >
         Skip to content
       </a>
-      <aside className="sticky top-0 hidden h-screen w-[248px] shrink-0 overflow-y-auto border-r border-line bg-white/[0.015] lg:block">
+      <aside className="sticky top-0 hidden h-screen w-[240px] shrink-0 overflow-y-auto border-r border-line lg:block">
         <Sidebar />
       </aside>
       {open && (
@@ -286,7 +382,10 @@ export function AppLayout() {
         </main>
         <footer className="border-t border-line px-4 py-5 text-xs text-muted sm:px-8">
           <div className="mx-auto flex max-w-[1180px] flex-wrap items-center justify-between gap-3">
-            <span>{networkName} · test tokens only, nothing here has real value.</span>
+            <span>
+              {isOnChainPath(pathname) &&
+                `${networkName} · test tokens only, nothing here has real value.`}
+            </span>
             <div className="flex items-center gap-4">
               <a className="hover:text-ink" href={PRIVACY}>
                 Privacy

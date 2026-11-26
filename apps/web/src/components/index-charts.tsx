@@ -353,7 +353,7 @@ export function ModelBars({
                       <path
                         d={`M${x},${y + h} V${y + r} Q${x},${y} ${x + r},${y} H${x + w - r} Q${x + w},${y} ${x + w},${y + r} V${y + h} Z`}
                         fill={props.fill}
-                        stroke="#0e1320"
+                        stroke="#0d0e11"
                         strokeWidth={1.5}
                       />
                     );
@@ -361,7 +361,7 @@ export function ModelBars({
             }
             isAnimationActive={false}
             // A thin gap between stacked parts, in the card's color.
-            stroke={series.length > 1 && !grouped ? "#0e1320" : undefined}
+            stroke={series.length > 1 && !grouped ? "#0d0e11" : undefined}
             strokeWidth={series.length > 1 && !grouped ? 1.5 : 0}
           >
             {single &&
@@ -848,7 +848,7 @@ function LogoPoint({
 export const fallFill = (rate: number) =>
   rate === 0
     ? "rgb(255 255 255 / 0.035)"
-    : `color-mix(in oklab, ${VIZ.lost} ${Math.round(30 + rate * 70)}%, #0e1320)`;
+    : `color-mix(in oklab, ${VIZ.lost} ${Math.round(30 + rate * 70)}%, #0d0e11)`;
 
 /** A model's name with its logo, for tables and lists, linked to the model's own page. */
 export function ModelName({ entry, note }: { entry: BondedIndexEntry; note?: ReactNode }) {

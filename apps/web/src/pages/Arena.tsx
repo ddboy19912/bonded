@@ -435,7 +435,7 @@ export function Arena() {
           )}
         </section>
 
-        <aside className="panel min-w-0 flex-[1_1_360px] border-accent/25 bg-[radial-gradient(ellipse_at_50%_0%,rgb(29_78_216/.18),transparent_60%)] p-7 xl:sticky xl:top-24">
+        <aside className="panel min-w-0 flex-[1_1_360px] border-accent/25 p-7 xl:sticky xl:top-24">
           {selected ? (
             <EpisodeDetail
               c={selected}

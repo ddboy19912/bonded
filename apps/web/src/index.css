@@ -1,15 +1,12 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "@fontsource-variable/geist/index.css";
-@import "@fontsource/instrument-serif/400.css";
-@import "@fontsource/instrument-serif/400-italic.css";
 @import "@fontsource-variable/jetbrains-mono/index.css";
 
 /*
  * Fallback faces sized to match the web fonts, so text doesn't jump when they arrive: a local
  * font scaled to the same width (size-adjust) with the same line box (ascent and descent).
- * Measured in Chrome against a pangram plus page copy; Instrument Serif is about 17% narrower
- * than Times New Roman, which is what made the big headings shift.
+ * Measured in Chrome against a pangram plus page copy.
  */
 @font-face {
   font-family: "Geist Fallback";
@@ -17,14 +14,6 @@
   size-adjust: 101.73%;
   ascent-override: 98.79%;
   descent-override: 29%;
-  line-gap-override: 0%;
-}
-@font-face {
-  font-family: "Instrument Serif Fallback";
-  src: local("Times New Roman"), local("TimesNewRomanPSMT"), local("Times");
-  size-adjust: 82.97%;
-  ascent-override: 119.32%;
-  descent-override: 37.36%;
   line-gap-override: 0%;
 }
 @font-face {
@@ -37,31 +26,33 @@
 }
 
 /*
- * Aurora tokens: the Bonded identity on a deep navy ground. Blue #1D4ED8, Ink #0F1419 and Paper
- * #F7F6F2 come from the brand (output/brand/bonded-v1). The app is dark only: `paper` is the
- * page background and `ink` the text colour, so class names read the same as before.
+ * The app wears the landing page's look: a near-black ground with no navy in it, Geist for
+ * headlines as well as text, small mono labels, flat surfaces with hairline edges, and one blue.
+ * The app is dark only: `paper` is the page background and `ink` the text colour, so class names
+ * read the same as before.
  *
  * Meaning of the colours: blue is the brand and "held" (the agent resisted); orange is the red
  * team and "breach"; amber is a warning or a middling tier; green only means "valid".
  */
 @theme {
-  --color-paper: #05070d;
-  --color-surface: #0e1320;
-  --color-raised: #151b2b;
-  --color-sunken: #0a0e17;
-  --color-ink: #f4f6fb;
-  --color-soft: #c7d2ee;
-  --color-muted: #8d96ab;
-  --color-line: rgb(255 255 255 / 0.08);
-  --color-line-strong: rgb(255 255 255 / 0.16);
+  --color-paper: #07080a;
+  --color-surface: #0d0e11;
+  --color-raised: #141519;
+  --color-sunken: #0a0b0d;
+  --color-ink: #f1f2f4;
+  --color-soft: #c9ccd3;
+  --color-muted: #8a8f9a;
+  --color-dim: #6b7079;
+  --color-line: rgb(255 255 255 / 0.1);
+  --color-line-strong: rgb(255 255 255 / 0.18);
 
-  --color-brand: #1d4ed8;
+  --color-brand: #2f5ff5;
   --color-brand-bright: #3c6bff;
   --color-brand-strong: #1e40af;
   --color-on-brand: #ffffff;
-  --color-accent: #afc4ff;
-  --color-accent-soft: rgb(127 160 255 / 0.14);
-  --color-held: #7fa0ff;
+  --color-accent: #9db5ff;
+  --color-accent-soft: rgb(60 107 255 / 0.14);
+  --color-held: #9db5ff;
 
   --color-safe: #7ee2b0;
   --color-safe-soft: rgb(76 195 138 / 0.14);
@@ -94,13 +85,14 @@
   --color-hover: rgb(255 255 255 / 0.06);
 
   --font-sans: "Geist Variable", "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
-  --font-serif: "Instrument Serif", "Instrument Serif Fallback", Georgia, serif;
+  /* Headlines that once used a serif now use Geist, tight, as the landing page does. */
+  --font-serif: "Geist Variable", "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
   --font-mono:
     "JetBrains Mono Variable", "JetBrains Mono", "JetBrains Mono Fallback", ui-monospace, monospace;
 
-  --radius-card: 1.375rem;
-  --shadow-card: inset 0 1px 0 rgb(255 255 255 / 0.04);
-  --shadow-raised: 0 30px 60px -20px rgb(0 0 0 / 0.7), inset 0 1px 0 rgb(255 255 255 / 0.06);
+  --radius-card: 0.875rem;
+  --shadow-card: none;
+  --shadow-raised: 0 30px 60px -20px rgb(0 0 0 / 0.8);
 }
 
 @layer base {
@@ -143,23 +135,27 @@
 }
 
 @layer components {
-  /* The glass panel every card sits on. */
+  /* A flat surface with a hairline edge: no glass, no glow. */
   .panel {
     border-radius: var(--radius-card);
     border: 1px solid var(--color-line);
-    background: linear-gradient(180deg, rgb(22 28 44 / 0.75), rgb(10 13 22 / 0.85));
+    background: rgb(255 255 255 / 0.015);
     box-shadow: var(--shadow-card);
   }
-  /* Small uppercase label above a value. */
+  /* A headline: Geist set tight. Size and weight classes on the element still win. */
+  .font-serif {
+    font-weight: 500;
+    letter-spacing: -0.045em;
+  }
+  /* Small mono label above a value, as on the landing page. */
   .eyebrow {
-    font-size: 10.5px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0;
     color: var(--color-muted);
   }
   .btn-brand {
-    background: linear-gradient(180deg, var(--color-brand-bright), var(--color-brand));
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.25);
+    background: var(--color-brand);
   }
 }
 
