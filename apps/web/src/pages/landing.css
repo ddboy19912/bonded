@@ -143,6 +143,23 @@ body:has(.landing) {
   transform: none;
 }
 
+/*
+ * Each section, piece by piece: as the label, headline, intro line, buttons and body come on screen
+ * they fade and rise into place a beat apart (lib/reveal.tsx, useSectionStory), so the eye lands on
+ * the headline before the detail. Only marked pieces wait, and only while the story is on.
+ */
+.landing[data-story="on"] [data-beat] {
+  opacity: 0;
+  transform: translateY(22px);
+  transition:
+    opacity 0.8s ease var(--beat-delay, 0ms),
+    transform 1s var(--l-ease) var(--beat-delay, 0ms);
+}
+.landing[data-story="on"] [data-beat][data-in="true"] {
+  opacity: 1;
+  transform: none;
+}
+
 /* Hero: the cage lifts, the headline relaxes, the rest follows. */
 .l-hero {
   position: relative;

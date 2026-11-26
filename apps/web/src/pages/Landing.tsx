@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Token } from "../components/token";
-import { Reveal } from "../lib/reveal";
+import { Reveal, useSectionStory } from "../lib/reveal";
 import { AttackDemo } from "./LandingDemo";
 import { FinalCta, Hero, Manifesto } from "./LandingHero";
 import { LandingSentinel } from "./LandingSentinel";
@@ -17,8 +17,9 @@ import {
 import "./landing.css";
 
 export function Landing() {
+  const page = useSectionStory<HTMLDivElement>();
   return (
-    <div className="landing">
+    <div ref={page} className="landing">
       <Hero />
       <WorksWith />
       <Manifesto />
