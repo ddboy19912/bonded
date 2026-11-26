@@ -61,19 +61,21 @@ export function LandingIndex({ index = loadBondedIndex() }: { index?: BondedInde
   );
 }
 
-type Mark = "pass" | "fail";
 type Tone = "safe" | "breach" | "warn";
 
 interface Stop {
   id: string;
   tab: string;
+  /** Where the payment comes from, and which of the three ways brought it to the gate. */
   source: string;
   via: string;
   amount: string;
   payee: string;
-  detail: string;
-  checks: [string, Mark, string?][];
+  /** The gate's rules, in a few words each, and whether this payment passes. */
+  checks: [rule: string, pass: boolean][];
   verdict: string;
+  /** The decision in one short line. */
+  why: string;
   tone: Tone;
   /** The receipt's short hash, or null when the payment was only seen after it was made. */
   receipt: string | null;
@@ -88,14 +90,14 @@ export const STOPS: Stop[] = [
     via: "Asks first",
     amount: "$612.40",
     payee: "Nimbus Print",
-    detail: "Invoice NIM-88412",
     checks: [
-      ["Vendor on your list", "pass"],
-      ["Bank details match the vendor's", "pass"],
-      ["Matches an approved invoice", "pass"],
-      ["Under the $2,000 payment limit", "pass"],
+      ["Known vendor", true],
+      ["Bank details match", true],
+      ["Approved invoice", true],
+      ["Under $2,000", true],
     ],
     verdict: "Allowed",
+    why: "Every rule passes.",
     tone: "safe",
     receipt: "0x7a3c…e91f",
   },
@@ -106,14 +108,14 @@ export const STOPS: Stop[] = [
     via: "Asks first",
     amount: "$1,240.00",
     payee: "Nimbus Print",
-    detail: "To a new account, LT77 3250 …",
     checks: [
-      ["Vendor on your list", "pass"],
-      ["Bank details match the vendor's", "fail", "Changed, with no finance ticket"],
-      ["Matches an approved invoice", "pass"],
-      ["Under the $2,000 payment limit", "pass"],
+      ["Known vendor", true],
+      ["Bank details match", false],
+      ["Approved invoice", true],
+      ["Under $2,000", true],
     ],
     verdict: "Blocked",
+    why: "The bank details changed, with no finance ticket.",
     tone: "breach",
     receipt: "0x19be…04c2",
   },
@@ -124,13 +126,13 @@ export const STOPS: Stop[] = [
     via: "Card hook",
     amount: "$450.00",
     payee: "Lucky Spins",
-    detail: "Merchant category 7995, gambling",
     checks: [
-      ["Merchant is one of your vendors", "fail"],
-      ["Not cash, money orders or gambling", "fail"],
-      ["Under the $2,000 payment limit", "pass"],
+      ["Known vendor", false],
+      ["Not gambling", false],
+      ["Under $2,000", true],
     ],
     verdict: "Declined",
+    why: "A gambling merchant, and not one of your vendors.",
     tone: "breach",
     receipt: "0x5d02…a7b3",
   },
@@ -141,13 +143,13 @@ export const STOPS: Stop[] = [
     via: "Watch",
     amount: "$5,000.00",
     payee: "0x9f3a…e1c",
-    detail: "Seen after it was paid",
     checks: [
-      ["Payee on your vendor list", "fail"],
-      ["Under the $2,000 payment limit", "fail"],
-      ["Checked before it was paid", "fail"],
+      ["Known payee", false],
+      ["Under $2,000", false],
+      ["Checked before paying", false],
     ],
     verdict: "Breach",
+    why: "Seen only after it was paid.",
     tone: "warn",
     receipt: null,
   },
@@ -160,33 +162,21 @@ const TONE_COLOUR: Record<Tone, string> = {
   warn: "var(--l-orange)",
 };
 
-const STEP_MS = 650;
+const STEP_MS = 550;
 
 /** The three ways to connect, each with the `via` of the example payments that arrive that way. */
 const WAYS: { title: string; line: string; via: string }[] = [
-  {
-    title: "Ask first",
-    line: "One API, SDK or MCP call before each payment. In Enforce mode a breach is blocked.",
-    via: "Asks first",
-  },
-  {
-    title: "Card hooks",
-    line: "Stripe Issuing, Lithic or Marqeta asks Bonded before each card charge.",
-    via: "Card hook",
-  },
-  {
-    title: "Watch",
-    line: "Bonded reads a wallet or your payment log after the fact, and alerts on a breach.",
-    via: "Watch",
-  },
+  { title: "Ask first", line: "One call before each payment.", via: "Asks first" },
+  { title: "Card hooks", line: "Your card program asks Bonded first.", via: "Card hook" },
+  { title: "Watch", line: "Reads payments after, and alerts.", via: "Watch" },
 ];
 
 /**
- * The gate at work on four example payments. Pick one: the payment is on the left, and on the right
- * each rule is checked in turn, the decision lands in large type, and a signed receipt comes out
- * (or, for a payment only seen after it was made, an alert). Under it, the way that payment reached
- * the gate is marked among the three ways to connect. The first payment plays once when it comes on
- * screen and then holds; nothing loops. Reduced-motion readers get each one finished.
+ * The gate at work on four example payments, to be read at a glance: the amount on the left, the
+ * decision in large type on the right. Under the decision, one line saying why, and the rules as a
+ * row of ticks and crosses. Under that, the three ways to connect, with the one this payment used
+ * marked. The first payment plays once when it comes on screen and then holds; nothing loops.
+ * Reduced-motion readers get each one finished.
  */
 function GateDemo() {
   const reduced = useReducedMotion();
@@ -194,7 +184,7 @@ function GateDemo() {
   const [index, setIndex] = useState(0);
   const [step, setStep] = useState(0);
   const s = STOPS[index]!;
-  const last = s.checks.length + 2;
+  const last = s.checks.length + 1;
   const shown = reduced ? last : step;
 
   useEffect(() => {
@@ -203,8 +193,7 @@ function GateDemo() {
     return () => clearTimeout(t);
   }, [step, last, reduced, seen]);
 
-  const decided = shown >= s.checks.length + 1;
-  const done = shown >= last;
+  const decided = shown >= last;
 
   return (
     <div ref={ref}>
@@ -223,69 +212,53 @@ function GateDemo() {
           >
             <span className="l-atk-meta">
               <span>{String(i + 1).padStart(2, "0")}</span>
-              <span>{st.via}</span>
             </span>
             <span className="l-atk-name">{st.tab}</span>
           </button>
         ))}
       </div>
 
-      <div key={s.id} className="l-sen-grid">
+      <div key={s.id} className="l-sen-grid" aria-live="polite">
         <div>
-          <p className="l-lab">The agent wants to pay</p>
+          <p className="l-lab">{s.source}</p>
           <p className="l-pay">{s.amount}</p>
           <p className="l-payee">
             {s.via === "Card hook" ? "at" : "to"} <b>{s.payee}</b>
           </p>
-          <p className="l-step-text">{s.detail}</p>
-          <div className="l-rows mt-8">
-            <div>
-              <span>Arrives from</span>
-              <span>{s.source}</span>
-            </div>
-            <div>
-              <span>Reaches the gate by</span>
-              <span>{s.via}</span>
-            </div>
-          </div>
         </div>
 
-        <div aria-live="polite">
+        <div>
           <p className="l-lab flex justify-between gap-6">
-            <span>The gate checks</span>
+            <span>The gate says</span>
             <span>Illustration</span>
           </p>
-          <ul className="l-out l-out-seq">
-            {s.checks.map(([label, mark, note], i) => {
+          <div className="l-verdict l-gate-verdict" data-on={decided} aria-hidden={!decided}>
+            <p className="l-vv" style={{ color: TONE_COLOUR[s.tone] }}>
+              {s.verdict}
+            </p>
+            <p className="l-why">{s.why}</p>
+          </div>
+          <ul className="l-marks">
+            {s.checks.map(([rule, pass], i) => {
               const on = shown >= i + 1;
               return (
-                <li key={label} data-on={on} data-ok={mark === "pass"} aria-hidden={!on}>
-                  <span className="n">{String(i + 1).padStart(2, "0")}</span>
-                  <span>
-                    {label}
-                    {note && <small>{note}</small>}
-                  </span>
-                  <span className="a">{mark === "pass" ? "yes" : "no"}</span>
+                <li key={rule} data-on={on} data-ok={pass} aria-hidden={!on}>
+                  <span aria-hidden>{pass ? "✓" : "✕"}</span>
+                  {rule}
+                  <span className="sr-only">{pass ? ": yes" : ": no"}</span>
                 </li>
               );
             })}
           </ul>
-          <div className="l-verdict mt-10" data-on={decided} aria-hidden={!decided}>
-            <p className="l-vv" style={{ color: TONE_COLOUR[s.tone] }}>
-              {s.verdict}
-            </p>
-            <p className="l-vt l-receipt" data-on={done}>
-              {s.receipt ? (
-                <>
-                  Receipt signed by Bonded <code>{s.receipt}</code>. Anyone can check it.
-                </>
-              ) : (
-                <>
-                  Seen after it was paid: no receipt. <span>Alert sent to Slack</span>
-                </>
-              )}
-            </p>
-          </div>
+          <p className="l-lab l-receipt" data-on={decided}>
+            {s.receipt ? (
+              <>Receipt signed by Bonded {s.receipt}</>
+            ) : (
+              <>
+                No receipt · <span>Alert sent to Slack</span>
+              </>
+            )}
+          </p>
         </div>
       </div>
 

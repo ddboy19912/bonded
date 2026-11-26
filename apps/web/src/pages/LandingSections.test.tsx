@@ -138,14 +138,32 @@ describe("the payment gate section", () => {
     expect(screen.getByText("Alert sent to Slack")).toBeTruthy();
   });
 
-  it("shows the picked payment, its checks answered yes or no, and marks how it reached the gate", () => {
+  it("shows the picked payment at a glance: the amount, the decision, why, and each rule ticked or crossed", () => {
     reduceMotion();
     show(<LandingGate />);
     fireEvent.click(screen.getByRole("button", { name: /Bank change$/ }));
     expect(screen.getByText("$1,240.00")).toBeTruthy();
-    const failed = screen.getByText("Bank details match the vendor's").closest("li")!;
-    expect(within(failed).getByText("no")).toBeTruthy();
-    expect(within(failed).getByText("Changed, with no finance ticket")).toBeTruthy();
+    expect(screen.getByText("Blocked")).toBeTruthy();
+    expect(screen.getByText("The bank details changed, with no finance ticket.")).toBeTruthy();
+    const marks = [...document.querySelectorAll(".l-marks li")].map((li) => li.textContent);
+    expect(marks).toEqual([
+      "✓Known vendor: yes",
+      "✕Bank details match: no",
+      "✓Approved invoice: yes",
+      "✓Under $2,000: yes",
+    ]);
+  });
+
+  it("keeps each rule to a few words, and each decision to one short line", () => {
+    for (const stop of STOPS) {
+      for (const [rule] of stop.checks) expect(rule.split(" ").length, rule).toBeLessThanOrEqual(3);
+      expect(stop.why.length, stop.why).toBeLessThanOrEqual(50);
+    }
+  });
+
+  it("marks how the picked payment reached the gate among the three ways to connect", () => {
+    reduceMotion();
+    show(<LandingGate />);
     const marked = () =>
       [...document.querySelectorAll('.l-ways > [data-on="true"] h3')].map((h) => h.textContent);
     expect(marked()).toEqual(["Ask first"]);
@@ -169,14 +187,14 @@ describe("the payment gate section", () => {
           .getAllByRole("button")
           .filter((b) => b.getAttribute("aria-pressed") === "true")
           .map((b) => b.textContent);
-      expect(picked()).toEqual(["01Asks firstInvoice"]);
+      expect(picked()).toEqual(["01Invoice"]);
       expect(screen.getByText("Allowed").parentElement!.getAttribute("data-on")).toBe("false");
-      // One step per tick: each rule, then the decision, then the receipt.
-      for (let i = 0; i < 6; i++) act(() => void vi.advanceTimersByTime(650));
+      // One step per tick: each rule, then the decision.
+      for (let i = 0; i < 5; i++) act(() => void vi.advanceTimersByTime(550));
       expect(screen.getByText("Allowed").parentElement!.getAttribute("data-on")).toBe("true");
       // A long wait later it is still the same payment, finished.
       for (let i = 0; i < 10; i++) act(() => void vi.advanceTimersByTime(6_000));
-      expect(picked()).toEqual(["01Asks firstInvoice"]);
+      expect(picked()).toEqual(["01Invoice"]);
       expect(screen.getByText("Allowed").parentElement!.getAttribute("data-on")).toBe("true");
     } finally {
       vi.useRealTimers();
@@ -185,7 +203,7 @@ describe("the payment gate section", () => {
 
   it("allows a payment only when every check passes", () => {
     for (const stop of STOPS) {
-      const passed = stop.checks.every(([, mark]) => mark === "pass");
+      const passed = stop.checks.every(([, pass]) => pass);
       expect(stop.verdict === "Allowed", stop.id).toBe(passed);
     }
   });

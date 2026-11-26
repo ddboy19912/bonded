@@ -1109,19 +1109,20 @@ body:has(.landing) {
   color: var(--l-ink);
 }
 
-/* The payment gate: the payment on one side; your rules, the decision and the receipt on the other.
-   Under it, the three ways to connect, with the one this payment used marked. */
+/* The payment gate, to be read at a glance: the amount on one side, the decision on the other, the
+   rules as a row of ticks. Under it, the three ways to connect, with the one this payment used
+   marked. */
 .l-picks-4 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 .l-pay {
-  margin: 14px 0 0 -0.03em;
-  font: 500 clamp(56px, 7vw, 104px) / 0.9 var(--l-sans);
-  letter-spacing: -0.06em;
+  margin: 16px 0 0 -0.03em;
+  font: 500 clamp(64px, 9vw, 136px) / 0.85 var(--l-sans);
+  letter-spacing: -0.07em;
   font-variant-numeric: tabular-nums;
 }
 .l-payee {
-  margin-top: 20px;
+  margin-top: 22px;
   font: 400 clamp(20px, 2vw, 30px) / 1.2 var(--l-sans);
   letter-spacing: -0.03em;
   color: var(--l-muted);
@@ -1130,26 +1131,58 @@ body:has(.landing) {
   font-weight: 500;
   color: var(--l-ink);
 }
-.l-payee + .l-step-text {
-  margin-top: 8px;
+.l-gate-verdict {
+  margin-top: 16px;
 }
-.l-out.l-out-seq li[data-on="true"]:nth-child(n) {
-  transition-delay: 0s;
+.l-gate-verdict .l-vv {
+  font-size: clamp(64px, 9vw, 136px);
 }
-.l-out small {
-  display: block;
-  margin-top: 5px;
-  font: 400 13px/1.3 var(--l-mono);
-  letter-spacing: 0;
-  color: var(--l-orange);
+.l-why {
+  margin-top: 22px;
+  max-width: 34ch;
+  font: 400 clamp(20px, 2vw, 30px) / 1.2 var(--l-sans);
+  letter-spacing: -0.03em;
 }
-.l-vt code {
-  font: 400 0.88em var(--l-mono);
+.l-marks {
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid var(--l-line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 26px;
+}
+.l-marks li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 16px;
+  color: var(--l-muted);
+  opacity: 0.25;
+  transition:
+    opacity 0.3s ease,
+    color 0.3s ease;
+}
+.l-marks li > span:first-child {
+  font: 400 13px/1 var(--l-mono);
+  color: var(--l-dim);
+  transition: color 0.3s ease;
+}
+.l-marks li[data-on="true"] {
+  opacity: 1;
+}
+.l-marks li[data-on="true"][data-ok="true"] > span:first-child {
+  color: var(--l-soft);
+}
+.l-marks li[data-on="true"][data-ok="false"] {
   color: var(--l-ink);
 }
+.l-marks li[data-on="true"][data-ok="false"] > span:first-child {
+  color: var(--l-orange);
+}
 .l-receipt {
+  margin-top: 18px;
   opacity: 0;
-  transition: opacity 0.5s ease;
+  transition: opacity 0.5s ease 0.3s;
 }
 .l-receipt[data-on="true"] {
   opacity: 1;
@@ -1158,7 +1191,7 @@ body:has(.landing) {
   color: var(--l-orange);
 }
 .l-ways {
-  margin-top: 80px;
+  margin-top: 72px;
 }
 .l-ways > div {
   position: relative;
@@ -1186,6 +1219,9 @@ body:has(.landing) {
 .l-ways h3 {
   font: 500 clamp(22px, 2.2vw, 32px) / 1.05 var(--l-sans);
   letter-spacing: -0.04em;
+}
+.l-ways p {
+  margin-top: 10px;
 }
 
 /* The close: the line again, twice, drifting opposite ways and leaning with the scroll. */
@@ -1331,6 +1367,8 @@ body:has(.landing) {
   .l-late,
   .l-mani-text span,
   .l-out li,
+  .l-marks li,
+  .l-receipt,
   .l-verdict,
   .l-sen-verdict,
   .l-lane .l-ticket {
