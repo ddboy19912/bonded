@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { Info } from "lucide-react";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useAccount, useReadContract, useReadContracts } from "wagmi";
@@ -55,6 +56,7 @@ import {
   Section,
   Stat,
   Term,
+  Tooltip,
   Unavailable,
   buttonClass,
   linkClass,
@@ -552,14 +554,13 @@ export function Agent() {
           {guarded && <ModuleCover agentId={agentId} module={guarded.module} />}
           <SentinelChecks agentId={id} ratedWith={Boolean(report?.sentinel)} />
           <Card title="Proof on chain">
-            <p className="-mt-2 mb-6 max-w-xl text-[14px] leading-relaxed text-muted">
-              What anyone can check without trusting Bonded: who owns the agent, the transaction
-              that wrote its score, and fingerprints of what it was tested on.
+            <p className="-mt-2 mb-6 text-[14px] text-muted">
+              What anyone can check on chain, without trusting Bonded.
             </p>
             <div className="flex flex-col">
               <ProofRow
                 label="Owner"
-                note="The wallet that registered the agent."
+                note="Registered the agent"
                 value={owner?.result}
                 href={owner?.result && explorerUrl ? addressUrl(owner.result) : undefined}
               />
@@ -567,36 +568,56 @@ export function Agent() {
                 <>
                   <ProofRow
                     label="Score posted in"
-                    note="The transaction that wrote this score to BondedRegistry."
+                    note="Wrote this score on chain"
                     value={postedTx ?? undefined}
                     href={postedTx && explorerUrl ? txUrl(postedTx) : undefined}
                     pending={!postedTx && scoreTx.isPending}
                   />
                   <ProofRow
                     label="Report hash"
-                    note={`A fingerprint of the full attack report, written into the posting transaction's log (as responseHash), so the report can't be changed afterwards.${score.data ? " The downloaded report must hash to it." : ""}`}
+                    note="Fingerprint of the full report"
                     value={a.reportHash}
-                    // Blockscout opens a transaction on its log tab with ?tab=logs.
-                    href={postedTx && explorerUrl ? `${txUrl(postedTx)}?tab=logs` : undefined}
-                    linkTitle="See it in the transaction's log"
+                    how={
+                      <>
+                        BondedRegistry <Mono>{short(deployment.registry)}</Mono> → Read contract →{" "}
+                        <Mono>scoreOf({id})</Mono> returns it as <Mono>reportHash</Mono>.
+                        {score.data && (
+                          <>
+                            {" "}
+                            <Mono>keccak256</Mono> of the downloaded report&apos;s exact bytes must
+                            equal it.
+                          </>
+                        )}
+                      </>
+                    }
                   />
                   <ProofRow
                     label="Mandate hash"
-                    note="A fingerprint of the rules the agent was tested under: which tokens and contracts it may use, where funds may go, and its limits. It's in the posting transaction's input, inside the attestation."
+                    note="Fingerprint of the rules it was tested under"
                     value={a.mandateHash}
-                    href={postedTx && explorerUrl ? txUrl(postedTx) : undefined}
-                    linkTitle="See it in the transaction's input"
+                    how={
+                      <>
+                        <Mono>scoreOf({id})</Mono> on BondedRegistry returns it as{" "}
+                        <Mono>mandateHash</Mono>.
+                        {enforcer && (
+                          <>
+                            {" "}
+                            The {vault ? "vault" : "module"}&apos;s own <Mono>mandateHash()</Mono>{" "}
+                            gives the rules it enforces now.
+                          </>
+                        )}
+                      </>
+                    }
                     status={
                       liveMandate.data ===
                       undefined ? undefined : liveMandate.data.toLowerCase() ===
                         a.mandateHash.toLowerCase() ? (
                         <span className="text-brand-bright">
-                          ✓ Same rules its {vault ? "vault" : "account module"} enforces on chain
+                          ✓ Matches its {vault ? "vault" : "module"}
                         </span>
                       ) : (
                         <span className="text-warn">
-                          Its {vault ? "vault" : "account module"} now enforces different rules than
-                          the ones it was rated under
+                          Its {vault ? "vault" : "module"} enforces different rules now
                         </span>
                       )
                     }
@@ -607,8 +628,14 @@ export function Agent() {
                 <>
                   <ProofRow
                     label="TEE measurement"
-                    note="A fingerprint of the exact code running in sealed hardware."
+                    note="Fingerprint of its sealed code"
                     value={tee.measurement}
+                    how={
+                      <>
+                        <Mono>scoreOf({id})</Mono> on BondedRegistry returns it as{" "}
+                        <Mono>teeMeasurement</Mono>.
+                      </>
+                    }
                   />
                   <div className="flex items-center justify-between gap-6 border-t border-line py-4">
                     <span className="text-[14px] text-ink">TEE live check</span>
@@ -950,16 +977,22 @@ function SentinelChecks({ agentId, ratedWith }: { agentId: string; ratedWith: bo
   );
 }
 
+/** Code in a tooltip: an address, a function, a field. */
+const Mono = ({ children }: { children: ReactNode }) => (
+  <span className="font-mono text-[12px] text-ink">{children}</span>
+);
+
 /**
- * One thing anyone can check on chain: what it is in plain words, its value shortened in the
- * middle, and a copy button; a link to the explorer when the value is something it can open.
+ * One thing anyone can check on chain: its name, a few words on what it is, and the value
+ * shortened in the middle with a copy button. A link only when it opens that exact thing (an
+ * address, a transaction); for a fingerprint, an info mark says where to read it on chain.
  */
 function ProofRow({
   label,
   note,
   value,
   href,
-  linkTitle,
+  how,
   status,
   pending = false,
 }: {
@@ -967,21 +1000,32 @@ function ProofRow({
   note: string;
   value: string | undefined;
   href?: string | undefined;
-  /** What the link opens, on hover; the value itself otherwise. */
-  linkTitle?: string;
+  /** How to check it yourself, shown on hover of the info mark. */
+  how?: ReactNode;
   /** A live check on the value, under the note. */
   status?: ReactNode;
   pending?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   return (
-    <div className="grid gap-x-8 gap-y-2 border-t border-line py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+    <div className="flex items-center justify-between gap-6 border-t border-line py-4">
       <div className="min-w-0">
-        <p className="text-[14px] text-ink">{label}</p>
-        <p className="mt-1 max-w-md text-[13px] leading-relaxed text-muted">{note}</p>
-        {status && <p className="mt-2 text-[13px]">{status}</p>}
+        <p className="flex items-center gap-1.5 text-[14px] text-ink">
+          {label}
+          {how && (
+            <Tooltip content={<span className="block max-w-72">{how}</span>}>
+              <Info
+                role="img"
+                aria-label={`How to check the ${label.toLowerCase()}`}
+                className="size-3.5 cursor-help text-muted transition hover:text-ink"
+                strokeWidth={2}
+              />
+            </Tooltip>
+          )}
+        </p>
+        <p className="mt-0.5 truncate text-[13px] text-muted">{status ?? note}</p>
       </div>
-      <div className="flex items-center gap-3 sm:justify-end">
+      <div className="flex shrink-0 items-center gap-3">
         {value ? (
           <>
             {href ? (
@@ -989,7 +1033,7 @@ function ProofRow({
                 href={href}
                 target="_blank"
                 rel="noreferrer"
-                title={linkTitle ?? value}
+                title={value}
                 className="font-mono text-[13px] text-accent transition hover:text-ink"
               >
                 {short(value, 6)} <span aria-hidden>↗</span>
@@ -1008,7 +1052,7 @@ function ProofRow({
                   setTimeout(() => setCopied(false), 1500);
                 }
               }}
-              className="rounded-full px-2.5 py-0.5 font-mono text-[11px] text-muted shadow-[inset_0_0_0_1px_rgb(255_255_255/0.14)] transition hover:text-ink hover:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.3)]"
+              className="w-14 rounded-full py-0.5 font-mono text-[11px] text-muted shadow-[inset_0_0_0_1px_rgb(255_255_255/0.14)] transition hover:text-ink hover:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.3)]"
             >
               {copied ? "Copied" : "Copy"}
             </button>
