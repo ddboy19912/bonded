@@ -1,4 +1,4 @@
-import { Button } from "./ui";
+import { Button, Logo } from "./ui";
 
 /**
  * Saves the report on the page as a PDF, through the browser's print dialog ("Save as PDF").
@@ -36,17 +36,29 @@ export function SavePdfButton({
   );
 }
 
-/** The report's heading on paper: what it is, when it ran and where it came from. */
+/**
+ * A report's letterhead on paper only: the Bonded lockup at the left; what the report is, when it
+ * ran and where it came from at the right, in the app's mono labels; a hairline under it.
+ */
+export function PrintBrand({ kind, date }: { kind: string; date: string }) {
+  return (
+    <div className="mb-14 hidden items-end justify-between gap-8 border-b border-line pb-6 print:flex">
+      <Logo className="h-8" />
+      <div className="text-right font-mono text-[12px] leading-relaxed text-muted">
+        <p className="text-soft">{kind}</p>
+        <p>{date} · bondedhq.xyz</p>
+      </div>
+    </div>
+  );
+}
+
+/** A preview report's letterhead: which kind of agent, and when it ran. */
 export function PrintHeader({ world, ranAt }: { world: "vault" | "brokerage"; ranAt: string }) {
   return (
-    <div className="mb-8 hidden border-b border-line pb-4 print:block">
-      <p className="text-lg font-bold">
-        Bonded preview report: {world === "brokerage" ? "stock-trading" : "crypto-trading"} agent
-      </p>
-      <p className="mt-1 text-xs text-muted">
-        Ran {new Date(ranAt).toLocaleDateString("en-GB", { dateStyle: "long" })} · www.bondedhq.xyz
-      </p>
-    </div>
+    <PrintBrand
+      kind={`Preview report · ${world === "brokerage" ? "stock-trading" : "crypto-trading"} agent`}
+      date={`Ran ${new Date(ranAt).toLocaleDateString("en-GB", { dateStyle: "long" })}`}
+    />
   );
 }
 

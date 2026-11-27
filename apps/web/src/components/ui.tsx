@@ -808,6 +808,7 @@ export function Page({
           {back && (
             <Link
               to={back.to}
+              data-print-hide
               className="eyebrow group mb-6 inline-flex items-center gap-2 transition hover:text-ink"
             >
               <span aria-hidden className="transition group-hover:-translate-x-1">
@@ -821,7 +822,11 @@ export function Page({
           <h1 className="h-display">{title}</h1>
           {intro && <p className="mt-6 max-w-2xl text-base leading-relaxed text-muted">{intro}</p>}
         </div>
-        {actions && <div className="flex flex-wrap gap-2.5">{actions}</div>}
+        {actions && (
+          <div data-print-hide className="flex flex-wrap gap-2.5">
+            {actions}
+          </div>
+        )}
       </header>
       {children}
     </div>

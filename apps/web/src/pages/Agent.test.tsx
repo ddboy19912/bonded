@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { ApiError, api, type LeaderboardRecord } from "../lib/api";
@@ -310,5 +310,16 @@ describe("dollars at risk beside the score", () => {
     expect(await screen.findByText(/150 attacks · 50 controls/)).toBeTruthy();
     expect(screen.queryByText("Dollars at risk:")).toBeNull();
     expect(screen.queryByText(/lost per 1,000 runs/)).toBeNull();
+  });
+  it("makes the PDF from this page: prints it with the hash check and the rating's details", async () => {
+    hosted({});
+    const bytes = new TextEncoder().encode('{"x":1}');
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(bytes, { status: 200 }));
+    const print = vi.spyOn(window, "print").mockImplementation(() => {});
+    fireEvent.click(await screen.findByRole("button", { name: "Download the report (PDF)" }));
+    await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
+    // The bytes don't hash to the on-chain hash here, and the paper says so.
+    expect(screen.getByText(/did not match the report hash on chain/)).toBeTruthy();
+    expect(screen.getByText("Rating details")).toBeTruthy();
   });
 });

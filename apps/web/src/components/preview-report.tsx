@@ -232,7 +232,10 @@ export function PreviewReport({
         </>
       )}
       {preview && (
-        <div className="grid gap-x-10 gap-y-8 border-t border-line pt-8 sm:grid-cols-2">
+        <div
+          data-print-hide
+          className="grid gap-x-10 gap-y-8 border-t border-line pt-8 sm:grid-cols-2"
+        >
           {onRateAgain && (
             <div className="flex flex-col gap-2">
               <p className="text-lg font-medium tracking-[-0.02em]">Fixed something?</p>

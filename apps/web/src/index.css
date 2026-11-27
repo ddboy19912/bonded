@@ -413,37 +413,18 @@
 }
 
 /*
- * Print ("Save as PDF" on a report): only the element marked data-print-root prints, as dark text
- * on white with the brand's colours, and nothing that can be clicked. Pages without a print root
- * print as they are.
+ * Print ("Save as PDF" on a report): only the element marked data-print-root prints, in the app's
+ * own dark theme and type, edge to edge, with nothing that can be clicked. Pages without a print
+ * root print as they are.
  */
 @media print {
   @page {
-    margin: 14mm;
-  }
-  :root {
-    color-scheme: light;
-    --color-paper: #ffffff;
-    --color-surface: #ffffff;
-    --color-raised: #ffffff;
-    --color-sunken: #f5f6f8;
-    --color-ink: #0f1419;
-    --color-soft: #2b3445;
-    --color-muted: #5b6474;
-    --color-line: rgb(15 20 25 / 0.12);
-    --color-line-strong: rgb(15 20 25 / 0.22);
-    --color-accent: #1d4ed8;
-    --color-accent-soft: rgb(29 78 216 / 0.08);
-    --color-safe: #11774a;
-    --color-safe-soft: rgb(17 119 74 / 0.09);
-    --color-breach: #c2410c;
-    --color-breach-soft: rgb(194 65 12 / 0.08);
-    --color-warn: #9a5800;
-    --color-warn-soft: rgb(154 88 0 / 0.1);
+    size: A4;
+    margin: 0;
   }
   html,
   body {
-    background: #ffffff !important;
+    background: var(--color-paper) !important;
   }
   body {
     -webkit-print-color-adjust: exact;
@@ -454,9 +435,12 @@
     *:not(:has([data-print-root])):not([data-print-root]):not([data-print-root] *) {
     display: none !important;
   }
-  /* Actions go; a disclosure's own button stays, since it carries the section's title. */
+  /* Actions go (buttons, button-like links, "Open →" links); a disclosure's own button stays,
+     since it carries the section's title. */
   [data-print-root] [data-print-hide],
-  [data-print-root] button:not([aria-expanded]) {
+  [data-print-root] button:not([aria-expanded]),
+  [data-print-root] a.btn,
+  [data-print-root] .more-link {
     display: none !important;
   }
   /* Folded sections print open, and nothing scrolls on paper. */
@@ -470,9 +454,8 @@
     max-height: none !important;
     overflow: visible !important;
   }
-  /* The page shell around the report: no dark grounds, glows or offsets on paper, and no layout of
-     its own (a step's rail column, a grid or flex row), so the report always gets the page's full
-     width once everything beside it is hidden. */
+  /* The page shell around the report: no layout of its own (a step's rail column, a grid or flex
+     row), so the report always gets the page's full width once everything beside it is hidden. */
   body:has([data-print-root]) *:has([data-print-root]) {
     display: block !important;
     width: auto !important;
@@ -488,24 +471,60 @@
   body:has([data-print-root]) *:has([data-print-root])::after {
     display: none !important;
   }
-  /* A little smaller than on screen, so a card fits on a page with what comes before it. */
+  /* The page's margins live inside the report, so the dark ground runs to the paper's edge. A
+     little smaller than on screen, so sections fit with what comes before them. */
+  /* The report's own padding is the page's margin, repeated on every page it runs onto (clone),
+     so the dark ground reaches the paper's edge and no page starts flush at the top. */
   [data-print-root] {
-    zoom: 0.82;
+    zoom: 0.74;
+    padding: 20mm 22mm !important;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
   }
-  .panel {
-    background: #ffffff;
-    box-shadow: none;
+  /* Nothing waits for an animation on paper. */
+  [data-print-root] *,
+  [data-print-root] *::before,
+  [data-print-root] *::after {
+    animation: none !important;
+    transition: none !important;
   }
   /* A card or row stays whole; a long table runs on; a heading stays with what follows it. */
   [data-print-root] article,
   [data-print-root] tr,
   [data-print-root] blockquote,
-  [data-print-root] dl {
+  [data-print-root] dl > div,
+  [data-print-root] li {
     break-inside: avoid;
   }
+  [data-print-root] h1,
   [data-print-root] h2,
   [data-print-root] h3,
   [data-print-root] h4 {
     break-after: avoid;
+  }
+  [data-print-root] .app-sec {
+    break-inside: auto;
+  }
+  /* A card (a section that isn't a whole page section) stays on one page with its title, and a
+     table's header stays with its first rows. */
+  [data-print-root] section:not(.app-sec),
+  [data-print-root] [data-print-keep] {
+    break-inside: avoid;
+  }
+  /* A list of rows prints as plain blocks, so the page can break between rows (not inside a flex
+     column, where print can't), and its header stays with the first row. */
+  [data-print-root] [data-print-list] {
+    display: block !important;
+  }
+  /* Chrome doesn't keep a block with the next one, so a header reserves the room of a row below it
+     (a box that is taller than it looks and won't split): with no room for that, it moves on. */
+  [data-print-root] [data-print-head] {
+    break-inside: avoid;
+  }
+  [data-print-root] [data-print-head]::after {
+    content: "";
+    display: block;
+    height: 64px;
+    margin-bottom: -64px;
   }
 }

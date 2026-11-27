@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import { Info } from "lucide-react";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -16,8 +16,15 @@ import {
 } from "@bondedhq/shared";
 import type { Address } from "viem";
 import { deployment, explorerUrl } from "../config";
-import { downloadReportJson, downloadReportPdf, type ReportContext } from "../lib/report";
-import { ApiError, api, type SelfAgentRecord } from "../lib/api";
+import {
+  downloadReportJson,
+  fetchReportBytes,
+  matchesHash,
+  reportDocument,
+  type ReportContext,
+} from "../lib/report";
+import { PrintBrand } from "../components/save-pdf";
+import { ApiError, api, type Report, type SelfAgentRecord } from "../lib/api";
 import { liveCheckView, teeView } from "../lib/tee";
 import { RAIL_HINT, RAIL_LABEL } from "../lib/rails";
 import { isRpcUnavailable } from "../lib/errors";
@@ -218,451 +225,470 @@ export function Agent() {
   const band = gradeBand(a?.securityScore ?? 0);
 
   return (
-    <Page
-      title={`Agent ${id}`}
-      back={back}
-      intro="Its latest rating: Security · Task, plus the insurance score that prices cover."
-      actions={
-        <>
-          {vault && (
-            <Link to={`/vaults/${vault}`} className={buttonClass("secondary")}>
-              Open vault
+    <div data-print-root>
+      {a && (
+        <PrintBrand
+          kind="On-chain attack report"
+          date={`Rated ${new Date(Number(a.issuedAt) * 1000).toLocaleDateString("en-GB", { dateStyle: "long" })}`}
+        />
+      )}
+      <Page
+        title={`Agent ${id}`}
+        back={back}
+        intro="Its latest rating: Security · Task, plus the insurance score that prices cover."
+        actions={
+          <>
+            {vault && (
+              <Link to={`/vaults/${vault}`} className={buttonClass("secondary")}>
+                Open vault
+              </Link>
+            )}
+            <Link to="/arena" className={buttonClass("light")}>
+              Watch the Arena
+            </Link>
+          </>
+        }
+      >
+        <div className="-mt-4 flex flex-wrap gap-2 sm:-mt-8">
+          <span title={RAIL_HINT.onchain}>
+            <Badge>{RAIL_LABEL.onchain}</Badge>
+          </span>
+          {tier && <Badge tone={tone}>Insurance tier {tier}</Badge>}
+          {rated &&
+            (fresh?.result ? (
+              <Badge tone="safe" dot>
+                <span title={a ? `Signed ${when(a.issuedAt)}` : undefined}>
+                  Score valid{a ? ` until ${when(a.expiresAt)}` : ""}
+                </span>
+              </Badge>
+            ) : (
+              <Badge>{a ? `Rated ${day(a.issuedAt)} · re-rating due` : "Re-rating due"}</Badge>
+            ))}
+          {report && <Badge>{report.mandateMode} mode</Badge>}
+          {score.data?.superseded && (
+            <Badge tone="breach" dot>
+              Score superseded: no new cover until a complete rating
+            </Badge>
+          )}
+          {report?.sentinel && (
+            <Link to="/sentinel">
+              <Badge tone="brand" dot>
+                Rated with Sentinel on
+              </Badge>
             </Link>
           )}
-          <Link to="/arena" className={buttonClass("light")}>
-            Watch the Arena
-          </Link>
-        </>
-      }
-    >
-      <div className="-mt-4 flex flex-wrap gap-2 sm:-mt-8">
-        <span title={RAIL_HINT.onchain}>
-          <Badge>{RAIL_LABEL.onchain}</Badge>
-        </span>
-        {tier && <Badge tone={tone}>Insurance tier {tier}</Badge>}
-        {rated &&
-          (fresh?.result ? (
-            <Badge tone="safe" dot>
-              <span title={a ? `Signed ${when(a.issuedAt)}` : undefined}>
-                Score valid{a ? ` until ${when(a.expiresAt)}` : ""}
-              </span>
-            </Badge>
-          ) : (
-            <Badge>{a ? `Rated ${day(a.issuedAt)} · re-rating due` : "Re-rating due"}</Badge>
-          ))}
-        {report && <Badge>{report.mandateMode} mode</Badge>}
-        {score.data?.superseded && (
-          <Badge tone="breach" dot>
-            Score superseded: no new cover until a complete rating
-          </Badge>
-        )}
-        {report?.sentinel && (
-          <Link to="/sentinel">
-            <Badge tone="brand" dot>
-              Rated with Sentinel on
-            </Badge>
-          </Link>
-        )}
-      </div>
+        </div>
 
-      <Section>
-        {rated && a ? (
-          <>
-            <div className="grid gap-x-14 gap-y-12 md:grid-cols-2">
-              <div data-score="security" className="min-w-0">
-                <p className="eyebrow">Security score</p>
-                <div className="mt-5 flex flex-wrap items-center gap-x-7 gap-y-4">
-                  <ScoreRing score={a.securityScore} stroke={gradeStroke(a.securityScore)} />
-                  <p className={`${VERDICT} min-w-0 flex-[1_1_160px] ${band.tone}`}>
-                    {band.verdict}
-                  </p>
-                </div>
-                <p className="mt-6 max-w-md text-[15px] leading-relaxed text-soft">
-                  {weakestLine ? (
-                    <>
-                      {weakestLine}{" "}
-                      {weakCount > 0 && (
-                        <span className="text-muted">That result sets the score.</span>
-                      )}
-                    </>
-                  ) : (
-                    "How hard it is to trick: 100 means no attack moved it."
-                  )}
-                </p>
-                {results && (
-                  <div className="mt-5">
-                    <div className="flex flex-wrap gap-1.5">
-                      {results.map((r) => (
-                        <Square key={r.cls} r={r} size="size-6" />
-                      ))}
-                    </div>
-                    <p className="mt-2.5 font-mono text-xs text-muted">
-                      {weakCount
-                        ? `${weakCount} of ${results.filter((r) => r.tracks.length).length} classes weak`
-                        : "No weak classes"}{" "}
-                      · hover a square for its numbers
+        <Section>
+          {rated && a ? (
+            <>
+              <div className="grid gap-x-14 gap-y-12 md:grid-cols-2">
+                <div data-score="security" className="min-w-0">
+                  <p className="eyebrow">Security score</p>
+                  <div className="mt-5 flex flex-wrap items-center gap-x-7 gap-y-4">
+                    <ScoreRing score={a.securityScore} stroke={gradeStroke(a.securityScore)} />
+                    <p className={`${VERDICT} min-w-0 flex-[1_1_160px] ${band.tone}`}>
+                      {band.verdict}
                     </p>
                   </div>
-                )}
-                {report?.dollarsAtRisk && <DollarsAtRiskNote d={report.dollarsAtRisk} />}
-              </div>
-              <div data-score="task" className="min-w-0">
-                <p className="eyebrow">
-                  <Term term="taskScore">Task score</Term>
-                </p>
-                <div className="mt-5 flex flex-wrap items-center gap-x-7 gap-y-4">
-                  {task && task.score !== null ? (
-                    <ScoreRing score={task.score} stroke={gradeStroke(task.score)} />
-                  ) : (
-                    <span className="flex size-[150px] shrink-0 items-center justify-center rounded-full border border-dashed border-line-strong text-5xl font-medium text-muted">
-                      —
-                    </span>
+                  <p className="mt-6 max-w-md text-[15px] leading-relaxed text-soft">
+                    {weakestLine ? (
+                      <>
+                        {weakestLine}{" "}
+                        {weakCount > 0 && (
+                          <span className="text-muted">That result sets the score.</span>
+                        )}
+                      </>
+                    ) : (
+                      "How hard it is to trick: 100 means no attack moved it."
+                    )}
+                  </p>
+                  {results && (
+                    <div className="mt-5">
+                      <div className="flex flex-wrap gap-1.5">
+                        {results.map((r) => (
+                          <Square key={r.cls} r={r} size="size-6" />
+                        ))}
+                      </div>
+                      <p className="mt-2.5 font-mono text-xs text-muted">
+                        {weakCount
+                          ? `${weakCount} of ${results.filter((r) => r.tracks.length).length} classes weak`
+                          : "No weak classes"}
+                        <span className="print:hidden"> · hover a square for its numbers</span>
+                      </p>
+                    </div>
                   )}
+                  {report?.dollarsAtRisk && <DollarsAtRiskNote d={report.dollarsAtRisk} />}
+                </div>
+                <div data-score="task" className="min-w-0">
+                  <p className="eyebrow">
+                    <Term term="taskScore">Task score</Term>
+                  </p>
+                  <div className="mt-5 flex flex-wrap items-center gap-x-7 gap-y-4">
+                    {task && task.score !== null ? (
+                      <ScoreRing score={task.score} stroke={gradeStroke(task.score)} />
+                    ) : (
+                      <span className="flex size-[150px] shrink-0 items-center justify-center rounded-full border border-dashed border-line-strong text-5xl font-medium text-muted">
+                        —
+                      </span>
+                    )}
+                    {task && task.score !== null ? (
+                      <p className={`${VERDICT} min-w-0 flex-[1_1_160px] ${gradeTone(task.score)}`}>
+                        {task.score >= 80
+                          ? "Does the job"
+                          : task.score >= 50
+                            ? "Does some of the job"
+                            : "Rarely does the job"}
+                      </p>
+                    ) : (
+                      <p className={`${VERDICT} min-w-0 flex-[1_1_160px] text-muted`}>
+                        Not measured
+                      </p>
+                    )}
+                  </div>
                   {task && task.score !== null ? (
-                    <p className={`${VERDICT} min-w-0 flex-[1_1_160px] ${gradeTone(task.score)}`}>
-                      {task.score >= 80
-                        ? "Does the job"
-                        : task.score >= 50
-                          ? "Does some of the job"
-                          : "Rarely does the job"}
+                    <p className="mt-6 max-w-md text-[15px] leading-relaxed text-soft">
+                      {taskLine(task)} {taskWorstLine(task)}
                     </p>
                   ) : (
-                    <p className={`${VERDICT} min-w-0 flex-[1_1_160px] text-muted`}>Not measured</p>
+                    <p className="mt-6 max-w-md text-[15px] leading-relaxed text-soft">
+                      {task
+                        ? `Not measured: too few episodes to count. ${taskLine(task)}`
+                        : "Not measured for this rating: it ran before the Task score existed."}
+                    </p>
+                  )}
+                  {task && task.benign.trials > 0 && (
+                    <p className="mt-2.5 text-[13px] text-muted">
+                      <Term term="benignTwins">What is a benign twin?</Term>
+                    </p>
                   )}
                 </div>
-                {task && task.score !== null ? (
-                  <p className="mt-6 max-w-md text-[15px] leading-relaxed text-soft">
-                    {taskLine(task)} {taskWorstLine(task)}
-                  </p>
-                ) : (
-                  <p className="mt-6 max-w-md text-[15px] leading-relaxed text-soft">
-                    {task
-                      ? `Not measured: too few episodes to count. ${taskLine(task)}`
-                      : "Not measured for this rating: it ran before the Task score existed."}
-                  </p>
-                )}
-                {task && task.benign.trials > 0 && (
-                  <p className="mt-2.5 text-[13px] text-muted">
-                    <Term term="benignTwins">What is a benign twin?</Term>
-                  </p>
-                )}
               </div>
-            </div>
-            <div className="mt-14">
-              <Grid>
-                <Stat
-                  label="Insurance score"
-                  value={`${a.score} · ${tier}`}
-                  hint="prices cover, not the headline"
-                />
-                <Stat
-                  label={<Term term="expectedLoss">Expected loss</Term>}
-                  value={bps(a.expectedLossBps)}
-                  hint="of cover a year"
-                />
-                <Stat
-                  label={<Term term="bond">Operator bond</Term>}
-                  value={bond?.result !== undefined ? `$${usd(bond.result, 0)}` : "…"}
-                  hint="pays first on a claim"
-                />
-                <Stat
-                  label={<Term term="tee">Key custody</Term>}
-                  value={tee.inTee ? "TEE" : "Operator"}
-                  hint={tee.inTee ? "key made inside Intel TDX" : "key on the operator's server"}
-                />
-              </Grid>
-            </div>
-          </>
-        ) : (
-          <EmptyState title="Not rated yet">
-            Its owner can ask for a rating from this page once it's registered for ratings.
-          </EmptyState>
-        )}
-      </Section>
-
-      {isOwnerOf(address, owner?.result) && ownRecord && (
-        <div className={INDENT}>
-          <HealthPanel agentId={id} record={self.data} />
-        </div>
-      )}
-
-      <div className={INDENT}>
-        <OwnerTools
-          // A new agent's page starts with fresh owner controls (its own token, rating, errors).
-          key={`${deployment.chainId}:${id}`}
-          agentId={id}
-          owner={owner?.result}
-          scoreExpired={Boolean(rated && fresh && fresh.result === false)}
-        />
-      </div>
-
-      {isOwnerOf(address, owner?.result) && ownRecord?.kind === "remote" && (vault || guarded) && (
-        <div className={INDENT}>
-          <UseYourVault vault={vault ?? guarded?.module ?? null} />
-        </div>
-      )}
-
-      {report ? (
-        <Section
-          label="Report"
-          title="Attack report"
-          intro={
-            <span className="font-mono text-[13px]">
-              {report.episodes.attacks} attacks · {report.episodes.controls} controls ·{" "}
-              {report.forked ? "fork of the live chain" : "local chain"}
-            </span>
-          }
-        >
-          {results ? (
-            <div className="mb-12">
-              <ClassSummary results={results} />
-            </div>
+              <div className="mt-14">
+                <Grid>
+                  <Stat
+                    label="Insurance score"
+                    value={`${a.score} · ${tier}`}
+                    hint="prices cover, not the headline"
+                  />
+                  <Stat
+                    label={<Term term="expectedLoss">Expected loss</Term>}
+                    value={bps(a.expectedLossBps)}
+                    hint="of cover a year"
+                  />
+                  <Stat
+                    label={<Term term="bond">Operator bond</Term>}
+                    value={bond?.result !== undefined ? `$${usd(bond.result, 0)}` : "…"}
+                    hint="pays first on a claim"
+                  />
+                  <Stat
+                    label={<Term term="tee">Key custody</Term>}
+                    value={tee.inTee ? "TEE" : "Operator"}
+                    hint={tee.inTee ? "key made inside Intel TDX" : "key on the operator's server"}
+                  />
+                </Grid>
+              </div>
+            </>
           ) : (
-            weakLines.length > 0 && (
-              <div className="mb-8 border-l-2 border-breach-solid pl-4">
-                <strong className="block text-[17px] font-medium tracking-[-0.02em] text-breach">
-                  {weakClasses.length === 1
-                    ? "One weak class"
-                    : `${weakClasses.length} weak classes`}
-                  : {weakClasses.join(", ")}
-                </strong>
-                <span className="mt-1 block text-sm text-soft">
-                  {weakLines.join(". ")}. Every other graded class and track held.
-                </span>
-              </div>
-            )
+            <EmptyState title="Not rated yet">
+              Its owner can ask for a rating from this page once it's registered for ratings.
+            </EmptyState>
           )}
-          {(topFixes(report).length > 0 || evidenceOf(report).length > 0) && (
-            <div className="mb-10 flex flex-col gap-6">
-              <TopFixes report={report} />
-              <BreachEvidenceList report={report} />
+        </Section>
+
+        {isOwnerOf(address, owner?.result) && ownRecord && (
+          <div data-print-hide className={INDENT}>
+            <HealthPanel agentId={id} record={self.data} />
+          </div>
+        )}
+
+        <div data-print-hide className={INDENT}>
+          <OwnerTools
+            // A new agent's page starts with fresh owner controls (its own token, rating, errors).
+            key={`${deployment.chainId}:${id}`}
+            agentId={id}
+            owner={owner?.result}
+            scoreExpired={Boolean(rated && fresh && fresh.result === false)}
+          />
+        </div>
+
+        {isOwnerOf(address, owner?.result) &&
+          ownRecord?.kind === "remote" &&
+          (vault || guarded) && (
+            <div data-print-hide className={INDENT}>
+              <UseYourVault vault={vault ?? guarded?.module ?? null} />
             </div>
           )}
-          <div className="flex flex-col">
-            {exercisedShown && (
-              <div className={`${classGrid} pb-2.5 font-mono text-[12px] text-muted`}>
-                <span />
-                <span />
-                <span />
-                <span className="text-right">Exercised</span>
-                <span className="text-right">Result</span>
+
+        {report ? (
+          <Section
+            label="Report"
+            title="Attack report"
+            intro={
+              <span className="font-mono text-[13px]">
+                {report.episodes.attacks} attacks · {report.episodes.controls} controls ·{" "}
+                {report.forked ? "fork of the live chain" : "local chain"}
+              </span>
+            }
+          >
+            {results ? (
+              <div className="mb-12">
+                <ClassSummary results={results} />
+              </div>
+            ) : (
+              weakLines.length > 0 && (
+                <div className="mb-8 border-l-2 border-breach-solid pl-4">
+                  <strong className="block text-[17px] font-medium tracking-[-0.02em] text-breach">
+                    {weakClasses.length === 1
+                      ? "One weak class"
+                      : `${weakClasses.length} weak classes`}
+                    : {weakClasses.join(", ")}
+                  </strong>
+                  <span className="mt-1 block text-sm text-soft">
+                    {weakLines.join(". ")}. Every other graded class and track held.
+                  </span>
+                </div>
+              )
+            )}
+            {(topFixes(report).length > 0 || evidenceOf(report).length > 0) && (
+              <div className="mb-10 flex flex-col gap-6">
+                <TopFixes report={report} />
+                <BreachEvidenceList report={report} />
               </div>
             )}
-            {report.classes.map((c) => {
-              const m = manipulatedOf(c);
-              const held = c.episodes ? (c.episodes - m) / c.episodes : 1;
-              const cells = classCells(c);
-              return (
-                <div key={c.class} className={`${classGrid} border-t border-line py-3.5`}>
-                  <span className="font-mono text-xs text-muted">{c.class}</span>
-                  <span className="truncate text-[15px]">{c.name}</span>
-                  <span className="flex h-1.5 gap-[2px]" aria-hidden>
-                    {held > 0 && (
+            <div data-print-list className="flex flex-col">
+              {exercisedShown && (
+                <div
+                  data-print-head
+                  className={`${classGrid} pb-2.5 font-mono text-[12px] text-muted`}
+                >
+                  <span />
+                  <span />
+                  <span />
+                  <span className="text-right">Exercised</span>
+                  <span className="text-right">Result</span>
+                </div>
+              )}
+              {report.classes.map((c) => {
+                const m = manipulatedOf(c);
+                const held = c.episodes ? (c.episodes - m) / c.episodes : 1;
+                const cells = classCells(c);
+                return (
+                  <div key={c.class} className={`${classGrid} border-t border-line py-3.5`}>
+                    <span className="font-mono text-xs text-muted">{c.class}</span>
+                    <span className="truncate text-[15px]">{c.name}</span>
+                    <span className="flex h-1.5 gap-[2px]" aria-hidden>
+                      {held > 0 && (
+                        <span
+                          className="rounded-[1px] bg-brand-bright"
+                          style={{ width: `${held * 100}%` }}
+                        />
+                      )}
+                      {held < 1 && (
+                        <span
+                          className="rounded-[1px] bg-breach-solid"
+                          style={{ width: `${(1 - held) * 100}%` }}
+                        />
+                      )}
+                    </span>
+                    {exercisedShown ? (
+                      <>
+                        <span
+                          className={`text-right font-mono text-xs ${untested.has(c.class) || cells.result === "not reached" ? "text-warn" : "text-muted"}`}
+                          title={
+                            untested.has(c.class)
+                              ? "Never tested the agent: priced as untested within its group"
+                              : undefined
+                          }
+                        >
+                          {cells.exercised}
+                        </span>
+                        <span
+                          className={`text-right font-mono text-xs ${cells.tone === "breach" ? "text-breach" : cells.tone === "warn" ? "text-warn" : "text-muted"}`}
+                        >
+                          {cells.result}
+                        </span>
+                      </>
+                    ) : (
                       <span
-                        className="rounded-[1px] bg-brand-bright"
-                        style={{ width: `${held * 100}%` }}
-                      />
+                        className={`text-right font-mono text-xs ${m ? "text-breach" : "text-muted"}`}
+                        title={`manipulated in ${m} of ${c.episodes} episodes, ${c.breaches} breached`}
+                      >
+                        {m ? `${m} of ${c.episodes}` : `held ${c.episodes}`}
+                      </span>
                     )}
-                    {held < 1 && (
-                      <span
-                        className="rounded-[1px] bg-breach-solid"
-                        style={{ width: `${(1 - held) * 100}%` }}
-                      />
-                    )}
-                  </span>
-                  {exercisedShown ? (
-                    <>
-                      <span
-                        className={`text-right font-mono text-xs ${untested.has(c.class) || cells.result === "not reached" ? "text-warn" : "text-muted"}`}
-                        title={
-                          untested.has(c.class)
-                            ? "Never tested the agent: priced as untested within its group"
-                            : undefined
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-12">
+              <BatteryTables report={report} />
+            </div>
+            {exercisedShown && (
+              <p className="mt-4 max-w-3xl text-[13px] leading-relaxed text-muted">
+                Exercised: the attack episodes that tested the agent, because it was breached or did
+                its task anyway. For an agent its operator runs, only those count: an episode in
+                which it did nothing at all proves nothing.
+                {untestedLine(report) && ` ${untestedLine(report)}`}
+              </p>
+            )}
+            <p className="mt-4 max-w-3xl text-[13px] leading-relaxed text-muted">
+              {report.unpublished?.episodes
+                ? `${report.unpublished.episodes} of the attack episodes ran ${report.unpublished.attacks} unpublished attacks (held out, or accepted bounties) that the operator couldn't study in advance.`
+                : "Published attacks only: an in-library result, not a held-out evaluation."}
+              {score.data?.heldOut &&
+                ` ${score.data.heldOut.attacks ?? "Its"} held-out attacks were made for this rating alone${score.data.heldOut.source === "rewrite" ? " (rewrites of published seeds)" : score.data.heldOut.model ? ` (drafted by ${score.data.heldOut.model})` : ""}, seed ${score.data.heldOut.seed}.`}
+            </p>
+            {score.data?.binding && (
+              <div className="mt-8 flex flex-col gap-2 border-t border-line pt-5">
+                <span className="eyebrow">Binding</span>
+                <BindingLine binding={score.data.binding} />
+              </div>
+            )}
+            <Coverage coverage={score.data?.coverage ?? report.coverage ?? null} />
+            {livenessLine(report.liveness) && (
+              <p className="mt-4 text-[13px] text-muted">{livenessLine(report.liveness)}</p>
+            )}
+          </Section>
+        ) : rated ? (
+          <Section
+            label="Report"
+            title="Attack report"
+            intro={
+              entry && (run.isError || score.isError) ? (
+                <span>From the published leaderboard rating</span>
+              ) : undefined
+            }
+          >
+            {entry && (run.isError || score.isError) ? (
+              // Rated outside the hosted service: the API has no full report, but the
+              // leaderboard entry for this rating carries every class on every track.
+              <ClassTrackTable results={classResults(entry)} />
+            ) : run.isError || score.isError ? (
+              <p className="text-[15px] text-muted">The full report isn't available right now.</p>
+            ) : (
+              <Loading what="the attack report" height="lg" />
+            )}
+          </Section>
+        ) : null}
+
+        <Section label="Vault and proof">
+          <div className="grid gap-x-14 gap-y-14 xl:grid-cols-2 xl:[&>section:nth-child(-n+2)]:border-t-0 xl:[&>section:nth-child(-n+2)]:pt-0 [&>section:first-child]:border-t-0 [&>section:first-child]:pt-0">
+            {vault && <VaultSummary vault={vault} agentId={id} record={ownRecord} />}
+            {guarded && <AccountSummary module={guarded.module} account={guarded.account} />}
+            {guarded && <ModuleCover agentId={agentId} module={guarded.module} />}
+            <SentinelChecks agentId={id} ratedWith={Boolean(report?.sentinel)} />
+            <Card title="Proof on chain">
+              <p className="-mt-2 mb-6 text-[14px] text-muted">
+                What anyone can check on chain, without trusting Bonded.
+              </p>
+              <div className="flex flex-col">
+                <ProofRow
+                  label="Owner"
+                  note="Registered the agent"
+                  value={owner?.result}
+                  href={owner?.result && explorerUrl ? addressUrl(owner.result) : undefined}
+                />
+                {rated && a && (
+                  <>
+                    <ProofRow
+                      label="Score posted in"
+                      note="Wrote this score on chain"
+                      value={postedTx ?? undefined}
+                      href={postedTx && explorerUrl ? txUrl(postedTx) : undefined}
+                      pending={!postedTx && scoreTx.isPending}
+                    />
+                    <ProofRow
+                      label="Report hash"
+                      note="Fingerprint of the full report"
+                      value={a.reportHash}
+                      how={
+                        <CheckSteps id={id} field="reportHash">
+                          {score.data && (
+                            <li>
+                              Or hash the downloaded report with <Mono>keccak256</Mono>: same value.
+                            </li>
+                          )}
+                        </CheckSteps>
+                      }
+                      howHref={checkUrl}
+                    />
+                    <ProofRow
+                      label="Mandate hash"
+                      note="Fingerprint of the rules it was tested under"
+                      value={a.mandateHash}
+                      how={
+                        <CheckSteps id={id} field="mandateHash">
+                          {enforcer && (
+                            <li>
+                              On its {vault ? "vault" : "module"}&apos;s explorer page, Read
+                              contract → <Mono>mandateHash</Mono>: same value.
+                            </li>
+                          )}
+                        </CheckSteps>
+                      }
+                      howHref={checkUrl}
+                      status={
+                        liveMandate.data ===
+                        undefined ? undefined : liveMandate.data.toLowerCase() ===
+                          a.mandateHash.toLowerCase() ? (
+                          <span className="text-brand-bright">
+                            ✓ Matches its {vault ? "vault" : "module"}
+                          </span>
+                        ) : (
+                          <span className="text-warn">
+                            Its {vault ? "vault" : "module"} enforces different rules now
+                          </span>
+                        )
+                      }
+                    />
+                  </>
+                )}
+                {tee.measurement && (
+                  <>
+                    <ProofRow
+                      label="TEE measurement"
+                      note="Fingerprint of its sealed code"
+                      value={tee.measurement}
+                      how={<CheckSteps id={id} field="teeMeasurement" />}
+                      howHref={checkUrl}
+                    />
+                    <div className="flex items-center justify-between gap-6 border-t border-line py-4">
+                      <span className="text-[14px] text-ink">TEE live check</span>
+                      <Badge
+                        tone={
+                          liveCheckView(liveCheck.data?.status, liveCheck.data?.blockingStatus).tone
                         }
                       >
-                        {cells.exercised}
-                      </span>
-                      <span
-                        className={`text-right font-mono text-xs ${cells.tone === "breach" ? "text-breach" : cells.tone === "warn" ? "text-warn" : "text-muted"}`}
-                      >
-                        {cells.result}
-                      </span>
-                    </>
-                  ) : (
-                    <span
-                      className={`text-right font-mono text-xs ${m ? "text-breach" : "text-muted"}`}
-                      title={`manipulated in ${m} of ${c.episodes} episodes, ${c.breaches} breached`}
-                    >
-                      {m ? `${m} of ${c.episodes}` : `held ${c.episodes}`}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          <div className="mt-12">
-            <BatteryTables report={report} />
-          </div>
-          {exercisedShown && (
-            <p className="mt-4 max-w-3xl text-[13px] leading-relaxed text-muted">
-              Exercised: the attack episodes that tested the agent, because it was breached or did
-              its task anyway. For an agent its operator runs, only those count: an episode in which
-              it did nothing at all proves nothing.
-              {untestedLine(report) && ` ${untestedLine(report)}`}
-            </p>
-          )}
-          <p className="mt-4 max-w-3xl text-[13px] leading-relaxed text-muted">
-            {report.unpublished?.episodes
-              ? `${report.unpublished.episodes} of the attack episodes ran ${report.unpublished.attacks} unpublished attacks (held out, or accepted bounties) that the operator couldn't study in advance.`
-              : "Published attacks only: an in-library result, not a held-out evaluation."}
-            {score.data?.heldOut &&
-              ` ${score.data.heldOut.attacks ?? "Its"} held-out attacks were made for this rating alone${score.data.heldOut.source === "rewrite" ? " (rewrites of published seeds)" : score.data.heldOut.model ? ` (drafted by ${score.data.heldOut.model})` : ""}, seed ${score.data.heldOut.seed}.`}
-          </p>
-          {score.data?.binding && (
-            <div className="mt-8 flex flex-col gap-2 border-t border-line pt-5">
-              <span className="eyebrow">Binding</span>
-              <BindingLine binding={score.data.binding} />
-            </div>
-          )}
-          <Coverage coverage={score.data?.coverage ?? report.coverage ?? null} />
-          {livenessLine(report.liveness) && (
-            <p className="mt-4 text-[13px] text-muted">{livenessLine(report.liveness)}</p>
-          )}
-        </Section>
-      ) : rated ? (
-        <Section
-          label="Report"
-          title="Attack report"
-          intro={
-            entry && (run.isError || score.isError) ? (
-              <span>From the published leaderboard rating</span>
-            ) : undefined
-          }
-        >
-          {entry && (run.isError || score.isError) ? (
-            // Rated outside the hosted service: the API has no full report, but the
-            // leaderboard entry for this rating carries every class on every track.
-            <ClassTrackTable results={classResults(entry)} />
-          ) : run.isError || score.isError ? (
-            <p className="text-[15px] text-muted">The full report isn't available right now.</p>
-          ) : (
-            <Loading what="the attack report" height="lg" />
-          )}
-        </Section>
-      ) : null}
-
-      <Section label="Vault and proof">
-        <div className="grid gap-x-14 gap-y-14 xl:grid-cols-2 xl:[&>section:nth-child(-n+2)]:border-t-0 xl:[&>section:nth-child(-n+2)]:pt-0 [&>section:first-child]:border-t-0 [&>section:first-child]:pt-0">
-          {vault && <VaultSummary vault={vault} agentId={id} record={ownRecord} />}
-          {guarded && <AccountSummary module={guarded.module} account={guarded.account} />}
-          {guarded && <ModuleCover agentId={agentId} module={guarded.module} />}
-          <SentinelChecks agentId={id} ratedWith={Boolean(report?.sentinel)} />
-          <Card title="Proof on chain">
-            <p className="-mt-2 mb-6 text-[14px] text-muted">
-              What anyone can check on chain, without trusting Bonded.
-            </p>
-            <div className="flex flex-col">
-              <ProofRow
-                label="Owner"
-                note="Registered the agent"
-                value={owner?.result}
-                href={owner?.result && explorerUrl ? addressUrl(owner.result) : undefined}
-              />
-              {rated && a && (
-                <>
-                  <ProofRow
-                    label="Score posted in"
-                    note="Wrote this score on chain"
-                    value={postedTx ?? undefined}
-                    href={postedTx && explorerUrl ? txUrl(postedTx) : undefined}
-                    pending={!postedTx && scoreTx.isPending}
-                  />
-                  <ProofRow
-                    label="Report hash"
-                    note="Fingerprint of the full report"
-                    value={a.reportHash}
-                    how={
-                      <CheckSteps id={id} field="reportHash">
-                        {score.data && (
-                          <li>
-                            Or hash the downloaded report with <Mono>keccak256</Mono>: same value.
-                          </li>
-                        )}
-                      </CheckSteps>
-                    }
-                    howHref={checkUrl}
-                  />
-                  <ProofRow
-                    label="Mandate hash"
-                    note="Fingerprint of the rules it was tested under"
-                    value={a.mandateHash}
-                    how={
-                      <CheckSteps id={id} field="mandateHash">
-                        {enforcer && (
-                          <li>
-                            On its {vault ? "vault" : "module"}&apos;s explorer page, Read contract
-                            → <Mono>mandateHash</Mono>: same value.
-                          </li>
-                        )}
-                      </CheckSteps>
-                    }
-                    howHref={checkUrl}
-                    status={
-                      liveMandate.data ===
-                      undefined ? undefined : liveMandate.data.toLowerCase() ===
-                        a.mandateHash.toLowerCase() ? (
-                        <span className="text-brand-bright">
-                          ✓ Matches its {vault ? "vault" : "module"}
-                        </span>
-                      ) : (
-                        <span className="text-warn">
-                          Its {vault ? "vault" : "module"} enforces different rules now
-                        </span>
-                      )
-                    }
-                  />
-                </>
+                        {
+                          liveCheckView(liveCheck.data?.status, liveCheck.data?.blockingStatus)
+                            .label
+                        }
+                      </Badge>
+                    </div>
+                  </>
+                )}
+              </div>
+              {score.data && (
+                <ReportDownloads
+                  report={report}
+                  ctx={{
+                    agentId: id,
+                    runId: score.data.runId,
+                    reportHash: a?.reportHash ?? score.data.signed.attestation.reportHash,
+                    txHash: score.data.tx_hash,
+                    ...(a?.mandateHash ? { mandateHash: a.mandateHash } : {}),
+                  }}
+                />
               )}
-              {tee.measurement && (
-                <>
-                  <ProofRow
-                    label="TEE measurement"
-                    note="Fingerprint of its sealed code"
-                    value={tee.measurement}
-                    how={<CheckSteps id={id} field="teeMeasurement" />}
-                    howHref={checkUrl}
-                  />
-                  <div className="flex items-center justify-between gap-6 border-t border-line py-4">
-                    <span className="text-[14px] text-ink">TEE live check</span>
-                    <Badge
-                      tone={
-                        liveCheckView(liveCheck.data?.status, liveCheck.data?.blockingStatus).tone
-                      }
-                    >
-                      {liveCheckView(liveCheck.data?.status, liveCheck.data?.blockingStatus).label}
-                    </Badge>
-                  </div>
-                </>
+              {score.error && !(score.error instanceof ApiError && score.error.status === 404) && (
+                <ErrorText error={score.error} />
               )}
-            </div>
-            {score.data && (
-              <ReportDownloads
-                ctx={{
-                  agentId: id,
-                  runId: score.data.runId,
-                  reportHash: a?.reportHash ?? score.data.signed.attestation.reportHash,
-                  txHash: score.data.tx_hash,
-                  ...(a?.mandateHash ? { mandateHash: a.mandateHash } : {}),
-                }}
-              />
-            )}
-            {score.error && !(score.error instanceof ApiError && score.error.status === 404) && (
-              <ErrorText error={score.error} />
-            )}
-          </Card>
-        </div>
-      </Section>
-    </Page>
+            </Card>
+          </div>
+        </Section>
+      </Page>
+    </div>
   );
 }
 
@@ -892,40 +918,90 @@ function AccountSummary({ module, account }: { module: Address; account: Address
 }
 
 /** The report as a readable PDF, or as the original JSON whose hash is on chain. */
-function ReportDownloads({ ctx }: { ctx: ReportContext }) {
+function ReportDownloads({
+  ctx,
+  report,
+}: {
+  ctx: ReportContext;
+  report: Report | null | undefined;
+}) {
   const [busy, setBusy] = useState<"pdf" | "json">();
   const [error, setError] = useState<string>();
+  /** Whether the report file matched the on-chain hash when the PDF was made. */
+  const [verified, setVerified] = useState<boolean>();
+  // The PDF is this page, printed in the app's own look (index.css, "Print"), with the rating's
+  // details and the hash check below added on paper only.
+  const pdf = async () => {
+    const bytes = await fetchReportBytes(ctx.runId);
+    setVerified(matchesHash(bytes, ctx.reportHash));
+    await new Promise((r) => setTimeout(r, 60));
+    const title = document.title;
+    document.title = `bonded-agent-${ctx.agentId}-report`;
+    const restore = () => {
+      document.title = title;
+      window.removeEventListener("afterprint", restore);
+    };
+    window.addEventListener("afterprint", restore);
+    window.print();
+  };
   const run = async (kind: "pdf" | "json") => {
     setBusy(kind);
     setError(undefined);
     try {
-      await (kind === "pdf" ? downloadReportPdf(ctx) : downloadReportJson(ctx));
+      await (kind === "pdf" ? pdf() : downloadReportJson(ctx));
     } catch (e) {
       setError(e instanceof Error ? e.message : "The download failed. Try again.");
     } finally {
       setBusy(undefined);
     }
   };
+  const doc = report ? reportDocument(report, ctx, verified ?? false) : undefined;
   return (
-    <div className="mt-6 flex flex-col items-start gap-3">
-      <button
-        type="button"
-        onClick={() => void run("pdf")}
-        disabled={busy !== undefined}
-        className={buttonClass("secondary")}
-      >
-        {busy === "pdf" ? "Making the PDF…" : "Download the report (PDF)"}
-      </button>
-      <button
-        type="button"
-        onClick={() => void run("json")}
-        disabled={busy !== undefined}
-        className="font-mono text-xs text-accent hover:underline disabled:opacity-60"
-      >
-        {busy === "json" ? "Downloading…" : "Original JSON (matches the on-chain hash)"}
-      </button>
-      {error && <p className="text-xs text-breach">{error}</p>}
-    </div>
+    <>
+      <div className="mt-6 flex flex-col items-start gap-3">
+        <button
+          type="button"
+          onClick={() => void run("pdf")}
+          disabled={busy !== undefined}
+          className={buttonClass("secondary")}
+        >
+          {busy === "pdf" ? "Making the PDF…" : "Download the report (PDF)"}
+        </button>
+        <button
+          type="button"
+          onClick={() => void run("json")}
+          disabled={busy !== undefined}
+          className="font-mono text-xs text-accent hover:underline disabled:opacity-60"
+        >
+          {busy === "json" ? "Downloading…" : "Original JSON (matches the on-chain hash)"}
+        </button>
+        {error && <p className="text-xs text-breach">{error}</p>}
+      </div>
+      {verified !== undefined && (
+        <p
+          className={`mt-5 hidden text-[13px] print:block ${verified ? "text-safe" : "text-breach"}`}
+        >
+          {doc?.verification}
+        </p>
+      )}
+      {/* Only while the PDF is being made, so the page itself never shows them twice. */}
+      {doc && verified !== undefined && (
+        <div className="mt-12 hidden print:block">
+          <p className="eyebrow">Rating details</p>
+          <dl className={`mt-4 ${ROWS}`}>
+            {doc.summary.map(([k, v]) => (
+              <Fragment key={k}>
+                <dt>{k}</dt>
+                <dd>{v}</dd>
+              </Fragment>
+            ))}
+          </dl>
+          <p className="mt-6 text-[12px] text-muted">
+            A readable copy. The JSON report is the original: its hash is the one posted on chain.
+          </p>
+        </div>
+      )}
+    </>
   );
 }
 
