@@ -582,8 +582,10 @@ export function Agent() {
                   />
                   <ProofRow
                     label="Mandate hash"
-                    note="A fingerprint of the rules the agent was tested under: which tokens and contracts it may use, where funds may go, and its limits."
+                    note="A fingerprint of the rules the agent was tested under: which tokens and contracts it may use, where funds may go, and its limits. It's in the posting transaction's input, inside the attestation."
                     value={a.mandateHash}
+                    href={postedTx && explorerUrl ? txUrl(postedTx) : undefined}
+                    linkTitle="See it in the transaction's input"
                     status={
                       liveMandate.data ===
                       undefined ? undefined : liveMandate.data.toLowerCase() ===
