@@ -162,21 +162,17 @@ function YoursGroup() {
 
 /**
  * The app's sidebar, grouped by what you came to do: protect an agent first, then what is yours,
- * the public benchmarks, and the on-chain pages folded at the bottom. The TESTNET badge shows only
- * on the on-chain pages.
+ * the public benchmarks, and the on-chain pages folded at the bottom. On-chain pages say they're on
+ * a testnet in the footer.
  */
 export function Sidebar() {
-  const { pathname } = useLocation();
   const agents = useAgents();
   const claims = useClaims();
   const own = useOwnCounts();
   return (
     <div className="flex h-full flex-col gap-7 px-3 py-5">
-      <Link to="/" className="flex items-center justify-between px-3" aria-label="Bonded home">
+      <Link to="/" className="flex items-center px-3" aria-label="Bonded home">
         <Logo className="h-[24px]" />
-        {isOnChainPath(pathname) && (
-          <span className="font-mono text-[11px] text-muted">Testnet</span>
-        )}
       </Link>
       <nav aria-label="App" className="flex flex-col gap-6">
         <div className="flex flex-col">
