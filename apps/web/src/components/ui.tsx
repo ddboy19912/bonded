@@ -683,7 +683,7 @@ export function Section({
   children,
   className = "",
 }: {
-  /** The mono label at the left. Left out, the column stays empty so the content still lines up. */
+  /** The mono label at the left. Left out, the content takes the full width. */
   label?: ReactNode;
   title?: ReactNode;
   intro?: ReactNode;
@@ -699,12 +699,8 @@ export function Section({
       className={`app-sec ${className}`}
       aria-labelledby={title ? headingId : undefined}
     >
-      {label ? (
-        <p className="eyebrow app-sec-lab">{label}</p>
-      ) : (
-        <span aria-hidden className="max-lg:hidden" />
-      )}
-      <div className="min-w-0">
+      {label && <p className="eyebrow app-sec-lab">{label}</p>}
+      <div className={`min-w-0 ${label ? "" : "lg:col-span-2"}`}>
         {(title || intro || actions) && (
           <div className="mb-8 flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
             <div className="min-w-0">
