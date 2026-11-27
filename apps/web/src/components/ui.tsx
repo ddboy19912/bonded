@@ -40,15 +40,21 @@ export function Card({
   children,
   actions,
   className = "",
+  printKeep = false,
 }: {
   title?: ReactNode;
   description?: ReactNode;
   children: ReactNode;
   actions?: ReactNode;
   className?: string;
+  /** On paper, keep it on one page with its title (for short cards). */
+  printKeep?: boolean;
 }) {
   return (
-    <section className={`min-w-0 border-t border-line pt-6 ${className}`}>
+    <section
+      data-print-keep={printKeep || undefined}
+      className={`min-w-0 border-t border-line pt-6 ${className}`}
+    >
       {(title || actions) && (
         <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">

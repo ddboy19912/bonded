@@ -505,11 +505,14 @@
   [data-print-root] .app-sec {
     break-inside: auto;
   }
-  /* A card (a section that isn't a whole page section) stays on one page with its title, and a
-     table's header stays with its first rows. */
-  [data-print-root] section:not(.app-sec),
+  /* Small blocks marked to stay whole (a Card with printKeep: Proof on chain, a vault) keep their
+     title with their rows. Long ones (a market-data table) just run on, so no page is left half
+     empty; their table header repeats on each page. */
   [data-print-root] [data-print-keep] {
     break-inside: avoid;
+  }
+  [data-print-root] thead {
+    display: table-header-group;
   }
   /* A list of rows prints as plain blocks, so the page can break between rows (not inside a flex
      column, where print can't), and its header stays with the first row. */

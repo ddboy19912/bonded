@@ -578,7 +578,7 @@ export function Agent() {
             {guarded && <AccountSummary module={guarded.module} account={guarded.account} />}
             {guarded && <ModuleCover agentId={agentId} module={guarded.module} />}
             <SentinelChecks agentId={id} ratedWith={Boolean(report?.sentinel)} />
-            <Card title="Proof on chain">
+            <Card title="Proof on chain" printKeep>
               <p className="-mt-2 mb-6 text-[14px] text-muted">
                 What anyone can check on chain, without trusting Bonded.
               </p>
