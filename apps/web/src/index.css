@@ -387,6 +387,13 @@
     transform: translateY(18px);
   }
 }
+/* A step's tick as it is done: grows in from nothing with a small overshoot. */
+@keyframes tick-in {
+  from {
+    opacity: 0;
+    scale: 0.3;
+  }
+}
 @keyframes rise {
   from {
     opacity: 0;

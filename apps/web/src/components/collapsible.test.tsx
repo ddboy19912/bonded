@@ -107,12 +107,14 @@ describe("Accordion", () => {
     expect(expanded()).toEqual([]);
   });
 
-  it("puts the chevron at the end, pointing down and turning up when open", () => {
+  it("puts the mark at the end: a plus that turns into a minus when open", () => {
     render(<Accordion items={items} defaultOpen="a" />);
     const open = screen.getByRole("button", { name: "First" });
     const closed = screen.getByRole("button", { name: "Second" });
+    // The plus's upright stroke folds away (rotated flat) on the open one, leaving a minus.
+    const upright = (b: HTMLElement) => b.lastElementChild?.querySelectorAll("path")[1];
     expect(open.lastElementChild?.tagName.toLowerCase()).toBe("svg");
-    expect(open.lastElementChild?.getAttribute("class")).toContain("rotate-180");
-    expect(closed.lastElementChild?.getAttribute("class")).not.toContain("rotate-180");
+    expect(upright(open)?.getAttribute("class")).toContain("scale-y-0");
+    expect(upright(closed)?.getAttribute("class")).not.toContain("scale-y-0");
   });
 });

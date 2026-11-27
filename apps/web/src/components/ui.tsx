@@ -398,58 +398,113 @@ export function Choice({
   title: ReactNode;
   children?: ReactNode;
   name?: string;
-  /** A logo or icon for the option: the card then stacks it on top, with the radio at its right. */
+  /** A logo or icon for the option: the tile then stacks it on top, with the mark at its right. */
   icon?: ReactNode;
   type?: "radio" | "checkbox";
   /** Not available here; `children` should say why. */
   disabled?: boolean;
-  /** A row in a plain list, for places where a box per option is too much. */
+  /** A row in a plain list, for places where a tile per option is too much. */
   flat?: boolean;
 }) {
-  if (icon && !flat) {
+  const input = (
+    <input
+      type={type}
+      name={name}
+      checked={checked}
+      onChange={onChange}
+      disabled={disabled}
+      className="peer sr-only"
+    />
+  );
+  const text = (
+    <span className="min-w-0">
+      <span
+        className={`block text-[15px] font-medium tracking-[-0.01em] transition-colors ${checked ? "text-ink" : "text-soft"}`}
+      >
+        {title}
+      </span>
+      {children && (
+        <span className="mt-1 block text-[13.5px] leading-relaxed text-muted">{children}</span>
+      )}
+    </span>
+  );
+  if (flat)
     return (
       <label
-        className={`flex flex-col gap-3 border-t-2 pt-4 pb-2 text-sm transition ${disabled ? "cursor-not-allowed border-line opacity-60" : checked ? "cursor-pointer border-brand-bright" : "cursor-pointer border-line text-muted hover:border-line-strong hover:text-ink"}`}
+        className={`group flex items-start gap-3.5 py-3.5 transition ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
       >
-        <span className="flex items-start justify-between">
-          <span
-            aria-hidden
-            className={`flex size-7 items-center transition [&_svg]:size-7 ${checked ? "text-ink" : "text-muted"}`}
-          >
-            {icon}
-          </span>
-          <input
-            type={type}
-            name={name}
-            checked={checked}
-            onChange={onChange}
-            disabled={disabled}
-          />
-        </span>
-        <span>
-          <span className="font-medium">{title}</span>
-          {children && <span className="mt-0.5 block text-muted">{children}</span>}
-        </span>
+        {input}
+        <ChoiceMark checked={checked} type={type} className="mt-0.5" />
+        {text}
       </label>
     );
-  }
   return (
     <label
-      className={`flex items-start gap-3 text-sm transition ${flat ? `py-3 ${disabled ? "cursor-not-allowed opacity-60" : checked ? "cursor-pointer" : "cursor-pointer text-muted hover:text-ink"}` : `rounded-xl border p-4 ${disabled ? "cursor-not-allowed border-line opacity-60" : checked ? "cursor-pointer border-brand-bright bg-brand-bright/[0.06]" : "cursor-pointer border-line hover:border-line-strong hover:bg-white/[0.02]"}`}`}
+      className={`group relative flex h-full gap-4 rounded-2xl p-5 transition duration-200 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-paper ${icon ? "items-start sm:flex-col" : "items-start"} ${disabled ? "cursor-not-allowed opacity-50 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)]" : checked ? "cursor-pointer bg-brand-bright/[0.07] shadow-[inset_0_0_0_1.5px_var(--color-brand-bright)]" : "cursor-pointer shadow-[inset_0_0_0_1px_rgb(255_255_255/0.1)] hover:bg-white/[0.025] hover:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.22)]"}`}
     >
-      <input
-        type={type}
-        name={name}
-        checked={checked}
-        onChange={onChange}
-        disabled={disabled}
-        className={`mt-0.5 ${flat ? "accent-brand-bright" : ""}`}
-      />
-      <span>
-        <span className={`font-medium ${flat && checked ? "text-ink" : ""}`}>{title}</span>
-        {children && <span className="mt-0.5 block text-muted">{children}</span>}
-      </span>
+      {input}
+      {icon ? (
+        <>
+          {/* A row on a phone (icon, text, mark); stacked from tablet up, the mark top right. */}
+          <span className="flex shrink-0 items-start justify-between sm:w-full">
+            <span
+              aria-hidden
+              className={`flex size-9 items-center justify-center rounded-xl transition [&_svg]:size-5 [&_img]:size-5 ${checked ? "bg-brand-bright/15 text-ink" : "bg-white/[0.05] text-muted group-hover:text-soft"}`}
+            >
+              {icon}
+            </span>
+            <span className="hidden sm:block">
+              <ChoiceMark checked={checked} type={type} />
+            </span>
+          </span>
+          <span className="min-w-0 flex-1">{text}</span>
+          <span className="mt-0.5 sm:hidden">
+            <ChoiceMark checked={checked} type={type} />
+          </span>
+        </>
+      ) : (
+        <>
+          <ChoiceMark checked={checked} type={type} className="mt-0.5" />
+          {text}
+        </>
+      )}
     </label>
+  );
+}
+
+/** A choice's mark: a ring that fills blue with a dot (radio), or a box with a tick (checkbox). */
+function ChoiceMark({
+  checked,
+  type,
+  className = "",
+}: {
+  checked: boolean;
+  type: "radio" | "checkbox";
+  className?: string;
+}) {
+  return (
+    <span
+      aria-hidden
+      className={`grid size-[18px] shrink-0 place-items-center transition duration-200 ${type === "radio" ? "rounded-full" : "rounded-[5px]"} ${checked ? "bg-brand-bright shadow-[0_0_0_4px_rgb(60_107_255/0.18)]" : "shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.28)] group-hover:shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.5)]"} ${className}`}
+    >
+      {type === "radio" ? (
+        <span
+          className={`size-1.5 rounded-full bg-white transition duration-200 ${checked ? "scale-100" : "scale-0"}`}
+        />
+      ) : (
+        <svg
+          viewBox="0 0 12 12"
+          className={`size-3 text-white transition duration-200 ${checked ? "opacity-100" : "opacity-0"}`}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="m2.5 6.2 2.3 2.3 4.7-5" />
+        </svg>
+      )}
+    </span>
   );
 }
 

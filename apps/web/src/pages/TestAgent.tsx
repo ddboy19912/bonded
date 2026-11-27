@@ -7,6 +7,7 @@ import {
   type InfiniteData,
 } from "@tanstack/react-query";
 import { useAccount, useSignMessage } from "wagmi";
+import { Check, Info } from "lucide-react";
 import type { RemoteMode } from "@bondedhq/shared";
 import { deployment } from "../config";
 import { ApiError } from "../lib/api";
@@ -64,18 +65,18 @@ import { Collapsible } from "../components/collapsible";
 import { ConnectionCheck } from "../components/connection-check";
 import { hostedSummary } from "../components/connect-hosted";
 import { Estimate, NotificationSettingsForm, RatingLive } from "../components/rating-live";
-import { PREVIEW_LABEL, PreviewReport } from "../components/preview-report";
+import { PreviewReport } from "../components/preview-report";
 import { ShareReport } from "../components/share-report";
 import {
   Badge,
   Button,
-  Card,
   EmptyState,
   ErrorText,
   Loading,
   MoreLink,
   Note,
   Page,
+  Tooltip,
   Unavailable,
   linkClass,
 } from "../components/ui";
@@ -122,7 +123,7 @@ export function TestAgent() {
   const { address, isConnected: walletConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const queryClient = useQueryClient();
-  // "Open it" in the list below the steps: the preview opens in the steps, so the page moves there.
+  // "Open" in the list below the steps: the preview opens in the steps, so the page moves there.
   const stepsRef = useRef<HTMLDivElement>(null);
   const jumpToSteps = useRef(false);
   const openPreview = (id: string) => {
@@ -430,7 +431,24 @@ export function TestAgent() {
     <Page
       title="Test your agent"
       back={{ to: "/agents", label: "All agents" }}
-      intro="See how your agent holds up against Bonded's red team. It's free: sign in with your email."
+      intro={
+        <>
+          See how your agent holds up against Bonded&apos;s red team. It&apos;s free: sign in with
+          your email.
+          <PreviewFacts
+            hosted={(changing ? connection : (p?.connection ?? connection)) === "hosted"}
+            plan={plan}
+          />
+        </>
+      }
+      actions={
+        <>
+          <a className="more-link" href={DOCS_BYOA}>
+            The guide <span aria-hidden>→</span>
+          </a>
+          <MoreLink to="/agents/new">Onboard an agent instead</MoreLink>
+        </>
+      }
     >
       {blockedLine && !p?.ratingId && (
         <Note tone="warn" title={blockedLine}>
@@ -438,16 +456,17 @@ export function TestAgent() {
           then.
         </Note>
       )}
-      <div
-        ref={stepsRef}
-        className="grid scroll-mt-24 items-start gap-x-14 gap-y-12 lg:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)]"
-      >
+      <div ref={stepsRef} className="flex max-w-[52rem] scroll-mt-24 flex-col gap-16">
+        <PreviewProblems
+          previewId={previewId}
+          signedIn={Boolean(session)}
+          preview={preview}
+          onReset={() => setParams({})}
+        />
         {previewId && session && preview.isPending ? (
-          <div className="border-t border-line">
-            <Loading what="your preview" height="lg" />
-          </div>
+          <Loading what="your preview" height="lg" />
         ) : (
-          <ol className="flex min-w-0 flex-col border-b border-line" aria-label="Steps">
+          <ol className="flex min-w-0 flex-col" aria-label="Steps">
             <FlowStep
               n={1}
               title={STEP_TITLES["sign-in"]}
@@ -714,7 +733,7 @@ export function TestAgent() {
               )}
             </FlowStep>
 
-            <FlowStep n={7} title={STEP_TITLES.report} state={stateOf("report")}>
+            <FlowStep n={7} title={STEP_TITLES.report} state={stateOf("report")} last>
               {p && run.data && runFinished ? (
                 <div data-print-root>
                   <PrintHeader world={p.world ?? "vault"} ranAt={run.data.created_at} />
@@ -752,148 +771,147 @@ export function TestAgent() {
           </ol>
         )}
 
-        <aside className="flex min-w-0 flex-col gap-12 lg:sticky lg:top-24">
-          <PreviewProblems
-            previewId={previewId}
-            signedIn={Boolean(session)}
-            preview={preview}
-            onReset={() => setParams({})}
-          />
-          <Card title="This is a preview rating">
-            <p className="text-[15px] leading-relaxed text-muted">
-              A shorter version of an official rating, scored the same way by the same judge
-              {plan
-                ? `: up to ${plan.episodes} episodes, stopped at ${duration(plan.budgetSeconds)} at the most`
-                : ""}
-              .
-            </p>
-            <dl className="mt-6 flex flex-col text-sm">
-              <div className="border-t border-line py-4">
-                <dt className="font-medium">{PREVIEW_LABEL}</dt>
-                <dd className="mt-1 text-muted">
-                  Only you see it, unless you make a link to share it. It isn't published anywhere.
-                </dd>
-              </div>
-              <div className="border-t border-line py-4">
-                <dt className="font-medium">Free, a few a day per account</dt>
-                <dd className="mt-1 text-muted">
-                  Previews run one at a time, after official ratings.
-                </dd>
-              </div>
-              {(changing ? connection : (p?.connection ?? connection)) === "hosted" ? (
-                <div className="border-t border-line py-4">
-                  <dt className="font-medium">Bonded pays for the model</dt>
-                  <dd className="mt-1 text-muted">
-                    Bonded runs your agent on its own servers, on the model you pick.
-                  </dd>
-                </div>
-              ) : (
-                <div className="border-t border-line py-4">
-                  <dt className="font-medium">Your model, your bill</dt>
-                  <dd className="mt-1 text-muted">
-                    Bonded runs the attacks; your agent's own model calls are yours.
-                  </dd>
-                </div>
-              )}
-            </dl>
-            <p className="flex flex-wrap gap-x-6 gap-y-3 border-t border-line pt-5">
-              <a className="more-link" href={DOCS_BYOA}>
-                The guide <span aria-hidden>→</span>
-              </a>
-              <MoreLink to="/agents/new">Onboard an agent instead</MoreLink>
-            </p>
-          </Card>
-          {session && listed.length > 0 && (
-            <Card title="Your previews">
-              <ul className="divide-y divide-line border-b border-line text-sm">
-                {listed.map((x) => (
-                  <li
-                    key={x.id}
-                    className={`flex items-center justify-between gap-3 py-3.5 first:pt-0 ${x.id === previewId ? "text-ink" : ""}`}
-                  >
-                    <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
-                      <span className="text-soft">
-                        {when(Math.floor(Date.parse(x.createdAt) / 1000))}
-                      </span>
-                      <Badge
-                        tone={
-                          x.status === "done"
-                            ? "safe"
-                            : FINISHED.includes(x.status) && x.status !== "expired"
-                              ? "breach"
-                              : "neutral"
-                        }
-                      >
-                        {PREVIEW_STATUS[x.status]}
-                        {x.status === "done" && x.rating?.score !== undefined
-                          ? ` · ${x.rating.score}`
-                          : ""}
-                        {/* A stock-trading preview has findings, not a score. */}
-                        {x.status === "done" && x.rating?.findings
-                          ? ` · ${x.rating.findings.attacks.seedsWorked} of ${x.rating.findings.attacks.seedsRan} attacks worked`
-                          : ""}
-                      </Badge>
+        {session && listed.length > 0 && (
+          <section aria-labelledby="your-previews" className="border-t border-line pt-10">
+            <h2 id="your-previews" className="h-section mb-6">
+              Your previews
+            </h2>
+            <ul className="divide-y divide-line border-y border-line text-sm">
+              {listed.map((x) => (
+                <li key={x.id} className="flex items-center justify-between gap-4 py-4">
+                  <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
+                    <span
+                      className={`text-[15px] ${x.id === previewId ? "text-ink" : "text-soft"}`}
+                    >
+                      {when(Math.floor(Date.parse(x.createdAt) / 1000))}
                     </span>
-                    <span className="flex shrink-0 items-center gap-4">
-                      {x.id === previewId ? (
-                        <span className="eyebrow text-accent">Open</span>
-                      ) : (
-                        <button
-                          type="button"
-                          className={`${linkClass} text-xs`}
-                          onClick={() => openPreview(x.id)}
-                        >
-                          Open it
-                        </button>
-                      )}
-                      {!BUSY.includes(x.status) && (
-                        <ConfirmButton
-                          label="Remove"
-                          ariaLabel={`Remove the preview from ${when(Math.floor(Date.parse(x.createdAt) / 1000))}`}
-                          variant="link"
-                          className="h-auto p-0 text-xs font-normal text-muted hover:text-breach"
-                          title="Remove this preview?"
-                          description="Its report, share link and connection details are deleted, and it leaves this list. This can't be undone. It still counts toward today's preview limit."
-                          confirm="Remove"
-                          act={() => byoaApi.removePreview(session.session, x.id)}
-                          then={async () => {
-                            if (x.id === previewId) setParams({});
-                            await previews.refetch();
-                          }}
-                        />
-                      )}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              {previews.hasNextPage && (
-                <div className="mt-4 flex items-center justify-between gap-3 text-xs text-muted">
-                  <span>
-                    Showing {listed.length} of {listedTotal}
+                    <Badge
+                      tone={
+                        x.status === "done"
+                          ? "safe"
+                          : FINISHED.includes(x.status) && x.status !== "expired"
+                            ? "breach"
+                            : "neutral"
+                      }
+                    >
+                      {PREVIEW_STATUS[x.status]}
+                      {x.status === "done" && x.rating?.score !== undefined
+                        ? ` · ${x.rating.score}`
+                        : ""}
+                      {/* A stock-trading preview has findings, not a score. */}
+                      {x.status === "done" && x.rating?.findings
+                        ? ` · ${x.rating.findings.attacks.seedsWorked} of ${x.rating.findings.attacks.seedsRan} attacks worked`
+                        : ""}
+                    </Badge>
                   </span>
-                  <button
-                    type="button"
-                    className={linkClass}
-                    // Not while the list is being read again (after a new preview, say): the
-                    // next page would land on the old rows and cut that read short.
-                    disabled={previews.isFetching}
-                    onClick={() => {
-                      if (!previews.isFetching) void previews.fetchNextPage();
-                    }}
-                  >
-                    {previews.isFetchingNextPage
-                      ? "Loading…"
-                      : listedLeft > 0
-                        ? `Show ${Math.min(PREVIEWS_PAGE, listedLeft)} more`
-                        : "Show more"}
-                  </button>
-                </div>
-              )}
-            </Card>
-          )}
-        </aside>
+                  <span className="flex shrink-0 items-center gap-4">
+                    {x.id === previewId ? (
+                      <span className="inline-flex items-center gap-2 font-mono text-[11.5px] text-accent">
+                        <span aria-hidden className="size-1.5 rounded-full bg-brand-bright" />
+                        Viewing
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="rounded-full px-3.5 py-1 text-[13px] text-soft shadow-[inset_0_0_0_1px_rgb(255_255_255/0.16)] transition hover:bg-ink hover:text-paper hover:shadow-none"
+                        aria-label={`Open the preview from ${when(Math.floor(Date.parse(x.createdAt) / 1000))}`}
+                        onClick={() => openPreview(x.id)}
+                      >
+                        Open
+                      </button>
+                    )}
+                    {!BUSY.includes(x.status) && (
+                      <ConfirmButton
+                        label="Remove"
+                        ariaLabel={`Remove the preview from ${when(Math.floor(Date.parse(x.createdAt) / 1000))}`}
+                        variant="link"
+                        className="h-auto p-0 text-[13px] font-normal text-muted no-underline hover:text-breach hover:no-underline"
+                        title="Remove this preview?"
+                        description="Its report, share link and connection details are deleted, and it leaves this list. This can't be undone. It still counts toward today's preview limit."
+                        confirm="Remove"
+                        act={() => byoaApi.removePreview(session.session, x.id)}
+                        then={async () => {
+                          if (x.id === previewId) setParams({});
+                          await previews.refetch();
+                        }}
+                      />
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {previews.hasNextPage && (
+              <div className="mt-4 flex items-center justify-between gap-3 text-xs text-muted">
+                <span>
+                  Showing {listed.length} of {listedTotal}
+                </span>
+                <button
+                  type="button"
+                  className={linkClass}
+                  // Not while the list is being read again (after a new preview, say): the
+                  // next page would land on the old rows and cut that read short.
+                  disabled={previews.isFetching}
+                  onClick={() => {
+                    if (!previews.isFetching) void previews.fetchNextPage();
+                  }}
+                >
+                  {previews.isFetchingNextPage
+                    ? "Loading…"
+                    : listedLeft > 0
+                      ? `Show ${Math.min(PREVIEWS_PAGE, listedLeft)} more`
+                      : "Show more"}
+                </button>
+              </div>
+            )}
+          </section>
+        )}
       </div>
     </Page>
+  );
+}
+
+/**
+ * What a preview is, in one quiet line under the intro: private, free, and who pays for the model,
+ * with the detail (how much of an official rating it runs) on hover of the last item.
+ */
+function PreviewFacts({
+  hosted,
+  plan,
+}: {
+  hosted: boolean;
+  plan: { episodes: number; budgetSeconds: number } | null | undefined;
+}) {
+  const facts = [
+    "Private: only you see it",
+    "Free, a few a day",
+    hosted ? "Bonded pays for the model" : "Your model, your bill",
+  ];
+  return (
+    <span className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[12.5px] text-muted">
+      {facts.map((f) => (
+        <span key={f} className="inline-flex items-center gap-2">
+          <span aria-hidden className="size-1 rounded-full bg-brand-bright" />
+          {f}
+        </span>
+      ))}
+      <Tooltip
+        content={
+          <>
+            A preview is a shorter official rating, scored the same way by the same judge
+            {plan
+              ? `: up to ${plan.episodes} episodes, ${duration(plan.budgetSeconds)} at most`
+              : ""}
+            . It isn&apos;t published or put on chain. Previews run one at a time, after official
+            ratings.
+          </>
+        }
+      >
+        <span className="inline-flex cursor-help items-center gap-1.5 text-soft underline decoration-muted/50 decoration-dotted underline-offset-4">
+          What&apos;s a preview
+          <Info aria-hidden className="size-3.5" strokeWidth={2} />
+        </span>
+      </Tooltip>
+    </span>
   );
 }
 
@@ -930,10 +948,11 @@ function CheckWarnings({
 type StepState = "done" | "current" | "later";
 
 /**
- * One step of the flow, a row under a hairline with its number in a narrow column. The current
- * one is open, its title large and its rule blue; done ones show a line of what was done (and can
- * be reopened when that helps, e.g. to copy the runner command again); later ones show only their
- * title, so the whole path is visible from the start. No boxes: the content sits flat.
+ * One step of the flow on a rail: a round marker (its number; a filled blue tick once done) joined
+ * to the next by a line that turns blue as steps are done. The current step is open with a large
+ * title; done ones show a line of what was done (and can be reopened when that helps, e.g. to copy
+ * the runner command again); later ones show only their title, so the whole path is visible. A
+ * step's content slides open as the flow reaches it, and closes as it moves on.
  */
 function FlowStep({
   n,
@@ -941,6 +960,7 @@ function FlowStep({
   state,
   summary,
   open,
+  last = false,
   children,
 }: {
   n: number;
@@ -949,6 +969,8 @@ function FlowStep({
   summary?: ReactNode;
   /** A done step's content stays reachable behind "Show". */
   open?: boolean;
+  /** The last step: no line below its marker. */
+  last?: boolean;
   children: ReactNode;
 }) {
   const [show, setShow] = useState(false);
@@ -958,39 +980,58 @@ function FlowStep({
   // keyboard and screen-reader users land where they're needed. Not on the first render.
   useEffect(() => {
     if (state === "current" && was.current !== "current") {
-      heading.current?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
-      heading.current?.focus({ preventScroll: true });
+      const t = setTimeout(() => {
+        heading.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+        heading.current?.focus({ preventScroll: true });
+      }, 180);
+      was.current = state;
+      return () => clearTimeout(t);
     }
     was.current = state;
   }, [state]);
+  const current = state === "current";
+  const done = state === "done";
   return (
     <li
-      aria-current={state === "current" ? "step" : undefined}
-      className={`grid min-w-0 grid-cols-[2rem_minmax(0,1fr)] gap-x-3 border-t sm:grid-cols-[3.5rem_minmax(0,1fr)] sm:gap-x-4 ${state === "current" ? "border-brand-bright py-8 sm:py-10" : "border-line py-5 sm:py-6"}`}
+      aria-current={current ? "step" : undefined}
+      className="relative grid min-w-0 grid-cols-[2.25rem_minmax(0,1fr)] gap-x-5 sm:gap-x-7"
     >
-      <span
-        aria-hidden
-        className={`eyebrow tabular-nums ${state === "current" ? "pt-2.5 text-accent" : state === "done" ? "pt-1.5 text-safe" : "pt-1.5 text-dim"}`}
-      >
-        {state === "done" ? "✓" : String(n).padStart(2, "0")}
+      <span aria-hidden className="relative flex justify-center">
+        <span
+          className={`relative z-[1] grid size-9 place-items-center rounded-full font-mono text-[12px] tabular-nums transition-all duration-500 ${done ? "bg-brand-bright text-white" : current ? "bg-brand-bright/12 text-ink shadow-[inset_0_0_0_1.5px_var(--color-brand-bright),0_0_0_6px_rgb(60_107_255/0.1)]" : "text-dim shadow-[inset_0_0_0_1px_rgb(255_255_255/0.14)]"}`}
+        >
+          {done ? (
+            <Check
+              className="size-4 [animation:tick-in_.45s_cubic-bezier(.2,.9,.3,1.2)_both]"
+              strokeWidth={2.75}
+            />
+          ) : (
+            n
+          )}
+        </span>
+        {!last && (
+          <span
+            className={`absolute top-11 bottom-2 w-px transition-colors duration-700 ${done ? "bg-brand-bright/55" : "bg-line"}`}
+          />
+        )}
       </span>
-      <div className="min-w-0">
-        <div className="flex items-baseline gap-4">
+      <div className={`min-w-0 ${last ? "" : current ? "pb-14" : "pb-8"}`}>
+        <div className="flex min-h-9 items-center gap-4">
           <h2
             ref={heading}
             tabIndex={-1}
-            className={`min-w-0 flex-1 outline-none ${state === "current" ? "h-section" : `text-lg font-medium tracking-[-0.02em] ${state === "later" ? "text-muted" : "text-soft"}`}`}
+            className={`min-w-0 flex-1 scroll-mt-28 outline-none transition-all duration-500 ${current ? "h-section" : `text-[17px] font-medium tracking-[-0.02em] ${state === "later" ? "text-muted" : "text-ink"}`}`}
           >
             <span className="sr-only">
               Step {n}
-              {state === "done" ? ", done" : state === "current" ? ", current" : ""}:{" "}
+              {done ? ", done" : current ? ", current" : ""}:{" "}
             </span>
             {title}
           </h2>
-          {state === "done" && open && (
+          {done && open && (
             <button
               type="button"
-              className={`${linkClass} shrink-0 text-sm`}
+              className="shrink-0 rounded-full px-3 py-1 font-mono text-[11.5px] text-muted shadow-[inset_0_0_0_1px_rgb(255_255_255/0.14)] transition hover:text-ink hover:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.3)]"
               aria-expanded={show}
               onClick={() => setShow((v) => !v)}
             >
@@ -998,12 +1039,47 @@ function FlowStep({
             </button>
           )}
         </div>
-        {state === "done" && summary && <div className="mt-1.5 text-sm text-muted">{summary}</div>}
-        {(state === "current" || (state === "done" && open && show)) && (
-          <div className={state === "current" ? "mt-7" : "mt-6"}>{children}</div>
-        )}
+        {done && summary && <div className="mt-1 text-[14px] text-muted">{summary}</div>}
+        <Reveal open={current || (done && Boolean(open) && show)}>
+          <div className={current ? "pt-7" : "pt-6"}>{children}</div>
+        </Reveal>
       </div>
     </li>
+  );
+}
+
+/**
+ * Content that slides open (height and fade) when `open` turns on and closes when it turns off,
+ * staying mounted until it has closed. Already open on the first render, it just shows.
+ */
+function Reveal({ open, children }: { open: boolean; children: ReactNode }) {
+  const [mounted, setMounted] = useState(open);
+  const [shown, setShown] = useState(open);
+  const [settled, setSettled] = useState(open);
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      let frame = requestAnimationFrame(() => {
+        frame = requestAnimationFrame(() => setShown(true));
+      });
+      const t = setTimeout(() => setSettled(true), 560);
+      return () => (cancelAnimationFrame(frame), clearTimeout(t));
+    }
+    setSettled(false);
+    setShown(false);
+    const t = setTimeout(() => setMounted(false), 520);
+    return () => clearTimeout(t);
+  }, [open]);
+  if (!mounted) return null;
+  return (
+    <div
+      inert={!open}
+      className={`grid transition-[grid-template-rows,opacity] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${shown ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
+    >
+      <div className={`min-h-0 min-w-0 ${settled ? "overflow-visible" : "overflow-hidden"}`}>
+        {children}
+      </div>
+    </div>
   );
 }
 

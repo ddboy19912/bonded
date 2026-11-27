@@ -1,3 +1,4 @@
+import { Code2, FileText } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -210,23 +211,23 @@ export function ConnectHosted({
       }}
     >
       <fieldset>
-        <legend className="text-[15px] font-medium text-ink">What should Bonded run?</legend>
-        <div className="mt-1 divide-y divide-line">
+        <legend className="mb-4 text-[15px] font-medium text-ink">What should Bonded run?</legend>
+        <div className="grid gap-3 sm:grid-cols-2">
           <Choice
-            flat
             name="hosted-kind"
             checked={kind === "instructions"}
             onChange={() => setKind("instructions")}
             title="Its instructions"
+            icon={<FileText strokeWidth={1.75} />}
           >
             What your agent is told to do. Bonded runs them on the model you pick.
           </Choice>
           <Choice
-            flat
             name="hosted-kind"
             checked={kind === "code"}
             onChange={() => setKind("code")}
             title="Its code"
+            icon={<Code2 strokeWidth={1.75} />}
           >
             One JavaScript or TypeScript file. Tests your own logic, not only the prompt.
           </Choice>
@@ -389,7 +390,10 @@ function ModelField({ value, onChange }: { value: string; onChange: (model: stri
         Model
       </FieldLabel>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger id={id} className="w-full rounded-xl data-[size=default]:h-11">
+        <SelectTrigger
+          id={id}
+          className="w-full rounded-xl bg-white/[0.02] px-4 text-[15px] data-[size=default]:h-12"
+        >
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

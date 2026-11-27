@@ -162,9 +162,9 @@ export const TOOL_NAMES_TEXT = {
 } as const;
 
 /** A logo file drawn in the surrounding text colour (its shape is used as a mask), like the icons. */
-function MaskLogo({ src }: { src: string }) {
+export function MaskLogo({ src }: { src: string }) {
   const mask = `url(${src}) center / contain no-repeat`;
-  return <span className="inline-block size-7 bg-current" style={{ mask, WebkitMask: mask }} />;
+  return <span className="inline-block size-5 bg-current" style={{ mask, WebkitMask: mask }} />;
 }
 
 const TOOL_NAMES_ICON: Record<keyof typeof TOOL_NAMES_TEXT, ReactNode> = {

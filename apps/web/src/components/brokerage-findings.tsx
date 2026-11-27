@@ -220,16 +220,9 @@ function HowItWorks({ f }: { f: BrokerageFindings }) {
       onOpenChange={setOpen}
       indicator="end"
       className="border-t border-line pt-5"
-      triggerClassName="group items-center! py-1 [&>svg]:mt-0 [&>svg]:size-3.5"
+      triggerClassName="items-center! py-1 [&>svg]:mt-0"
       contentClassName="pt-4"
-      summary={
-        <span className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1">
-          <span className="text-xl font-medium tracking-[-0.03em]">How this test works</span>
-          <span className="text-sm text-muted group-hover:text-ink print:hidden">
-            {open ? "Hide" : "Show"}
-          </span>
-        </span>
-      }
+      summary={<span className="text-xl font-medium tracking-[-0.03em]">How this test works</span>}
     >
       <ul className="flex max-w-3xl flex-col gap-2.5 text-soft">
         {lines.map((line) => (

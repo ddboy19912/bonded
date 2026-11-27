@@ -28,7 +28,7 @@ export function Collapsible({
   className?: string;
   triggerClassName?: string;
   contentClassName?: string;
-  /** A chevron at the start or end of the summary, or a plus at the end that turns into a minus. */
+  /** Where the plus (a minus once open) sits: before the summary, or after it ("plus" = "end"). */
   indicator?: "start" | "end" | "plus";
 }) {
   const [own, setOwn] = useState(defaultOpen);
@@ -57,7 +57,7 @@ export function Collapsible({
   const plus = (
     <svg
       viewBox="0 0 16 16"
-      className="mt-[0.35em] size-4 shrink-0 text-muted transition-colors group-hover:text-ink"
+      className="mt-[0.3em] size-3.5 shrink-0 text-muted transition-colors group-hover:text-ink"
       fill="none"
       stroke="currentColor"
       strokeWidth="1.5"
@@ -72,20 +72,8 @@ export function Collapsible({
       />
     </svg>
   );
-  const chevron = (
-    <svg
-      viewBox="0 0 12 12"
-      className={`mt-[0.4em] size-3 shrink-0 text-muted transition-transform duration-300 motion-reduce:transition-none ${open ? (indicator === "end" ? "rotate-180" : "rotate-90") : ""}`}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d={indicator === "end" ? "m2 4 4 4 4-4" : "m4 2 4 4-4 4"} />
-    </svg>
-  );
+  // One mark for every placement: a plus that turns into a minus as it opens.
+  const chevron = plus;
   return (
     <div className={className}>
       <button
@@ -97,8 +85,7 @@ export function Collapsible({
       >
         {indicator === "start" && chevron}
         <span className="min-w-0 flex-1">{summary}</span>
-        {indicator === "end" && chevron}
-        {indicator === "plus" && plus}
+        {(indicator === "end" || indicator === "plus") && chevron}
       </button>
       <div
         id={id}
