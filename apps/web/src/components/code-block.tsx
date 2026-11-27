@@ -152,7 +152,7 @@ function CodeFrame({
   return (
     <figure
       data-language={language}
-      className="min-w-0 overflow-hidden rounded-[0.9rem] border border-line bg-[#0a0e17] shadow-[inset_0_1px_0_rgb(255_255_255/0.04)]"
+      className="min-w-0 overflow-hidden rounded-xl border border-line bg-sunken"
     >
       <figcaption className="flex h-9 items-center gap-3 border-b border-line bg-black/30 px-4">
         <span className="flex shrink-0 gap-1.5" aria-hidden>
@@ -196,7 +196,7 @@ function CodeFrame({
               type="button"
               onClick={expand}
               title="Open wider"
-              className="flex size-8 items-center justify-center rounded-md border border-line-strong bg-[#0a0e17] text-muted transition hover:bg-white/[0.07] hover:text-ink focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+              className="flex size-8 items-center justify-center rounded-md border border-line-strong bg-sunken text-muted transition hover:bg-white/[0.07] hover:text-ink focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
             >
               <svg
                 viewBox="0 0 24 24"

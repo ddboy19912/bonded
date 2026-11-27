@@ -60,13 +60,13 @@ export function ResponsiveModal({
               }
             : {})}
         >
-          <DialogHeader className="gap-1.5 p-6 pb-4 pr-12 text-left">
-            <DialogTitle className="text-xl leading-snug font-semibold">{title}</DialogTitle>
+          <DialogHeader className="gap-2 p-7 pb-5 pr-16 text-left">
+            <DialogTitle>{title}</DialogTitle>
             <DialogDescription className={description ? "" : "sr-only"}>
               {description ?? title}
             </DialogDescription>
           </DialogHeader>
-          <div className="min-h-0 overflow-y-auto px-6 pb-6">{children}</div>
+          <div className="min-h-0 overflow-y-auto px-7 pb-7">{children}</div>
         </DialogContent>
       </Dialog>
     );
@@ -74,7 +74,9 @@ export function ResponsiveModal({
     <Drawer open={open} onOpenChange={onOpenChange} dismissible={!locked}>
       <DrawerContent>
         <DrawerHeader>
-          <DrawerTitle className="text-xl leading-snug">{title}</DrawerTitle>
+          <DrawerTitle className="text-[26px] leading-[1.05] font-medium tracking-[-0.04em]">
+            {title}
+          </DrawerTitle>
           <DrawerDescription className={description ? "" : "sr-only"}>
             {description ?? title}
           </DrawerDescription>

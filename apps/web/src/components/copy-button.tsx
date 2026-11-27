@@ -92,7 +92,7 @@ export function CopyButton({
     <button
       type="button"
       onClick={() => void copy()}
-      className="inline-flex min-w-[5.5rem] items-center justify-center rounded-full border border-line-strong px-3 py-1 text-xs font-semibold text-accent hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+      className="inline-flex min-w-[5.5rem] items-center justify-center rounded-full border border-line-strong px-3 py-1 font-mono text-[11.5px] text-soft transition hover:border-ink hover:bg-ink hover:text-paper focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
     >
       <span aria-live="polite">
         {state === "copied" ? "Copied" : state === "failed" ? "Select it" : label}

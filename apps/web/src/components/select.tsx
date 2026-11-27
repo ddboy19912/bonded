@@ -57,7 +57,7 @@ export function Select({
           position="popper"
           sideOffset={8}
           align={block ? "start" : "end"}
-          className="z-50 max-h-[var(--radix-select-content-available-height)] min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-2xl border border-line-strong bg-raised p-1.5 shadow-(--shadow-raised) [animation:rise_.15s_ease_both]"
+          className="z-50 max-h-[var(--radix-select-content-available-height)] min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-xl border border-line-strong bg-raised p-1.5 shadow-(--shadow-raised) [animation:rise_.15s_ease_both]"
         >
           <RadixSelect.Viewport>
             {options.map((o) => (
