@@ -132,6 +132,10 @@ export function Agent() {
   // The transaction that posted the score: the API's record, else the registry's own log.
   const scoreTx = useScoreTx(rated && a ? agentId : undefined, a?.issuedAt);
   const postedTx = score.data?.tx_hash ?? scoreTx.data ?? null;
+  // BondedRegistry on the explorer, scrolled to scoreOf and opened (the anchor is its selector).
+  const checkUrl = explorerUrl
+    ? `${addressUrl(deployment.registry)}?tab=read_write_contract#0x752821e9`
+    : undefined;
   // The rules its vault (or account module) enforces now, read from the chain: the rated mandate
   // hash should be the same.
   const enforcer = vault ?? guarded?.module;
@@ -548,7 +552,7 @@ export function Agent() {
       ) : null}
 
       <Section label="Vault and proof">
-        <div className="grid gap-x-14 gap-y-14 md:grid-cols-2 md:[&>section:nth-child(-n+2)]:border-t-0 md:[&>section:nth-child(-n+2)]:pt-0 [&>section:first-child]:border-t-0 [&>section:first-child]:pt-0">
+        <div className="grid gap-x-14 gap-y-14 xl:grid-cols-2 xl:[&>section:nth-child(-n+2)]:border-t-0 xl:[&>section:nth-child(-n+2)]:pt-0 [&>section:first-child]:border-t-0 [&>section:first-child]:pt-0">
           {vault && <VaultSummary vault={vault} agentId={id} record={ownRecord} />}
           {guarded && <AccountSummary module={guarded.module} account={guarded.account} />}
           {guarded && <ModuleCover agentId={agentId} module={guarded.module} />}
@@ -578,36 +582,31 @@ export function Agent() {
                     note="Fingerprint of the full report"
                     value={a.reportHash}
                     how={
-                      <>
-                        BondedRegistry <Mono>{short(deployment.registry)}</Mono> → Read contract →{" "}
-                        <Mono>scoreOf({id})</Mono> returns it as <Mono>reportHash</Mono>.
+                      <CheckSteps id={id} field="reportHash">
                         {score.data && (
-                          <>
-                            {" "}
-                            <Mono>keccak256</Mono> of the downloaded report&apos;s exact bytes must
-                            equal it.
-                          </>
+                          <li>
+                            Or hash the downloaded report with <Mono>keccak256</Mono>: same value.
+                          </li>
                         )}
-                      </>
+                      </CheckSteps>
                     }
+                    howHref={checkUrl}
                   />
                   <ProofRow
                     label="Mandate hash"
                     note="Fingerprint of the rules it was tested under"
                     value={a.mandateHash}
                     how={
-                      <>
-                        <Mono>scoreOf({id})</Mono> on BondedRegistry returns it as{" "}
-                        <Mono>mandateHash</Mono>.
+                      <CheckSteps id={id} field="mandateHash">
                         {enforcer && (
-                          <>
-                            {" "}
-                            The {vault ? "vault" : "module"}&apos;s own <Mono>mandateHash()</Mono>{" "}
-                            gives the rules it enforces now.
-                          </>
+                          <li>
+                            On its {vault ? "vault" : "module"}&apos;s explorer page, Read contract
+                            → <Mono>mandateHash</Mono>: same value.
+                          </li>
                         )}
-                      </>
+                      </CheckSteps>
                     }
+                    howHref={checkUrl}
                     status={
                       liveMandate.data ===
                       undefined ? undefined : liveMandate.data.toLowerCase() ===
@@ -630,12 +629,8 @@ export function Agent() {
                     label="TEE measurement"
                     note="Fingerprint of its sealed code"
                     value={tee.measurement}
-                    how={
-                      <>
-                        <Mono>scoreOf({id})</Mono> on BondedRegistry returns it as{" "}
-                        <Mono>teeMeasurement</Mono>.
-                      </>
-                    }
+                    how={<CheckSteps id={id} field="teeMeasurement" />}
+                    howHref={checkUrl}
                   />
                   <div className="flex items-center justify-between gap-6 border-t border-line py-4">
                     <span className="text-[14px] text-ink">TEE live check</span>
@@ -983,6 +978,25 @@ const Mono = ({ children }: { children: ReactNode }) => (
 );
 
 /**
+ * How to check a fingerprint yourself, as steps: open BondedRegistry at scoreOf (the info mark
+ * links there), enter the agent's number, compare the field. Extra steps come as children.
+ */
+function CheckSteps({ id, field, children }: { id: string; field: string; children?: ReactNode }) {
+  return (
+    <ol className="flex list-decimal flex-col gap-1 pl-4 marker:text-muted">
+      <li>Click ⓘ to open BondedRegistry on the explorer, at scoreOf.</li>
+      <li>
+        Type <Mono>{id}</Mono> in agentId and click Read.
+      </li>
+      <li>
+        <Mono>{field}</Mono> is the same as this value.
+      </li>
+      {children}
+    </ol>
+  );
+}
+
+/**
  * One thing anyone can check on chain: its name, a few words on what it is, and the value
  * shortened in the middle with a copy button. A link only when it opens that exact thing (an
  * address, a transaction); for a fingerprint, an info mark says where to read it on chain.
@@ -993,6 +1007,7 @@ function ProofRow({
   value,
   href,
   how,
+  howHref,
   status,
   pending = false,
 }: {
@@ -1002,24 +1017,38 @@ function ProofRow({
   href?: string | undefined;
   /** How to check it yourself, shown on hover of the info mark. */
   how?: ReactNode;
+  /** Where the info mark leads: the exact place to check it. */
+  howHref?: string | undefined;
   /** A live check on the value, under the note. */
   status?: ReactNode;
   pending?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   return (
-    <div className="flex items-center justify-between gap-6 border-t border-line py-4">
-      <div className="min-w-0">
-        <p className="flex items-center gap-1.5 text-[14px] text-ink">
+    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t border-line py-4">
+      <div className="min-w-[12rem] flex-1">
+        <p className="flex items-center gap-1.5 text-[14px] whitespace-nowrap text-ink">
           {label}
           {how && (
             <Tooltip content={<span className="block max-w-72">{how}</span>}>
-              <Info
-                role="img"
-                aria-label={`How to check the ${label.toLowerCase()}`}
-                className="size-3.5 cursor-help text-muted transition hover:text-ink"
-                strokeWidth={2}
-              />
+              {howHref ? (
+                <a
+                  href={howHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`Check the ${label.toLowerCase()} on the explorer`}
+                  className="text-muted transition hover:text-ink"
+                >
+                  <Info aria-hidden className="size-3.5" strokeWidth={2} />
+                </a>
+              ) : (
+                <Info
+                  role="img"
+                  aria-label={`How to check the ${label.toLowerCase()}`}
+                  className="size-3.5 cursor-help text-muted"
+                  strokeWidth={2}
+                />
+              )}
             </Tooltip>
           )}
         </p>
