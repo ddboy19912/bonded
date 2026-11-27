@@ -154,7 +154,7 @@ async function main(): Promise<number> {
   return 0;
 }
 
-/** `pnpm leaderboard refresh` (see USAGE and docs/SCORING.md, "Refreshing the leaderboard"). */
+/** `pnpm leaderboard refresh` (see USAGE and docs/internals/RELEASES.md, "Refreshing the leaderboard"). */
 async function refresh(
   values: {
     "dry-run": boolean;

@@ -1,0 +1,38 @@
+---
+// One section of the sidebar: its pages as plain links, its groups as headings over their pages,
+// and any deeper group folded under a toggle.
+import type { NavEntry } from "../lib/nav";
+import { hasCurrent } from "../lib/nav";
+
+interface Props {
+  entries: NavEntry[];
+  depth?: number;
+}
+const { entries, depth = 0 } = Astro.props;
+---
+
+<ul class:list={["bn-list", { "bn-list-nested": depth > 0 }]}>
+  {
+    entries.map((e) =>
+      e.type === "link" ? (
+        <li>
+          <a class="bn-item" href={e.href} aria-current={e.isCurrent ? "page" : undefined}>
+            {e.label}
+          </a>
+        </li>
+      ) : depth === 0 ? (
+        <li class="bn-group">
+          <p class="bn-group-label">{e.label}</p>
+          <Astro.self entries={e.entries} depth={depth + 1} />
+        </li>
+      ) : (
+        <li>
+          <details class="bn-fold" open={hasCurrent(e) || !e.collapsed}>
+            <summary class="bn-item">{e.label}</summary>
+            <Astro.self entries={e.entries} depth={depth + 1} />
+          </details>
+        </li>
+      ),
+    )
+  }
+</ul>

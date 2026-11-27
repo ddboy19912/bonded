@@ -1,0 +1,31 @@
+---
+// The header, laid out as docs.busha.io's and docs.hyperfx.finance's: the logo, a wide search box
+// in the middle and the way into the app on the right, then a row of tabs, one per section.
+import Search from "virtual:starlight/components/Search";
+import SiteTitle from "virtual:starlight/components/SiteTitle";
+import { tabs, type NavEntry } from "../lib/nav";
+
+const sections = tabs(Astro.locals.starlightRoute.sidebar as NavEntry[]);
+---
+
+<div class="bn-header">
+  <div class="bn-row">
+    <div class="bn-title"><SiteTitle /></div>
+    <div class="bn-search print:hidden"><Search /></div>
+    <div class="bn-right print:hidden">
+      <a class="bn-link" href="mailto:hello@bondedhq.xyz">Support</a>
+      <a class="bn-btn" href="https://app.bondedhq.xyz/overview">
+        Open the app <span aria-hidden="true">›</span>
+      </a>
+    </div>
+  </div>
+  <nav class="bn-tabs print:hidden" aria-label="Sections">
+    {
+      sections.map((t) => (
+        <a href={t.href} aria-current={t.active ? "true" : undefined}>
+          {t.label}
+        </a>
+      ))
+    }
+  </nav>
+</div>

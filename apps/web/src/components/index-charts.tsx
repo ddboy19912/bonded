@@ -14,22 +14,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import claude from "../assets/providers/claude.svg";
-import deepseek from "../assets/providers/deepseek.svg";
-import meta from "../assets/providers/meta.svg";
-import qwen from "../assets/providers/qwen.svg";
-import zai from "../assets/providers/zai.svg";
 import { modelPath } from "../lib/bonded-index";
+import { PROVIDER_LOGOS } from "../lib/provider-logos";
 import { DataTable, VIZ } from "./charts";
 
 /** Each provider's mark, shown under its models' bars and as their points on a scatter. */
-const LOGOS: Record<string, string> = {
-  Meta: meta,
-  DeepSeek: deepseek,
-  "Z.ai": zai,
-  Qwen: qwen,
-  Anthropic: claude,
-};
+const LOGOS = PROVIDER_LOGOS;
 
 const INK = "#f4f6fb";
 const MUTED = "#8d96ab";

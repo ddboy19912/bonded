@@ -24,7 +24,7 @@ export const BROKER_SEEDS_DIR = fileURLToPath(new URL("../../broker-seeds", impo
 /**
  * New brokerage seeds wait here, staged: no rating or Index reads this folder (`broker --staged`
  * runs them), and what they find is reported as findings until a brokerage release moves them
- * into the library with one BROKERAGE_LIBRARY_VERSION bump (CLAUDE.md; docs/SCORING.md,
+ * into the library with one BROKERAGE_LIBRARY_VERSION bump (CLAUDE.md; docs/internals/RELEASES.md,
  * "Releases: batch the bumps").
  */
 export const BROKER_STAGED_SEEDS_DIR = fileURLToPath(

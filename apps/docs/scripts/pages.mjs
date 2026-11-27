@@ -5,17 +5,12 @@
  * `src` is relative to the repository root; `slug` is the page's path on docs.bondedhq.xyz.
  */
 export const PAGES = [
-  { src: "README.md", slug: "overview/introduction", label: "Introduction", title: "Introduction" },
+  // The site's own short introduction; the repo's README stays the GitHub front page.
+  { src: "docs/INTRODUCTION.md", slug: "overview/introduction", label: "Introduction" },
   {
     src: "docs/YOUR-AGENTS.md",
     slug: "overview/your-agents",
     label: "Bonded and your agents",
-  },
-  {
-    src: "docs/SPECIFICATION.md",
-    slug: "overview/specification",
-    label: "Product specification",
-    title: "Product specification",
   },
 
   { src: "docs/ARCHITECTURE.md", slug: "concepts/architecture", label: "Architecture" },
@@ -24,20 +19,11 @@ export const PAGES = [
     slug: "concepts/scoring",
     label: "Security, Task and insurance scores",
   },
-  { src: "docs/S1-TAXONOMY.md", slug: "concepts/s1-taxonomy", label: "S1 market-data attacks" },
   { src: "docs/AGENTS.md", slug: "concepts/agents", label: "Agents" },
   { src: "docs/OFFCHAIN.md", slug: "concepts/offchain", label: "Off-chain agents" },
   { src: "docs/BROKERAGE.md", slug: "concepts/brokerage", label: "Stock-trading agents" },
   { src: "docs/SANDBOX-SECURITY.md", slug: "concepts/sandbox-security", label: "Sandbox security" },
   { src: "docs/INDEX.md", slug: "concepts/bonded-index", label: "Bonded Index" },
-  {
-    src: "docs/ADAPTIVE-ATTACKER.md",
-    slug: "concepts/adaptive-attacker",
-    label: "Adaptive attacker",
-  },
-  { src: "docs/HARBINGER.md", slug: "concepts/harbinger", label: "Harbinger" },
-  { src: "docs/CALIBRATION.md", slug: "concepts/calibration", label: "Calibration" },
-  { src: "docs/COVERAGE.md", slug: "concepts/coverage", label: "Coverage" },
   { src: "contracts/evm/README.md", slug: "concepts/contracts", label: "Smart contracts" },
   {
     src: "docs/BOUNTIES-EXPLAINED.md",
@@ -69,11 +55,6 @@ export const PAGES = [
     src: "docs/OFFICIAL-RATINGS.md",
     slug: "guides/official-ratings",
     label: "Official ratings",
-  },
-  {
-    src: "docs/PREVIEWS-AND-RATINGS-REFERENCE.md",
-    slug: "guides/previews-and-ratings-reference",
-    label: "Ratings reference",
   },
   {
     src: "docs/PROTECT-YOUR-AGENT.md",
@@ -117,11 +98,6 @@ export const PAGES = [
     title: "Troubleshooting",
   },
   { src: "docs/DEVELOPING.md", slug: "guides/developing", label: "Developing Bonded" },
-  {
-    src: "docs/DEVELOPING-REFERENCE.md",
-    slug: "guides/developing-reference",
-    label: "Developer reference",
-  },
   { src: "docs/BOUNTIES.md", slug: "guides/bounties", label: "Submit a bounty attack" },
   {
     src: "docs/TEE.md",
@@ -131,7 +107,6 @@ export const PAGES = [
   },
 
   { src: "docs/SENTINEL.md", slug: "sentinel/overview", label: "How Sentinel works" },
-  { src: "docs/SENTINEL-STRESS.md", slug: "sentinel/stress-suite", label: "Stress suite" },
 
   {
     src: "SECURITY.md",
@@ -174,47 +149,6 @@ export const PAGES = [
     slug: "reference/deployments",
     label: "Deployments",
   },
-
-  {
-    src: "docs/internals/OFFCHAIN-SCENARIOS.md",
-    slug: "internals/offchain-scenarios",
-    label: "Off-chain: jobs, attacks, channels",
-  },
-  {
-    src: "docs/internals/OFFCHAIN-TOOLING.md",
-    slug: "internals/offchain-tooling",
-    label: "Off-chain: running and tooling",
-  },
-  {
-    src: "docs/internals/ADAPTIVE-ATTACKER-RESULTS.md",
-    slug: "internals/adaptive-attacker-results",
-    label: "Adaptive attacker: results",
-  },
-  {
-    src: "docs/internals/BROKERAGE-DETAILS.md",
-    slug: "internals/brokerage-details",
-    label: "Stock-trading: details",
-  },
-  {
-    src: "docs/internals/SCORING-BATTERIES.md",
-    slug: "internals/scoring-batteries",
-    label: "Scoring: S1, memory and world-state",
-  },
-  {
-    src: "docs/internals/SENTINEL-AUDITS.md",
-    slug: "internals/sentinel-audits",
-    label: "Sentinel: stress-suite audits",
-  },
-  {
-    src: "docs/internals/SENTINEL-TRAINING-HISTORY.md",
-    slug: "internals/sentinel-training-history",
-    label: "Sentinel: training history",
-  },
-  {
-    src: "docs/internals/SENTINEL-DATA-AND-EVAL.md",
-    slug: "internals/sentinel-data-and-eval",
-    label: "Sentinel: payments data and cascade",
-  },
 ];
 
 /**
@@ -230,14 +164,7 @@ export const SIDEBAR_GROUPS = {
     },
     {
       label: "How ratings work",
-      slugs: [
-        "scoring",
-        "s1-taxonomy",
-        "calibration",
-        "coverage",
-        "adaptive-attacker",
-        "harbinger",
-      ],
+      slugs: ["scoring"],
     },
     {
       label: "How it is built",
@@ -253,7 +180,6 @@ export const SIDEBAR_GROUPS = {
         "agent-frameworks",
         "previews-and-ratings",
         "official-ratings",
-        "previews-and-ratings-reference",
         "approval-in-tests",
         "protect-your-agent",
       ],
@@ -262,7 +188,7 @@ export const SIDEBAR_GROUPS = {
     { label: "Privacy and custody", slugs: ["your-data", "tee"] },
     {
       label: "Help and contributing",
-      slugs: ["troubleshooting", "developing", "developing-reference", "bounties"],
+      slugs: ["troubleshooting", "developing", "bounties"],
     },
   ],
 };
@@ -287,9 +213,8 @@ export const EVIDENCE_DIRS = [
 
 /** How a doc is named in running prose when a bare mention of its file turns into a link. */
 export const SHORT_NAMES = {
-  "README.md": "the introduction",
+  "docs/INTRODUCTION.md": "the introduction",
   "SECURITY.md": "the security policy",
-  "docs/SPECIFICATION.md": "the product specification",
   "docs/ARCHITECTURE.md": "the architecture page",
   "docs/AGENTS.md": "the agents page",
   "docs/OFFCHAIN.md": "the off-chain page",

@@ -1,16 +1,22 @@
 # Deployments
 
-`<chainId>.json` files for each chain Bonded is deployed on, written only after the deployment is confirmed on-chain (see Deploying). Local anvil runs (`31337.json`) are git-ignored, and the Arena's throwaway sandboxes write to `sandbox/` (also git-ignored) by setting `DEPLOYMENTS_DIR`; testnet and mainnet files are committed and validated by `packages/shared/test/deployments.test.ts`.
+Bonded's contracts are deployed on three testnets. Each chain has a `<chainId>.json` file here with every address, written only after the deployment is confirmed on chain.
 
-## Live testnets
+Addresses differ between chains, so always read them from `<chainId>.json` (or `@bondedhq/shared`), never from another chain.
 
-Deployed Oct 20, 2026 by `0xd42FA5ae8949710479954ae78D1b12Ff2e50A841`. Since Oct 22, 2026, `0x6eB99ec2A4b5b7379E07a53352B41D132BE5443b` owns every contract that has an owner (BondedRegistry, OperatorBond, ClaimsEngine, CoverManager, DisputeModule, MandateVaultFactory, CoverPool and MockOracle, and GateAnchor on Robinhood Chain testnet; the test tokens, DemoRouter, MandateModuleFactory and BountyBoard have none) and is the attester, the dispute council and the cover treasury (a single key on testnet; a multisig is a mainnet prerequisite). The deploy key was rotated because Railway, which held it, disclosed a security incident on Oct 21, 2026: ownership moved on all three chains above, and the old key is no longer an attester. Scores it posted before then stay valid, because the registry checks the attester only when a score is posted. The transactions are in [the rotation evidence](../../../docs/progress/evidence/key-rotation-2026-10-22.json). Waiting period 0, so the demo loop runs without waiting. The test tokens, MockOracle and DemoRouter are testnet stand-ins: they have no value.
+## Networks
 
-| Chain | Chain id | Deploy block | Explorer | File |
-|---|---|---|---|---|
-| Robinhood Chain testnet | 46630 | 139,637,933 | https://explorer.testnet.chain.robinhood.com | [`46630.json`](46630.json) |
-| Arbitrum Sepolia | 421614 | 321,171,750 | https://sepolia.arbiscan.io | [`421614.json`](421614.json) |
-| Ethereum Sepolia | 11155111 | 11,957,720 | https://sepolia.etherscan.io | [`11155111.json`](11155111.json) |
+| Chain                   | Chain id | Deploy block | Explorer                                     | File                               |
+| ----------------------- | -------- | ------------ | -------------------------------------------- | ---------------------------------- |
+| Robinhood Chain testnet | 46630    | 139,637,933  | https://explorer.testnet.chain.robinhood.com | [`46630.json`](46630.json)         |
+| Arbitrum Sepolia        | 421614   | 321,171,750  | https://sepolia.arbiscan.io                  | [`421614.json`](421614.json)       |
+| Ethereum Sepolia        | 11155111 | 11,957,720   | https://sepolia.etherscan.io                 | [`11155111.json`](11155111.json)   |
+
+`0x6eB99ec2A4b5b7379E07a53352B41D132BE5443b` owns every contract that has an owner, and is the attester, the dispute council and the cover treasury. On testnet this is a single key. The contracts were deployed by `0xd42FA5ae8949710479954ae78D1b12Ff2e50A841`, which has since been rotated out and is no longer an attester.
+
+The waiting period is 0 on these deployments, so the demo loop runs without waiting.
+
+**Test tokens.** tUSDG, tTSLA, tAMZN and tNVDA, with MockOracle and DemoRouter, are testnet stand-ins. They have no value.
 
 ### Robinhood Chain testnet (46630)
 
@@ -31,7 +37,7 @@ Deployed Oct 20, 2026 by `0xd42FA5ae8949710479954ae78D1b12Ff2e50A841`. Since Oct
 | tNVDA | [`0x3CC1B76c98306D178f7ab992F6760952539022d4`](https://explorer.testnet.chain.robinhood.com/address/0x3CC1B76c98306D178f7ab992F6760952539022d4) | test token |
 | MockOracle | [`0x9d7eAd687fA1C9aD6E1f5ce62CB94c7C9b008304`](https://explorer.testnet.chain.robinhood.com/address/0x9d7eAd687fA1C9aD6E1f5ce62CB94c7C9b008304) | test prices, set by the owner |
 | DemoRouter | [`0x36537761aFBA9b6cBd8D8494AaCB9502B1a231F8`](https://explorer.testnet.chain.robinhood.com/address/0x36537761aFBA9b6cBd8D8494AaCB9502B1a231F8) | test swaps |
-| GateAnchor | [`0x4434F0D9fEF49EE2E017fb1082C1F3EefABcf5a4`](https://explorer.testnet.chain.robinhood.com/address/0x4434F0D9fEF49EE2E017fb1082C1F3EefABcf5a4) | the payment gate's daily log roots and rule hashes. Deployed Nov 3, 2026 by `DeployGateAnchor.s.sol`; owned by `0x6eB9…443b` |
+| GateAnchor | [`0x4434F0D9fEF49EE2E017fb1082C1F3EefABcf5a4`](https://explorer.testnet.chain.robinhood.com/address/0x4434F0D9fEF49EE2E017fb1082C1F3EefABcf5a4) | the payment gate's daily log roots and rule hashes |
 
 ### Arbitrum Sepolia (421614)
 
@@ -73,9 +79,7 @@ Deployed Oct 20, 2026 by `0xd42FA5ae8949710479954ae78D1b12Ff2e50A841`. Since Oct
 | MockOracle | [`0x8aADe81092D5E019ab523f65Af663843f2c2fcf4`](https://sepolia.etherscan.io/address/0x8aADe81092D5E019ab523f65Af663843f2c2fcf4) | test prices, set by the owner |
 | DemoRouter | [`0x09fD7De07b56e323301c5599067Ec38a3607A27B`](https://sepolia.etherscan.io/address/0x09fD7De07b56e323301c5599067Ec38a3607A27B) | test swaps |
 
-Addresses differ between chains, so always read them from `<chainId>.json` (or `@bondedhq/shared`), never from another chain.
-
-Two earlier deployments are no longer used by the hosted service; agents, vaults, bonds and cover made on them stay there, and their addresses are in this file's git history. The Oct 10, 2026 one predates the Security score in the attestation (its registry can't accept the new format); the Sep 27, 2026 one (Sep 30 on Ethereum Sepolia) also predates MandateModule.
+Earlier deployments are no longer used by the hosted service. Their addresses are in this file's git history.
 
 ## Deploying
 
@@ -85,25 +89,27 @@ Put a funded, testnet-only key in the repo root's `.env` as `DEPLOYER_PRIVATE_KE
 pnpm contracts:deploy robinhood   # or: arbitrum, sepolia, or any RPC URL
 ```
 
-Set `WAITING_PERIOD=0` in `.env` if you want to run the demo loop right away, as the live deployments do.
+Set `WAITING_PERIOD=0` in `.env` to run the demo loop right away, as these deployments do.
 
-Extra arguments after the chain go to `forge script`. Ethereum Sepolia needs one: it now charges about 5.3 times more gas to create a contract than forge's built-in EVM expects, so with forge's own estimates the first transaction runs out of gas. Give every transaction more headroom (unused gas isn't charged):
+Extra arguments after the chain go to `forge script`. Ethereum Sepolia charges more gas to create a contract than forge expects, so give every transaction more headroom (unused gas isn't charged):
 
 ```bash
 contracts/evm/script/deploy.sh sepolia --gas-estimate-multiplier 750
 ```
 
-It runs two steps:
-1. **`Deploy.s.sol --broadcast`** deploys and writes `<chainId>.pending.json` (git-ignored). Forge runs the script before sending the transactions, so this file alone doesn't prove anything was deployed.
-2. **`RecordDeployment.s.sol`** runs only if every transaction succeeded. It reads the chain, checks every address has code and the modules are wired to each other, then writes `<chainId>.json` and deletes the pending file.
+The deploy runs two steps:
 
-If step 2 fails on a flaky RPC after a successful deploy, re-run it alone: `forge script script/RecordDeployment.s.sol --rpc-url <rpc>`.
+1. **`Deploy.s.sol --broadcast`** deploys and writes `<chainId>.pending.json`. This file alone doesn't prove anything was deployed.
+2. **`RecordDeployment.s.sol`** runs only if every transaction succeeded. It checks every address has code and the contracts are wired to each other, then writes `<chainId>.json` and deletes the pending file.
 
-If the RPC drops out partway through step 1, `forge script script/Deploy.s.sol --rpc-url <rpc> --broadcast --slow --resume` sends the rest. Two traps, both hit on Sepolia:
+If step 2 fails on a flaky RPC, re-run it alone: `forge script script/RecordDeployment.s.sol --rpc-url <rpc>`.
+
+If the RPC drops out during step 1, `forge script script/Deploy.s.sol --rpc-url <rpc> --broadcast --slow --resume` sends the rest. Two things to watch:
+
 - If a transaction was mined but forge never saw its receipt, the resume fails with "nonce too low". Fetch it (`cast receipt <hash> --rpc-url <rpc> --json`), append it to `receipts` in `broadcast/Deploy.s.sol/<chainId>/run-latest.json`, and resume again.
-- The resume re-runs the script, which rewrites the pending file with addresses simulated from the current nonce. Those are wrong. Rebuild the pending file from the `contractAddress` of each CREATE in `run-latest.json` before running step 2; step 2 then checks every address on chain.
+- The resume rewrites the pending file with wrong, simulated addresses. Rebuild it from the `contractAddress` of each CREATE in `run-latest.json` before running step 2.
 
-Sepolia's gas price also jumps. On Oct 20, 2026 it was 0.75 gwei for the first 15 transactions (0.033 ETH, against a dry-run estimate under 0.001), and the deployer ran out of funds; it was back to 0.001 gwei minutes later. Check `cast gas-price` first, and cap a resume with `--with-gas-price 10000000 --priority-gas-price 1000000` (both are needed: the priority fee must not be above the cap).
+Sepolia's gas price can jump. Check `cast gas-price` first, and cap a resume with `--with-gas-price 10000000 --priority-gas-price 1000000` (both are needed).
 
 For a free dry run that simulates everything and writes nothing: `forge script script/Deploy.s.sol --rpc-url <rpc>`.
 
@@ -117,7 +123,7 @@ With only `DEPLOYER_PRIVATE_KEY` set, the deployer plays every role. Set `OPERAT
 pnpm contracts:smoke robinhood   # or: arbitrum, or any RPC URL
 ```
 
-| Chain | RPC |
-|---|---|
+| Chain                   | RPC                                           |
+| ----------------------- | --------------------------------------------- |
 | Robinhood Chain testnet | `https://rpc.testnet.chain.robinhood.com/rpc` |
-| Arbitrum Sepolia | `https://sepolia-rollup.arbitrum.io/rpc` |
+| Arbitrum Sepolia        | `https://sepolia-rollup.arbitrum.io/rpc`      |

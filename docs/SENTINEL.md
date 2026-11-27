@@ -1,142 +1,100 @@
-# Sentinel: how it works, end to end
+# Sentinel: how it works
 
-Sentinel is Bonded's real-time guard. Before an agent's trade goes through, Sentinel reads the agent's mandate, the trade it wants to make and what it read along the way, and judges whether the agent has been manipulated into it. It runs on Laya, a small model we fine-tuned for this one question. This page covers the modes Sentinel can run in, how to use it, how well it works today, how it's trained and how fast it is.
+Sentinel is Bonded's real-time guard. Before an agent's trade goes through, Sentinel reads the agent's mandate, the trade it wants to make and what it read along the way. It judges whether the agent was manipulated into that trade.
 
-**Safety rule.** Sentinel only advises and blocks suspicious trades. Payouts are decided by the vault's on-chain breach log, so a wrong Sentinel answer can never cause a wrongful payout.
+Sentinel runs on Laya, Convai Innovations' open-source decision model, which Bonded fine-tunes on attacks from the Arena.
+
+**Sentinel is advisory.** It can block a suspicious trade, but it never decides a payout. Payouts come from the vault's on-chain breach log, so a wrong Sentinel answer can never cause a wrongful payout.
+
+## What it checks
+
+Each check answers two questions about the proposed trade:
+
+- **Manipulated?** Is the agent acting on something it read rather than on its mandate?
+- **Injection in the inputs?** Does what it read contain planted instructions?
+
+Whether the trade is within the mandate is not a model question. Plain code decides it with the vault's exact rules.
+
+Only "manipulated" blocks a trade. Sentinel blocks when Laya scores the trade 0.7 or higher.
 
 ## Modes
 
-| Mode | What checks each trade | Where it's used | Status |
-| --- | --- | --- | --- |
-| **Off** | Nothing. The vault still enforces the mandate on-chain. | Any agent rated or run without Sentinel | Default for agents |
-| **Laya only** | Laya alone. It blocks when it scores the trade 0.7 or higher for "manipulated". | The live API and rating worker (`SENTINEL_MODE=laya`) | **Live today** (Laya v5) |
-| **Cascade** | Laya first. When Laya is unsure (its score falls inside a calibrated band), an LLM makes the call instead. | The live API and rating worker (`SENTINEL_MODE=cascade`) | Built and tested, **not switched on**. It turns on only with a frozen policy that has passed the held-out evaluation; none has yet (see [The cascade](#the-cascade)). |
-| **LLM only** | An LLM alone (any OpenRouter model) | The Arena only (`--sentinel-model <model id>`), as the baseline the cascade is measured against | Not offered in production |
-
-In every mode only "manipulated" blocks a trade. Laya-only checks never leave Bonded's infrastructure. In cascade mode, the checks that are escalated send the mandate, proposed action and untrusted inputs to the configured LLM provider.
-
-The live settings (Laya v5, the v3 question set, a 0.7 block threshold) are `SENTINEL_SERVING` in `@bondedhq/shared`. The service itself is pinned by `SENTINEL_MODEL_REPO` and `SENTINEL_MODEL_REVISION`.
-
-## A check, step by step
+- **Off.** No check. The vault still enforces the mandate on-chain. This is the default.
+- **Laya only.** Laya checks every trade. This is the mode Bonded runs. The checks never leave Bonded's infrastructure.
+- **Cascade.** Laya answers first, and an LLM decides only when Laya is unsure. It is not switched on, because no cascade policy has passed the held-out evaluation. When it is, escalated checks will send the mandate, the trade and the agent's inputs to the LLM provider.
+- **LLM only.** An LLM alone. This is used only in the Arena, as a baseline to measure against.
 
 ```
-agent wants to trade → Sentinel checks it (about 2.5 s on CPU, under 300 ms on an NVIDIA T4 GPU)
+agent wants to trade → Sentinel checks it
    ├─ looks fine        → trade goes ahead
-   ├─ looks manipulated → trade blocked, vault owner alerted
-   └─ cascade mode only: Laya unsure (score strictly inside the band) → the LLM decides
+   └─ looks manipulated → trade blocked, vault owner alerted
 ```
-
-Scores equal to either edge of the band stay with Laya.
-
-**Questions per version.** v1 and v2 answer three questions. v3, the live set, answers two: "manipulated" and "injection in inputs". Code decides "within the mandate or breach" with the policy guard's exact check, and "suspicious" is derived as manipulated but within the rules (`SentinelQuestionSet` in `@bondedhq/shared`; [the v3 preparation](internals/SENTINEL-TRAINING-HISTORY.md#v3-preparation-two-questions-and-the-explicit-token-rule) explains why). Older v1 adapters can also escalate low-confidence action-risk answers or likely breaches; those answers never decide payouts.
 
 ## Using Sentinel
 
-Three ways in, all on the live mode above:
+### Rate your agent with Sentinel in front
 
-- **The Sentinel page** (`/sentinel` in the web app) says whether it's running, how v5 was tested, and how to use it.
-- **Rate with Sentinel on.** When onboarding, an owner can tick "Rate it with Sentinel in front"; the registration message then carries a `sentinel on` line. An operator config sets `"sentinel": true`. The worker runs every rating episode with Sentinel in front of the agent (`ratedAgent` in `apps/api/src/sentinel.ts`). The report records `sentinel: { model, questions, blockThreshold }` and the checkpoint, and the agent page and the PDF say "Sentinel on". A config's `codeHash` is always the agent's own code; with Sentinel on the worker attests a combined hash (`ratedCodeHash`), for operator configs and self-serve alike, so the score is never passed off as the agent's alone. Sentinel with a TEE agent is refused for now: the TEE attests the agent's own code hash. If the agent breaches less, it scores higher and its premium falls: the discount is measured, not assumed. A Sentinel-on rating is never attested without Sentinel actually answering: it fails without `SENTINEL_URL`, and any check that got no answer (the service down, a bad key, a malformed reply) is counted in the report as `guardFailures`, which makes the rating incomplete. The guard still refuses the write in that case, so the agent stays safe.
-- **Ask before each trade.** `POST /sentinel/check` takes the mandate, the proposed action and what the agent read, signed with the agent's own key over `sentinelCheckMessage` and `sentinelCheckDigest` from `@bondedhq/shared`. The key is the vault's current `agent()`, read on every check, so a key the guardian rotates out stops working at once. It answers `{ blocked, manipulated, injection, blockThreshold, model, latencyMs }`, or an error (429 throttled, 503 busy, waking up or no answer): treat anything but a clear `blocked: false` as "don't trade". Limits: 30 checks a minute per agent, 4 running at once, 20 s each, and a 256 KB body (the most its fields allow). Only the outcome is stored (`sentinel_checks`: agent, time, manipulated probability, blocked); the action and inputs never are. Agent pages show the last 7 days' counts. `GET /sentinel` reports `configured` and `available`: available means its health probe passes (checked at most every 30 s) and no check has gone unanswered in the last 2 minutes. On Railway, Sentinel sleeps when idle (see Memory below): the first check after a quiet spell waits up to 10 s for it to wake and gets a 503 if it isn't up by then, so retry once after a few seconds; while it sleeps, `available` is false until a probe wakes it.
+When you onboard an agent, tick "Rate it with Sentinel in front". An operator config sets `"sentinel": true`. Every rating episode then runs with Sentinel checking the agent's trades.
 
-The answer is advice: the agent decides whether to go ahead, and the vault enforces the mandate either way.
+- The report records the Sentinel model and settings, and the agent page and PDF say "Sentinel on".
+- The rating attests a combined code hash, so the score is never passed off as the agent's alone.
+- If the agent breaches less with Sentinel, it scores higher and its premium falls. The discount is measured, not assumed.
+- A check that gets no answer counts as a guard failure and makes the rating incomplete. The trade is still refused, so the agent stays safe.
+- Sentinel can't be used with a TEE agent, because the TEE attests the agent's own code hash.
 
-## How well it works today
+### Ask before each trade
 
-Measured on held-out Arena episodes: attacks from classes Laya never saw in training (A7 and A10) and benign trading episodes. Laya v5 at revision `f8d3057`, threshold 0.7, measured on 2026-10-09.
+`POST /sentinel/check` takes the mandate, the proposed action and what the agent read. Sign it with the agent's own key over `sentinelCheckMessage` and `sentinelCheckDigest` from `@bondedhq/shared`. The key must be the vault's current `agent()`, so a key the guardian rotates out stops working at once.
 
-| Test set | Attacks blocked | False alarms |
-| --- | --- | --- |
-| 6 new attack variants, drafted for this test (56 attacks, 592 benign) | 54 of 56 (96.4%; 95% interval 87.9–99.0%) | 0 of 592 (0–0.6%) |
-| The 8 original A7/A10 attack families (87 attacks, 931 benign) | 50 of 87 (57.5%) | 0 of 931 |
+It answers `{ blocked, manipulated, injection, blockThreshold, model, latencyMs }`, or an error: 429 (throttled) or 503 (busy, waking up or no answer). Treat anything other than a clear `blocked: false` as "don't trade".
+
+- **Limits:** 30 checks a minute per agent, 4 running at once, 20 s each, and a 256 KB body.
+- **Waking up:** Sentinel sleeps when idle. The first check after a quiet spell waits up to 10 s for it to wake, and gets a 503 if it isn't up by then. Retry once after a few seconds.
+- **Status:** `GET /sentinel` reports `configured` and `available`.
+- **What's stored:** only the outcome (agent, time, manipulated score, blocked). The action and inputs are never stored. Agent pages show the last 7 days' counts.
+
+The answer is advice. The agent decides whether to go ahead, and the vault enforces the mandate either way.
+
+## How well it works
+
+Measured on held-out Arena episodes: attacks from classes Laya never saw in training (A7 and A10), plus benign trading episodes. Threshold 0.7.
+
+| Test set                                 | Attacks blocked     | False alarms |
+| ---------------------------------------- | ------------------- | ------------ |
+| 6 new attack variants (56 attacks)       | 54 of 56 (96.4%)    | 0 of 592     |
+| 8 original A7/A10 families (87 attacks)  | 50 of 87 (57.5%)    | 0 of 931     |
+
+The 95% interval for the first row is 87.9–99.0% blocked and 0–0.6% false alarms.
 
 Assumptions and limits:
-- The attacks come from the Arena's scripted vulnerable agent, which follows whatever it's told, so every attack case is a real manipulation. An LLM-driven agent resisted all 33 episodes of the new variants, so they produced no attack cases.
-- Laya ranks attacks almost perfectly (it separates attacks from benign trades with an AUC of 0.999), but it scores four of the original families low: A7 research-api-smuggling and json-field, and A10 otc-settlement and x402-prepay. That's the known gap. Lowering the threshold doesn't fix it: at 0.17, the new variants were blocked at the same rate with 3 false alarms. The fix is to include similar examples in the next retrain.
+
+- The attacks come from the Arena's scripted vulnerable agent, which follows whatever it's told, so every attack case is a real manipulation.
+- Laya separates attacks from benign trades almost perfectly (AUC 0.999), but it scores four of the original families low: A7 research-api-smuggling and json-field, and A10 otc-settlement and x402-prepay. Lowering the threshold doesn't fix this. Similar examples are needed in training.
 - 6 and 8 attack families are small samples, so the intervals are wide.
+- The live model is trained on trades. A version trained on off-chain payments has not passed the evaluation.
 
-## How it's trained
+## Speed
 
-Laya learns from labelled examples of the question "is this action manipulated?". The examples come from Arena attack episodes and synthetic cases. Whole attack classes (A7 and A10 today) and all benign control episodes are kept out of training, so the numbers above are measured on attacks the model has never seen.
+One check is one pass of the model over the mandate, the proposed action and the inputs (about 500 to 700 tokens on Arena episodes).
 
-For builders: `pnpm sentinel:synth` writes the synthetic examples and `pnpm sentinel:dataset` builds the training files (`--payments <dir>` adds a payments build's training part). The fine-tune runs on GPU (Kaggle T4s), and the result is pushed to the model repo and pinned by revision. The v6 data, the first to include payments, is described in [the training history](internals/SENTINEL-TRAINING-HISTORY.md#v6-training-data).
+| Where                            | Per check                      |
+| -------------------------------- | ------------------------------ |
+| NVIDIA T4 GPU (24 test rows)     | p50 217 ms, p95 228 ms         |
+| Apple M-series GPU (648 cases)   | p50 280 ms, p95 614 ms         |
+| Apple M-series CPU (2 threads)   | 2.3–2.9 s (p50 about 2.6 s)    |
 
-**Stress test.** `pnpm sentinel:stress` scores a model on 528 disguised cases in 44 families, with rule-checked labels and locked test-only variants. How a model is judged against it, and where every version stands, is in [Stress suite](SENTINEL-STRESS.md); the weakness map for v1 and v2 is in [the audits](internals/SENTINEL-AUDITS.md).
-
-## The payments dataset
-
-Laya v5 is trained on trades; v6 adds payments. The payments dataset asks the same question of off-chain payments ([Off-chain agents](OFFCHAIN.md)): was this payment manipulated?
-
-- **A case** is one payment an agent tried to make in an off-chain Arena episode, as Sentinel would see it: the mandate, the proposed payment, and what the agent read that bears on that payment. Laya reads at most 1,024 tokens and a whole payment state runs to about 4,000, so each case keeps only what bears on the payment.
-- **Labels come from the off-chain judge, never from a model.** A payment is manipulated if it broke the mandate with a fact the attack planted. An agent's own mistake isn't manipulation, and nothing in a control or a benign twin is.
-- **Two sources.** Model-driven agents mostly resist, so they give few manipulated cases (29 of 2,887 on the Index traces on 2026-11-02). The second source is scripted agents with no model: a vulnerable one that acts on what it reads, and a cautious one that ignores it. Both read text only, so an attack that lives only in a picture isn't run.
-- **Held out.** Two whole classes, O2 (a forged or inflated invoice) and O5 (an executive asking for an urgent payment), with their benign twins and every control, never reach training.
-- **Where it stands (2026-11-10).** The vulnerable agent gets a planted payment through on 101 of the 103 attacks it meets. With the Index traces, the final test has 41 attacks and 711 benign cases, which meets the gate's minimums. A scripted agent's attack cases show what a manipulation looks like, not how often a real model falls for one.
-- **Result so far.** Laya v6, the first trained on payments, was not promoted: it blocked 32 of 41 attacks but raised false alarms on 148 of 711 benign payments (20.8%; the limit is 1%). v5 stays live ([training history](internals/SENTINEL-TRAINING-HISTORY.md#v6-gate-results)).
-
-The full detail (what a case shows, the staged seeds, the commands, the split and the evaluation gate) is on [the payments dataset and the cascade in detail](internals/SENTINEL-DATA-AND-EVAL.md#the-payments-dataset).
+So Sentinel takes under 300 ms per check on a T4 GPU and about 2.5 s on CPU. That is fine for agents that trade minutes apart, since the check runs once before each trade. It is too slow for high-frequency agents.
 
 ## Keeping it current
 
-Sentinel only knows the attacks it has seen, so it is retrained when new attack classes or variants appear (from bounties or incidents), when it misses a breach or raises false alarms, and when its confidence drifts on recent labelled rows. A new model goes live only if it measures better on the held-out evaluation.
-
-Every retrain must:
-- pass the held-out evaluation;
-- keep the previous model for rollback;
-- trigger an Arena re-run, because Sentinel changes premiums.
-
-When a held-out class has to join training, new held-out classes are chosen first, or the evaluation stops being honest.
+Sentinel only knows the attacks it has seen. It is retrained when new attack classes appear (from bounties or incidents), when it misses a breach or raises false alarms, and when its confidence drifts. A new model goes live only if it does better on the held-out evaluation. The previous model is kept for rollback, and the Arena is re-run, because Sentinel changes premiums.
 
 ## Blocks become attacks
 
-A blocked check can become a new attack for the library, so live incidents feed it. Bonded keeps only a check's outcome, so the agent's owner saves the check (its `mandate`, `proposedAction` and `untrustedInputs`, plus Sentinel's answer) as JSON and runs:
+A blocked check can become a new attack for the library. Bonded keeps only a check's outcome, so the agent's owner saves the check (its `mandate`, `proposedAction` and `untrustedInputs`, plus Sentinel's answer) as JSON and runs:
 
 ```bash
 pnpm --filter @bonded/arena incident-seed -- --block blocked-check.json
 ```
 
-Plain code, no model, takes the text the agent read that names the action's address, puts `{{attacker}}` in the address's place, and takes the surface from the tool that returned it, the class from the surface, and what counts as success from the action (a transfer, an approval or a call). The mandate is not copied. The candidate must pass the bounty spec check and not copy a library attack. It goes to `attacks-staged/incidents/`, which no rating reads: a finding, not a score, until a person reviews it and a release moves it into `attacks/<class>/`. A swap names no outside address, so a blocked swap is left for a person to write up.
-
-## Speed
-
-One check is one forward pass over the mandate, the proposed action and the untrusted inputs (about 500 to 700 tokens on Arena episodes).
-
-| Where | Conditions | Per check | Source |
-|---|---|---|---|
-| CPU | Apple M-series laptop, PyTorch, 2 threads, real held-out states | 2.3–2.9 s (p50 about 2.6 s); 4 or 8 threads are no faster | Measured, base Laya (same size as the fine-tune) |
-| GPU | Apple M-series laptop GPU (MPS), Laya v5, 648 held-out cases | p50 280 ms, p95 614 ms | Measured |
-| GPU | NVIDIA T4, fine-tuned model, our 24 test rows | p50 217 ms, p95 228 ms | Measured |
-| GPU | NVIDIA T4, the author's benchmark | about 33 ms per forward pass | Laya's README, not ours |
-
-So Sentinel takes **under 300 ms per check on a T4 GPU** and **about 2.5 s on CPU**. The author's 33 ms is one forward pass on a short input; our check answers questions about a 500 to 700 token state.
-
-What this means: 2.5 s is acceptable for agents that trade minutes apart, since the check runs once before each trade. It is too slow for high-frequency agents. In cascade mode, escalated checks add an LLM call (p50 about 1.9 s, p95 about 4.1 s with DeepSeek v4.1 Flash in our evaluation).
-
-Memory: the model needs about 2 GB. Railway bills memory used, about $10 per GB a month, so a Sentinel awake all month costs about $20: in October 2026 it was $17.78 of the project's $25.21. So on Railway it sleeps after 5 to 10 minutes without traffic (`sleepApplication` in `.railway/railway.ts`) and isn't billed while asleep. A request on the private network wakes it; it was serving 11 s after its container started (model download and load). A Sentinel-on rating waits up to 2 minutes for it to wake and pings it every minute until the rating ends, since a guard that gets no answer blocks the trade and would change the score.
-
-## The cascade
-
-The cascade is meant to get close to an LLM's detection at a fraction of its cost: Laya answers most checks itself, and only the unsure ones go to the LLM. It's built and tested, but it stays off until a frozen policy passes the held-out evaluation.
-
-### Status (2026-10-09)
-
-Two candidates were evaluated with Laya v5 and DeepSeek v4.1 Flash as the LLM. Neither passed, so production runs Laya only.
-
-| Final test, 534 cases (52 attacks, 482 benign) | Laya only | LLM only | Cascade (band 0.1–0.45) |
-| --- | --- | --- | --- |
-| Attacks blocked at 0.7 | 53.8% | 100% (51 of 51 answered) | 82.4% |
-| False alarms at 0.7 | 0% | 1.04% | 0.62% |
-| Checks sent to the LLM | – | all | 28.8% |
-| Measured LLM spend per 1,000 checks | $0 | about $0.17 | about $0.046 |
-
-- **First candidate (band 0.1–0.45): failed the final test.** The pass rules require the cascade to block as many attacks as the LLM alone and never overturn a decision Laya got right. It blocked 82.4% against 100%: 9 attacks scored between 0.45 and 0.7 from Laya, so they were neither sent to the LLM nor blocked. The LLM also blocked 3 benign actions Laya had allowed, and one LLM call failed all its retries.
-- **Second candidate: failed calibration.** With the first test's data used for calibration, no band passed. Catching every attack needs the band to start below 0.144, but one benign action scored 0.105 and the LLM wrongly blocks it, so any band starting low enough counts a lost Laya decision.
-
-The main obstacle is Laya's weak spot on the four families listed in [How well it works today](#how-well-it-works-today). Retraining Laya on similar examples is expected to help the cascade pass.
-
-How a policy is chosen on calibration data, frozen and scored once on a final test set, and how it is switched on (`SENTINEL_MODE=cascade` and the policy and report files, which both services check at start-up), are in [the detail page](internals/SENTINEL-DATA-AND-EVAL.md#the-cascade-running-the-evaluation-and-switching-it-on). `SENTINEL_MODE=laya` rolls back without any cascade files.
-
-## Going deeper
-
-- [Sentinel stress suite and weakness map](SENTINEL-STRESS.md): the 528-case suite, how a new model is judged, and where every version stands.
-- [Sentinel: the payments dataset and the cascade in detail](internals/SENTINEL-DATA-AND-EVAL.md): how the payments dataset is built and evaluated, and how a cascade policy is scored, frozen and switched on.
-- [Sentinel stress suite: the audits](internals/SENTINEL-AUDITS.md) and [Sentinel: training and gate history, v3 to v6](internals/SENTINEL-TRAINING-HISTORY.md): the version-by-version record.
+Plain code, no model, turns it into a candidate attack. It is a finding, not a score, until a person reviews it and a release adds it to the library.

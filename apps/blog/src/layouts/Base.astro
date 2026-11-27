@@ -1,7 +1,5 @@
 ---
 import "@fontsource-variable/geist/index.css";
-import "@fontsource/instrument-serif/400.css";
-import "@fontsource/instrument-serif/400-italic.css";
 import "@fontsource-variable/jetbrains-mono/index.css";
 import "../styles/blog.css";
 
@@ -30,12 +28,19 @@ const rss = new URL("rss.xml", new URL(base, Astro.site)).href;
 // The blog is served on the public site (www.bondedhq.xyz); the docs and the app have their own hosts.
 const site = {
   home: "/",
-  how: "/#how",
-  numbers: "/#numbers",
   docs: "https://docs.bondedhq.xyz/",
   security: "https://docs.bondedhq.xyz/security/policy/",
+  privacy: "/privacy",
   app: "https://app.bondedhq.xyz/overview",
 };
+// The landing page's own nav (apps/web SiteLayout), with the blog marked as the page you are on.
+const nav = [
+  { href: "/#try", label: "Try it" },
+  { href: "/#how", label: "How it works" },
+  { href: "/#index", label: "Index" },
+  { href: "/#sentinel", label: "Sentinel" },
+  { href: "/#gate", label: "Payment gate" },
+];
 ---
 
 <!doctype html>
@@ -45,7 +50,7 @@ const site = {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{title}</title>
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#05070d" />
+    <meta name="theme-color" content="#07080a" />
     <meta name="color-scheme" content="dark" />
     <link rel="canonical" href={url} />
     <link rel="icon" href="/brand/favicon.svg" type="image/svg+xml" />
@@ -69,17 +74,14 @@ const site = {
     <meta name="twitter:image:alt" content={ogImageAlt} />
   </head>
   <body>
-    <div class="glow" aria-hidden="true"></div>
-    <!-- The same floating pill nav as the landing page (apps/web SiteLayout). -->
+    <!-- The landing page's plain top bar (apps/web SiteLayout). -->
     <header class="site-header">
-      <div class="pill">
+      <div class="bar">
         <a href={site.home} aria-label="Bonded home" class="logo">
           <img src={`${base}bonded-lockup.svg`} alt="Bonded" height="26" />
         </a>
         <nav aria-label="Site">
-          <a href={site.numbers}>Live numbers</a>
-          <a href={site.how}>How it works</a>
-          <a href={site.docs}>Docs</a>
+          {nav.map((l) => <a href={l.href}>{l.label}</a>)}
           <a href={base} aria-current={Astro.url.pathname.startsWith(base) ? "page" : undefined}>Blog</a>
         </nav>
         <a class="btn btn-light" href={site.app}>Launch app <span aria-hidden="true">→</span></a>
@@ -100,6 +102,7 @@ const site = {
           <a href={site.docs}>Docs</a>
           <a href={site.security}>Security</a>
           <a href={base}>Blog</a>
+          <a href={site.privacy}>Privacy</a>
           <a href={rss}>RSS</a>
           <a href="https://x.com/bonded_hq">X</a>
         </div>

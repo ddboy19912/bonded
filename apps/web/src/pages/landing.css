@@ -1,302 +1,2352 @@
-/* The landing page's hero composition and its motion. Plain CSS, so the timings read in one place. */
+/*
+ * The landing page. Type-led: large Geist on a near-black ground, one blue, orange for the red team,
+ * thin rules in place of cards. Plain CSS, so the timings read in one place.
+ */
 
-.hero-ui {
-  position: relative;
-  max-width: 1180px;
-  height: 600px;
-  margin: 56px auto 0;
-  perspective: 2200px;
+.landing {
+  --l-bg: #07080a;
+  --l-ink: #f1f2f4;
+  /* The quiet grey: 4.6:1 on the ground, enough for body-size text. */
+  --l-dim: #757a84;
+  --l-muted: #8a8f9a;
+  --l-soft: #9db5ff;
+  --l-blue: #3c6bff;
+  --l-orange: #ff7a45;
+  --l-amber: #ffb347;
+  --l-line: rgb(255 255 255 / 0.12);
+  --l-pad: clamp(18px, 2.6vw, 40px);
+  --l-sans: "Geist Variable", "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+  --l-mono:
+    "JetBrains Mono Variable", "JetBrains Mono", "JetBrains Mono Fallback", ui-monospace, monospace;
+  --l-ease: cubic-bezier(0.19, 1, 0.22, 1);
+  /* Where the demo's light stream runs, down from the top of its lane. */
+  --l-lane-y: 44%;
+  /* The app's colour names, on this page's ground. */
+  --color-paper: #07080a;
+  --color-muted: #8a8f9a;
+  --color-line: rgb(255 255 255 / 0.12);
+  background: var(--l-bg);
+  color: var(--l-ink);
 }
-.hero-tilt {
+body:has(.landing) {
+  background: #07080a;
+}
+
+/* Shared pieces */
+.l-sec {
+  padding: clamp(90px, 13vh, 150px) var(--l-pad);
+  border-top: 1px solid var(--l-line);
+  scroll-margin-top: 68px;
+}
+.l-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 5fr);
+  gap: 24px;
+}
+.l-lab {
+  font: 400 13px/1.35 var(--l-mono);
+  color: var(--l-muted);
+}
+.l-h2 {
+  font: 500 clamp(40px, 6.4vw, 104px) / 0.9 var(--l-sans);
+  letter-spacing: -0.06em;
+}
+.l-h2 .dim,
+.l-h3 .dim {
+  color: var(--l-dim);
+}
+.l-h3 {
+  font: 500 clamp(26px, 3vw, 46px) / 1 var(--l-sans);
+  letter-spacing: -0.045em;
+}
+.l-lede {
+  margin-top: 28px;
+  max-width: 60ch;
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--l-muted);
+}
+.l-body {
+  margin-top: clamp(40px, 7vh, 80px);
+}
+.l-actions {
+  margin-top: 30px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+}
+.l-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 22px;
+  border-radius: 999px;
+  font: 500 15px/1 var(--l-sans);
+  white-space: nowrap;
+  overflow: hidden;
+  isolation: isolate;
+  transition: color 0.3s;
+}
+.l-btn::before {
+  content: "";
   position: absolute;
   inset: 0;
-  transform: rotateX(14deg);
-  transform-origin: 50% 0;
-  transform-style: preserve-3d;
+  z-index: -1;
+  transform: translateY(101%);
+  transition: transform 0.5s var(--l-ease);
 }
-.pane {
-  position: absolute;
-  box-sizing: border-box;
-  border-radius: 22px;
-  border: 1px solid rgb(255 255 255 / 0.12);
-  background: linear-gradient(180deg, rgb(22 28 44 / 0.92), rgb(10 13 22 / 0.94));
-  box-shadow:
-    0 40px 80px -20px rgb(0 0 0 / 0.7),
-    inset 0 1px 0 rgb(255 255 255 / 0.08);
-  backdrop-filter: blur(16px);
+.l-btn:hover::before,
+.l-btn:focus-visible::before {
+  transform: none;
 }
-.pane-agent {
-  left: 50%;
-  top: 30px;
-  width: 470px;
-  margin-left: -235px;
-  padding: 26px;
-  z-index: 3;
-  animation: hero-float 7s ease-in-out infinite;
+.l-btn-p {
+  background: #2f5ff5;
+  color: #fff;
 }
-.pane-feed {
-  left: 0;
-  top: 120px;
-  width: 350px;
-  padding: 20px 20px 8px;
-  z-index: 2;
-  animation: hero-float 8s ease-in-out 0.8s infinite;
+.l-btn-p::before {
+  background: var(--l-ink);
 }
-.pane-vault {
-  right: 0;
-  top: 96px;
-  width: 340px;
-  padding: 20px;
-  z-index: 2;
-  animation: hero-float 9s ease-in-out 1.6s infinite;
+.l-btn-p:hover,
+.l-btn-p:focus-visible {
+  color: #000;
 }
-.pane-toast {
-  left: 50%;
-  top: 430px;
-  width: 440px;
-  margin-left: -220px;
-  padding: 14px 18px;
-  border-radius: 16px;
-  z-index: 4;
-  border-color: rgb(127 160 255 / 0.5);
-  background: linear-gradient(180deg, rgb(25 45 110 / 0.95), rgb(13 26 70 / 0.95));
-  animation: hero-toast 12s ease infinite;
+.l-btn-s {
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.2);
 }
-.feed-window {
-  height: 260px;
+.l-btn-s::before {
+  background: rgb(255 255 255 / 0.1);
+}
+.l-link {
+  display: inline-flex;
+  gap: 8px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid currentColor;
+  transition: color 0.2s;
+}
+.l-link:hover {
+  color: var(--l-soft);
+}
+
+/* Things rise into place the first time they come on screen. */
+.l-rv {
+  opacity: 0;
+  transform: translateY(36px);
+  transition:
+    opacity 1s ease,
+    transform 1.2s var(--l-ease);
+}
+.l-rv[data-in="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+/*
+ * Each section, piece by piece: as the label, headline, intro line, buttons and body come on screen
+ * they fade and rise into place a beat apart (lib/reveal.tsx, useSectionStory), so the eye lands on
+ * the headline before the detail. Only marked pieces wait, and only while the story is on.
+ */
+.landing[data-story="on"] [data-beat] {
+  opacity: 0;
+  transform: translateY(22px);
+  transition:
+    opacity 0.55s ease var(--beat-delay, 0ms),
+    transform 0.8s var(--l-ease) var(--beat-delay, 0ms);
+}
+.landing[data-story="on"] [data-beat][data-in="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+/* Hero: the cage lifts, the headline relaxes, the rest follows. */
+.l-hero {
+  /* The headline's size, shared with the line beside it. */
+  --h1: clamp(52px, min(13.4vw, 23.5vh), 230px);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  height: calc(100svh - 68px);
+  min-height: 560px;
+  max-height: 1100px;
+  padding: 0 var(--l-pad);
   overflow: hidden;
-  mask-image: linear-gradient(180deg, transparent, #000 12%, #000 88%, transparent);
 }
-.feed-list {
-  animation: hero-feed 12s cubic-bezier(0.7, 0, 0.3, 1) infinite;
+.l-cage {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 var(--l-pad);
+  pointer-events: none;
 }
-.limit-used {
-  animation: hero-use 12s ease-in-out infinite;
+/*
+ * Decoration that moves must never be what the browser holds the scroll position against. On a
+ * refresh the browser puts the page back by one remembered element; when that was a lifted bar,
+ * which is back down on reload, it "corrected" the scroll by the bar's travel and the page jumped a
+ * screen down.
+ */
+.l-cage,
+.l-tapes,
+.logo-track,
+.l-lean {
+  overflow-anchor: none;
 }
-.blocked {
-  animation: hero-block 12s ease infinite;
+.l-cage i {
+  width: 3px;
+  height: 100%;
+  background: var(--l-ink);
+  animation: l-lift 1.05s cubic-bezier(0.76, 0, 0.24, 1) both;
 }
-.agent-swap {
-  animation: rise 0.6s ease both;
-}
-
-@keyframes hero-float {
-  50% {
-    transform: translateY(-10px);
-  }
-}
-@keyframes hero-use {
-  0%,
-  10% {
-    width: 18%;
-  }
-  40%,
-  94% {
-    width: 62%;
-  }
-  100% {
-    width: 18%;
-  }
-}
-@keyframes hero-block {
-  0%,
-  38% {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  42%,
-  62% {
-    opacity: 1;
-    transform: none;
-    box-shadow:
-      0 0 0 1px rgb(255 92 58 / 0.6),
-      0 0 30px rgb(255 92 58 / 0.25);
-  }
-  66%,
-  100% {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-}
-@keyframes hero-toast {
-  0%,
-  66% {
-    opacity: 0;
-    transform: translateY(24px) scale(0.97);
-  }
-  70%,
-  92% {
-    opacity: 1;
-    transform: none;
-  }
-  96%,
-  100% {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-}
-@keyframes hero-feed {
-  0%,
-  10% {
-    transform: translateY(0);
-  }
-  12.5%,
-  22.5% {
-    transform: translateY(-52px);
-  }
-  25%,
-  35% {
-    transform: translateY(-104px);
-  }
-  37.5%,
-  47.5% {
-    transform: translateY(-156px);
-  }
-  50%,
-  60% {
-    transform: translateY(-208px);
-  }
-  62.5%,
-  72.5% {
-    transform: translateY(-260px);
-  }
-  75%,
-  85% {
-    transform: translateY(-312px);
-  }
-  87.5%,
-  97.5% {
-    transform: translateY(-364px);
-  }
-  100% {
-    transform: translateY(-416px);
-  }
-}
-
-/* Sentinel flow: the line between two cards, and the dot that travels along it. Vertical when the
-   cards stack, horizontal from 1024px. */
-.sflow-line {
-  left: 50%;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-}
-.sflow-dot {
-  left: 50%;
-  translate: -50% -50%;
-  animation: sflow-y 0.8s ease-in-out forwards;
-}
-@media (min-width: 1024px) {
-  .sflow-line {
-    left: 0;
-    right: 0;
-    top: 50%;
-    bottom: auto;
-    width: auto;
-    height: 1px;
-  }
-  .sflow-dot {
-    top: 50%;
-    animation-name: sflow-x;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .sflow-dot {
-    display: none;
-  }
-}
-@keyframes sflow-y {
-  from {
-    top: 0;
-  }
+@keyframes l-lift {
   to {
-    top: 100%;
+    transform: translateY(-101%);
   }
 }
-@keyframes sflow-x {
-  from {
-    left: 0;
-  }
+.l-late {
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+.l-hero[data-on="true"] .l-late {
+  opacity: 1;
+}
+.l-tapes {
+  position: absolute;
+  inset: 26px 0 auto 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 60%, transparent 86%);
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 60%, transparent 86%);
+}
+.l-tape {
+  display: flex;
+  width: max-content;
+  white-space: nowrap;
+  font: 400 13px/1 var(--l-mono);
+  color: rgb(255 122 69 / 0.62);
+  animation: l-slide 70s linear infinite;
+}
+.l-tape:nth-child(2) {
+  animation-duration: 95s;
+  animation-direction: reverse;
+}
+.l-tape:nth-child(3) {
+  animation-duration: 60s;
+}
+.l-tape:nth-child(4) {
+  animation-duration: 110s;
+  animation-direction: reverse;
+}
+.l-tape span {
+  padding-right: 2.2em;
+}
+.l-tape b {
+  font-weight: 400;
+  color: var(--l-soft);
+}
+@keyframes l-slide {
   to {
-    left: 100%;
+    transform: translateX(-50%);
   }
 }
-
-/* Phones and small tablets: the cards stack, flat and still. */
-@media (max-width: 1100px) {
-  .hero-ui {
-    height: auto;
-    perspective: none;
-  }
-  .hero-tilt {
-    position: static;
-    transform: none;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 14px;
-  }
-  .pane {
-    position: relative;
-    inset: auto;
-    margin: 0;
-    width: min(470px, 100%);
-    animation: none;
-  }
-  .pane-toast {
-    opacity: 1;
-  }
+/*
+ * The headline and the line beside it. The line sits on the right, its top level with the top of
+ * "Don't cage" (about a tenth of the headline's size below the top of its line box), and above the
+ * headline's own box, which spans the full width and would otherwise take its clicks.
+ */
+.l-headrow {
+  position: relative;
+}
+.l-intro {
+  position: absolute;
+  z-index: 6;
+  right: 0;
+  top: calc(var(--h1) * 0.08);
+  width: min(370px, 30vw);
+  transition-delay: 0.15s;
+}
+.l-intro p + p {
+  margin-top: 12px;
+  font-size: 17px;
+  line-height: 1.45;
+}
+.l-h1 {
+  position: relative;
+  margin-left: -0.04em;
+  font: 400 var(--h1) / 0.84 var(--l-sans);
+  letter-spacing: -0.065em;
+}
+.l-ln {
+  display: block;
+  white-space: nowrap;
+}
+.l-ln.dim {
+  color: var(--l-dim);
+}
+.l-ln.blue {
+  color: var(--l-blue);
+}
+.l-ch {
+  display: inline-block;
+  font-variation-settings: "wght" 300;
+}
+.l-ledger {
+  margin-top: clamp(18px, 3vh, 30px);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr) auto;
+  gap: 20px;
+  align-items: baseline;
+  padding: 16px 0 22px;
+  border-top: 1px solid var(--l-line);
+  font: 400 13px/1.3 var(--l-mono);
+  color: var(--l-muted);
+  transition-delay: 0.3s;
+  scroll-margin-top: 68px;
+}
+.l-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: end;
+}
+.l-live::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--l-blue);
+}
+.l-ledger b {
+  margin-right: 10px;
+  font: 500 15px/1 var(--l-mono);
+  color: var(--l-ink);
+  font-variant-numeric: tabular-nums;
 }
 
-/* The "works with" carousel: two copies of the row, the track moves half its width and starts again.
-   It pauses under the pointer and keyboard focus, and holds still for anyone who asks for less motion. */
+/* The works-with carousel: two copies of the row; the track moves half its width and starts again. */
+.l-works {
+  padding: 40px 0;
+  border-top: 1px solid var(--l-line);
+}
 .logo-marquee {
   overflow: hidden;
-  -webkit-mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
-  mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 7%, #000 93%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 7%, #000 93%, transparent);
 }
 .logo-track {
   display: flex;
   width: max-content;
-  animation: logo-scroll 48s linear infinite;
+  animation: l-slide 64s linear infinite;
 }
 .logo-marquee:hover .logo-track,
 .logo-marquee:focus-within .logo-track {
   animation-play-state: paused;
 }
-/* The payment gate's decision, stamped on the payment. */
-.gate-stamp {
-  transform: rotate(-9deg);
-  animation: gate-stamp 0.35s cubic-bezier(0.2, 0.8, 0.3, 1.2) both;
+.logo-copy > li {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.36em;
+  padding-left: 0.55em;
+  font: 500 clamp(26px, 3.2vw, 46px) / 1.25 var(--l-sans);
+  letter-spacing: -0.05em;
+  white-space: nowrap;
 }
-@keyframes gate-stamp {
+.logo-copy > li::after {
+  content: "/";
+  padding-left: 0.55em;
+  color: var(--l-dim);
+  font-weight: 300;
+}
+.logo-copy > li:nth-child(even) {
+  color: var(--l-dim);
+}
+.logo-copy > li > [role="img"] {
+  flex-shrink: 0;
+  height: 0.78em;
+  background: currentColor;
+}
+
+/* The problem, said once, large. Words light up in turn. */
+.l-mani {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 5fr);
+  gap: 24px;
+  padding: clamp(110px, 18vh, 190px) var(--l-pad);
+}
+.l-mani-text {
+  max-width: 20ch;
+  font: 400 clamp(30px, 4.7vw, 76px) / 1.02 var(--l-sans);
+  letter-spacing: -0.045em;
+}
+.l-mani-text span {
+  opacity: 0.14;
+  transition: opacity 0.7s ease;
+}
+.l-mani-text[data-in="true"] span {
+  opacity: 1;
+}
+.l-mani-text .blue {
+  color: var(--l-blue);
+}
+
+/* The attack demo: pick an attack, a stream of orange light runs into the agent, then to the vault. */
+.l-try {
+  padding-inline: 0;
+}
+.l-try > .l-head {
+  padding-inline: var(--l-pad);
+}
+.l-atks {
+  margin-top: 40px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 0 var(--l-pad);
+  border-top: 1px solid var(--l-line);
+}
+.l-atk {
+  position: relative;
+  display: block;
+  min-height: 44px;
+  padding: 20px 18px 28px;
+  border-left: 1px solid var(--l-line);
+  text-align: left;
+  color: var(--l-dim);
+  cursor: pointer;
+  transition: color 0.25s;
+}
+.l-atk:first-child {
+  border-left: 0;
+  padding-left: 0;
+}
+.l-atk::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -1px;
+  height: 2px;
+  background: var(--pick, var(--l-orange));
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  transition: transform 0.7s var(--l-ease);
+}
+.l-atk[aria-pressed="true"]::before {
+  transform: scaleX(1);
+}
+.l-atk:hover,
+.l-atk[aria-pressed="true"] {
+  color: var(--l-ink);
+}
+.l-atk-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font: 400 13px/1 var(--l-mono);
+  color: var(--l-muted);
+}
+.l-atk[aria-pressed="true"] .l-atk-meta span:first-child {
+  color: var(--pick, var(--l-orange));
+}
+.l-atk-name {
+  display: block;
+  margin-top: 18px;
+  font: 500 clamp(24px, 3vw, 44px) / 1 var(--l-sans);
+  letter-spacing: -0.05em;
+}
+.l-lane {
+  position: relative;
+  height: 440px;
+  border-top: 1px solid var(--l-line);
+  border-bottom: 1px solid var(--l-line);
+  overflow: hidden;
+}
+.l-lanegl {
+  position: absolute;
+  inset: 0;
+}
+.l-lanegl canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.l-plant {
+  position: absolute;
+  left: var(--l-pad);
+  top: var(--l-lane-y);
+  width: 21%;
+  transform: translateY(-50%);
+}
+.l-quote {
+  margin-top: 14px;
+  padding-left: 18px;
+  border-left: 2px solid var(--l-orange);
+  font: 400 clamp(17px, 1.6vw, 24px) / 1.3 var(--l-sans);
+  letter-spacing: -0.025em;
+}
+.l-quote b {
+  font: 400 0.8em var(--l-mono);
+  letter-spacing: 0;
+  color: var(--l-orange);
+}
+.l-node {
+  position: absolute;
+  top: var(--l-lane-y);
+}
+.l-agent {
+  left: 46%;
+  width: 190px;
+  height: 190px;
+  margin: -95px 0 0 -95px;
+}
+.l-vault {
+  left: 86%;
+  width: 150px;
+  height: 150px;
+  margin: -75px 0 0 -75px;
+}
+.l-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px var(--l-orange);
+  opacity: 0;
+}
+.l-vault .l-pulse {
+  border-radius: 34px;
+  box-shadow: inset 0 0 0 1px var(--l-blue);
+}
+.l-lane[data-phase="1"] .l-agent .l-pulse,
+.l-lane[data-phase="4"][data-verdict="held"] .l-vault .l-pulse {
+  animation: l-pulse 1.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.l-lane[data-phase="1"] .l-agent .l-pulse + .l-pulse {
+  animation-delay: 0.2s;
+}
+@keyframes l-pulse {
+  0% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+.l-orbit {
+  position: absolute;
+  left: -18px;
+  top: -18px;
+  width: calc(100% + 36px);
+  height: calc(100% + 36px);
+  animation: l-spin 26s linear infinite;
+}
+.l-orbit circle {
+  fill: none;
+  stroke: rgb(255 255 255 / 0.34);
+  stroke-width: 1;
+  stroke-dasharray: 2 9;
+  transition: stroke 0.4s;
+}
+@keyframes l-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.l-core {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--l-bg);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.3);
+  transition:
+    box-shadow 0.4s,
+    transform 0.6s var(--l-ease);
+}
+.l-vault .l-core {
+  border-radius: 34px;
+}
+.l-core svg {
+  width: 56px;
+  height: 56px;
+  transition:
+    stroke 0.4s,
+    fill 0.4s;
+}
+.l-agent .l-core svg {
+  fill: none;
+  stroke: var(--l-ink);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.l-vault .l-core svg {
+  fill: var(--l-ink);
+}
+.l-vring {
+  position: absolute;
+  inset: -16px;
+  border-radius: 48px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.16);
+  transition: box-shadow 0.4s;
+}
+/* The agent: orange from the moment it reads the message; blue again if the vault stops it. */
+.l-lane:is([data-phase="1"], [data-phase="2"], [data-phase="3"]) .l-agent .l-core,
+.l-lane[data-phase="4"][data-verdict="breach"] .l-agent .l-core {
+  box-shadow: inset 0 0 0 2px var(--l-orange);
+}
+.l-lane:is([data-phase="1"], [data-phase="2"], [data-phase="3"]) .l-agent svg,
+.l-lane[data-phase="4"][data-verdict="breach"] .l-agent svg,
+.l-lane:is([data-phase="1"], [data-phase="2"], [data-phase="3"]) .l-orbit circle,
+.l-lane[data-phase="4"][data-verdict="breach"] .l-orbit circle {
+  stroke: var(--l-orange);
+}
+.l-lane[data-phase="1"] .l-agent .l-core {
+  transform: scale(1.06);
+}
+.l-lane[data-phase="4"][data-verdict="held"] .l-agent .l-core {
+  box-shadow: inset 0 0 0 2px var(--l-blue);
+}
+.l-lane[data-phase="4"][data-verdict="held"] .l-orbit circle {
+  stroke: var(--l-blue);
+}
+.l-lane[data-phase="4"][data-verdict="breach"] .l-orbit {
+  animation-play-state: paused;
+}
+/* The vault: wakes when the action reaches it, then takes the colour of its answer. */
+.l-lane[data-phase="3"] .l-vault .l-core {
+  box-shadow: inset 0 0 0 2px var(--l-ink);
+  transform: scale(1.06);
+}
+.l-lane[data-phase="4"][data-verdict="held"] .l-vault .l-core {
+  box-shadow: inset 0 0 0 2px var(--l-blue);
+}
+.l-lane[data-phase="4"][data-verdict="held"] .l-vault svg {
+  fill: var(--l-blue);
+}
+.l-lane[data-phase="4"][data-verdict="held"] .l-vring {
+  box-shadow: inset 0 0 0 1px var(--l-blue);
+}
+.l-lane[data-phase="4"][data-verdict="breach"] .l-vault .l-core {
+  box-shadow: inset 0 0 0 2px var(--l-orange);
+}
+.l-lane[data-phase="4"][data-verdict="breach"] .l-vault svg {
+  fill: var(--l-orange);
+}
+.l-nname {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 30px);
+  transform: translateX(-50%);
+  text-align: center;
+  white-space: nowrap;
+  font: 500 20px/1 var(--l-sans);
+  letter-spacing: -0.04em;
+}
+.l-vault .l-nname {
+  top: calc(100% + 34px);
+}
+.l-nname .l-lab {
+  display: block;
+  margin-top: 8px;
+  letter-spacing: 0;
+}
+/* What the agent tries: a ticket that slides out from the agent, on the stream, toward the vault. */
+.l-ticket {
+  position: absolute;
+  left: 66%;
+  top: var(--l-lane-y);
+  padding: 14px 20px 16px;
+  border-radius: 16px;
+  background: var(--l-bg);
+  box-shadow: inset 0 0 0 1px rgb(255 122 69 / 0.6);
+  white-space: nowrap;
+  opacity: 0;
+  transform: translate(-50%, -50%) translateX(-70px);
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
+}
+.l-ticket code {
+  display: block;
+  margin-top: 10px;
+  font: 500 17px/1.35 var(--l-mono);
+  color: var(--l-ink);
+}
+.l-ticket code b {
+  display: block;
+  font-weight: 500;
+  color: var(--l-orange);
+}
+.l-lane:is([data-phase="2"], [data-phase="3"], [data-phase="4"]) .l-ticket {
+  opacity: 1;
+  transform: translate(-50%, -50%);
+  transition:
+    opacity 0.4s ease,
+    transform 0.9s var(--l-ease),
+    box-shadow 0.4s;
+}
+.l-lane[data-phase="4"][data-verdict="held"] .l-ticket {
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.22);
+}
+.l-mode {
+  position: absolute;
+  left: 86%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--l-bg);
+  box-shadow: inset 0 0 0 1px var(--l-line);
+}
+.l-mode button {
+  height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font: 500 15px/1 var(--l-sans);
+  color: var(--l-muted);
+  cursor: pointer;
+  transition:
+    color 0.25s,
+    background 0.25s;
+}
+.l-mode button:hover {
+  color: var(--l-ink);
+}
+.l-mode button[aria-pressed="true"] {
+  background: var(--l-ink);
+  color: #000;
+}
+.l-resp {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: clamp(24px, 5vw, 90px);
+  align-items: end;
+  padding: 28px var(--l-pad) 0;
+}
+.l-out {
+  margin-top: 14px;
+}
+.l-out li {
+  display: grid;
+  grid-template-columns: 4ch minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: baseline;
+  padding: 15px 0;
+  border-top: 1px solid var(--l-line);
+  font-size: 17px;
+  letter-spacing: -0.02em;
+  color: var(--l-muted);
+  transition: color 0.4s;
+}
+/* A rule is listed from the start, waiting; it lights up when the vault checks it, one by one. */
+.l-out li[data-on="true"] {
+  color: var(--l-ink);
+}
+.l-out li[data-on="true"] .a {
+  animation: l-tick 0.45s var(--l-ease) both;
+}
+.l-out li[data-on="true"]:nth-child(2),
+.l-out li[data-on="true"]:nth-child(2) .a {
+  transition-delay: 0.3s;
+  animation-delay: 0.3s;
+}
+.l-out li[data-on="true"]:nth-child(3),
+.l-out li[data-on="true"]:nth-child(3) .a {
+  transition-delay: 0.6s;
+  animation-delay: 0.6s;
+}
+@keyframes l-tick {
   from {
     opacity: 0;
-    transform: rotate(-9deg) scale(1.9);
-  }
-  to {
-    opacity: 1;
-    transform: rotate(-9deg) scale(1);
+    transform: translateY(8px);
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .gate-stamp {
-    animation: none;
+/* Three dots that pulse in turn while something is under way. */
+.l-dots {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 0.25em;
+  vertical-align: middle;
+}
+.l-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.25;
+  animation: l-dot 1.2s ease-in-out infinite;
+}
+.l-dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.l-dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes l-dot {
+  40% {
+    opacity: 1;
+  }
+}
+/* What is happening now and the answer share one place; the place keeps the taller one's height. */
+.l-vstack {
+  display: grid;
+  align-items: end;
+}
+.l-vstack > * {
+  grid-area: 1 / 1;
+}
+.l-vwait {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.l-vwait[data-on="true"] {
+  opacity: 1;
+  transition-duration: 0.5s;
+}
+.l-vw {
+  font: 500 clamp(26px, 2.6vw, 40px) / 1.1 var(--l-sans);
+  letter-spacing: -0.04em;
+  color: rgb(241 242 244 / 0.78);
+}
+.l-vw .l-dots i {
+  width: 7px;
+  height: 7px;
+}
+.l-vbar {
+  display: block;
+  width: min(360px, 100%);
+  height: 2px;
+  margin-top: 22px;
+  background: var(--l-line);
+}
+.l-vbar i {
+  display: block;
+  height: 100%;
+  background: var(--l-orange);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+}
+.l-vbar[data-run="true"] i {
+  animation: l-progress linear both;
+}
+@keyframes l-progress {
+  to {
+    transform: scaleX(1);
+  }
+}
+.l-out .n,
+.l-out .a {
+  font: 400 13px/1 var(--l-mono);
+  letter-spacing: 0;
+  color: var(--l-muted);
+}
+/* Waiting marks stay grey: the colour of the answer only shows once the vault has checked. */
+.l-out li[data-on="true"] .a {
+  color: var(--l-soft);
+}
+.l-out li[data-on="true"][data-ok="false"] .a {
+  color: var(--l-orange);
+}
+.l-verdict {
+  opacity: 0;
+  transform: translateY(40px);
+}
+.l-verdict[data-on="true"] {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 0.6s ease,
+    transform 0.9s var(--l-ease);
+}
+.l-vv {
+  font: 500 clamp(64px, 8.4vw, 124px) / 0.85 var(--l-sans);
+  letter-spacing: -0.07em;
+  font-variation-settings: "wght" 900;
+}
+.l-verdict[data-on="true"] .l-vv {
+  font-variation-settings: "wght" 500;
+  transition: font-variation-settings 1.5s var(--l-ease);
+}
+.l-verdict[data-verdict="held"] .l-vv {
+  color: var(--l-blue);
+}
+.l-verdict[data-verdict="breach"] .l-vv {
+  color: var(--l-orange);
+}
+.l-vt {
+  margin-top: 18px;
+  max-width: 44ch;
+  /* The same height for every answer, so switching mode never shifts the page. */
+  min-height: 4.5em;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--l-muted);
+}
+
+/* How an attack plays out: five steps, each with its own numeral. */
+.l-how {
+  padding-block: 0;
+}
+.l-how-h {
+  padding: 80px 0 32px;
+}
+.l-how-h h2 {
+  margin-top: 10px;
+  font: 500 clamp(24px, 2.4vw, 36px) / 1.05 var(--l-sans);
+  letter-spacing: -0.04em;
+}
+.l-step {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: clamp(24px, 5vw, 90px);
+  align-items: center;
+  padding: 40px 0;
+  border-top: 1px solid var(--l-line);
+}
+.l-numeral {
+  margin-left: -0.05em;
+  font: 300 clamp(96px, 14vw, 220px) / 0.8 var(--l-sans);
+  letter-spacing: -0.08em;
+}
+.l-numeral small {
+  display: block;
+  margin: 22px 0 0 0.05em;
+  font: 400 13px/1 var(--l-mono);
+  letter-spacing: 0;
+  color: var(--l-muted);
+}
+.l-step h3 {
+  max-width: 16ch;
+  font: 500 clamp(28px, 3.3vw, 52px) / 1 var(--l-sans);
+  letter-spacing: -0.045em;
+}
+.l-step-text {
+  margin-top: 18px;
+  max-width: 44ch;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--l-muted);
+}
+.l-vis {
+  margin-top: 30px;
+  max-width: 560px;
+}
+.l-vis .l-quote {
+  margin-top: 14px;
+  font-size: clamp(20px, 2vw, 30px);
+}
+.l-rows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 15px 0;
+  border-top: 1px solid var(--l-line);
+  font-size: 17px;
+  letter-spacing: -0.02em;
+}
+.l-rows > div span:last-child {
+  font: 400 13px/1.6 var(--l-mono);
+  letter-spacing: 0;
+  color: var(--l-muted);
+}
+.l-rows > div.bad span:last-child {
+  color: var(--l-orange);
+}
+.l-send {
+  font: 400 clamp(20px, 2.1vw, 30px) / 1.45 var(--l-mono);
+}
+.l-send b {
+  font-weight: 400;
+  color: var(--l-orange);
+}
+.l-modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+}
+.l-modes b {
+  display: block;
+  margin-top: 12px;
+  font: 500 clamp(40px, 5vw, 76px) / 0.9 var(--l-sans);
+  letter-spacing: -0.06em;
+}
+.l-modes p + p,
+.l-modes b + p {
+  margin-top: 12px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--l-muted);
+}
+.l-amount {
+  font: 500 clamp(76px, 10vw, 150px) / 0.85 var(--l-sans);
+  letter-spacing: -0.07em;
+}
+.l-paybar {
+  margin-top: 26px;
+  display: flex;
+  gap: 3px;
+  height: 10px;
+}
+.l-paybar i:nth-child(1) {
+  flex: 80;
+  background: var(--l-blue);
+}
+.l-paybar i:nth-child(2) {
+  flex: 10;
+  background: var(--l-soft);
+}
+.l-paybar i:nth-child(3) {
+  flex: 10;
+  background: rgb(255 255 255 / 0.16);
+}
+.l-leg {
+  margin-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font: 400 13px/1.3 var(--l-mono);
+  color: var(--l-muted);
+}
+
+/* Columns split by thin rules: who it's for, the live agents. */
+.l-cols {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--l-line);
+}
+.l-cols > * {
+  padding: 26px 24px 0;
+  border-left: 1px solid var(--l-line);
+}
+.l-cols > :first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+.l-cols p {
+  margin-top: 16px;
+  max-width: 40ch;
+  line-height: 1.55;
+  color: var(--l-muted);
+}
+
+/* The Index: every model as a ledger row, with its two scores side by side. On a narrow screen the
+   table scrolls inside its own box rather than widening the page. */
+.l-tablewrap {
+  overflow-x: auto;
+}
+.l-ledger-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.l-ledger-table thead th {
+  padding: 0 12px 10px;
+  text-align: left;
+  font: 400 13px/1.3 var(--l-mono);
+  color: var(--l-muted);
+}
+.l-ledger-table tbody tr {
+  border-top: 1px solid var(--l-line);
+}
+.l-ledger-table tbody tr:last-child {
+  border-bottom: 1px solid var(--l-line);
+}
+.l-ledger-table tbody th,
+.l-ledger-table tbody td {
+  padding: 18px 12px;
+  text-align: left;
+  vertical-align: baseline;
+  transition:
+    background 0.3s,
+    color 0.3s;
+}
+.l-ledger-table tbody th {
+  font: 500 clamp(24px, 3.3vw, 56px) / 1 var(--l-sans);
+  letter-spacing: -0.05em;
+}
+/* The provider's logo before each model's name, sized with the name. */
+.l-plogo {
+  display: inline-grid;
+  place-items: center;
+  width: 0.72em;
+  height: 0.72em;
+  margin-right: 0.34em;
+  vertical-align: -0.04em;
+  border-radius: 0.18em;
+  background: #fff;
+}
+.l-ledger-table tbody td {
+  font: 400 clamp(22px, 2.6vw, 44px) / 1 var(--l-sans);
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.l-ledger-table tbody td.n {
+  width: 6ch;
+  font: 400 13px/1 var(--l-mono);
+  letter-spacing: 0;
+  color: var(--l-muted);
+}
+.l-ledger-table tbody tr:hover th,
+.l-ledger-table tbody tr:hover td,
+.l-ledger-table tbody tr[data-active="true"] th,
+.l-ledger-table tbody tr[data-active="true"] td {
+  background: #2f5ff5;
+  color: #fff;
+}
+
+/*
+ * The Index map: Security across, Task up. Thin axes, the two halves split by dashed rules, and the
+ * corner you want (hard to trick, still does the job) washed in blue. Dots rise from the baseline
+ * into place the first time it comes on screen; pointing at one shows its two scores.
+ */
+.l-mapwrap {
+  margin-top: clamp(64px, 10vh, 110px);
+}
+.l-map {
+  position: relative;
+  padding-left: 34px;
+}
+.l-map-y {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translate(-50%, -50%) rotate(-90deg) translateY(10px);
+  transform-origin: center;
+  white-space: nowrap;
+}
+.l-map-y,
+.l-map-x {
+  font: 400 15px/1 var(--l-sans);
+  letter-spacing: -0.01em;
+  color: rgb(241 242 244 / 0.72);
+}
+.l-map-y b,
+.l-map-x b {
+  margin-right: 8px;
+  font: 500 15px/1 var(--l-sans);
+  letter-spacing: -0.02em;
+  color: var(--l-ink);
+}
+.l-map-x {
+  position: relative;
+  height: 44px;
+  margin-top: 12px;
+}
+.l-tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  font: 400 13px/1 var(--l-mono);
+  color: var(--l-muted);
+}
+.l-map-xname {
+  position: absolute;
+  top: 26px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.l-plot {
+  position: relative;
+  height: clamp(380px, 58vh, 600px);
+  border-left: 1px solid rgb(255 255 255 / 0.24);
+  border-bottom: 1px solid rgb(255 255 255 / 0.24);
+}
+.l-goal {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: rgb(60 107 255 / 0.07);
+}
+.l-mid {
+  position: absolute;
+  border: 0 dashed var(--l-line);
+}
+.l-mid-x {
+  top: 0;
+  bottom: 0;
+  border-left-width: 1px;
+}
+.l-mid-y {
+  left: 0;
+  right: 0;
+  border-top-width: 1px;
+}
+/* The corner names: white and bold so they read at a glance; the goal corner's stays blue. */
+.l-corner {
+  position: absolute;
+  font: 600 15px/1.2 var(--l-sans);
+  letter-spacing: -0.02em;
+  color: var(--l-ink);
+  white-space: nowrap;
+}
+.l-corner[data-goal="true"] {
+  color: var(--l-soft);
+}
+/* A model's marker: its provider's logo on a white disc, ringed in blue in the goal corner. */
+.l-dot {
+  position: absolute;
+  z-index: 2;
+  width: 30px;
+  height: 30px;
+  margin: 0 0 -15px -15px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 0 0 3px var(--l-bg),
+    0 0 0 4px rgb(255 255 255 / 0.28);
+  cursor: pointer;
+  transition:
+    bottom 1.2s cubic-bezier(0.2, 0.75, 0.2, 1),
+    opacity 0.5s ease,
+    transform 0.3s var(--l-ease),
+    box-shadow 0.3s;
+}
+.l-pmark {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+.l-pmark img,
+.l-plogo img {
+  width: 62%;
+  height: 62%;
+  object-fit: contain;
+}
+.l-pmark b,
+.l-plogo b {
+  font: 700 11px/1 var(--l-sans);
+  color: #000;
+}
+/* A bigger target than the dot itself. */
+.l-dot::after {
+  content: "";
+  position: absolute;
+  inset: -10px;
+  border-radius: 50%;
+}
+[data-goal="true"] > .l-dot {
+  box-shadow:
+    0 0 0 3px var(--l-bg),
+    0 0 0 5px var(--l-blue);
+}
+[data-on="true"] > .l-dot {
+  transform: scale(1.3);
+}
+[data-dim="true"] > .l-dot {
+  opacity: 0.28;
+}
+.l-dotname {
+  position: absolute;
+  z-index: 1;
+  font: 400 15px/1.2 var(--l-sans);
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  color: #b4b8c0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+[data-goal="true"] > .l-dotname {
+  color: var(--l-ink);
+}
+.l-map[data-shown="true"] .l-dotname {
+  opacity: 1;
+}
+.l-map[data-shown="true"] [data-dim="true"] > .l-dotname {
+  opacity: 0.2;
+  transition-delay: 0s;
+}
+.l-tip {
+  position: absolute;
+  z-index: 3;
+  width: 220px;
+  padding: 14px 16px 16px;
+  border-radius: 14px;
+  background: var(--l-bg);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.22);
+  transform: translate(-50%, -22px);
+  pointer-events: none;
+}
+.l-tip[data-below="true"] {
+  transform: translate(-50%, calc(100% + 22px));
+}
+.l-tip p {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: 500 17px/1.2 var(--l-sans);
+  letter-spacing: -0.02em;
+}
+.l-tip .l-pmark {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: #fff;
+}
+.l-tip dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+.l-tip dt {
+  font: 400 12px/1 var(--l-mono);
+  color: var(--l-muted);
+}
+.l-tip dd {
+  margin-top: 6px;
+  font: 400 44px/0.9 var(--l-sans);
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Sentinel at speed: trades rush in three lanes at one blue line, one every 0.2 s. Each is scored as
+ * it touches the line: an attack stops there and fades into the Stopped tray; an ordinary trade
+ * carries on out to the vault. Each chip's start is set inline (--d); the line flashes per check.
+ */
+.l-stream {
+  --line: 50%;
+  /* Half the shield's width and a little air: where a trade's nose stops. */
+  --shield: 72px;
+  --stop: calc(var(--line) - var(--shield) / 2 - 6px);
+}
+.l-sclock {
+  display: flex;
+  gap: clamp(24px, 4vw, 56px);
+}
+.l-sclock dt {
+  font: 400 12px/1 var(--l-mono);
+  color: var(--l-muted);
+}
+.l-sclock dd {
+  margin-top: 8px;
+  font: 400 clamp(34px, 3.6vw, 56px) / 0.9 var(--l-sans);
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+}
+.l-sclock [data-tone="stop"] dd {
+  color: var(--l-blue);
+}
+.l-lanes {
+  position: relative;
+  height: 216px;
+  margin-top: 10px;
+  border-top: 1px solid var(--l-line);
+  border-bottom: 1px solid var(--l-line);
+  overflow: hidden;
+}
+.l-lane-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: calc(100% / 3);
+}
+.l-lane-row + .l-lane-row {
+  border-top: 1px dashed rgb(255 255 255 / 0.07);
+}
+.l-sline {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  bottom: 0;
+  left: var(--line);
+  width: 2px;
+  margin-left: -1px;
+  background: var(--l-blue);
+  box-shadow: 0 0 18px 2px rgb(60 107 255 / 0.45);
+}
+/* Sentinel itself: a shield on the line, over the lanes. It pulses once per check while trades run. */
+.l-shield {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  left: var(--line);
+  width: var(--shield);
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 0 14px rgb(60 107 255 / 0.55));
+}
+.l-shield svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.l-shield .body {
+  fill: var(--l-bg);
+  stroke: var(--l-blue);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+.l-shield .inner {
+  fill: rgb(60 107 255 / 0.14);
+  stroke: rgb(60 107 255 / 0.5);
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+}
+.l-shield .mark {
+  fill: none;
+  stroke: var(--l-soft);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.l-stream[data-paused="false"] .l-sline {
+  animation: l-hum 0.2s linear infinite;
+}
+.l-stream[data-paused="false"] .l-shield {
+  animation: l-guard 0.2s ease-out infinite;
+}
+@keyframes l-guard {
+  40% {
+    filter: drop-shadow(0 0 24px rgb(60 107 255 / 0.9));
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+}
+@keyframes l-hum {
+  50% {
+    box-shadow: 0 0 26px 4px rgb(60 107 255 / 0.7);
+  }
+}
+.l-key-line {
+  position: absolute;
+  left: var(--line);
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font: 500 14px/1 var(--l-sans);
+  color: var(--l-soft);
+}
+.l-lanes-key {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 36px;
+  font: 400 12px/1 var(--l-mono);
+  color: var(--l-muted);
+}
+/* A trade: placed by its right edge, so it stops with its nose on the line. */
+.l-chip {
+  position: absolute;
+  top: 50%;
+  left: -40%;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  border-radius: 999px;
+  background: var(--l-bg);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.28);
+  white-space: nowrap;
+  font: 400 13px/1 var(--l-mono);
+  color: var(--l-ink);
+  transform: translate(-100%, -50%);
+  animation: l-pass 1.4s cubic-bezier(0.3, 0, 0.3, 1) var(--d) both;
+}
+.l-chip[data-attack="true"] {
+  animation-name: l-stop;
+}
+/* Off screen the trades wait where they are, in step with the counters. */
+.l-stream[data-paused="true"] .l-chip,
+.l-stream[data-paused="true"] .l-chip b {
+  animation-play-state: paused;
+}
+.l-chip b {
+  font-weight: 500;
+  opacity: 0;
+  animation: l-tag 1.4s linear var(--d) both;
+}
+.l-chip[data-attack="true"] b {
+  color: var(--l-blue);
+}
+@keyframes l-tag {
+  0%,
+  49% {
+    opacity: 0;
+  }
+  51%,
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes l-pass {
+  0% {
+    left: 0%;
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  50% {
+    left: var(--stop);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.28);
+  }
+  52% {
+    box-shadow: inset 0 0 0 1.5px var(--l-ink);
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    left: calc(100% + 30%);
+    opacity: 0;
+    box-shadow: inset 0 0 0 1.5px var(--l-ink);
+  }
+}
+@keyframes l-stop {
+  0% {
+    left: 0%;
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  50% {
+    left: var(--stop);
+    color: var(--l-ink);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.28);
+  }
+  52% {
+    color: var(--l-soft);
+    box-shadow:
+      inset 0 0 0 1.5px var(--l-blue),
+      0 0 0 4px rgb(60 107 255 / 0.25);
+  }
+  62% {
+    left: var(--stop);
+    opacity: 1;
+    color: var(--l-soft);
+    box-shadow: inset 0 0 0 1.5px var(--l-blue);
+    transform: translate(-100%, -50%);
+  }
+  /* Out of the lane before the next trade in it arrives: it has gone to the Stopped tray. */
+  72%,
+  100% {
+    left: var(--stop);
+    opacity: 0;
+    color: var(--l-soft);
+    box-shadow: inset 0 0 0 1.5px var(--l-blue);
+    transform: translate(-100%, 30%);
+  }
+}
+.l-trays {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: clamp(24px, 5vw, 90px);
+  margin-top: 30px;
+}
+.l-trays ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.l-trays li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.22);
+  font: 400 12px/1 var(--l-mono);
+  color: var(--l-ink);
+  transition:
+    opacity 0.35s ease,
+    transform 0.45s var(--l-ease);
+}
+.l-trays li[data-attack] {
+  color: var(--l-soft);
+  box-shadow: inset 0 0 0 1px rgb(60 107 255 / 0.6);
+}
+.l-trays li b {
+  font-weight: 500;
+}
+.l-cols .l-stat {
+  margin-top: 0;
+  font: 500 clamp(48px, 6vw, 96px) / 0.9 var(--l-sans);
+  letter-spacing: -0.06em;
+  font-variant-numeric: tabular-nums;
+  color: var(--l-ink);
+}
+
+/* The payment gate as a picture: the payment, drawn; the gate; where the money is headed. Two
+   wires join them. The first fills as the payment arrives; the second only if it gets through. */
+.l-seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 26px;
+  box-shadow: inset 0 0 0 1px var(--l-line);
+}
+.l-seg button {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 44px;
+  padding: 0 18px 0 14px;
+  border-radius: 999px;
+  font: 500 15px/1 var(--l-sans);
+  color: var(--l-muted);
+  cursor: pointer;
+  transition:
+    color 0.25s,
+    background 0.25s;
+}
+.l-seg button:hover {
+  color: var(--l-ink);
+}
+.l-seg button[aria-pressed="true"] {
+  background: var(--l-ink);
+  color: #000;
+}
+.l-seg svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.l-flow {
+  margin-top: 56px;
+  display: grid;
+  grid-template-columns: minmax(0, 300px) minmax(48px, 1fr) 190px minmax(48px, 1fr) minmax(0, 300px);
+  grid-template-rows: 200px auto;
+  align-items: center;
+  justify-items: center;
+}
+.l-asset,
+.l-gnode,
+.l-place {
+  grid-row: 1;
+}
+/* The payment is drawn from the start; a picked one slides in to the gate. */
+.l-asset {
+  grid-column: 1;
+  width: 100%;
+}
+.l-flow[data-arrive="true"] .l-asset {
+  animation: l-arrive 0.8s var(--l-ease) both;
+}
+@keyframes l-arrive {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+}
+.l-asset svg,
+.l-place svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  fill: var(--l-bg);
+  stroke: var(--l-ink);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.l-asset .soft {
+  stroke: var(--l-dim);
+}
+.l-asset .hot {
+  stroke: var(--l-orange);
+}
+.l-asset .dot,
+.l-place .dot {
+  fill: var(--l-ink);
+  stroke: none;
+}
+.l-asset text {
+  stroke: none;
+  fill: var(--l-ink);
+}
+.l-asset .amt {
+  font: 500 30px var(--l-sans);
+  letter-spacing: -0.05em;
+}
+.l-asset .sm {
+  font: 400 13px var(--l-mono);
+  fill: var(--l-muted);
+}
+.l-wire {
+  grid-row: 1;
+  grid-column: 2;
+  width: calc(100% - 36px);
+  height: 2px;
+  background: var(--l-line);
+}
+.l-wire-out {
+  grid-column: 4;
+}
+.l-wire i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--l-ink);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.l-flow .l-wire:not(.l-wire-out) i {
+  animation: l-fill 0.7s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+@keyframes l-fill {
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes l-fill-down {
+  to {
+    transform: scaleY(1);
+  }
+}
+.l-flow[data-through="true"] .l-wire-out i {
+  transform: scaleX(1);
+  background: var(--tone);
+}
+.l-gnode {
+  grid-column: 3;
+  display: grid;
+  place-items: center;
+  width: 150px;
+  height: 150px;
+  border-radius: 36px;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.3),
+    0 0 0 16px var(--l-bg),
+    0 0 0 17px rgb(255 255 255 / 0.14);
+  transition:
+    box-shadow 0.4s,
+    transform 0.6s var(--l-ease);
+}
+.l-gnode svg {
+  width: 58px;
+  height: 58px;
+  fill: var(--l-ink);
+  transition: fill 0.4s;
+}
+.l-flow[data-phase="1"] .l-gnode {
+  transform: scale(1.06);
+  box-shadow:
+    inset 0 0 0 2px var(--l-ink),
+    0 0 0 16px var(--l-bg),
+    0 0 0 17px rgb(255 255 255 / 0.14);
+}
+.l-flow[data-phase="2"] .l-gnode {
+  box-shadow:
+    inset 0 0 0 2px var(--tone),
+    0 0 0 16px var(--l-bg),
+    0 0 0 17px var(--tone);
+}
+.l-flow[data-phase="2"] .l-gnode svg {
+  fill: var(--tone);
+}
+.l-place {
+  grid-column: 5;
+  display: grid;
+  place-items: center;
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.3);
+  opacity: 0.4;
+  transition:
+    opacity 0.5s,
+    box-shadow 0.5s;
+}
+.l-place svg {
+  width: 62px;
+  fill: none;
+}
+.l-flow[data-through="true"] .l-place {
+  opacity: 1;
+  box-shadow: inset 0 0 0 2px var(--tone);
+}
+.l-cap {
+  grid-row: 2;
+  align-self: start;
+  margin-top: 18px;
+  text-align: center;
+  font: 500 clamp(18px, 1.6vw, 22px) / 1.2 var(--l-sans);
+  letter-spacing: -0.03em;
+}
+.l-cap-pay {
+  grid-column: 1;
+}
+.l-cap-how {
+  display: block;
+  margin-top: 8px;
+  font: 400 13px/1.3 var(--l-mono);
+  letter-spacing: 0;
+  color: var(--l-muted);
+}
+/* Nothing moves until most of the picture is on screen: the payment waits at the start. */
+.l-flow:not([data-ready="true"]) .l-asset,
+.l-flow:not([data-ready="true"]) .l-wire i {
+  animation-play-state: paused;
+}
+.l-cap-place {
+  grid-column: 5;
+  color: var(--l-muted);
+  transition: color 0.5s;
+}
+.l-flow[data-through="true"] .l-cap-place {
+  color: var(--l-ink);
+}
+.l-gout {
+  grid-row: 2;
+  grid-column: 2 / 5;
+  align-self: start;
+  margin-top: 26px;
+  text-align: center;
+}
+/* What the gate is doing and its answer share one place. */
+.l-gstack {
+  display: grid;
+  justify-items: center;
+  align-items: end;
+}
+.l-gstack > * {
+  grid-area: 1 / 1;
+}
+.l-gwait {
+  align-self: center;
+  font: 500 clamp(20px, 1.8vw, 26px) / 1.2 var(--l-sans);
+  letter-spacing: -0.03em;
+  color: rgb(241 242 244 / 0.78);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.l-gwait[data-on="true"] {
+  opacity: 1;
+}
+.l-gverdict {
+  font: 500 clamp(56px, 7.4vw, 112px) / 0.85 var(--l-sans);
+  letter-spacing: -0.07em;
+  color: var(--tone);
+  font-variation-settings: "wght" 900;
+  opacity: 0;
+  transform: translateY(26px);
+}
+.l-gverdict[data-on="true"] {
+  opacity: 1;
+  transform: none;
+  font-variation-settings: "wght" 500;
+  transition:
+    opacity 0.5s ease,
+    transform 0.9s var(--l-ease),
+    font-variation-settings 1.4s var(--l-ease);
+}
+/* Which rule broke, under the answer: only on narrow screens, where the rules are a screen above. */
+.l-greason {
+  display: none;
+}
+.l-gnote {
+  margin-top: 16px;
+  opacity: 0;
+  transition: opacity 0.5s ease 0.35s;
+}
+.l-gnote[data-on="true"] {
+  opacity: 1;
+}
+.l-rulebar {
+  margin-top: 40px;
+  padding: 22px 0;
+  border-top: 1px solid var(--l-line);
+  border-bottom: 1px solid var(--l-line);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px 40px;
+}
+.l-rulebar ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 34px;
+}
+.l-rulebar li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 9px;
+  font: 500 clamp(17px, 1.5vw, 21px) / 1.2 var(--l-sans);
+  letter-spacing: -0.03em;
+  color: var(--l-dim);
+  transition: color 0.35s;
+}
+.l-rulebar li > span {
+  font: 400 14px/1 var(--l-mono);
+  opacity: 0;
+  transition: opacity 0.35s;
+  transition-delay: inherit;
+}
+.l-rulebar li[data-on="true"] {
+  color: var(--l-ink);
+}
+.l-rulebar li[data-on="true"] > span {
+  opacity: 1;
+  color: var(--l-soft);
+}
+.l-rulebar li[data-on="true"][data-ok="false"],
+.l-rulebar li[data-on="true"][data-ok="false"] > span {
+  color: var(--l-orange);
+}
+/*
+ * The privacy page, in the landing's look: the title large beside a small label, then each topic as
+ * a row (its heading on the left, the text on the right) split by thin rules. What we keep is a
+ * ledger rather than a boxed table.
+ */
+.l-priv {
+  padding: clamp(70px, 11vh, 130px) var(--l-pad) 0;
+}
+.l-priv .l-h2 {
+  margin: 0;
+}
+.l-priv-mail {
+  color: var(--l-soft);
+  text-decoration: underline;
+  text-decoration-color: rgb(157 181 255 / 0.4);
+  text-underline-offset: 3px;
+}
+.l-priv-mail:hover {
+  color: var(--l-ink);
+}
+.l-priv-sec {
+  display: grid;
+  grid-template-columns: minmax(0, 4fr) minmax(0, 7fr);
+  gap: 16px clamp(24px, 5vw, 90px);
+  margin-top: clamp(56px, 8vh, 88px);
+  padding-top: 28px;
+  border-top: 1px solid var(--l-line);
+}
+.l-priv-sec + .l-priv-sec {
+  margin-top: 0;
+  padding-block: 28px 0;
+}
+.l-priv-sec h2 {
+  font: 500 clamp(22px, 2vw, 30px) / 1.1 var(--l-sans);
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+.l-priv-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 64ch;
+  padding-bottom: 28px;
+  font-size: 17px;
+  line-height: 1.6;
+  color: #c9ccd2;
+}
+.l-priv-body strong {
+  font-weight: 500;
+  color: var(--l-ink);
+}
+.l-priv-body ul {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-left: 1.1em;
+  list-style: disc;
+}
+.l-priv-body li::marker {
+  color: var(--l-dim);
+}
+.l-priv-kept > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 14rem;
+  gap: 4px 24px;
+  padding: 16px 0;
+  border-top: 1px solid var(--l-line);
+}
+.l-priv-kept > div:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.l-priv-kept dt {
+  font-weight: 500;
+  color: var(--l-ink);
+}
+.l-priv-kept dd {
+  margin-top: 4px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--l-muted);
+}
+.l-priv-kept .l-priv-how {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--l-ink);
+}
+
+/* The close: the line again, twice, drifting opposite ways and leaning with the scroll. */
+.l-end {
+  padding: clamp(70px, 12vh, 110px) 0 clamp(90px, 14vh, 140px);
+  border-top: 1px solid var(--l-line);
+  overflow: hidden;
+  text-align: center;
+}
+.l-lean {
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.l-mq {
+  display: flex;
+  width: max-content;
+  white-space: nowrap;
+  font: 500 clamp(90px, 19vw, 300px) / 0.86 var(--l-sans);
+  letter-spacing: -0.075em;
+  animation: l-slide 46s linear infinite;
+}
+.l-mq + .l-mq {
+  animation-direction: reverse;
+}
+.l-mq span {
+  padding-right: 0.28em;
+}
+.l-mq span:nth-child(even) {
+  color: transparent;
+  -webkit-text-stroke: 1.5px var(--l-dim);
+}
+.l-mq + .l-mq span:nth-child(odd) {
+  color: var(--l-blue);
+}
+.l-end-copy {
+  margin: clamp(40px, 7vh, 64px) auto 0;
+  padding: 0 var(--l-pad);
+}
+.l-end-copy h2 {
+  font: 500 clamp(24px, 2.4vw, 36px) / 1.05 var(--l-sans);
+  letter-spacing: -0.04em;
+}
+.l-end-copy p {
+  margin: 14px auto 0;
+  max-width: 52ch;
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--l-muted);
+}
+.l-end-copy .l-actions {
+  justify-content: center;
+}
+
+/* Narrow screens: one column, and the demo's lane stacks. */
+@media (max-width: 900px) {
+  .l-head,
+  .l-mani,
+  .l-step,
+  .l-resp,
+  .l-atks,
+  .l-cols {
+    grid-template-columns: 1fr;
+  }
+  .l-flow {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+    row-gap: 0;
+  }
+  .l-flow > * {
+    grid-column: 1;
+    grid-row: auto;
+  }
+  /* Down the page in the order it happens: the payment, the gate and its answer, the payee. */
+  .l-asset {
+    order: 1;
+  }
+  .l-cap-pay {
+    order: 2;
+  }
+  .l-wire {
+    order: 3;
+  }
+  .l-gnode {
+    order: 4;
+  }
+  .l-gout {
+    order: 5;
+  }
+  .l-wire-out {
+    order: 6;
+  }
+  .l-place {
+    order: 7;
+  }
+  .l-cap-place {
+    order: 8;
+  }
+  .l-asset {
+    max-width: 200px;
+  }
+  .l-gnode {
+    width: 116px;
+    height: 116px;
+    border-radius: 30px;
+  }
+  .l-gnode svg {
+    width: 46px;
+    height: 46px;
+  }
+  .l-place {
+    width: 96px;
+    height: 96px;
+  }
+  .l-place svg {
+    width: 46px;
+  }
+  .l-greason {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    margin-top: 14px;
+    font: 400 13px/1.3 var(--l-mono);
+    color: var(--l-orange);
+    opacity: 0;
+    transition: opacity 0.4s ease 0.2s;
+  }
+  .l-greason[data-on="true"] {
+    opacity: 1;
+  }
+  .l-ledger-table thead th,
+  .l-ledger-table tbody th,
+  .l-ledger-table tbody td {
+    padding-inline: 8px;
+  }
+  .l-ledger-table tbody th,
+  .l-ledger-table tbody td {
+    padding-block: 14px;
+    font-size: 21px;
+  }
+  .l-ledger-table tbody td.n {
+    width: 3ch;
+    padding-left: 0;
+  }
+  .l-th-sub {
+    display: none;
+  }
+  .l-priv-sec,
+  .l-priv-kept > div {
+    grid-template-columns: 1fr;
+  }
+  .l-stream {
+    --line: 66%;
+    --shield: 54px;
+  }
+  .l-lanes {
+    height: 192px;
+  }
+  .l-key-side {
+    visibility: hidden;
+  }
+  .l-chip {
+    gap: 8px;
+    padding: 8px 11px;
+    font-size: 11px;
+  }
+  .l-trays {
+    grid-template-columns: 1fr;
+  }
+  .l-map {
+    padding-left: 26px;
+  }
+  .l-plot {
+    height: 400px;
+  }
+  .l-dot {
+    width: 24px;
+    height: 24px;
+    margin: 0 0 -12px -12px;
+  }
+  .l-dotname {
+    font-size: 13px;
+  }
+  .l-corner {
+    font-size: 13px;
+  }
+  .l-numeral {
+    font-size: clamp(80px, 24vw, 120px);
+  }
+  .l-cap {
+    margin: 14px 0 0;
+  }
+  .l-wire {
+    width: 2px;
+    height: 30px;
+    margin: 12px 0;
+  }
+  .l-wire i {
+    transform: scaleY(0);
+    transform-origin: 50% 0;
+  }
+  .l-flow .l-wire:not(.l-wire-out) i {
+    animation-name: l-fill-down;
+  }
+  .l-flow[data-through="true"] .l-wire-out i {
+    transform: scaleY(1);
+  }
+  .l-gnode {
+    margin: 14px 0;
+  }
+  .l-gout {
+    margin: 22px 0 0;
+  }
+  .l-intro {
+    position: static;
+    width: auto;
+    margin-bottom: 22px;
+  }
+  /* The headline first on a phone, as large as the width allows, then the line and the buttons. */
+  .l-hero {
+    --h1: clamp(52px, 16.4vw, 130px);
+  }
+  .l-headrow {
+    display: flex;
+    flex-direction: column;
+  }
+  .l-hero .l-h1 {
+    order: -1;
+    margin-bottom: 26px;
+  }
+  .l-live {
+    justify-self: start;
+  }
+  .l-ledger {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .l-atk,
+  .l-cols > * {
+    padding-left: 0;
+    border-left: 0;
+  }
+  .l-cols > * {
+    padding-bottom: 30px;
+    border-top: 1px solid var(--l-line);
+  }
+  .l-cols {
+    border-top: 0;
+  }
+  .l-lane {
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+    height: auto;
+    padding: 30px var(--l-pad);
+  }
+  .l-plant,
+  .l-mode,
+  .l-lane[data-phase] .l-ticket {
+    position: relative;
+    left: auto;
+    top: auto;
+    bottom: auto;
+    width: auto;
+    transform: none;
+  }
+  .l-lane[data-phase] .l-ticket,
+  .l-mode {
+    width: max-content;
+    max-width: 100%;
+    margin-inline: auto;
+  }
+  .l-node {
+    position: relative;
+    left: auto;
+    top: auto;
+    margin: 18px auto 76px;
+  }
+  .l-agent {
+    width: 140px;
+    height: 140px;
+  }
+  .l-vault {
+    width: 112px;
+    height: 112px;
+  }
+  .l-vault .l-core {
+    border-radius: 28px;
+  }
+  .l-core svg {
+    width: 44px;
+    height: 44px;
+  }
+  .l-mode {
+    margin: 0 auto;
   }
 }
 
-@keyframes logo-scroll {
-  to {
-    transform: translateX(-50%);
-  }
-}
+/*
+ * Less motion: nothing waits to be revealed, nothing loops. The carousel becomes a still row that
+ * wraps: the list itself wraps (it is the list, not the track around it, that holds the logos), and
+ * the copy that only exists to loop the animation is hidden.
+ */
 @media (prefers-reduced-motion: reduce) {
+  .l-cage,
+  .l-tapes {
+    display: none;
+  }
+  .l-rv,
+  .l-late,
+  .l-mani-text span,
+  .l-out li,
+  .l-gverdict,
+  .l-gnote,
+  .l-verdict,
+  .l-lane .l-ticket {
+    opacity: 1;
+    transform: none;
+  }
+  .l-lane .l-ticket {
+    transform: translate(-50%, -50%);
+  }
+  .l-vv {
+    font-variation-settings: "wght" 500;
+  }
+  .l-mq,
+  .l-tape,
+  .l-orbit,
+  .l-pulse,
+  .l-asset {
+    animation: none;
+  }
+  .l-dot,
+  .l-dotname {
+    transition: none;
+  }
+  .l-dots i,
+  .l-vbar i {
+    animation: none;
+  }
+  .l-sline,
+  .l-shield {
+    animation: none;
+  }
+  /* The wire into the gate is simply drawn; the one out of it fills only if the payment goes on. */
+  .l-flow .l-wire:not(.l-wire-out) i {
+    animation: none;
+    transform: none;
+  }
+  /* Asked for less motion after the page had started its reveal: show what was waiting. */
+  .landing[data-story="on"] [data-beat] {
+    opacity: 1;
+    transform: none;
+  }
   .logo-marquee {
     -webkit-mask-image: none;
     mask-image: none;
   }
-  /* Still, the logos have to fit the screen: the row of logos itself wraps (it is the list, not the
-     track around it, that holds them), and the spacing between them is tighter. */
   .logo-track {
     display: block;
     width: 100%;
@@ -305,117 +2355,10 @@
   .logo-copy {
     flex-wrap: wrap;
     justify-content: center;
-    row-gap: 1.75rem;
+    row-gap: 1.25rem;
     width: 100%;
-  }
-  .logo-copy > li {
-    margin-inline: 1.25rem;
   }
   .logo-copy[aria-hidden="true"] {
     display: none;
   }
-}
-
-/* Light behind the page that follows the story. Warm (the red team's orange) at the edge of the
-   attack walkthrough, turning to cool blue where it resolves, and cool behind everything that answers
-   it. Wide, desaturated washes: still, behind the content, as wide as the screen, and faded to nothing
-   at their top and bottom so there is no edge. They never catch a click. In the walkthrough they sit
-   on the text side only: each step already has its own glow behind its card, and a second light there
-   would stack and wash the card out. The page colour comes from the html element, so the body is
-   transparent on the landing page and lets them show through. */
-body:has(.landing) {
-  background: transparent;
-}
-#numbers,
-#how,
-#who,
-#score,
-#index,
-#sentinel,
-#gate,
-#bring,
-#faq {
-  position: relative;
-}
-#numbers::before,
-#how::before,
-#who::before,
-#score::before,
-#index::before,
-#sentinel::before,
-#gate::before,
-#bring::before,
-#faq::before {
-  content: "";
-  position: absolute;
-  left: 50%;
-  width: 100vw;
-  transform: translateX(-50%);
-  z-index: -1;
-  pointer-events: none;
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent,
-    #000 160px,
-    #000 calc(100% - 160px),
-    transparent
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    transparent,
-    #000 160px,
-    #000 calc(100% - 160px),
-    transparent
-  );
-}
-#numbers::before {
-  top: -140px;
-  height: 640px;
-  background: radial-gradient(ellipse at 50% 45%, rgb(60 107 255 / 0.1), transparent 60%);
-}
-/* The walkthrough is tall: warm at the top of the text column, where the attack is planted, and cool at
-   the bottom, where it is checked and paid. Both at the left edge, away from the cards. */
-#how::before {
-  top: -240px;
-  bottom: -240px;
-  background:
-    radial-gradient(ellipse at 6% 22%, rgb(255 154 128 / 0.09), transparent 40%),
-    radial-gradient(ellipse at 6% 82%, rgb(60 107 255 / 0.1), transparent 42%);
-}
-#who::before {
-  top: -200px;
-  height: 960px;
-  background:
-    radial-gradient(ellipse at 82% 40%, rgb(60 107 255 / 0.15), transparent 58%),
-    radial-gradient(ellipse at 10% 82%, rgb(29 78 216 / 0.08), transparent 52%);
-}
-#score::before {
-  top: -220px;
-  height: 960px;
-  background: radial-gradient(ellipse at 14% 45%, rgb(29 78 216 / 0.14), transparent 56%);
-}
-#sentinel::before {
-  top: -200px;
-  bottom: -200px;
-  background: radial-gradient(ellipse at 90% 40%, rgb(60 107 255 / 0.1), transparent 55%);
-}
-#index::before {
-  top: -200px;
-  bottom: -200px;
-  background: radial-gradient(ellipse at 84% 62%, rgb(60 107 255 / 0.12), transparent 55%);
-}
-#gate::before {
-  top: -200px;
-  bottom: -200px;
-  background: radial-gradient(ellipse at 78% 50%, rgb(29 78 216 / 0.13), transparent 55%);
-}
-#bring::before {
-  top: -200px;
-  height: 960px;
-  background: radial-gradient(ellipse at 86% 48%, rgb(60 107 255 / 0.14), transparent 58%);
-}
-#faq::before {
-  top: -180px;
-  height: 920px;
-  background: radial-gradient(ellipse at 12% 40%, rgb(60 107 255 / 0.12), transparent 56%);
 }

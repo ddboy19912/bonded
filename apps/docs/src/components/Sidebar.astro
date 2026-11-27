@@ -1,0 +1,66 @@
+---
+// The sidebar, as docs.busha.io's: a few shortcuts with icons at the top, then only the section of
+// the tab you are on, its groups as small labels over plain links. It keeps its scroll position
+// from page to page, and brings the current page into view if it would be hidden.
+import { Icon } from "@astrojs/starlight/components";
+import SidebarPersister from "@astrojs/starlight/components/SidebarPersister.astro";
+import MobileMenuFooter from "virtual:starlight/components/MobileMenuFooter";
+import { tabs, type NavEntry } from "../lib/nav";
+import SectionList from "./SectionList.astro";
+
+const sections = tabs(Astro.locals.starlightRoute.sidebar as NavEntry[]);
+const active = sections.find((t) => t.active);
+const shortcuts = [
+  { icon: "open-book", label: "Blog", href: "https://www.bondedhq.xyz/blog/" },
+  { icon: "rocket", label: "Open the app", href: "https://app.bondedhq.xyz/overview" },
+  { icon: "approve-check", label: "Security policy", href: "/security/policy/" },
+  { icon: "email", label: "Contact", href: "mailto:hello@bondedhq.xyz" },
+] as const;
+---
+
+<SidebarPersister>
+  <ul class="bn-shortcuts">
+    {
+      shortcuts.map((s) => (
+        <li>
+          <a href={s.href}>
+            <span class="bn-shortcut-icon">
+              <Icon name={s.icon} size="0.9rem" />
+            </span>
+            {s.label}
+          </a>
+        </li>
+      ))
+    }
+  </ul>
+
+  {/* On a phone the header's tabs are out of reach in the menu: list the sections here too. */}
+  <nav class="bn-mobile-tabs" aria-label="Sections">
+    {
+      sections.map((t) => (
+        <a href={t.href} aria-current={t.active ? "true" : undefined}>
+          {t.label}
+        </a>
+      ))
+    }
+  </nav>
+
+  {active && <SectionList entries={active.group.entries} />}
+</SidebarPersister>
+
+<div class="md:sl-hidden">
+  <MobileMenuFooter />
+</div>
+
+<script>
+  // If the current page's link is outside the sidebar's view (a first visit, a long section),
+  // bring it into the middle of the sidebar without moving the page.
+  const pane = document.querySelector<HTMLElement>(".sidebar-pane");
+  const current = pane?.querySelector<HTMLElement>('[aria-current="page"]');
+  if (pane && current) {
+    const p = pane.getBoundingClientRect();
+    const c = current.getBoundingClientRect();
+    if (c.top < p.top || c.bottom > p.bottom)
+      pane.scrollTop += c.top - p.top - p.height / 2 + c.height / 2;
+  }
+</script>

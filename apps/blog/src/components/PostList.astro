@@ -1,25 +1,21 @@
 ---
+import { GRID_SIZE } from "../lib/paginate.mjs";
 import type { Post } from "../lib/sanity";
+import Featured from "./Featured.astro";
 import Pagination from "./Pagination.astro";
-import PostCard from "./PostCard.astro";
+import PostIndex from "./PostIndex.astro";
 
 interface Props {
   page: { number: number; total: number; lead?: Post; posts: Post[] };
 }
 
 const { page } = Astro.props;
+// Numbers run on across pages; the lead post on page 1 is number 1.
+const start = (page.number - 1) * GRID_SIZE + 2;
 ---
 
-<section class="list">
-  {page.lead && <PostCard post={page.lead} featured />}
-  {
-    page.posts.length > 0 && (
-      <div class="grid">
-        {page.posts.map((post) => (
-          <PostCard post={post} />
-        ))}
-      </div>
-    )
-  }
+<div class="list">
+  {page.lead && <Featured post={page.lead} />}
+  <PostIndex posts={page.posts} start={page.lead || page.number > 1 ? start : 1} />
   <Pagination number={page.number} total={page.total} />
-</section>
+</div>

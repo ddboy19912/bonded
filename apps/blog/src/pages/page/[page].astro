@@ -3,22 +3,28 @@ import Hero from "../../components/Hero.astro";
 import PostList from "../../components/PostList.astro";
 import Base from "../../layouts/Base.astro";
 import { paginate } from "../../lib/paginate.mjs";
-import { indexPosts } from "../../lib/sanity";
+import { formatDate, indexPosts } from "../../lib/sanity";
 
 // Page 1 is the front page (index.astro); this builds pages 2 and up, if there are any.
 export async function getStaticPaths() {
-  const pages = paginate(await indexPosts());
-  return pages.slice(1).map((page) => ({ params: { page: String(page.number) }, props: { page } }));
+  const posts = await indexPosts();
+  const pages = paginate(posts);
+  // The newest post's date (the lead post is the featured one, not always the newest).
+  const newest = posts.map((p) => p.publishedAt).sort().at(-1);
+  const latest = newest && formatDate(newest);
+  return pages
+    .slice(1)
+    .map((page) => ({ params: { page: String(page.number) }, props: { page, count: posts.length, latest } }));
 }
 
-const { page } = Astro.props;
+const { page, count, latest } = Astro.props;
 ---
 
 <Base
   title={`Blog, page ${page.number} | Bonded`}
   description={`Older notes from Bonded on red-teaming AI agents and safety scores. Page ${page.number} of ${page.total}.`}
 >
-  <Hero />
+  <Hero count={count} latest={latest} />
 
   <PostList page={page} />
 </Base>
