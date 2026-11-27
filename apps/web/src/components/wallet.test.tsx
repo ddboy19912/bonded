@@ -179,7 +179,13 @@ describe("RainbowKit wallet integration", () => {
     expect(
       provider.request.mock.calls.some(([a]) => a.method === "wallet_switchEthereumChain"),
     ).toBe(false);
-    // A transaction moves the wallet to the testnet first.
+    // The wallet's menu opens on any network. This wallet is Phantom, which can't add the
+    // testnet, so the menu says so instead of offering a switch that can't work.
+    fireEvent.click(screen.getByRole("button", { name: /0x00/i }));
+    expect(await screen.findByText("Another network")).toBeTruthy();
+    expect(screen.getByText(/Phantom can't use Robinhood Chain testnet/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Switch to Robinhood Chain testnet" })).toBeNull();
+    // A transaction still asks the wallet to switch first.
     await act(async () => {
       await ensureTestnet();
     });

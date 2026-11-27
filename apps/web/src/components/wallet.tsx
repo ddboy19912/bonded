@@ -1,48 +1,183 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ConnectButton as RainbowKitConnectButton, useConnectModal } from "@rainbow-me/rainbowkit";
-import { useAccount, useWriteContract } from "wagmi";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useAccount, useDisconnect, useWriteContract } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
 import type { Abi, Hex } from "viem";
-import { robinhoodTestnet } from "../config";
+import { explorerUrl, robinhoodTestnet } from "../config";
+import { addressUrl, short } from "../lib/format";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
+import { copyText } from "./copy-button";
 import { wagmiConfig } from "../wagmi";
-import { ensureTestnet, networkNote } from "../lib/network";
+import { ensureTestnet, isPhantom, networkNote } from "../lib/network";
 import { ErrorText, Input, TxLink, buttonClass } from "./ui";
 
 /**
- * The wallet in the header: "Connect wallet", or the connected address, which opens the account
- * menu. It never shows the wallet's network: only transactions need Robinhood Chain testnet, and
- * they ask for it themselves (lib/network.ts), so a wallet used to sign in isn't flagged as wrong.
+ * The wallet in the header: "Connect wallet", or the connected wallet as a pill (a network dot and
+ * the short address) that opens our own account menu. RainbowKit's account modal refuses to open
+ * while the wallet is on a network the app doesn't use, so the menu is ours: it works on any
+ * network, and offers the switch from there. Transactions ask for the network themselves
+ * (lib/network.ts), so a wallet used only to sign in is never flagged.
  */
 export function ConnectButton() {
+  const { address, isConnected } = useAccount();
+  const openConnect = useOpenConnect();
+  if (!isConnected || !address)
+    return (
+      <button type="button" onClick={openConnect} className={buttonClass("secondary", "sm")}>
+        Connect wallet
+      </button>
+    );
+  return <WalletMenu address={address} />;
+}
+
+function WalletMenu({ address }: { address: `0x${string}` }) {
+  const { chainId, connector } = useAccount();
+  const { disconnect } = useDisconnect();
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [switching, setSwitching] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const onTestnet = chainId === robinhoodTestnet.id;
+  const phantom = isPhantom(connector);
+  async function copy() {
+    if (await copyText(address)) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    }
+  }
+  async function moveToTestnet() {
+    setSwitching(true);
+    setProblem(null);
+    try {
+      await ensureTestnet();
+    } catch (e) {
+      setProblem(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSwitching(false);
+    }
+  }
   return (
-    <RainbowKitConnectButton.Custom>
-      {({ account, mounted, openAccountModal, openConnectModal }) => {
-        if (!mounted) return <span aria-hidden className="inline-block h-9 w-32" />;
-        if (!account)
-          return (
-            <button
-              type="button"
-              onClick={openConnectModal}
-              className={buttonClass("secondary", "sm")}
-            >
-              Connect wallet
-            </button>
-          );
-        return (
+    <Popover open={open} onOpenChange={(o) => (setOpen(o), setProblem(null))}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Wallet ${short(address)}${onTestnet ? "" : ", on another network"}`}
+          className={`group inline-flex h-9 items-center gap-2.5 rounded-full pr-3 pl-1 text-ink shadow-[inset_0_0_0_1px_rgb(255_255_255/0.16)] transition hover:bg-white/[0.06] hover:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.3)] ${open ? "bg-white/[0.06]" : ""}`}
+        >
+          <WalletMark address={address} />
+          <span className="font-mono text-[13px] tracking-tight">{short(address)}</span>
+          <span
+            aria-hidden
+            className={`size-1.5 rounded-full ${onTestnet ? "bg-brand-bright" : "bg-warn"}`}
+          />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        sideOffset={10}
+        className="w-80 rounded-2xl border-line-strong bg-surface p-0 shadow-(--shadow-raised)"
+      >
+        <div className="flex items-center gap-3 p-5 pb-4">
+          <WalletMark address={address} large />
+          <div className="min-w-0 flex-1">
+            <p className="eyebrow">{connector?.name ?? "Wallet"}</p>
+            <p className="mt-1 font-mono text-[15px] text-ink">{short(address, 6)}</p>
+          </div>
           <button
             type="button"
-            onClick={openAccountModal}
-            className={buttonClass("secondary", "sm")}
+            onClick={copy}
+            className="rounded-full px-3 py-1 font-mono text-[11.5px] text-soft shadow-[inset_0_0_0_1px_rgb(255_255_255/0.16)] transition hover:bg-ink hover:text-paper hover:shadow-none"
           >
-            {account.ensAvatar && (
-              <img src={account.ensAvatar} alt="" className="size-5 rounded-full" />
-            )}
-            <span className="font-mono text-[13px]">{account.displayName}</span>
+            {copied ? "Copied" : "Copy"}
           </button>
-        );
-      }}
-    </RainbowKitConnectButton.Custom>
+        </div>
+        <div className="border-t border-line px-5 py-4">
+          <p className="eyebrow">Network</p>
+          <p className="mt-2 flex items-center gap-2 text-[14px]">
+            <span
+              aria-hidden
+              className={`size-1.5 rounded-full ${onTestnet ? "bg-brand-bright" : "bg-warn"}`}
+            />
+            {onTestnet ? robinhoodTestnet.name : "Another network"}
+          </p>
+          {!onTestnet && (
+            <>
+              <p className="mt-2 text-[13px] leading-relaxed text-muted">
+                {phantom
+                  ? "Phantom can't use Robinhood Chain testnet. Signing in works; for vaults and cover, connect Rabby or MetaMask."
+                  : "Signing in works on any network. Vaults, cover and bonds need Robinhood Chain testnet."}
+              </p>
+              {!phantom && (
+                <button
+                  type="button"
+                  onClick={moveToTestnet}
+                  disabled={switching}
+                  className={`${buttonClass("primary", "sm")} mt-3 w-full`}
+                >
+                  {switching ? "Check your wallet…" : "Switch to Robinhood Chain testnet"}
+                </button>
+              )}
+              {problem && (
+                <p role="alert" className="mt-2 text-[13px] text-breach">
+                  {problem}
+                </p>
+              )}
+            </>
+          )}
+        </div>
+        <div className="flex items-center justify-between border-t border-line px-5 py-3">
+          {explorerUrl ? (
+            <a
+              href={addressUrl(address)}
+              target="_blank"
+              rel="noreferrer"
+              className="text-[13px] text-muted transition hover:text-ink"
+            >
+              View on explorer <span aria-hidden>↗</span>
+            </a>
+          ) : (
+            <span />
+          )}
+          <button
+            type="button"
+            onClick={() => (setOpen(false), disconnect())}
+            className="text-[13px] text-muted transition hover:text-breach"
+          >
+            Disconnect
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/** A small mark drawn from the address, so two wallets look different at a glance. */
+function WalletMark({ address, large = false }: { address: string; large?: boolean }) {
+  const n = parseInt(address.slice(2, 10), 16);
+  const hues = ["#3c6bff", "#9db5ff", "#ff7a45", "#ffb347", "#c9ccd3"];
+  const a = hues[n % hues.length]!;
+  const b = hues[(n >> 3) % hues.length]!;
+  const turn = (n >> 6) % 4;
+  return (
+    <span
+      aria-hidden
+      className={`relative inline-block shrink-0 overflow-hidden rounded-full ${large ? "size-10" : "size-7"}`}
+      style={{ background: a }}
+    >
+      <span
+        className="absolute inset-0"
+        style={{
+          background: b,
+          clipPath: [
+            "inset(0 50% 0 0)",
+            "inset(50% 0 0 0)",
+            "inset(0 0 0 50%)",
+            "inset(0 0 50% 0)",
+          ][turn],
+        }}
+      />
+    </span>
   );
 }
 
