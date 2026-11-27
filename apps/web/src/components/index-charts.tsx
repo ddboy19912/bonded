@@ -181,11 +181,7 @@ export function Legend({ items }: { items: readonly { color: string; label: stri
 }
 
 function TipCard({ children }: { children: ReactNode }) {
-  return (
-    <div className="max-w-64 rounded-lg border border-line-strong bg-raised px-3 py-2 text-[13px] leading-relaxed text-soft shadow-(--shadow-raised)">
-      {children}
-    </div>
-  );
+  return <div className="tip max-w-72">{children}</div>;
 }
 
 /** Round axis ticks from 0 past `max`, at most about `count` steps (1, 2, 2.5 or 5 × 10ⁿ). */

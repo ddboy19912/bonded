@@ -753,7 +753,7 @@ function RowActions({ e, onReproduce }: { e: BondedIndexEntry; onReproduce: () =
           align="end"
           sideOffset={6}
           collisionPadding={16}
-          className="z-50 min-w-44 rounded-xl border border-line-strong bg-raised p-1 text-sm shadow-(--shadow-raised) outline-none [animation:pop_.15s_ease_both]"
+          className="pop z-50 min-w-44 p-1.5 text-sm outline-none"
         >
           <button
             type="button"

@@ -82,11 +82,7 @@ function WalletMenu({ address }: { address: `0x${string}` }) {
           </span>
         </button>
       </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        sideOffset={10}
-        className="w-[21.5rem] rounded-2xl border-line-strong bg-surface p-0 shadow-(--shadow-raised)"
-      >
+      <PopoverContent align="end" sideOffset={10} className="w-[21.5rem] p-0">
         <div className="flex items-center gap-3.5 p-5 pb-4">
           <WalletAvatar
             address={address}

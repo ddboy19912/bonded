@@ -1,4 +1,5 @@
 import { Link, useNavigate } from "react-router";
+import { TriangleAlert } from "lucide-react";
 import { useAccount } from "wagmi";
 import { useAgents } from "../lib/chain";
 import { bps, day, short } from "../lib/format";
@@ -193,6 +194,11 @@ export function Agents() {
                     >
                       Agent {a.agentId.toString()}
                     </Link>
+                    {a.score && a.score.expiresAt <= now && (
+                      <span className="ml-2.5 align-[-0.04em]" onClick={(e) => e.stopPropagation()}>
+                        <RerateDue issuedAt={a.score.issuedAt} expiresAt={a.score.expiresAt} />
+                      </span>
+                    )}
                     {isMine(a.owner) && (
                       <span className="ml-3 align-[0.2em]">
                         <Badge tone="brand">yours</Badge>
@@ -217,11 +223,9 @@ export function Agents() {
                   </td>
                   <td className="hidden md:table-cell">
                     {a.score ? (
-                      <RatedOn
-                        issuedAt={a.score.issuedAt}
-                        expiresAt={a.score.expiresAt}
-                        now={now}
-                      />
+                      <span className="font-mono text-[13px] text-soft tabular-nums">
+                        {day(a.score.issuedAt)}
+                      </span>
                     ) : null}
                   </td>
                   <td className="hidden font-mono text-[13px] tabular-nums md:table-cell">
@@ -268,32 +272,28 @@ export function Agents() {
 }
 
 /**
- * When the agent was last rated. A rating lasts 30 days; after that a small amber dot says a
- * re-rating is due (new cover waits for one), and the date stays: the score still describes it.
+ * Beside an agent whose rating is past its 30 days: a warning sign that explains itself on hover
+ * or focus. The score still stands; only new cover waits for a fresh rating.
  */
-function RatedOn({
-  issuedAt,
-  expiresAt,
-  now,
-}: {
-  issuedAt: bigint;
-  expiresAt: bigint;
-  now: bigint;
-}) {
-  const due = expiresAt <= now;
-  const date = (
-    <span className="font-mono text-[13px] text-soft tabular-nums">{day(issuedAt)}</span>
-  );
-  if (!due) return date;
+function RerateDue({ issuedAt, expiresAt }: { issuedAt: bigint; expiresAt: bigint }) {
   return (
     <Tooltip
-      content={`Re-rating due since ${day(expiresAt)}. Ratings last 30 days; new cover waits for a fresh one.`}
+      content={
+        <>
+          <span className="block font-medium text-ink">Re-rating due</span>
+          <span className="mt-1 block">
+            Rated {day(issuedAt)}. Ratings last 30 days, so this one ran out on {day(expiresAt)}.
+            Its score still stands; new cover waits for a fresh rating.
+          </span>
+        </>
+      }
     >
-      <span className="inline-flex items-center gap-2">
-        {date}
-        <span aria-hidden className="size-1.5 rounded-full bg-warn" />
-        <span className="sr-only">, re-rating due</span>
-      </span>
+      <TriangleAlert
+        role="img"
+        aria-label="Re-rating due"
+        className="inline size-[18px] cursor-help text-warn"
+        strokeWidth={2}
+      />
     </Tooltip>
   );
 }

@@ -102,7 +102,7 @@ function Score({
               align="start"
               sideOffset={8}
               collisionPadding={16}
-              className="z-50 flex w-72 flex-col gap-2 rounded-xl border border-line-strong bg-raised p-4 text-[13px] leading-relaxed text-soft shadow-(--shadow-raised) outline-none [animation:pop_.15s_ease_both]"
+              className="pop z-50 flex w-72 flex-col gap-2 p-4 text-[13px] leading-relaxed outline-none"
             >
               <p className="font-medium text-ink">{label}</p>
               {detail.map((l) => (

@@ -638,7 +638,7 @@ export function Tooltip({ content, children }: { content: ReactNode; children: R
               left: Math.min(Math.max(at.x, 140), window.innerWidth - 140),
               top: at.y,
             }}
-            className={`pointer-events-none fixed z-50 w-max max-w-64 -translate-x-1/2 rounded-lg border border-line-strong bg-raised px-3 py-2 text-left text-[13px] leading-relaxed font-normal tracking-normal text-soft normal-case shadow-(--shadow-raised) ${at.below ? "" : "-translate-y-full"}`}
+            className={`tip pointer-events-none fixed z-50 w-max max-w-72 -translate-x-1/2 text-left font-normal tracking-normal normal-case ${at.below ? "" : "-translate-y-full"}`}
           >
             {content}
           </span>,

@@ -42,7 +42,7 @@ function Legend() {
           align="end"
           sideOffset={8}
           collisionPadding={16}
-          className="z-50 w-64 rounded-xl border border-line-strong bg-raised p-4 text-[13px] text-soft shadow-(--shadow-raised) outline-none [animation:pop_.15s_ease_both]"
+          className="pop z-50 w-64 p-4 text-[13px] outline-none"
         >
           <p className="eyebrow mb-2">Score</p>
           <ul className="flex flex-col gap-1.5">

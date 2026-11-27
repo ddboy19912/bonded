@@ -327,6 +327,38 @@
   }
 }
 
+/*
+ * Floating surfaces, in the landing page's style (its map tooltip): the page's own black, a thin
+ * white ring instead of a grey box, round corners, and a soft shadow only to lift it off what it
+ * covers. `.tip` for hover tips, `.pop` for menus and popovers people click in.
+ */
+@layer components {
+  .tip,
+  .pop {
+    background: var(--color-paper);
+    color: var(--color-soft);
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.2),
+      0 24px 56px -18px rgb(0 0 0 / 0.85);
+    animation: float-in 0.16s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .tip {
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .pop {
+    border-radius: 16px;
+  }
+}
+@keyframes float-in {
+  from {
+    opacity: 0;
+    scale: 0.97;
+  }
+}
+
 @keyframes blink {
   50% {
     opacity: 0.3;

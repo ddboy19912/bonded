@@ -307,7 +307,7 @@ function ModelPair({
               </span>
               <div
                 role="tooltip"
-                className="pointer-events-none absolute bottom-full left-8 z-10 mb-1 hidden max-w-72 rounded-lg border border-line-strong bg-raised px-3 py-2 text-[13px] text-soft shadow-(--shadow-raised) group-hover:block"
+                className="tip pointer-events-none absolute bottom-full left-8 z-10 mb-2 hidden max-w-72 group-hover:block"
               >
                 {bar.tip}
               </div>
