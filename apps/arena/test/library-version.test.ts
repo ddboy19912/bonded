@@ -91,7 +91,7 @@ it("bumps the attack library version whenever a seed changes", () => {
       : `The attack, S1 or memory seeds changed since attack library version ${ATTACK_LIBRARY_VERSION}. ` +
           "Bump ATTACK_LIBRARY_VERSION in packages/shared/src/library-version.ts (note what changed in its history), " +
           `then add ${ATTACK_LIBRARY_VERSION + 1}: "${actual}" to FINGERPRINTS here. Ratings on the old version then show ` +
-          "as older on the leaderboard until `pnpm --filter @bonded/arena leaderboard refresh` re-rates them (docs/SCORING.md).",
+          "as older on the leaderboard until `pnpm --filter @bonded/arena leaderboard refresh` re-rates them (docs/internals/RELEASES.md).",
   ).toBe(recorded);
 });
 

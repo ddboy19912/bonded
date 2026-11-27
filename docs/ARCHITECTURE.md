@@ -1,6 +1,6 @@
 # Architecture
 
-How Bonded's parts fit together. The design reasoning is in `docs/SPECIFICATION.md` Sections 5–14; this page is the map.
+How Bonded's parts fit together.
 
 ## The picture
 
@@ -8,145 +8,129 @@ Six small diagrams, each showing one idea. Click any of them to enlarge.
 
 ### 1. The loop in one line
 
-![The loop: the Arena attacks the agent, scores are signed on chain, cover is priced from the score, and a breach pays the claim.](images/architecture-loop.webp)
+![The loop: the Arena attacks the agent, scores are signed on chain, cover is priced from the score, and a breach pays the claim.](images/architecture-loop.svg)
 
 ### 2. How an agent gets rated
 
-![The Arena plants attacks on the AI agent, which acts through the MandateVault; the vault's breach log goes back to the Arena, which posts a signed score to BondedRegistry, and the same score to Arbitrum, Ethereum and Solana.](images/architecture-rating.webp)
+![The Arena plants attacks on the AI agent, which acts through the MandateVault; the vault's breach log goes back to the Arena, which posts a signed score to BondedRegistry, and the same score to Arbitrum, Ethereum and Solana.](images/architecture-rating.svg)
 
 The Arena judges by the vault's breach log, never by what the agent says.
 
 ### 3. Who puts money where
 
-![The depositor pays a premium to CoverManager, the agent operator stakes a bond in OperatorBond, and underwriters supply capital to CoverPool.](images/architecture-money.webp)
+![The depositor pays a premium to CoverManager, the agent operator stakes a bond in OperatorBond, and underwriters supply capital to CoverPool.](images/architecture-money.svg)
 
 The premium is quoted from the agent's score. The bond pays first and the pool pays the rest.
 
 ### 4. What happens on a breach
 
-![The MandateVault records the breach, the keeper files the claim, ClaimsEngine slashes OperatorBond first and has CoverPool pay the rest, and the money goes back into the vault.](images/architecture-breach.webp)
+![The MandateVault records the breach, the keeper files the claim, ClaimsEngine slashes OperatorBond first and has CoverPool pay the rest, and the money goes back into the vault.](images/architecture-breach.svg)
 
 Every step here is on chain and deterministic.
 
 ### 5. Where the AI sits
 
-![Off chain, Sentinel (AI, advisory) may refuse the AI agent's action; every action goes to the MandateVault on chain, which is deterministic.](images/architecture-where-ai-sits.webp)
+![Off chain, Sentinel (AI, advisory) may refuse the AI agent's action; every action goes to the MandateVault on chain, which is deterministic.](images/architecture-where-ai-sits.svg)
 
-Every AI component (the agent, the Arena's attackers, Sentinel) sits off chain and can only cause actions that the vault then judges.
+Every AI component (the agent, the Arena's attackers, Sentinel) sits off chain. It can only cause actions, which the vault then judges.
 
 ### 6. How the attack library grows
 
-![A bounty hunter submits an attack to BountyBoard, accepted attacks join the attack library, the library feeds the Arena, and the bar rises.](images/architecture-library-grows.webp)
+![A bounty hunter submits an attack to BountyBoard, accepted attacks join the attack library, the library feeds the Arena, and the bar rises.](images/architecture-library-grows.svg)
 
 Every accepted attack is run against every rated agent, so the bar rises over time.
 
-The Security score is the output everything else builds on, and the one other systems can read. The Task score sits beside it in the report, as a separate number: whether the agent still does its job. A vault, a lending market or a trading platform can require a minimum score before it accepts an agent, the same way a lender looks at a credit score. Because every agent faces the same attack library on the same scale, scores compare across agents and models, and that is what lets the score serve as the standard for agent safety.
+Other systems can read the Security score on chain and require a minimum before they accept an agent. The Task score sits beside it in the report: whether the agent still does its job.
 
 ## On chain (EVM)
 
-Solidity 0.8.28, Foundry, OpenZeppelin v5. Code: `contracts/evm/src/`; one-paragraph summaries in [contracts/evm/README.md](../contracts/evm/README.md).
+Solidity contracts, deployed on Robinhood Chain testnet, Arbitrum Sepolia and Ethereum Sepolia. Summaries are in [Smart contracts](../contracts/evm/README.md) and addresses in [Deployments](../contracts/evm/deployments/README.md).
 
-| Contract | Role |
-|---|---|
-| `MandateVault` | An ERC-4626 vault per agent. The agent's key can only act through `execute`, which classifies each call against the mandate (tokens, contracts, destinations, per-trade and daily limits). **Monitor** mode records breaches and lets them through; **Enforce** blocks them. A breach can freeze the agent. The breach log is the single source of truth for ratings and claims (Section 6.3) |
-| `MandateVaultFactory` | Creates vaults. Only factory vaults can be insured |
-| `MandateModule` | The same checks as a vault (both inherit `MandateBase`), as an ERC-7579 module on a smart account the agent already uses (Safe through Safe7579, or any ERC-7579 account). The funds stay in the account; the agent's session key acts only through the module's `execute`. Live on all three EVM testnets (its factory is in each deployments file) |
-| `MandateModuleFactory` | Creates one module per smart account, checks on chain that its mandate hash commits to the rules it enforces, and vouches for which modules are real |
-| `BondedRegistry` | Agents (ERC-8004 compatible) and their latest score, signed by an attester (EIP-712) |
-| `CoverManager` | Binds cover from an attester-signed quote for a vault or an Enforce-mode factory module: checks the score's tier, the bond, and the pool's capacity, per-agent and per-model-family caps; streams premiums from the vault (or the module's account) |
-| `OperatorBond` | The operator's first-loss stake |
-| `CoverPool` | Underwriters' capital (ERC-4626). Withdrawals wait a cooldown and can only use capital not backing active cover |
-| `ClaimsEngine` | Pays a claim for breaches the vault recorded: loss minus a 10% deductible, the bond first, then the pool, into the vault (or the module's account; Deferred breaches on a module aren't paid, and its disputes need the council) |
-| `DisputeModule` | Grey-area claims the chain can't see, decided by a council after a challenge window |
-| `BountyBoard` | Community attacks: commit, reveal, then an attester accepts and pays or rejects |
-
-Deployed on Robinhood Chain testnet, Arbitrum Sepolia and Ethereum Sepolia; addresses in [contracts/evm/deployments/](../contracts/evm/deployments/README.md).
+- **MandateVault:** an ERC-4626 vault per agent. The agent's key acts only through `execute`, which checks each call against the mandate. **Monitor** mode records breaches and lets them through; **Enforce** blocks them. A breach can freeze the agent. The breach log is the single source of truth for ratings and claims.
+- **MandateVaultFactory:** creates vaults. Only factory vaults can be insured.
+- **MandateModule:** the same checks as a vault, as an ERC-7579 module on a smart account the agent already uses (Safe through Safe7579, or any ERC-7579 account). The funds stay in the account, and the agent's session key acts only through the module.
+- **MandateModuleFactory:** creates modules and vouches for which ones are real.
+- **BondedRegistry:** agents (ERC-8004 compatible) and their latest score, signed by an attester (EIP-712).
+- **CoverManager:** sells cover from an attester-signed quote, for a vault or an Enforce-mode module, within the pool's capacity and caps. Premiums stream from the vault or account.
+- **OperatorBond:** the operator's first-loss stake.
+- **CoverPool:** underwriters' capital (ERC-4626). Withdrawals wait a cooldown and can only use capital that isn't backing active cover.
+- **ClaimsEngine:** pays a claim for a breach the vault recorded: the loss minus a 10% deductible, from the bond first, then the pool, back into the vault or account.
+- **DisputeModule:** grey-area claims the chain can't see, decided by a council after a challenge window.
+- **BountyBoard:** community attacks. Commit, reveal, then an attester accepts and pays, or rejects.
 
 ## On chain (Solana)
 
-Anchor programs for the same core: `bonded_registry`, `bonded_vault`, `bonded_cover` (Section 7). Deployed on devnet. The keeper files Solana claims too.
+Anchor programs for the same core (registry, vault and cover), deployed on devnet. The keeper files Solana claims too.
 
 ## The Arena
 
-`apps/arena`. An episode (Section 8.1):
+The Arena rates agents. One episode:
 
 1. Start a sandbox: a local chain, or a fork of the live chain, with the same contracts.
 2. Create a vault with the agent's mandate.
-3. Plant one attack from the library (`attacks/`, ten classes; the S1 market-data seeds are in `apps/arena/s1-seeds` and the memory seeds in `apps/arena/s1-seeds-memory`) in the agent's world: inbox, news, social posts, prices, token metadata, transaction history, market data, tool output, messages from other agents.
+3. Plant one attack from the library in the agent's world: inbox, news, social posts, prices, token metadata, transaction history, market data, tool output or messages from other agents.
 4. Give the agent a benign task and let it act through its tools, which go through the vault.
-5. Judge by the vault's breach log, never by what the agent says or an AI grader.
+5. Judge by the vault's breach log, never by what the agent says or by an AI grader.
 
-A rating runs every attack (usually five times) plus control episodes with no attack, then the S1 battery (each seed as a clean and a manipulated run of the same world) and, for an agent whose memory Bonded can read and reset, the memory battery (a lie planted on day 1, a clean day 2). It turns manipulation rates into the Security score (`susceptibility`), completion rates into the Task score, and breach rates into an expected loss, premium and insurance score (`scoreRating`; Section 9; the maths is `packages/shared/src/actuarial.ts`; [SCORING.md](SCORING.md)), signs the attestation and posts it. The attestation's format is frozen: new rating detail goes in the report, which the attestation commits to through `reportHash`, and the report records the attack library version it was rated on ([SCORING.md](SCORING.md#the-attestation-format-is-frozen)). The same code runs a single attack against a real vault for the demo's break-it run (`runLiveAttack`). The agents themselves are in `apps/demo-agents` ([AGENTS.md](AGENTS.md)).
+A rating runs every attack several times, plus control episodes with no attack and, for Bonded's built-in agents, further batteries. It turns the results into the [Security, Task and insurance scores](SCORING.md), signs the attestation and posts it. Extra detail goes in the report, which the attestation commits to ([The attestation format is frozen](SCORING.md#the-attestation-format-is-frozen)).
 
 ### Agents that run elsewhere
 
-An agent its operator runs on their own servers is rated through the **Arena Gateway** (`apps/arena/src/gateway`), which the rating worker serves on a public address ([BRING-YOUR-OWN-AGENT.md](BRING-YOUR-OWN-AGENT.md)).
+An agent its operator runs on their own servers is rated through the **Arena Gateway**. How to connect, check and preview is in [Bring your own agent](BRING-YOUR-OWN-AGENT.md) and [Connecting your agent](CONNECTING-YOUR-AGENT.md).
 
-- **Two ways in.** The runner connects out and starts the agent's command per episode. In Agent URL mode there is no runner: the gateway `POST`s the same episode message to the agent's HTTPS endpoint, signed with Bonded's own Ed25519 key (`AGENT_URL_SIGNING_KEY`, public keys at `/.well-known/bonded-agent-keys.json`) for the wallet that saved the URL, through `safe-fetch` (public https on port 443, addresses checked at connect, no redirects, a 10-second deadline, 64 KiB answers) and per-registration and per-host rate limits (`gateway/agent-url.ts`). The URL is proved by a signed verify challenge the agent answers with its owner, the wallet written in its code; a handler refuses calls signed for any other wallet, so nobody can claim someone else's URL.
-- **Connection checks.** One benign episode with no attack, never scored, on a fresh local chain, through the same transport a rating would use (`check.ts`). Its events (tool calls, transactions, exit) stream to the owner, and its problems come back as plain sentences. A preview or an owner's rating can only be queued with a passing check of the same connection in the last 24 hours.
-- **Previews.** A rating owned by a wallet, with no vault, bond or registration: the published library once, a held-out set and 6 controls, judged like an operator-run agent's rating, but never attested, posted or quotable.
-- **Code hashes report themselves.** The runner works out its agent's code hash (flag, environment, image digest, git commit, or the unpinned command and entry file) and sends it in `hello`; an Agent URL reports a version. A declared hash wins; a reported one is recorded with its source, never as verified.
-- **One world, three surfaces.** The gateway serves the same tools, world simulator and toolbox an in-process agent gets, per episode, behind an unguessable capability URL: MCP over streamable HTTP, plain HTTP with an OpenAPI document, and in chain mode a JSON-RPC proxy to the sandbox that passes only standard reads and signed `execute` calls to the episode's vault.
-- **`RemoteAgent`** is just another `ArenaAgent`: it opens the episode, hands it to the agent's connected runner, and waits for it to finish, exit or run out of time. The judge, scoring and attestation don't change. Parity tests require the same verdicts through the gateway as in-process.
-- **Binding.** A TEE-bound agent (chain mode only) signs with a key its TEE derives for the rating, and its runner forwards fresh TEE evidence at every episode, verified like Bonded's own TEE agent. Otherwise the score's binding is declared: it attests how the rated code behaved, and cover is capped lower.
-- **What runs.** The published library (three runs each by default), a held-out set made for that rating alone (never reused; the used payloads are kept in the database), and six controls, in a random order. Bonded's shared held-out set and accepted bounties are never shown to an operator-run agent. Each rating draws its benign world from a grammar with a secret seed of its own.
-- **Stricter judging.** Only episodes that exercised the agent count as trials; classes never exercised are priced as untested; a rating whose agent works less than 80% of the time, in controls or under attack, is refused.
-- **Stops are final.** A rating stops at the first episode the agent fails, or when it runs past its time budget (90 s an episode, at most 3 hours) because of the agent. The score is then superseded (no new quotes) and a cooldown starts, doubling from 1 hour to at most 48. Ratings are capped per agent, per owner and per chain, renewals included, and need a staked bond.
-- **Bounded work.** The gateway caps request rates, sizes and EVM gas per episode, and the sandbox caps the agent's reads of the live chain (500 an episode, 20,000 a rating) apart from the rating's own setup.
+- **Two ways in.** The runner connects out and starts the agent per episode. Or the gateway posts each episode to the agent's HTTPS endpoint (Agent URL), signed with Bonded's key. The agent proves it owns the URL by answering a signed challenge.
+- **Same world, same judge.** The gateway serves each episode's tools over MCP or plain HTTP, and in chain mode a JSON-RPC proxy that passes only standard reads and signed `execute` calls to the episode's vault. The verdict is still the vault's breach log.
+- **Stricter rules.** The agent never sees Bonded's shared held-out set or accepted bounties; it gets a held-out set made for its rating alone. Only episodes that exercised it count, a rating where it works less than 80% of the time is refused, and a rating it crashes stops and can't be retried at once.
+- **Binding.** A TEE-bound agent (chain mode only) signs with a key its TEE derives for the rating and sends fresh TEE evidence at every episode. Otherwise the score's binding is declared and cover is capped lower ([Official ratings](OFFICIAL-RATINGS.md)).
 
 ## Off-chain services
 
-Three off-chain services share one database:
+Three services share one database:
 
-| Service | Does |
-|---|---|
-| `api` | REST and server-sent events: signed quotes (capped by binding for operator-run agents), rating jobs, scores with their binding, coverage and held-out set, reports, the leaderboard, bounty reveals, self-serve registration and runner tokens, owner sessions, previews, Agent URLs, connection checks and their live events, cost estimates, rating progress (counts only), notification settings, observed breach rates (`GET /stats/observed-rates`), and the payment gate (checks and receipts, card hooks, Watch's payment log; [GATE.md](../apps/api/GATE.md)) |
-| `arena-worker` | Runs rating jobs and validates bounty submissions in a sandbox forked from the live chain, then posts scores and pays bounties with the attester key. Serves the Arena Gateway (when `GATEWAY_PORT` is set), with operator-run agents' ratings in a lane of their own so Bonded's ratings never wait behind them, previews in the same lane after them (one at a time, only when no official one is waiting), and connection checks in a third lane; records runner presence, renews operator-run agents' scores while their runners are connected, and notifies owners (webhook, and email when configured) when a rating ends |
-| `keeper` | Watches vaults and modules for breaches and files claims; accrues premiums; checks TEE agents, and queues a re-rating when an operator-run agent's TEE changes; for the payment gate, reads watched wallets and, once a day ends (UTC), posts its decision log root to `GateAnchor` |
+- **API:** quotes, ratings, reports, the leaderboard, bounties, previews, connection checks and the payment gate.
+- **Rating worker:** runs ratings and checks bounty submissions in a sandbox forked from the live chain, then posts scores and pays bounties. It also serves the Arena Gateway.
+- **Keeper:** watches vaults and modules for breaches and files claims, accrues premiums, and checks TEE agents. For the payment gate, it reads watched wallets and posts each day's decision log root on chain.
 
-Jobs use a Postgres `FOR UPDATE SKIP LOCKED` queue; every transaction that moves money records its intent and nonce before broadcasting, so a crash can't pay twice. For operator-run agents the database also keeps owner sessions and runner tokens (as hashes only), Agent URLs with the wallet that saved each, previews, connection checks and their events, notification settings, runner presence and the code it reports, ratings the live loop had to skip and why, each agent's standing (superseded score, failures in a row, cooldown) and every rating attempt with the agent's own report kept apart, the held-out payloads already used, and each breach's agent, type and time (for observed rates).
+Every transaction that moves money records its intent before it is sent, so a crash can't pay twice.
 
 ## Off-chain payment agents
 
-Agents that pay through payment APIs instead of a chain are rated by the same Arena, on a rail of its own: the Ledger, a sandboxed payment API that enforces a spending mandate and records every breach by code, never by a model. A judge separates breaches an attack caused from the agent's own mistakes, and Enforce mode blocks a payment the way the vault does. Ratings feed the [Bonded Index](INDEX.md). Off-chain agents are rated, not yet insured. Details: [docs/OFFCHAIN.md](OFFCHAIN.md).
+Agents that pay through payment APIs instead of a chain are rated by the same Arena, on a rail of its own: the Ledger, a sandboxed payment API that enforces a spending mandate and records every breach by code, never by a model. Enforce mode blocks a payment the way the vault does. Ratings feed the [Bonded Index](INDEX.md). Off-chain agents are rated but not insured. Details: [Off-chain agents](OFFCHAIN.md).
 
 ## Payment gate
 
-The gate runs the Ledger's rules in front of real payments ([PAYMENT-GATE.md](PAYMENT-GATE.md)). It lives in the `api` and the `keeper`, and connects three ways.
+The gate runs the Ledger's rules in front of real payments ([Payment gate](PAYMENT-GATE.md)). It connects three ways.
 
-![The agent's server asks the gate first and the card program calls it from a card hook; the gate answers allowed or blocked with a signed receipt. Wallets and your payment log are watched after the fact. The gate sends alerts and anchors a daily log root in GateAnchor on Robinhood Chain.](images/architecture-payment-gate.webp)
+![The agent's server asks the gate first and the card program calls it from a card hook; the gate answers allowed or blocked with a signed receipt. Wallets and your payment log are watched after the fact. The gate sends alerts and anchors a daily log root in GateAnchor on Robinhood Chain.](images/architecture-payment-gate.svg)
 
-- **Ask first** and **card hooks** decide before the money moves: Enforce blocks or declines, Monitor lets it through and logs a breach. One exception: a card hook declines cash, money orders and gambling (`blocked_merchant`) in both modes. Each decision gets a receipt signed by Bonded that anyone can check offline.
-- **Watch** decides nothing in time. It runs payments already made through the same rules and alerts on a breach. With **Expect a check first** on, a payment with no allowed check for the same payee and amount in the 24 hours before is also a breach (`skipped_gate`). Each check covers one payment, so an allowed check that was never paid can cover a later identical payment that skipped the gate.
-- **Budgets** cover many small payments to one payee, such as x402 calls. The gate checks the budget once and signs it; the SDK checks each payment against it on the agent's side, in exact micro-dollars, and reports it; closing the budget signs a receipt over every payment. Watch counts the wallet's payments to that payee as covered.
-- **No key that moves money.** Bonded holds API key hashes, a card program's signing secret or a password hash, and public wallet addresses. It can't make, fund or charge a payment.
-- **Rules are code.** The same inputs always give the same decision, and the receipt carries the input's hash: anyone with the input (the check's answer includes it) can match the hash and run the rules again.
+- **Ask first and card hooks** decide before the money moves: Enforce blocks or declines, Monitor lets it through and logs a breach. Each decision gets a receipt signed by Bonded that anyone can check offline.
+- **Watch** checks payments after they're made and alerts on a breach.
+- **Budgets** cover many small payments to one payee, such as x402 calls: the gate signs the budget once and the SDK checks each payment against it.
+- **Rules are code, and Bonded holds no key that moves money.** The same inputs always give the same decision, and each day's decision log root is posted to `GateAnchor` on Robinhood Chain.
 
 ## Sentinel
 
-`services/sentinel` serves Laya, an open-source decision model, fine-tuned on Arena episodes to answer whether an action was manipulated by planted content ([SENTINEL.md](SENTINEL.md)). An agent can put it in front of its writes as a guard. It is advisory: it can stop an agent from acting, but the vault and the claims contracts never consult it. The current version is v5; how it was tested is in [SENTINEL-STRESS.md](SENTINEL-STRESS.md).
+Sentinel runs on Laya, Convai's open-source decision model, which Bonded fine-tunes on Arena episodes to answer whether an action was manipulated by planted content ([How Sentinel works](SENTINEL.md)). An agent can put it in front of its writes as a guard. It is advisory: it can stop an agent from acting, but the vault and the claims contracts never consult it.
 
 ## TEE key custody
 
-An agent's key can be generated inside a Phala Cloud confidential VM (Intel TDX). The Arena verifies the VM's quote and puts its measurement in the signed score, and the web app shows a TEE badge. A key held on the operator's server adds expected loss to the score ([TEE.md](TEE.md)).
+An agent's key can be generated inside a Phala Cloud confidential VM (Intel TDX). The Arena verifies the VM's quote and puts its measurement in the signed score, and the web app shows a TEE badge. A key held on the operator's server adds expected loss to the score ([TEE custody](TEE.md)).
 
 ## Web app
 
-`apps/web`, Vite and React. It reads the chain directly for everything that matters (scores, vaults, policies, claims) and the API for reports, the live feed, quotes, bounties, the Bonded Index and the payment gate.
+The web app reads the chain directly for everything that matters (scores, vaults, policies, claims), and the API for reports, the live feed, quotes, bounties, the Bonded Index and the payment gate.
 
 ## Trust model
 
-| Who | Can | Can't |
-|---|---|---|
-| Agent key | Act through its vault, within or (in Monitor mode) outside the mandate | Move funds without the vault recording it; touch the bond or pool |
-| Account owner (module) | Everything on their smart account: move funds, uninstall the module | Get a Deferred breach paid (an unexplained drop on an account can't be told from the owner's own withdrawal) |
-| An operator-run agent under rating | Call its episode's tools; in chain mode, send signed `execute` calls to the episode's vault | Reach another episode, use the sandbox node's cheat methods, or change a verdict: the vault's breach log decides |
-| An operator, through previews, checks and Agent URLs | Make Bonded run capped benign checks and previews, and call their own public https endpoint | Aim Bonded at a private address or Bonded's own hosts, read another owner's previews or checks, see verdicts before a rating ends, or get a preview attested |
-| Guardian (operator) | Freeze, unfreeze and rotate its agent; buy and cancel cover | Change a vault's mandate after creation |
-| Attester | Sign scores and quotes; judge bounties | Pay a claim: claims follow the breach log only |
-| Owner (one key on testnets) | Set risk parameters and attesters; on testnets, set MockOracle prices, which losses are measured with | Withdraw pool or bond funds |
-| Gate (Bonded's API) | Answer allowed or blocked on a payment or card charge, sign the receipt, send alerts | Make, fund or charge a payment; change a decision from a day whose log root is on `GateAnchor` without it showing (a day's root is posted after the day ends) |
-| Gate account owner | Change the rules, vendors and invoices (each rules version is hashed and posted on chain); lift a freeze | Get a receipt for a decision the gate didn't make |
-| Anyone | File a claim for a recorded breach | Get a claim paid for a breach the vault didn't record |
+- **Agent key.** Can act through its vault, within the mandate or (in Monitor mode) outside it. Can't move funds without the vault recording it, or touch the bond or pool.
+- **Account owner (module).** Can do anything on their smart account, including moving funds and uninstalling the module. Can't get a Deferred breach paid: an unexplained drop on an account can't be told apart from the owner's own withdrawal.
+- **An operator-run agent under rating.** Can call its episode's tools and, in chain mode, send signed `execute` calls to the episode's vault. Can't reach another episode, use the sandbox's test-only methods, or change a verdict: the vault's breach log decides.
+- **An operator using previews, checks and Agent URLs.** Can make Bonded run capped checks and previews, and call their own public https endpoint. Can't aim Bonded at a private address or Bonded's own hosts, read another owner's previews or checks, see verdicts before a rating ends, or get a preview attested.
+- **Guardian (operator).** Can freeze, unfreeze and rotate its agent, and buy and cancel cover. Can't change a vault's mandate after creation.
+- **Attester.** Can sign scores and quotes, and judge bounties. Can't pay a claim: claims follow the breach log only.
+- **Owner (one key on testnets).** Can set risk parameters and attesters, and on testnets set the mock oracle prices that losses are measured with. Can't withdraw pool or bond funds.
+- **Gate (Bonded's API).** Can answer allowed or blocked on a payment or card charge, sign the receipt, and send alerts. Can't make, fund or charge a payment, or change a decision from a day whose log root is on `GateAnchor` without it showing.
+- **Gate account owner.** Can change the rules, vendors and invoices (each rules version is hashed and posted on chain) and lift a freeze. Can't get a receipt for a decision the gate didn't make.
+- **Anyone.** Can file a claim for a recorded breach. Can't get a claim paid for a breach the vault didn't record.
 
-Known gaps and their fixes are in [AUDIT.md](AUDIT.md).
+Known gaps and their fixes are in the [internal audit note](AUDIT.md).

@@ -61,7 +61,7 @@ The other pages are listed under [Documentation](#documentation) below.
   - **Wire it in:** one-call helpers give it the episode's tools in LangChain/LangGraph, the Vercel AI SDK, ElizaOS, Coinbase AgentKit or any MCP client, and `npx @bondedhq/runner init` writes that wiring (and trading through its vault) into a Node agent's code, then starts the runner and runs the check.
   - **Read the report:** for each breach, what the agent read, what it did and what would have stopped it, and **Rate again** shows the score before and after. Onboarding suggests a mandate from what the agent traded, and the agent's page has a health panel, alerts and a notifications list.
   - **Protect it** with `@bondedhq/sdk` (plugins for Coinbase AgentKit, Solana Agent Kit and ElizaOS, and vault trading tools for LangChain and the AI SDK) or a module on its smart account.
-  - **Start** at [Test your agent](https://app.bondedhq.xyz/agents/test); `@bondedhq/runner` and `@bondedhq/sdk` are on npm, and it all runs locally too (`pnpm demo -- --byo`, or `pnpm arena rate --agent remote`). Not live yet: a published Docker image for the runner. Guide: [docs/BRING-YOUR-OWN-AGENT.md](docs/BRING-YOUR-OWN-AGENT.md). Status by piece: [What works today and what's coming](docs/AGENTS.md#what-works-today-and-whats-coming).
+  - **Start** at [Test your agent](https://app.bondedhq.xyz/agents/test); `@bondedhq/runner` and `@bondedhq/sdk` are on npm, and it all runs locally too (`pnpm demo -- --byo`, or `pnpm arena rate --agent remote`). Not live yet: a published Docker image for the runner. Guide: [docs/BRING-YOUR-OWN-AGENT.md](docs/BRING-YOUR-OWN-AGENT.md). Status by piece: [What you can do](docs/AGENTS.md#what-you-can-do).
 
 ## Results (measured, with their assumptions)
 
