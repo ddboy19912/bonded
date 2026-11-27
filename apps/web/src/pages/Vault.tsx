@@ -168,7 +168,7 @@ function VaultView({ vault }: { vault: Address }) {
     >
       <div className="flex flex-wrap items-start gap-4">
         <div className="flex min-w-0 flex-[999_1_560px] flex-col gap-4">
-          <section className="panel grid gap-6 p-6 sm:grid-cols-2 lg:grid-cols-4 bg-[radial-gradient(ellipse_at_0%_0%,rgb(29_78_216/.18),transparent_55%)]">
+          <section className="panel grid gap-6 p-6 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <p className="eyebrow">Assets</p>
               <p className="mt-2 font-serif text-5xl leading-none tabular-nums">

@@ -18,81 +18,83 @@ import { short, usd } from "../lib/format";
 import { gradeTone } from "../lib/security";
 import { Badge, ScoreRing, Skeleton, TierBadge, buttonClass, linkClass } from "../components/ui";
 import { TokenLogo, withTokens } from "../components/token";
+import { TEST_AGENT } from "../lib/routes";
 
 const ZERO = "0x0000000000000000000000000000000000000000" as Address;
 
-/** Where "Launch app" lands: your roles if a wallet is connected, a welcome if not. */
+/**
+ * Where "Launch app" lands. Everyone starts with the three things Bonded does for an agent's
+ * owner; a connected wallet's on-chain roles follow, then the state of the test chain.
+ */
 export function Overview() {
   const { address } = useAccount();
   return (
-    <div className="flex flex-col gap-7">
-      {address ? <Yours address={address} /> : <Welcome />}
-      <AcrossBonded />
+    <div className="flex flex-col gap-14">
+      <StartHere />
+      {address && (
+        <div className="flex flex-col gap-7">
+          <Yours address={address} />
+        </div>
+      )}
+      <div className="flex flex-col gap-7">
+        <AcrossBonded />
+      </div>
     </div>
   );
 }
 
-function Welcome() {
-  const paths = [
-    {
-      to: "/vaults",
-      title: "Back a rated agent",
-      text: "Deposit into an agent's vault. If it's tricked into breaking its rules, you're paid back.",
-      cta: "Browse vaults",
-      icon: "M4 5h16v14H4zM9 12a3 3 0 1 0 6 0a3 3 0 1 0-6 0M4 9h2M4 15h2",
-    },
-    {
-      to: "/agents/new",
-      title: "Onboard your agent",
-      text: "Give it a vault and a bond, get it rated in the Arena, and let depositors trust it.",
-      cta: "Onboard an agent",
-      icon: "M7 7h10v10H7zM10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4",
-    },
-    {
-      to: "/underwrite",
-      title: "Underwrite the pool",
-      text: "Back the pool that pays claims and earn 80% of every premium.",
-      cta: "Underwrite",
-      icon: "M12 3l9 5-9 5-9-5zM3 13l9 5 9-5M3 17l9 5 9-5",
-    },
-  ];
+/** The three ways in, as numbered rows under one headline, in the landing page's style. */
+export const START = [
+  {
+    to: TEST_AGENT,
+    title: "Test your agent, free",
+    text: "Real attacks on your agent. A Security and a Task score.",
+  },
+  {
+    to: "/gate",
+    title: "Set up the payment gate",
+    text: "Your rules, checked before your agent pays.",
+  },
+  {
+    to: "/index",
+    title: "See how models hold up",
+    text: "The Index: the same attacks against every major model.",
+  },
+] as const;
+
+function StartHere() {
   return (
-    <section className="panel bg-[radial-gradient(ellipse_at_80%_0%,rgb(29_78_216/.3),transparent_55%)] p-7 sm:p-10">
-      <p className="eyebrow">Welcome to Bonded</p>
-      <h1 className="mt-3 max-w-2xl font-serif text-5xl leading-none sm:text-[56px]">
-        Trust an AI agent with money, with your losses covered.
+    <section>
+      <p className="eyebrow">Start here</p>
+      <h1 className="mt-4 max-w-3xl font-serif text-[clamp(40px,6vw,76px)] leading-[0.92]">
+        Test your agent. <span className="text-dim">Then hold it to your rules.</span>
       </h1>
-      <p className="mt-4 max-w-xl text-muted">
-        Browse everything freely. Use Connect wallet at the top when you're ready to deposit,
-        onboard an agent or underwrite.
-      </p>
-      <div className="mt-8 grid gap-3.5 md:grid-cols-3">
-        {paths.map((p) => (
-          <Link
-            key={p.to}
-            to={p.to}
-            className="flex flex-col gap-1.5 rounded-[20px] border border-line bg-gradient-to-b from-white/[0.04] to-transparent p-5.5 transition hover:border-accent/40"
-          >
-            <span className="flex size-10 items-center justify-center rounded-xl bg-accent-soft text-accent">
-              <svg
-                viewBox="0 0 24 24"
-                className="size-5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.7"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+      <ol className="mt-10 border-b border-line">
+        {START.map((p, i) => (
+          <li key={p.to} className="border-t border-line">
+            <Link
+              to={p.to}
+              className="group grid grid-cols-[3rem_minmax(0,1fr)_auto] items-baseline gap-x-4 py-6 sm:grid-cols-[4rem_minmax(0,22rem)_minmax(0,1fr)_auto]"
+            >
+              <span className="font-mono text-[13px] text-dim">
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <strong className="text-[clamp(20px,2vw,26px)] font-medium tracking-[-0.03em] group-hover:text-accent">
+                {p.title}
+              </strong>
+              <span className="col-start-2 mt-1 text-[15px] text-muted sm:col-start-3 sm:mt-0">
+                {p.text}
+              </span>
+              <span
                 aria-hidden
+                className="col-start-3 row-start-1 text-xl text-dim transition group-hover:translate-x-1 group-hover:text-ink sm:col-start-4"
               >
-                <path d={p.icon} />
-              </svg>
-            </span>
-            <strong className="mt-2.5 text-[17px]">{p.title}</strong>
-            <span className="text-sm leading-relaxed text-muted">{p.text}</span>
-            <span className="mt-2 text-sm text-accent">{p.cta} →</span>
-          </Link>
+                →
+              </span>
+            </Link>
+          </li>
         ))}
-      </div>
+      </ol>
     </section>
   );
 }
@@ -158,7 +160,9 @@ function Yours({ address }: { address: Address }) {
   return (
     <>
       <header>
-        <h1 className="font-serif text-5xl leading-none sm:text-[56px]">Overview</h1>
+        <h2 className="font-serif text-[clamp(30px,3.6vw,44px)] leading-none">
+          Your on-chain roles
+        </h2>
         <p className="mt-3 text-sm text-muted">
           Signed in as <span className="font-mono text-soft">{short(address)}</span>
           {roles.length ? ` · ${roles.join(" and ")}` : ""}
@@ -396,7 +400,7 @@ function AcrossBonded() {
   const latest = claims.data?.[0];
   const w = latest ? waterfall(latest) : undefined;
   const stat = (label: string, value: string | undefined, hint: string) => (
-    <div className="panel min-w-0 p-5">
+    <div className="min-w-0 border-t border-line pt-4">
       <p className="eyebrow">{label}</p>
       <p className="mt-2 font-serif text-[40px] leading-none tabular-nums">{value ?? "…"}</p>
       <p className="mt-1.5 text-xs text-muted">{withTokens(hint)}</p>
@@ -404,8 +408,11 @@ function AcrossBonded() {
   );
   return (
     <>
-      <h2 className="mt-3 text-xl font-bold">Across Bonded</h2>
-      <section className="-mt-3 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="flex items-baseline justify-between gap-4">
+        <h2 className="font-serif text-[clamp(30px,3.6vw,44px)] leading-none">On the test chain</h2>
+        <span className="font-mono text-[12px] text-muted">Testnet · test tokens only</span>
+      </div>
+      <section className="grid grid-cols-2 gap-x-6 gap-y-6 lg:grid-cols-4">
         {stat(
           "Cover pool",
           pool !== undefined ? `$${usd(pool, 0)}` : undefined,

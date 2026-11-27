@@ -74,7 +74,7 @@ export function Underwrite() {
     >
       <div className="flex flex-wrap items-start gap-4">
         <div className="flex min-w-0 flex-[999_1_560px] flex-col gap-4">
-          <section className="panel bg-[radial-gradient(ellipse_at_0%_0%,rgb(29_78_216/.2),transparent_55%)] p-6 sm:p-7">
+          <section className="panel p-6 sm:p-7">
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
               {[
                 ["Pool assets", $(tvl), "tUSDG"],

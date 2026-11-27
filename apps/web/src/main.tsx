@@ -77,9 +77,9 @@ const router = createBrowserRouter([
   },
 ]);
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 10_000 } } });
-// The wallet button and modal in the Aurora style: brand blue, Geist, the app's dark surfaces.
+// The wallet button and modal in the app's style: brand blue, Geist, its near-black surfaces.
 const base = darkTheme({
-  accentColor: "#1d4ed8",
+  accentColor: "#2f5ff5",
   accentColorForeground: "#ffffff",
   borderRadius: "large",
 });
@@ -88,10 +88,10 @@ const walletTheme = {
   fonts: { body: '"Geist Variable", "Geist", ui-sans-serif, system-ui, sans-serif' },
   colors: {
     ...base.colors,
-    modalBackground: "#0e1320",
-    connectButtonBackground: "#0e1320",
-    connectButtonInnerBackground: "#151b2b",
-    generalBorder: "rgba(255,255,255,0.08)",
+    modalBackground: "#0d0e11",
+    connectButtonBackground: "#0d0e11",
+    connectButtonInnerBackground: "#141519",
+    generalBorder: "rgba(255,255,255,0.1)",
   },
 };
 

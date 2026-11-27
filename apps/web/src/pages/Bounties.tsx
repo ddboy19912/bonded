@@ -576,7 +576,7 @@ export function Bounties() {
         <GuideButton />
       </div>
       <section className="grid gap-4 md:grid-cols-3">
-        <div className="panel bg-[radial-gradient(ellipse_at_0%_0%,rgb(29_78_216/.22),transparent_60%)] p-6">
+        <div className="panel p-6">
           <p className="eyebrow">Bounty pool</p>
           <p className="mt-2 font-serif text-5xl leading-none tabular-nums">
             {pool.data === undefined ? "…" : `$${usd(pool.data, 0)}`}

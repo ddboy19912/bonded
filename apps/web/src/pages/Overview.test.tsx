@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { LeaderboardRecord } from "../lib/api";
 import type { AgentRow } from "../lib/chain";
-import { topAgents } from "./Overview";
+import { START, topAgents } from "./Overview";
 
 const OWNER = "0x00000000000000000000000000000000000000a1";
 
@@ -71,5 +71,15 @@ describe("the overview's top agents", () => {
       [4, 60],
       [6, 50],
     ]);
+  });
+});
+
+describe("the overview's way in", () => {
+  it("starts with testing an agent, then the payment gate, and needs no wallet for any of them", () => {
+    expect(START.map((p) => p.to)).toEqual(["/agents/test", "/gate", "/index"]);
+    for (const p of START) {
+      expect(p.text.split(" ").length, p.title).toBeLessThanOrEqual(12);
+      expect(`${p.title} ${p.text}`, p.title).not.toMatch(/wallet|deposit|underwrite|vault/i);
+    }
   });
 });
