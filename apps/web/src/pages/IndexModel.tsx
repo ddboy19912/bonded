@@ -7,7 +7,7 @@ import * as Popover from "@radix-ui/react-popover";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
 import { ChartCard, DataTable, ProviderLogo, fallFill } from "../components/index-charts";
-import { EmptyState, LinkButton, Page } from "../components/ui";
+import { EmptyState, LinkButton, Page, Section } from "../components/ui";
 import {
   ATTACK_CLASS_NAMES,
   breachesByRule,
@@ -81,9 +81,9 @@ function Score({
   warn?: boolean;
 }) {
   return (
-    <div className="min-w-0 rounded-2xl border border-line bg-surface/70 p-4 sm:p-6">
+    <div className="min-w-0 border-t border-line pt-4">
       <div className="flex items-center gap-1.5">
-        <p className="text-[11px] uppercase tracking-wider text-muted">{label}</p>
+        <p className="eyebrow">{label}</p>
         <Popover.Root>
           <Popover.Trigger
             aria-label={`About the ${label} score`}
@@ -101,7 +101,7 @@ function Score({
               align="start"
               sideOffset={8}
               collisionPadding={16}
-              className="z-50 flex w-72 flex-col gap-2 rounded-xl border border-line-strong bg-raised p-4 text-xs leading-relaxed text-soft shadow-(--shadow-raised) outline-none [animation:pop_.15s_ease_both]"
+              className="z-50 flex w-72 flex-col gap-2 rounded-xl border border-line-strong bg-raised p-4 text-[13px] leading-relaxed text-soft shadow-(--shadow-raised) outline-none [animation:pop_.15s_ease_both]"
             >
               <p className="font-medium text-ink">{label}</p>
               {detail.map((l) => (
@@ -112,11 +112,11 @@ function Score({
         </Popover.Root>
       </div>
       <p
-        className={`mt-2 text-5xl font-semibold leading-none sm:text-6xl ${warn ? "text-warn" : "text-ink"}`}
+        className={`mt-4 text-[clamp(64px,10vw,148px)] leading-[0.85] font-medium tracking-[-0.065em] tabular-nums ${warn ? "text-warn" : "text-ink"}`}
       >
         {value}
       </p>
-      <p className="mt-3 text-sm text-muted">{meaning}</p>
+      <p className="mt-4 max-w-xs text-[15px] text-muted">{meaning}</p>
     </div>
   );
 }
@@ -127,7 +127,7 @@ function Cell({ v, title }: { v?: { fell: number; episodes: number }; title: str
   return (
     <td
       title={title}
-      className={`h-9 rounded-md text-center tabular-nums ${v ? "text-ink" : "border border-dashed border-line-strong text-muted"}`}
+      className={`h-10 rounded-[3px] text-center font-mono text-[12px] tabular-nums ${v ? "text-ink" : "border border-dashed border-line-strong text-muted"}`}
       style={v ? { background: fallFill(rate) } : undefined}
     >
       {v ? `${v.fell}/${v.episodes}` : "—"}
@@ -147,7 +147,7 @@ function AttackClasses({ e }: { e: BondedIndexEntry }) {
       title="Attack classes"
       subtitle="Attacks that got through, with the payment rules spelled out or only the job described"
       intro={
-        <p className="text-sm text-soft">
+        <p className="text-[15px] text-soft">
           {broke.length === 0 ? (
             "No attack class got through."
           ) : (
@@ -167,12 +167,16 @@ function AttackClasses({ e }: { e: BondedIndexEntry }) {
         />
       }
     >
-      <table className="w-full border-separate border-spacing-1 text-xs">
+      <table className="w-full border-separate border-spacing-1 text-[13px]">
         <thead>
           <tr>
             <th className="w-1/2" />
             {["Rules shown", "Rules hidden"].map((h) => (
-              <th key={h} scope="col" className="px-1 pb-1 text-center font-normal text-muted">
+              <th
+                key={h}
+                scope="col"
+                className="px-1 pb-2 text-center font-mono text-[11px] font-normal text-muted"
+              >
                 {h}
               </th>
             ))}
@@ -181,7 +185,7 @@ function AttackClasses({ e }: { e: BondedIndexEntry }) {
         <tbody>
           {classes.map((c) => (
             <tr key={c.class}>
-              <th scope="row" className="pr-2 text-left font-normal text-soft">
+              <th scope="row" className="pr-3 text-left font-normal text-soft">
                 {c.name}
               </th>
               <Cell v={c.shown} title={`${c.name}, rules shown: ${count(c.shown)}`} />
@@ -202,16 +206,16 @@ function GateBlocks({ e }: { e: BondedIndexEntry }) {
   const rules = breachesByRule(e);
   if (rules.length === 0) return null;
   return (
-    <section aria-labelledby="index-model-gate" className="flex flex-col gap-3">
+    <section aria-labelledby="index-model-gate" className="flex flex-col gap-8">
       <div>
-        <h2 id="index-model-gate" className="text-lg font-semibold text-ink">
+        <h2 id="index-model-gate" className="h-section-lg">
           What the payment gate would block
         </h2>
-        <p className="mt-0.5 text-sm text-muted">
+        <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-muted">
           The gate checks real payments against these same rules. In Enforce, each one is blocked.
         </p>
       </div>
-      <ul className="overflow-hidden rounded-2xl border border-line bg-surface/70">
+      <ul className="border-b border-line">
         {rules.map((b) => {
           const words = PAYMENT_RULE_WORDS[b.rule];
           const money = [
@@ -221,17 +225,19 @@ function GateBlocks({ e }: { e: BondedIndexEntry }) {
           return (
             <li
               key={b.rule}
-              className="flex items-center justify-between gap-4 border-t border-line px-5 py-4 first:border-t-0"
+              className="flex items-baseline justify-between gap-6 border-t border-line py-5"
             >
-              <span className="min-w-0 text-sm text-ink">
+              <span className="min-w-0 text-[clamp(17px,1.6vw,22px)] leading-snug font-medium tracking-[-0.02em] text-ink">
                 {words.charAt(0).toUpperCase() + words.slice(1)}
               </span>
-              <span className="shrink-0 text-right text-sm tabular-nums">
-                <span className="block text-ink">
+              <span className="shrink-0 text-right tabular-nums">
+                <span className="block text-[clamp(17px,1.6vw,22px)] font-medium tracking-[-0.02em] text-breach">
                   {b.count} {b.count === 1 ? "payment" : "payments"}
                 </span>
                 {money.length > 0 && (
-                  <span className="block text-xs text-muted">{money.join(" · ")}</span>
+                  <span className="mt-1 block font-mono text-[12px] text-muted">
+                    {money.join(" · ")}
+                  </span>
                 )}
               </span>
             </li>
@@ -254,21 +260,23 @@ function GateBlocks({ e }: { e: BondedIndexEntry }) {
 function OnChain({ agents }: { agents: LeaderboardRecord[] }) {
   if (agents.length === 0) return null;
   return (
-    <section aria-labelledby="index-model-onchain" className="flex flex-col gap-3">
+    <section aria-labelledby="index-model-onchain" className="flex flex-col gap-8">
       <div>
-        <h2 id="index-model-onchain" className="text-lg font-semibold text-ink">
+        <h2 id="index-model-onchain" className="h-section-lg">
           Also rated on chain
         </h2>
-        <p className="mt-0.5 text-sm text-muted">Trading agents built on this model.</p>
+        <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-muted">
+          Trading agents built on this model.
+        </p>
       </div>
-      <ul className="overflow-hidden rounded-2xl border border-line bg-surface/70">
+      <ul className="border-b border-line">
         {agents.map((a) => (
           <li
             key={a.slug}
-            className="relative flex items-center justify-between gap-4 border-t border-line px-5 py-4 first:border-t-0 hover:bg-white/[0.025]"
+            className="relative isolate flex items-center justify-between gap-6 border-t border-line py-5 before:absolute before:inset-y-0 before:-inset-x-3 before:-z-10 before:bg-white/[0.035] before:opacity-0 before:transition-opacity hover:before:opacity-100"
           >
             <span className="min-w-0">
-              <span className="block truncate font-semibold text-ink">
+              <span className="block truncate text-[clamp(19px,2vw,28px)] leading-tight font-medium tracking-[-0.035em] text-ink">
                 {a.onchain ? (
                   <Link
                     to={`/agents/${a.onchain.agentId}`}
@@ -280,16 +288,14 @@ function OnChain({ agents }: { agents: LeaderboardRecord[] }) {
                   a.name
                 )}
               </span>
-              <span className="block truncate text-xs text-muted">{a.framework}</span>
+              <span className="mt-1 block truncate font-mono text-[12px] text-muted">
+                {a.framework}
+              </span>
             </span>
             {a.securityGrade !== undefined && (
               <span className="shrink-0 text-right">
-                <span className="block text-[11px] uppercase tracking-wider text-muted">
-                  Security
-                </span>
-                <span
-                  className={`text-3xl font-semibold leading-none tabular-nums ${gradeTone(a.securityGrade)}`}
-                >
+                <span className="eyebrow block">Security</span>
+                <span className={`num-big mt-1.5 block ${gradeTone(a.securityGrade)}`}>
                   {a.securityGrade}
                 </span>
               </span>
@@ -333,6 +339,9 @@ export function IndexModelView({
   const fell = e.rows.reduce((n, r) => n + r.fell, 0);
   const runs = runsOf(e);
   const version = versionOf(e);
+  const onchain = leaderboard
+    .filter((a) => a.model === e.model)
+    .sort((a, b) => (b.securityGrade ?? -1) - (a.securityGrade ?? -1));
   return (
     <Page
       title={e.label}
@@ -345,7 +354,7 @@ export function IndexModelView({
       back={BACK}
       intro={`Fell for ${fell} of ${attacks} attacks inside the same payments agent every model on the Index runs in.`}
     >
-      <div className="grid grid-cols-2 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 gap-x-6 sm:gap-x-10">
         <Score
           label="Security"
           value={`${e.score}`}
@@ -361,43 +370,50 @@ export function IndexModelView({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-x-6 gap-y-5 border-y border-line py-5 sm:grid-cols-4">
-        <Kpi
-          label="Dollars at risk"
-          value={usd(lostUsd(e) + overpaidUsd(e))}
-          hint={`${usd(lostUsd(e))} lost · ${usd(overpaidUsd(e))} overpaid`}
-        />
-        <Kpi
-          label="Loss per 1,000 runs"
-          value={usd(lossPerThousand(e))}
-          hint={`over ${runs.toLocaleString("en-US")} runs`}
-        />
-        <Kpi
-          label="Attacks that got through"
-          value={`${fell} of ${attacks}`}
-          hint={
-            e.riskCeiling === undefined
-              ? "both briefings"
-              : `above ${pct(e.riskCeiling, 1)} ruled out`
-          }
-        />
-        <Kpi label="Attack library" value={`v${version}`} />
+      <div>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-4">
+          <Kpi
+            label="Dollars at risk"
+            value={usd(lostUsd(e) + overpaidUsd(e))}
+            hint={`${usd(lostUsd(e))} lost · ${usd(overpaidUsd(e))} overpaid`}
+          />
+          <Kpi
+            label="Loss per 1,000 runs"
+            value={usd(lossPerThousand(e))}
+            hint={`over ${runs.toLocaleString("en-US")} runs`}
+          />
+          <Kpi
+            label="Attacks that got through"
+            value={`${fell} of ${attacks}`}
+            hint={
+              e.riskCeiling === undefined
+                ? "both briefings"
+                : `above ${pct(e.riskCeiling, 1)} ruled out`
+            }
+          />
+          <Kpi label="Attack library" value={`v${version}`} />
+        </div>
+        {e.provenance && (
+          <p className="mt-6 max-w-3xl text-[13px] leading-relaxed text-muted">
+            Where these numbers come from: {e.provenance}
+          </p>
+        )}
       </div>
 
-      <AttackClasses e={e} />
+      <Section label="By attack">
+        <AttackClasses e={e} />
+      </Section>
 
-      <GateBlocks e={e} />
+      {breachesByRule(e).length > 0 && (
+        <Section label="Payment gate">
+          <GateBlocks e={e} />
+        </Section>
+      )}
 
-      <OnChain
-        agents={leaderboard
-          .filter((a) => a.model === e.model)
-          .sort((a, b) => (b.securityGrade ?? -1) - (a.securityGrade ?? -1))}
-      />
-
-      {e.provenance && (
-        <p className="max-w-3xl text-xs text-muted">
-          Where these numbers come from: {e.provenance}
-        </p>
+      {onchain.length > 0 && (
+        <Section label="On chain">
+          <OnChain agents={onchain} />
+        </Section>
       )}
     </Page>
   );

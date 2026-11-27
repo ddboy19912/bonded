@@ -1,8 +1,6 @@
 import { useId, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlusIcon } from "lucide-react";
-import { Badge } from "@/components/shadcn/badge";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/shadcn/empty";
 import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/shadcn/field";
 import { Switch } from "@/components/shadcn/switch";
 import {
@@ -16,8 +14,9 @@ import {
 import { ago, short } from "../../lib/format";
 import { gateApi, type GateAccount, type GateWatchedPayment } from "../../lib/gate";
 import { ModalActions } from "../responsive-modal";
-import { ErrorText, Loading, Unavailable } from "../ui";
+import { EmptyState, ErrorText, Loading, Unavailable } from "../ui";
 import {
+  Badge,
   ChainLogo,
   ConfirmButton,
   Facts,
@@ -26,6 +25,7 @@ import {
   Submit,
   TextField,
   useAction,
+  TABLE,
 } from "./common";
 
 const usd = (amount: number) =>
@@ -37,7 +37,7 @@ function ExpectChecks({ account, session }: { account: GateAccount; session: str
   const queryClient = useQueryClient();
   const action = useAction();
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-line p-4">
+    <div className="flex flex-col gap-2 border-b border-line pb-4">
       <Field orientation="horizontal">
         <FieldContent>
           <FieldLabel htmlFor={id}>Expect a check first</FieldLabel>
@@ -143,9 +143,9 @@ function Wallets({ account, session }: { account: GateAccount; session: string }
   if (!wallets.data || !chains.data) return <Loading what="your wallets" />;
   const available = chains.data.items;
   return (
-    <section aria-label="Wallets" className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold">Wallets</h2>
+    <section aria-label="Wallets" className="flex flex-col gap-4 border-t border-line pt-6">
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+        <h2 className="h-section">Wallets</h2>
         {available.length > 0 && (
           <ModalButton
             label={
@@ -165,24 +165,19 @@ function Wallets({ account, session }: { account: GateAccount; session: string }
         )}
       </div>
       {wallets.data.items.length === 0 ? (
-        <Empty className="border border-dashed border-line">
-          <EmptyHeader>
-            <EmptyTitle>No wallets yet</EmptyTitle>
-            <EmptyDescription>
-              {available.length > 0
-                ? "Add a public address to see what leaves it."
-                : "Wallet watching isn't on yet."}
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+        <EmptyState title="No wallets yet">
+          {available.length > 0
+            ? "Add a public address to see what leaves it."
+            : "Wallet watching isn't on yet."}
+        </EmptyState>
       ) : (
-        <ul className="divide-y divide-line rounded-xl border border-line">
+        <ul className="divide-y divide-line border-y border-line">
           {wallets.data.items.map((w) => (
-            <li key={w.id} className="flex items-center gap-3 p-3">
-              <ChainLogo chainId={w.chainId} className="size-8" />
+            <li key={w.id} className="flex items-center gap-4 py-4">
+              <ChainLogo chainId={w.chainId} className="size-7" />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{w.label || short(w.address, 6)}</p>
-                <p className="truncate text-xs text-muted">
+                <p className="truncate text-[15px] font-medium">{w.label || short(w.address, 6)}</p>
+                <p className="mt-0.5 truncate text-[13px] text-muted">
                   {w.chain}
                   {w.label && (
                     <>
@@ -236,12 +231,12 @@ function Seen({ account, session }: { account: GateAccount; session: string }) {
   if (seen.error) return <Unavailable error={seen.error} onRetry={() => void seen.refetch()} />;
   if (!seen.data) return <Loading what="the payments" />;
   return (
-    <section aria-label="Payments seen" className="flex flex-col gap-3">
-      <h2 className="text-sm font-semibold">Seen after they were paid</h2>
+    <section aria-label="Payments seen" className="flex flex-col gap-4 border-t border-line pt-6">
+      <h2 className="h-section">Seen after they were paid</h2>
       {seen.data.items.length === 0 ? (
-        <p className="text-sm text-muted">Nothing seen yet.</p>
+        <p className="text-[15px] text-muted">Nothing seen yet.</p>
       ) : (
-        <Table>
+        <Table className={TABLE}>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead>Paid</TableHead>
@@ -278,7 +273,7 @@ export function Watch({ account, session }: { account: GateAccount; session: str
         <Wallets account={account} session={session} />
         <Seen account={account} session={session} />
       </div>
-      <aside aria-label="About Watch" className="flex flex-col gap-4">
+      <aside aria-label="About Watch" className="flex flex-col gap-6">
         <ExpectChecks account={account} session={session} />
         <Facts
           items={[

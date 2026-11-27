@@ -41,7 +41,7 @@ export function Estimate({
   if (!enabled) return null;
   const lines = estimate.data ? estimateLines(estimate.data) : null;
   return (
-    <div className="flex min-h-[4.5rem] flex-col gap-1.5 text-sm">
+    <div className="flex min-h-[4.5rem] flex-col gap-1.5 border-l-2 border-line-strong pl-4 text-sm">
       {estimate.isPending ? (
         <>
           <Skeleton className="h-4 w-3/4" />
@@ -49,7 +49,7 @@ export function Estimate({
         </>
       ) : lines ? (
         <>
-          <p>{lines.time}</p>
+          <p className="text-[15px] text-ink">{lines.time}</p>
           {lines.over && <p className="text-warn">{lines.over}</p>}
           <p className="text-muted">
             {hosted
@@ -148,8 +148,8 @@ export function RatingLive({
     live ?? (run.data?.progress ? { ...run.data.progress, startedAt: null } : undefined);
   const pct = p?.total ? Math.min(100, Math.round((p.done / p.total) * 100)) : 0;
   return (
-    <div className="flex flex-col gap-3 text-sm">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-col gap-4 text-sm">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <Badge tone={status === "failed" ? "breach" : status === "done" ? "safe" : "neutral"} dot>
           {STATUS_LABELS[status ?? "queued"] ?? status}
         </Badge>
@@ -169,20 +169,25 @@ export function RatingLive({
       </div>
       {!finished && (
         <>
+          {status === "running" && p?.total ? (
+            <p className="num-giant tabular-nums" aria-hidden>
+              {pct}%
+            </p>
+          ) : null}
           <div
             role="progressbar"
             aria-label={`${label} progress`}
             aria-valuemin={0}
             aria-valuemax={p?.total ?? 100}
             aria-valuenow={p?.done ?? 0}
-            className="h-2 overflow-hidden rounded-full bg-white/[0.06]"
+            className="h-1 overflow-hidden rounded-full bg-white/[0.08]"
           >
             <div
-              className="h-full rounded-full bg-gradient-to-r from-brand to-held transition-[width] duration-700"
+              className="h-full rounded-full bg-brand-bright transition-[width] duration-700"
               style={{ width: `${pct}%` }}
             />
           </div>
-          <p className="text-xs text-muted">
+          <p className="max-w-2xl text-xs text-muted">
             Results appear when it finishes, so a live agent can't tell which episodes are attacks.
             You can close this page; it keeps going.
           </p>

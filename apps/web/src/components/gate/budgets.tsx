@@ -9,6 +9,7 @@ import {
 } from "@/components/shadcn/table";
 import { short } from "../../lib/format";
 import { dollars, exactDollars, gateApi, type GateAccount, type GateBudget } from "../../lib/gate";
+import { TABLE } from "./common";
 
 /** Minutes until a budget ends, in a few words: "ends in 42m", "ending". */
 export function endsIn(iso: string, now = Date.now()): string {
@@ -22,12 +23,12 @@ function Spent({ budget }: { budget: GateBudget }) {
   const share = Math.min(1, budget.budgetUsd > 0 ? budget.spentUsd / budget.budgetUsd : 0);
   return (
     <div className="flex min-w-32 flex-col gap-1">
-      <span className="text-sm">
+      <span className="text-[15px] tabular-nums">
         {exactDollars(budget.spentUsd)}{" "}
         <span className="text-muted">of {dollars(budget.budgetUsd)}</span>
       </span>
-      <span className="h-1 w-full overflow-hidden rounded-full bg-line" aria-hidden>
-        <span className="block h-full rounded-full bg-safe" style={{ width: `${share * 100}%` }} />
+      <span className="h-0.5 w-full overflow-hidden bg-line" aria-hidden>
+        <span className="block h-full bg-accent" style={{ width: `${share * 100}%` }} />
       </span>
     </div>
   );
@@ -46,15 +47,15 @@ export function OpenBudgets({ account, session }: { account: GateAccount; sessio
   const items = query.data?.items ?? [];
   if (items.length === 0) return null;
   return (
-    <section className="mb-6 flex flex-col gap-2" aria-labelledby="open-budgets">
-      <h3 id="open-budgets" className="text-sm font-semibold">
+    <section className="mb-14 flex flex-col gap-3" aria-labelledby="open-budgets">
+      <h2 id="open-budgets" className="h-section">
         Open budgets
-      </h3>
-      <p className="text-xs text-muted">
+      </h2>
+      <p className="max-w-xl text-[15px] leading-relaxed text-muted">
         Each was checked once. The agent's payments to that payee count against it, to the fraction
         of a cent.
       </p>
-      <Table>
+      <Table className={`mt-3 ${TABLE}`}>
         <TableHeader>
           <TableRow>
             <TableHead>Payee</TableHead>

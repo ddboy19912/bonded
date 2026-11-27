@@ -5,6 +5,7 @@ import {
   type BrokerageIndexEntry,
 } from "@bondedhq/shared";
 import raw from "../../../../config/brokerage-index.json?raw";
+import { VIZ } from "./charts";
 import { ChartCard, DataTable, fallFill, ModelBars, ProviderLogo } from "./index-charts";
 
 /**
@@ -97,10 +98,12 @@ function ResultsTable({
           <span className="min-w-0 text-ink">
             {e.label}
             {e.incomplete && (
-              <span className="block text-[10px] text-warn">Incomplete: the run stopped early</span>
+              <span className="block font-mono text-[11px] text-warn">
+                Incomplete: the run stopped early
+              </span>
             )}
             {older(e) && (
-              <span className="block text-[10px] text-muted">
+              <span className="block font-mono text-[11px] text-muted">
                 Older library (version {e.libraryVersion})
                 {charted.has(e) ? "" : ": not in the charts"}
               </span>
@@ -125,7 +128,7 @@ function ClassGrid({ entries }: { entries: BrokerageIndexEntry[] }) {
   return (
     <div className="overflow-x-auto">
       <table
-        className="w-full border-separate border-spacing-1 text-xs"
+        className="w-full border-separate border-spacing-1 text-[13px]"
         style={{ minWidth: `${10 + keys.length * 4.5}rem` }}
       >
         <thead>
@@ -135,7 +138,7 @@ function ClassGrid({ entries }: { entries: BrokerageIndexEntry[] }) {
               <th
                 key={k}
                 scope="col"
-                className="px-1 pb-1 text-center align-bottom font-normal text-muted"
+                className="px-1 pb-2 text-center align-bottom font-mono text-[11px] font-normal text-muted"
               >
                 {BROKER_CLASS_NAMES[k]}
               </th>
@@ -145,8 +148,8 @@ function ClassGrid({ entries }: { entries: BrokerageIndexEntry[] }) {
         <tbody>
           {entries.map((e) => (
             <tr key={e.model}>
-              <th scope="row" className="pr-2 text-left font-normal">
-                <span className="flex items-center gap-2 text-ink">
+              <th scope="row" className="pr-3 text-left font-normal">
+                <span className="flex items-center gap-2 font-medium text-ink">
                   <ProviderLogo provider={e.provider} />
                   {e.label}
                 </span>
@@ -160,7 +163,7 @@ function ClassGrid({ entries }: { entries: BrokerageIndexEntry[] }) {
                     title={`${e.label}, ${BROKER_CLASS_NAMES[k]}: ${
                       v ? `got through ${v.fell} of ${v.episodes} (${pct(rate)})` : "never read"
                     }`}
-                    className={`h-9 rounded-md text-center tabular-nums ${v ? "text-ink" : "border border-dashed border-line-strong text-muted"}`}
+                    className={`h-10 rounded-[3px] text-center font-mono text-[12px] tabular-nums ${v ? "text-ink" : "border border-dashed border-line-strong text-muted"}`}
                     style={v ? { background: fallFill(rate) } : undefined}
                   >
                     {v ? `${v.fell}/${v.episodes}` : "—"}
@@ -209,7 +212,7 @@ export function BrokerageIndexSection({ index }: { index: BrokerageIndex }) {
       ),
     }));
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-5">
       <ChartCard
         title="Stock trading"
         subtitle={SUBTITLES[tab]}
@@ -231,14 +234,18 @@ export function BrokerageIndexSection({ index }: { index: BrokerageIndex }) {
             bars={
               tab === "task" ? bars(byTask, (e) => e.task.score) : bars(measured, (e) => e.score)
             }
-            series={[{ key: "v", label: tab === "task" ? "Task" : "Security" }]}
+            series={[
+              tab === "task"
+                ? { key: "v", label: "Task", color: VIZ.ink }
+                : { key: "v", label: "Security" },
+            ]}
             domain={[0, 100]}
             ticks={[0, 25, 50, 75, 100]}
             format={(v) => `${v}`}
           />
         )}
       </ChartCard>
-      <p className="max-w-3xl text-xs text-muted">
+      <p className="max-w-3xl text-[13px] leading-relaxed text-muted">
         The same models running an investing agent at a broker: {first.attacks.seeds} attacks and{" "}
         {first.attacks.twins} genuine look-alikes, each run {first.runsPerScenario} times with the
         rules shown and {first.runsPerScenario} times without. Attacks a model never read aren't

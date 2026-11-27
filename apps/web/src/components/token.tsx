@@ -9,7 +9,7 @@ export function TokenLogo({ symbol, size = 20 }: { symbol: string; size?: number
   return (
     <span
       className="flex shrink-0 items-center justify-center rounded-full"
-      style={{ ...box, background: mark?.bg ?? "#2a3348" }}
+      style={{ ...box, background: mark?.bg ?? "#26282d" }}
       aria-hidden
     >
       {mark?.path ? (
@@ -40,10 +40,10 @@ export function withTokens(text: string): ReactNode {
   ));
 }
 
-/** A token as a pill: logo and symbol. */
+/** A token as an outlined tag: logo and symbol. */
 export function TokenChip({ symbol }: { symbol: string }) {
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-line bg-white/[0.05] py-1 pr-3 pl-1 font-mono text-xs">
+    <span className="inline-flex items-center gap-2 rounded-full border border-line-strong py-1 pr-3 pl-1 font-mono text-xs text-soft">
       <TokenLogo symbol={symbol} />
       {symbol}
     </span>

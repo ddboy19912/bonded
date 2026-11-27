@@ -106,7 +106,6 @@ import { InfoPanel } from "../components/overlay";
 import { prefillFrom, type OfficialPrefill } from "../components/preview-report";
 import {
   Button,
-  Card,
   Choice,
   ErrorText,
   Input,
@@ -807,10 +806,10 @@ export function NewAgent() {
       back={{ to: "/agents", label: "All agents" }}
       intro="Register an agent, give it a vault and a bond, and fund it, all from your wallet. Then get it rated and buy cover from its page."
     >
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-        <div className="flex min-w-0 flex-col gap-6">
+      <div className="grid items-start gap-x-16 gap-y-14 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+        <div className="flex min-w-0 flex-col gap-14">
           <StepCard n={1} title="What gets rated">
-            <p className="mb-2 text-sm text-muted">
+            <p className="mb-3 text-[15px] text-muted">
               Pick one of Bonded's built-in agents, or connect your own (
               <a className={linkClass} href={DOCS_BYOA}>
                 how
@@ -970,10 +969,10 @@ export function NewAgent() {
           </StepCard>
 
           <StepCard n={2} title={<Term term="mandate">Mandate</Term>}>
-            <div className="flex flex-col gap-5 text-sm">
+            <div className="flex flex-col gap-8 text-sm">
               {suggested.data && suggested.data.presets.length > 0 && (
                 <fieldset className="flex flex-col gap-2">
-                  <legend className="mb-1 font-medium">Start from what your agent did</legend>
+                  <legend className={`mb-1 ${LEGEND}`}>Start from what your agent did</legend>
                   <p className="mb-1 text-xs text-muted">
                     {basisLine(suggested.data.basis)
                       ? `From ${basisLine(suggested.data.basis)}: `
@@ -1024,7 +1023,7 @@ export function NewAgent() {
                 </fieldset>
               )}
               <fieldset className="flex flex-col gap-2">
-                <legend className="mb-2 font-medium">
+                <legend className={`mb-2 ${LEGEND}`}>
                   {onModule ? "Module mode" : "Vault mode"}
                   {editedMark("mode")}
                 </legend>
@@ -1055,7 +1054,7 @@ export function NewAgent() {
                 </div>
               </fieldset>
               <fieldset>
-                <legend className="mb-2 font-medium">
+                <legend className={`mb-3 ${LEGEND}`}>
                   Tokens it may hold (<Token symbol="tUSDG" /> always)
                   {editedMark("tokens")}
                 </legend>
@@ -1063,7 +1062,7 @@ export function NewAgent() {
                   {MANDATE_TOKENS.map((t) => (
                     <label
                       key={t}
-                      className={`flex cursor-pointer items-center gap-2 rounded-full border py-1 pr-3.5 pl-1 font-mono text-xs has-focus-visible:ring-2 has-focus-visible:ring-accent ${tokens.includes(t) ? "border-accent/60 bg-accent-soft text-ink" : "border-line-strong text-muted opacity-60"}`}
+                      className={`flex cursor-pointer items-center gap-2 rounded-full border py-1 pr-3.5 pl-1 font-mono text-xs transition has-focus-visible:ring-2 has-focus-visible:ring-accent ${tokens.includes(t) ? "border-accent text-ink" : "border-line-strong text-muted opacity-60 hover:opacity-100"}`}
                     >
                       <input
                         type="checkbox"
@@ -1082,15 +1081,15 @@ export function NewAgent() {
                   ))}
                 </div>
               </fieldset>
-              <div className="flex items-start justify-between gap-4 border-t border-line pt-4">
+              <div className="flex flex-wrap items-start justify-between gap-4 border-t border-line pt-5">
                 <div className="min-w-0">
-                  <p className="font-medium">
+                  <p className={LEGEND}>
                     Limits and details
                     {edited.length > 0 && preset === "custom" && (
                       <span className="ml-2 text-xs font-normal text-warn">edited</span>
                     )}
                   </p>
-                  <p className="mt-0.5 text-xs text-muted">
+                  <p className="mt-1 font-mono text-xs text-muted">
                     {maxTx || "–"} USD a trade · {maxDaily || "–"} USD a day · {drawdown || "–"}%
                     drawdown · {slippage || "–"}% slippage
                   </p>
@@ -1188,9 +1187,9 @@ export function NewAgent() {
           </StepCard>
 
           <StepCard n={3} title="Funds, agent key and bond">
-            <div className="flex flex-col gap-5 text-sm">
+            <div className="flex flex-col gap-8 text-sm">
               <fieldset>
-                <legend className="mb-2 font-medium">What protects the funds</legend>
+                <legend className={`mb-2 ${LEGEND}`}>What protects the funds</legend>
                 <div className="divide-y divide-line">
                   <Choice
                     flat
@@ -1259,7 +1258,7 @@ export function NewAgent() {
                 )}
               </fieldset>
               <fieldset>
-                <legend className="mb-2 font-medium">
+                <legend className={`mb-2 ${LEGEND}`}>
                   <Term term="agentKey">The agent's key</Term>, the only key that can act{" "}
                   {onModule ? "through the module on your smart account" : "for the vault"}
                 </legend>
@@ -1353,7 +1352,7 @@ export function NewAgent() {
           )}
         </div>
 
-        <div className="flex min-w-0 flex-col gap-6 lg:sticky lg:top-24">
+        <div className="flex min-w-0 flex-col gap-14 lg:sticky lg:top-24">
           <WalletHelp gasNeeded={gas.data ?? undefined} />
           <StepCard n={4} title="Create">
             {unfinished && !busy && (
@@ -1393,7 +1392,7 @@ export function NewAgent() {
               </div>
             )}
             {problems.length > 0 && (
-              <ul className="mb-4 flex flex-col gap-1.5 text-sm text-muted">
+              <ul className="mb-5 flex flex-col gap-1.5 text-sm text-muted">
                 {problems.map((p) => (
                   <li key={p} className="flex gap-2">
                     <span className="text-warn" aria-hidden>
@@ -1412,22 +1411,25 @@ export function NewAgent() {
             >
               {busy ? "Working…" : "Onboard the agent"}
             </Button>
-            <p className="mt-2 text-xs text-muted">{confirmationsLine}</p>
+            <p className="mt-3 text-[13px] text-muted">{confirmationsLine}</p>
             {steps.length > 0 && (
-              <ol className="mt-5 flex flex-col gap-2.5 border-t border-line pt-5 text-sm">
-                {steps.map((s) => (
-                  <li key={s.label} className="flex flex-wrap items-center gap-2.5">
+              <ol className="mt-6 flex flex-col text-sm">
+                {steps.map((s, i) => (
+                  <li
+                    key={s.label}
+                    className="flex flex-wrap items-center gap-3 border-t border-line py-2.5 last:border-b"
+                  >
                     <span
-                      className={`flex size-5 items-center justify-center rounded-full text-[11px] ${
+                      className={`w-5 font-mono text-xs ${
                         s.state === "done"
-                          ? "bg-safe text-paper"
+                          ? "text-accent"
                           : s.state === "active"
-                            ? "bg-brand text-white"
-                            : "bg-sunken text-muted"
+                            ? "animate-pulse text-ink"
+                            : "text-dim"
                       }`}
                       aria-hidden
                     >
-                      {s.state === "done" ? "✓" : s.state === "active" ? "…" : ""}
+                      {s.state === "done" ? "✓" : String(i + 1).padStart(2, "0")}
                     </span>
                     <span className={s.state === "waiting" ? "text-muted" : "font-medium"}>
                       {s.label}
@@ -1440,7 +1442,7 @@ export function NewAgent() {
             <ErrorText error={error} />
             {install && (
               <div className="mt-5 flex flex-col gap-3 border-t border-line pt-5 text-sm">
-                <p className="font-medium">Send these from your smart account, in order</p>
+                <p className={LEGEND}>Send these from your smart account, in order</p>
                 <p className="text-xs text-muted">
                   The module will be at <span className="font-mono">{install.module}</span>.{" "}
                   {install.calls.length > 1
@@ -1450,7 +1452,7 @@ export function NewAgent() {
                 <ol className="flex flex-col gap-3">
                   {install.calls.map((call) => (
                     <li key={call.label} className="flex flex-col gap-1">
-                      <span className="text-xs font-semibold text-soft">{call.label}</span>
+                      <span className="eyebrow !text-soft">{call.label}</span>
                       <span className="font-mono text-xs break-all text-muted">To {call.to}</span>
                       <pre className="max-h-28 overflow-auto rounded-lg bg-black/40 p-2.5 font-mono text-[11px] break-all whitespace-pre-wrap text-soft">
                         {call.data}
@@ -1461,8 +1463,10 @@ export function NewAgent() {
               </div>
             )}
             {created && (
-              <div className="mt-5 border-l-2 border-safe/60 pl-4 text-sm">
-                <p className="font-medium">Agent {created.agentId.toString()} is set up.</p>
+              <div className="mt-6 border-l-2 border-accent pl-4 text-sm">
+                <p className="text-[17px] font-medium tracking-[-0.02em]">
+                  Agent {created.agentId.toString()} is set up.
+                </p>
                 <p className="mt-1">
                   {connectNow ? (
                     <span>Next: connect it and check the connection, below</span>
@@ -1513,10 +1517,10 @@ function BondAdvice({
   const rec = valid ? recommendedBond(cover, score) : undefined;
   const [open, setOpen] = useState(false);
   return (
-    <div className="flex items-start justify-between gap-4 border-t border-line pt-4 text-sm">
+    <div className="flex flex-wrap items-start justify-between gap-4 border-t border-line pt-5 text-sm">
       <div className="min-w-0">
-        <p className="font-medium">How big a bond?</p>
-        <p className="mt-0.5 text-xs text-muted">
+        <p className={LEGEND}>How big a bond?</p>
+        <p className="mt-1 text-[13px] text-muted">
           Cover needs a bond that is a share of it, set by the score's tier.
         </p>
       </div>
@@ -1563,15 +1567,15 @@ function BondAdvice({
             <>
               <table className="w-full text-sm">
                 <caption className="sr-only">Smallest bond for this cover, by tier</caption>
-                <thead className="text-left text-xs text-muted">
+                <thead className="border-b border-line text-left font-mono text-[12px] text-muted">
                   <tr>
-                    <th className="pb-1.5 font-medium">Score's tier</th>
-                    <th className="pb-1.5 text-right font-medium">Smallest bond</th>
+                    <th className="pb-2 font-normal">Score's tier</th>
+                    <th className="pb-2 text-right font-normal">Smallest bond</th>
                   </tr>
                 </thead>
                 <tbody>
                   {bondTable(cover).map((r) => (
-                    <tr key={r.tiers} className="border-t border-line">
+                    <tr key={r.tiers} className="border-t border-line first:border-t-0">
                       <td className="py-2">
                         {r.tiers} ({r.minBondPct}% of the cover)
                       </td>
@@ -1586,7 +1590,7 @@ function BondAdvice({
                 <div className="flex flex-col gap-3 border-t border-line pt-5">
                   <p className="eyebrow">Recommended bond</p>
                   <p className="flex items-center gap-2.5">
-                    <span className="font-mono text-3xl">{rec.bond.toLocaleString("en-US")}</span>
+                    <span className="num-giant">{rec.bond.toLocaleString("en-US")}</span>
                     <Token symbol="tUSDG" />
                   </p>
                   <p className="text-muted">Because {rec.why}.</p>
@@ -1613,20 +1617,26 @@ function BondAdvice({
 /** "acts on instructions it reads" as a sentence; nothing for nothing. */
 const capitalise = (t: string) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : undefined);
 
-/** A numbered section of the onboarding form. */
+/** A question or group in a step, set a little larger than the text under it. */
+const LEGEND = "text-[15px] font-medium text-ink";
+
+/**
+ * A numbered step of the onboarding: its number in mono at the left, a large title, then the step
+ * in the open under a hairline. No box around it.
+ */
 function StepCard({ n, title, children }: { n: number; title: ReactNode; children: ReactNode }) {
   return (
-    <Card
-      title={
-        <span className="flex items-center gap-3">
-          <span className="flex size-7 items-center justify-center btn-brand rounded-full text-sm font-semibold text-on-brand">
-            {n}
-          </span>
+    <section className="grid min-w-0 gap-x-6 gap-y-3 border-t border-line pt-7 sm:grid-cols-[3rem_minmax(0,1fr)]">
+      <p className="font-mono text-[13px] leading-[30px] text-accent" aria-hidden>
+        {String(n).padStart(2, "0")}
+      </p>
+      <div className="min-w-0">
+        <h2 className="h-section mb-6">
+          <span className="sr-only">Step {n}: </span>
           {title}
-        </span>
-      }
-    >
-      {children}
-    </Card>
+        </h2>
+        {children}
+      </div>
+    </section>
   );
 }

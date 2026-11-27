@@ -1,8 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CreditCardIcon, PlusIcon, XIcon } from "lucide-react";
-import { Button } from "@/components/shadcn/button";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/shadcn/empty";
 import { apiUrl } from "../../config";
 import { ago } from "../../lib/format";
 import {
@@ -13,8 +11,9 @@ import {
 } from "../../lib/gate";
 import { CopyButton } from "../copy";
 import { ModalActions } from "../responsive-modal";
-import { ErrorText, Loading, Unavailable } from "../ui";
+import { EmptyState, ErrorText, Loading, Unavailable } from "../ui";
 import {
+  Button,
   ConfirmButton,
   Facts,
   ModalButton,
@@ -62,9 +61,9 @@ const hooksKey = (session: string, id: string) => ["gate-card-hooks", session, i
 /** Something to paste into the card program, with a button to copy it. */
 function Copyable({ label, text, secret }: { label: string; text: string; secret?: boolean }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-xs text-muted">{label}</span>
-      <span className="flex items-center gap-2 rounded-xl border border-line bg-white/[0.03] px-3 py-2">
+    <div className="flex flex-col gap-2">
+      <span className="eyebrow">{label}</span>
+      <span className="flex items-center gap-2 rounded-xl border border-line-strong px-4 py-2.5">
         <span className="min-w-0 flex-1 font-mono text-xs break-all text-ink">{text}</span>
         <CopyButton text={text} variant="icon" label={`Copy ${label.toLowerCase()}`} />
       </span>
@@ -141,8 +140,8 @@ function HookForm({
   const [made, setMade] = useState<(GateCardHook & { password?: string }) | null>(null);
   if (made)
     return (
-      <div className="flex flex-col gap-4 text-sm text-soft">
-        <p>{WHERE[made.provider]}</p>
+      <div className="flex flex-col gap-5 text-sm text-soft">
+        <p className="leading-relaxed">{WHERE[made.provider]}</p>
         <Copyable label="Address" text={hookUrl(made)} />
         {made.provider === "marqeta" ? (
           <>
@@ -234,9 +233,9 @@ function Hooks({ account, session }: { account: GateAccount; session: string }) 
   if (hooks.error) return <Unavailable error={hooks.error} onRetry={() => void hooks.refetch()} />;
   if (!hooks.data) return <Loading what="your card providers" />;
   return (
-    <section aria-label="Card providers" className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold">Card providers</h2>
+    <section aria-label="Card providers" className="flex flex-col gap-4 border-t border-line pt-6">
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+        <h2 className="h-section">Card providers</h2>
         <ModalButton
           label={
             <>
@@ -252,29 +251,24 @@ function Hooks({ account, session }: { account: GateAccount; session: string }) 
         </ModalButton>
       </div>
       {hooks.data.items.length === 0 ? (
-        <Empty className="border border-dashed border-line">
-          <EmptyHeader>
-            <EmptyTitle>No card provider yet</EmptyTitle>
-            <EmptyDescription>
-              Connect Stripe Issuing, Lithic or Marqeta, and each charge on your agent's cards is
-              checked against your rules.
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+        <EmptyState title="No card provider yet">
+          Connect Stripe Issuing, Lithic or Marqeta, and each charge on your agent's cards is
+          checked against your rules.
+        </EmptyState>
       ) : (
-        <ul className="divide-y divide-line rounded-xl border border-line">
+        <ul className="divide-y divide-line border-y border-line">
           {hooks.data.items.map((h) => (
-            <li key={h.id} className="flex flex-wrap items-center gap-3 p-3">
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.05] text-muted">
-                <CreditCardIcon className="size-4" aria-hidden />
-              </span>
+            <li key={h.id} className="flex flex-wrap items-center gap-x-4 gap-y-3 py-4">
+              <CreditCardIcon className="size-5 shrink-0 text-muted" aria-hidden />
               <div className="min-w-[10rem] flex-1">
-                <p className="truncate text-sm font-medium">
+                <p className="truncate text-[15px] font-medium">
                   {h.label || CARD_PROVIDERS[h.provider]}
                 </p>
-                {details(h) && <p className="truncate text-xs text-muted">{details(h)}</p>}
+                {details(h) && (
+                  <p className="mt-0.5 truncate text-[13px] text-muted">{details(h)}</p>
+                )}
               </div>
-              <div className="ml-auto flex items-center gap-1">
+              <div className="ml-auto flex items-center gap-2">
                 <Status hook={h} />
                 {!h.ready && (
                   <ModalButton
@@ -328,6 +322,7 @@ export function Cards({ account, session }: { account: GateAccount; session: str
         <Hooks account={account} session={session} />
       </div>
       <aside aria-label="About cards" className="flex flex-col gap-4">
+        <p className="eyebrow">How it works</p>
         <Facts
           items={[
             ["Can stop a charge", "Yes, it declines it"],
@@ -336,7 +331,7 @@ export function Cards({ account, session }: { account: GateAccount; session: str
             ["Merchants allowed", "Vendors on file"],
           ]}
         />
-        <p className="text-xs text-muted">
+        <p className="text-[13px] leading-relaxed text-muted">
           Give a vendor its card merchant ID on the Vendors tab. Cash, money orders and gambling are
           always declined.
         </p>

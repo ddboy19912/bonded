@@ -93,11 +93,11 @@ export function OwnerTools({
   return (
     <Card title="Your agent">
       {self.isPending ? (
-        <p className="text-sm text-muted">Checking its registration…</p>
+        <p className="text-[15px] text-muted">Checking its registration…</p>
       ) : record?.registered && record.source === "operator" ? (
-        <p className="text-sm text-muted">This agent is rated by Bonded's operator.</p>
+        <p className="text-[15px] text-muted">This agent is rated by Bonded's operator.</p>
       ) : record?.registered ? (
-        <div className="flex flex-col gap-3 text-sm">
+        <div className="flex max-w-2xl flex-col gap-5 text-[15px] leading-relaxed">
           <p>
             Rated as:{" "}
             <span className="font-medium">
@@ -116,7 +116,7 @@ export function OwnerTools({
               {busy ? "Sign in your wallet…" : "Rate this agent"}
             </Button>
             {waiting && (
-              <span className="text-xs text-muted">
+              <span className="font-mono text-xs text-muted">
                 One rating an hour per agent; next from{" "}
                 {when(Date.parse(record.nextRatingAt!) / 1000)}.
               </span>
@@ -153,7 +153,7 @@ export function OwnerTools({
           )}
         </div>
       ) : remembered ? (
-        <div className="flex flex-col gap-3 text-sm">
+        <div className="flex max-w-2xl flex-col gap-5 text-[15px] leading-relaxed">
           <p>
             This agent isn't registered for ratings yet. Register it as{" "}
             <span className="font-medium">
@@ -162,7 +162,7 @@ export function OwnerTools({
                 : SELF_SERVE_KIND_LABELS[remembered.kind]}
             </span>
             {remembered.sentinel ? ", with Sentinel in front of it" : ""}, with the mandate of vault{" "}
-            <span className="font-mono">{remembered.vault}</span>.
+            <span className="font-mono text-[0.9em] break-all">{remembered.vault}</span>.
           </p>
           <div>
             <Button disabled={busy} onClick={register}>
@@ -171,7 +171,7 @@ export function OwnerTools({
           </div>
         </div>
       ) : (
-        <p className="text-sm text-muted">
+        <p className="max-w-2xl text-[15px] leading-relaxed text-muted">
           This agent isn't registered for ratings, and this browser doesn't have its mandate. Agents
           onboarded from{" "}
           <Link to="/agents/new" className={linkClass}>

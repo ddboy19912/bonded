@@ -11,7 +11,7 @@ import type { Address } from "viem";
 import { deployment } from "../config";
 import { MODULE_COVER_NOTE } from "../lib/module";
 import { moduleCoverNote } from "../lib/chain";
-import { Card } from "./ui";
+import { Card, Note } from "./ui";
 import { BuyCover } from "../pages/Vault";
 
 /**
@@ -54,15 +54,17 @@ export function ModuleCover({ agentId, module }: { agentId: bigint; module: Addr
   if (note && !note.insurable)
     return (
       <Card title="Cover">
-        {allowanceWarning}
-        <p className="text-sm text-muted">
-          This module runs in Monitor mode, so it can't hold cover: a breach would go through and be
-          paid to the account's own owner. A new module in Enforce mode can.
-        </p>
+        <div className="flex flex-col gap-4">
+          {allowanceWarning}
+          <p className="max-w-2xl text-[15px] leading-relaxed text-muted">
+            This module runs in Monitor mode, so it can't hold cover: a breach would go through and
+            be paid to the account's own owner. A new module in Enforce mode can.
+          </p>
+        </div>
       </Card>
     );
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-4">
       {allowanceWarning}
       <BuyCover
         vault={module}
@@ -73,7 +75,7 @@ export function ModuleCover({ agentId, module }: { agentId: bigint; module: Addr
         hasActive={Boolean(active?.result)}
         module
       />
-      <p className="px-1 text-xs text-muted">{MODULE_COVER_NOTE}</p>
+      <p className="max-w-2xl text-[13px] leading-relaxed text-muted">{MODULE_COVER_NOTE}</p>
     </div>
   );
 }
@@ -103,8 +105,8 @@ export function AllowanceWarning(props: {
   const warning = check.data ? unprotectedAllowancesWarning(check.data.unprotected) : undefined;
   if (!warning) return null;
   return (
-    <p role="alert" className="rounded-xl border border-warn/30 bg-warn-soft px-3.5 py-2.5 text-sm">
+    <Note tone="warn" role="alert">
       {warning}
-    </p>
+    </Note>
   );
 }

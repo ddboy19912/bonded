@@ -11,22 +11,24 @@ export function StatLoading() {
   );
 }
 
-/** A row of key numbers in one panel, split by hairlines: no card per number. */
+/**
+ * A row of key numbers in the open: each a mono label, a big number and a short line, with a
+ * hairline above. No panel around them and no box per number.
+ */
 export function StatStrip({
   stats,
 }: {
   stats: { label: ReactNode; value: ReactNode; hint?: ReactNode }[];
 }) {
   return (
-    <section className="panel grid grid-cols-2 overflow-hidden p-0 lg:grid-cols-4">
+    <section className="grid grid-cols-2 gap-x-6 gap-y-8 lg:grid-cols-4">
       {stats.map((t, i) => (
-        <div
-          key={i}
-          className="min-w-0 border-line p-5 [&:nth-child(-n+2)]:border-b max-lg:[&:nth-child(odd)]:border-r lg:border-b-0 lg:[&:not(:last-child)]:border-r"
-        >
-          <p className="text-[13px] text-muted">{t.label}</p>
-          <p className="mt-2 font-serif text-[40px] leading-none tabular-nums">{t.value}</p>
-          {t.hint && <p className="mt-1.5 text-xs text-muted">{t.hint}</p>}
+        <div key={i} className="min-w-0 border-t border-line pt-4">
+          <p className="eyebrow">{t.label}</p>
+          <p className="num-big mt-3 truncate pb-[0.1em] lg:text-[clamp(40px,4vw,60px)]">
+            {t.value}
+          </p>
+          {t.hint && <p className="mt-2.5 text-[13px] text-muted">{t.hint}</p>}
         </div>
       ))}
     </section>

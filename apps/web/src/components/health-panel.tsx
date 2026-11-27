@@ -34,10 +34,7 @@ export function LowGasNotice({ gas }: { gas: AgentGas | null | undefined }) {
   const notice = gasNotice(gas);
   if (!notice) return null;
   return (
-    <div
-      role="alert"
-      className="rounded-xl border border-warn/30 bg-warn-soft px-3.5 py-2.5 text-sm"
-    >
+    <div role="alert" className="border-l-2 border-warn/60 pl-4 text-sm">
       <p>
         {notice} <FixLink code="low-gas" className="text-xs" />
       </p>
@@ -68,7 +65,7 @@ export function LowGasNotice({ gas }: { gas: AgentGas | null | undefined }) {
 export function CoverWithoutTradesWarning({ show }: { show: boolean | undefined }) {
   if (!show) return null;
   return (
-    <p role="alert" className="rounded-xl border border-warn/30 bg-warn-soft px-3.5 py-2.5 text-sm">
+    <p role="alert" className="border-l-2 border-warn/60 pl-4 text-sm">
       {COVER_WITHOUT_TRADES} <FixLink code="cover-without-vault-trades" className="text-xs" />
     </p>
   );
@@ -78,7 +75,7 @@ export function CoverWithoutTradesWarning({ show }: { show: boolean | undefined 
 export function VaultTrading({ activity }: { activity: VaultActivity | null | undefined }) {
   const line = vaultTradingLine(activity);
   return (
-    <p className={`text-xs ${TEXT_TONE[line.tone]}`}>
+    <p className={`${TEXT_TONE[line.tone]}`}>
       {line.text}
       {activity?.lastTxHash && (
         <>
@@ -93,8 +90,8 @@ export function VaultTrading({ activity }: { activity: VaultActivity | null | un
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <>
-      <dt className="text-muted">{label}</dt>
-      <dd className="min-w-0">{children}</dd>
+      <dt className="eyebrow border-t border-line py-3">{label}</dt>
+      <dd className="min-w-0 border-t border-line py-3 text-[15px]">{children}</dd>
     </>
   );
 }
@@ -123,8 +120,8 @@ export function HealthPanel({
   if (!session)
     return (
       <Card title="Health">
-        <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-          <p className="text-muted">
+        <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-4">
+          <p className="max-w-xl text-[15px] leading-relaxed text-muted">
             Sign in once (no gas) to see your agent's health: its score, runner, vault trading, gas
             and cover, and anything that needs you.
           </p>
@@ -164,13 +161,13 @@ export function HealthPanel({
         ) : undefined
       }
     >
-      <div className="flex flex-col gap-4 text-sm">
+      <div className="flex flex-col gap-5 text-sm">
         {problems.length > 0 && (
-          <ul className="flex flex-col gap-2" aria-label="Problems">
+          <ul className="flex flex-col gap-4" aria-label="Problems">
             {problems.map((p) => (
               <li
                 key={`${p.code}:${p.message}`}
-                className={`rounded-xl border px-3.5 py-2.5 ${p.severity === "warning" ? "border-warn/30 bg-warn-soft" : "border-breach/30 bg-breach-soft"}`}
+                className={`border-l-2 pl-4 ${p.severity === "warning" ? "border-warn/60" : "border-breach/70"}`}
               >
                 <span className="font-medium">{p.message}</span>{" "}
                 <FixLink code={messageCode(p)} className="text-xs" />
@@ -185,7 +182,7 @@ export function HealthPanel({
             gas && !gas.address && h?.vault?.agentKey ? { ...gas, address: h.vault.agentKey } : gas
           }
         />
-        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2">
+        <dl className="grid grid-cols-[minmax(7rem,auto)_minmax(0,1fr)] gap-x-6 border-b border-line sm:grid-cols-[12rem_minmax(0,1fr)]">
           {score && (
             <Row label="Score">
               <span className={TEXT_TONE[score.tone]}>{score.text}</span>

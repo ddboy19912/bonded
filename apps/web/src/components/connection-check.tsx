@@ -144,8 +144,8 @@ export function ConnectionCheck({
   const last = !checkId ? status.lastCheck : null;
   const done = events.find((e) => e.type === "done");
   return (
-    <div className="flex flex-col gap-4 text-sm">
-      <p className="text-muted">
+    <div className="flex flex-col gap-5 text-sm">
+      <p className="max-w-2xl text-muted">
         One practice episode with no attack in it, never scored. It must pass before a rating can
         start, and takes up to {world === "brokerage" ? "5" : "2"} minutes.
       </p>
@@ -186,9 +186,9 @@ export function ConnectionCheck({
       <ErrorText error={error} />
 
       {checkId && (
-        <section aria-label="Connection check" className="flex min-h-40 flex-col gap-3">
+        <section aria-label="Connection check" className="flex min-h-40 flex-col gap-6">
           <ol
-            className="flex flex-col gap-1.5 rounded-xl bg-black/30 p-4 font-mono text-xs"
+            className="flex flex-col gap-2 border-l border-line-strong py-1 pl-4 font-mono text-xs"
             aria-live="polite"
           >
             {events.length === 0 && (
@@ -262,8 +262,8 @@ export function ConnectionCheck({
 function Tail({ label, text }: { label: string; text: string }) {
   return (
     <div className="mt-3 flex flex-col gap-1">
-      <span className="text-xs text-muted">{label}</span>
-      <pre className="max-h-48 overflow-auto rounded-xl bg-black/40 p-3 font-mono text-[11px] break-all whitespace-pre-wrap text-soft">
+      <span className="eyebrow">{label}</span>
+      <pre className="max-h-48 overflow-auto rounded-xl border border-line bg-white/[0.02] p-3 font-mono text-[11px] break-all whitespace-pre-wrap text-soft">
         {text}
       </pre>
     </div>
@@ -283,7 +283,9 @@ export function CheckVerdict({
   if (result.passed)
     return (
       <div role="status" className="border-l-2 border-safe/60 pl-4">
-        <p className="font-semibold text-safe">Passed: your agent is connected.</p>
+        <p className="text-xl font-medium tracking-[-0.03em] text-safe">
+          Passed: your agent is connected.
+        </p>
         <p className="mt-1 text-soft">{summary}</p>
         <Warnings warnings={result.warnings} connection={connection} />
         {result.code && (
@@ -301,7 +303,7 @@ export function CheckVerdict({
     );
   return (
     <div role="alert" className="border-l-2 border-breach/70 pl-4">
-      <p className="font-semibold text-breach">
+      <p className="text-xl font-medium tracking-[-0.03em] text-breach">
         It didn't pass. Fix these, then run the check again.
       </p>
       <ul className="mt-2 flex flex-col gap-2.5">

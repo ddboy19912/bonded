@@ -109,9 +109,7 @@ function VaultView({ vault }: { vault: Address }) {
   if (reads.isLoading)
     return (
       <Page title={`Vault ${short(vault)}`} back={back}>
-        <Card>
-          <Loading what="vault" height="md" />
-        </Card>
+        <Loading what="vault" height="md" />
       </Page>
     );
   if (reads.isError || isRpcUnavailable(total?.error))
@@ -166,79 +164,89 @@ function VaultView({ vault }: { vault: Address }) {
         </>
       }
     >
-      <div className="flex flex-wrap items-start gap-4">
-        <div className="flex min-w-0 flex-[999_1_560px] flex-col gap-4">
-          <section className="panel grid gap-6 p-6 sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <p className="eyebrow">Assets</p>
-              <p className="mt-2 font-serif text-5xl leading-none tabular-nums">
+      <div className="flex flex-wrap items-start gap-x-16 gap-y-14">
+        <div className="flex min-w-0 flex-[999_1_560px] flex-col gap-14">
+          <section aria-label="The vault" className="border-t border-line pt-8">
+            <p className="eyebrow">Assets</p>
+            <p className="mt-4 flex flex-wrap items-baseline gap-x-4 gap-y-2">
+              <span className="text-[clamp(56px,7.4vw,112px)] leading-[0.86] font-medium tracking-[-0.065em] tabular-nums">
                 {total?.result !== undefined ? `$${usd(total.result, 0)}` : "…"}
-              </p>
-              <p className="mt-1 text-xs text-muted">
+              </span>
+              <span className="text-[15px] text-muted">
                 <Token symbol="tUSDG" />
-              </p>
-            </div>
-            <div>
-              <p className="eyebrow">Agent</p>
-              <p className="mt-3.5 text-lg font-bold">
-                {id !== undefined ? (
-                  <Link to={`/agents/${id}`} className={linkClass}>
-                    Agent {id.toString()}
-                  </Link>
-                ) : (
-                  "…"
-                )}
-              </p>
-              {score !== undefined && (
-                <p className="mt-1 flex items-center gap-2 text-xs text-muted">
-                  Score {score} <TierBadge score={score} />
+              </span>
+            </p>
+            <div className="mt-10 grid gap-x-8 gap-y-6 sm:grid-cols-3">
+              <div className="min-w-0 border-t border-line pt-4">
+                <p className="eyebrow">Agent</p>
+                <p className="num-big mt-2.5">
+                  {id !== undefined ? (
+                    <Link to={`/agents/${id}`} className="transition hover:text-accent">
+                      Agent {id.toString()}
+                    </Link>
+                  ) : (
+                    "…"
+                  )}
                 </p>
-              )}
+                {score !== undefined && (
+                  <p className="mt-2 flex items-center gap-2 text-[13px] text-muted">
+                    Score {score} <TierBadge score={score} />
+                  </p>
+                )}
+              </div>
+              <div className="min-w-0 border-t border-line pt-4">
+                <p className="eyebrow">
+                  <Term term="breach">Breaches</Term>
+                </p>
+                <p className={`num-big mt-2.5 ${breachCount ? "text-breach" : ""}`}>
+                  {breachCount}
+                </p>
+                <p className="mt-2 text-[13px] text-muted">
+                  {breachCount ? "recorded on chain" : "stayed inside its mandate"}
+                </p>
+              </div>
+              <CoverLeft activeId={activeId?.result} />
             </div>
-            <div>
-              <p className="eyebrow">
-                <Term term="breach">Breaches</Term>
-              </p>
-              <p
-                className={`mt-2 font-serif text-5xl leading-none ${breachCount ? "text-breach" : ""}`}
-              >
-                {breachCount}
-              </p>
-              <p className="mt-1 text-xs text-muted">
-                {breachCount ? "recorded on chain" : "stayed inside its mandate"}
-              </p>
-            </div>
-            <CoverLeft activeId={activeId?.result} />
           </section>
 
           <Mandate vault={vault} guardian={guardian?.result} agentKey={agent?.result} />
 
           <Card title="History">
             {breachCount === 0 && !policies.data?.length ? (
-              <EmptyState title="Nothing has happened here yet">
-                Cover purchases, breaches and claims will show up here.
-              </EmptyState>
+              <p className="text-[15px] text-muted">
+                Nothing has happened here yet. Cover purchases, breaches and claims will show up
+                here.
+              </p>
             ) : (
-              <ol className="flex flex-col gap-6 border-l border-line pl-5">
+              <ol className="flex flex-col gap-8 border-l border-line pl-6">
                 {vaultClaims?.map((c) => {
                   const w = waterfall(c);
-                  const pct = (x: bigint) => (w.loss > 0n ? Number((x * 1000n) / w.loss) / 10 : 0);
                   return (
                     <li key={c.txHash} className="relative">
-                      <span className="absolute top-1 -left-[26px] size-[11px] rounded-full border-2 border-[#9db5ff] bg-paper" />
-                      <div className="flex flex-wrap justify-between gap-2">
-                        <strong>Claim paid · ${usd(w.toVault, 0)} to the vault</strong>
-                        <TxLink hash={c.txHash} />
+                      <span className="absolute top-1.5 -left-[30px] size-[11px] rounded-full border-2 border-accent bg-paper" />
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <p className="text-[17px] font-medium tracking-[-0.02em]">
+                          Claim paid · ${usd(w.toVault, 0)} to the vault
+                        </p>
+                        <span className="font-mono text-xs text-muted">
+                          <TxLink hash={c.txHash} />
+                        </span>
                       </div>
-                      <div className="mt-3 flex h-2.5 gap-[3px] overflow-hidden rounded-md">
-                        <span
-                          className="bg-brand-bright"
-                          style={{ width: `${pct(w.fromBond)}%` }}
+                      <div className="mt-4 flex h-2 gap-[3px]" aria-hidden>
+                        <i
+                          className="block rounded-[1px] bg-brand-bright"
+                          style={{ flex: Number(w.fromBond) || 0.0001 }}
                         />
-                        <span className="bg-[#9db5ff]" style={{ width: `${pct(w.fromPool)}%` }} />
-                        <span className="bg-white/15" style={{ width: `${pct(w.unpaid)}%` }} />
+                        <i
+                          className="block rounded-[1px] bg-accent"
+                          style={{ flex: Number(w.fromPool) || 0.0001 }}
+                        />
+                        <i
+                          className="block rounded-[1px] bg-white/15"
+                          style={{ flex: Number(w.unpaid) || 0.0001 }}
+                        />
                       </div>
-                      <div className="mt-2 flex flex-wrap gap-5 text-xs text-muted">
+                      <div className="mt-2.5 flex flex-wrap justify-between gap-x-5 gap-y-1 font-mono text-xs text-muted">
                         <span>Bond ${usd(w.fromBond, 0)}</span>
                         <span>Pool ${usd(w.fromPool, 0)}</span>
                         <span>
@@ -254,12 +262,12 @@ function VaultView({ vault }: { vault: Address }) {
                   .map(({ b, i }) =>
                     b ? (
                       <li key={i} className="relative">
-                        <span className="absolute top-1 -left-[26px] size-[11px] rounded-full border-2 border-breach bg-paper" />
-                        <div className="flex flex-wrap justify-between gap-2">
-                          <strong>
+                        <span className="absolute top-1.5 -left-[30px] size-[11px] rounded-full border-2 border-breach-solid bg-paper" />
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <p className="text-[17px] font-medium tracking-[-0.02em]">
                             Breach #{i} · {breachLabel(b.breachType)}
-                          </strong>
-                          <span className="text-xs text-muted">{when(b.timestamp)}</span>
+                          </p>
+                          <span className="font-mono text-xs text-muted">{when(b.timestamp)}</span>
                         </div>
                         <p className="mt-1.5 text-sm text-muted">
                           {b.blocked
@@ -277,7 +285,7 @@ function VaultView({ vault }: { vault: Address }) {
           </Card>
         </div>
 
-        <div className="flex min-w-0 flex-[1_1_340px] flex-col gap-4 xl:sticky xl:top-24">
+        <div className="flex min-w-0 flex-[1_1_340px] flex-col gap-12 xl:sticky xl:top-24">
           <DepositWithdraw
             vault={vault}
             wallet={wallet?.result}
@@ -318,15 +326,22 @@ function usePolicy(id?: bigint) {
 
 function CoverLeft({ activeId }: { activeId?: bigint }) {
   const p = usePolicy(activeId).data;
+  const left =
+    p && p.coverAmount > 0n ? Number((p.remainingCover * 1000n) / p.coverAmount) / 10 : 0;
   return (
-    <div>
+    <div className="min-w-0 border-t border-line pt-4">
       <p className="eyebrow">
         <Term term="cover">Cover left</Term>
       </p>
-      <p className="mt-2 font-serif text-5xl leading-none tabular-nums">
+      <p className={`num-big mt-2.5 ${activeId ? "text-accent" : ""}`}>
         {!activeId ? "—" : p ? `$${usd(p.remainingCover, 0)}` : "…"}
       </p>
-      <p className="mt-1 text-xs text-muted">
+      {activeId && p && (
+        <div className="mt-3 h-1 bg-white/[0.08]" aria-hidden>
+          <div className="h-1 bg-brand-bright" style={{ width: `${left}%` }} />
+        </div>
+      )}
+      <p className="mt-2 text-[13px] text-muted">
         {!activeId ? "no active policy" : p ? `of $${usd(p.coverAmount, 0)}` : ""}
       </p>
     </div>
@@ -338,12 +353,12 @@ function PolicyEvent({ id }: { id: bigint }) {
   if (!p) return null;
   return (
     <li className="relative">
-      <span className="absolute top-1 -left-[26px] size-[11px] rounded-full border-2 border-white/30 bg-paper" />
-      <div className="flex flex-wrap justify-between gap-2">
-        <strong>
+      <span className="absolute top-1.5 -left-[30px] size-[11px] rounded-full border-2 border-white/30 bg-paper" />
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-[17px] font-medium tracking-[-0.02em]">
           Cover bought · ${usd(p.coverAmount, 0)} at {bps(p.premiumRateBps)} a year
-        </strong>
-        <span className="text-xs text-muted">{when(p.coveredFrom)}</span>
+        </p>
+        <span className="font-mono text-xs text-muted">{when(p.coveredFrom)}</span>
       </div>
       <p className="mt-1.5 text-sm text-muted">
         Policy {id.toString()}, priced at score {p.score}, covers breaches until {when(p.endsAt)}.
@@ -381,43 +396,40 @@ function Mandate(props: { vault: Address; guardian?: Address; agentKey?: Address
   return (
     <Card
       title={<Term term="mandate">Mandate</Term>}
-      actions={<span className="text-sm text-muted">Enforced on chain for every action</span>}
+      description="Enforced on chain for every action."
     >
       {reads.isPending ? (
         <Loading what="mandate" />
       ) : (
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-x-12 gap-y-8 md:grid-cols-2">
           <div>
-            <p className="eyebrow mb-2.5">May hold</p>
+            <p className="eyebrow mb-3">May hold</p>
             <div className="flex flex-wrap gap-2">
               {((assets as readonly string[] | undefined) ?? []).map((a) => (
                 <TokenChip key={a} symbol={tokenSymbol(a, tokens)} />
               ))}
             </div>
-            <p className="eyebrow mt-6 mb-2">Guardian</p>
-            <p className="text-sm">
+            <p className="eyebrow mt-8 mb-2">Guardian</p>
+            <p className="text-[15px]">
               {props.guardian ? <AddressLink address={props.guardian} /> : "…"}
             </p>
-            <p className="eyebrow mt-4 mb-2">
+            <p className="eyebrow mt-5 mb-2">
               <Term term="agentKey">Agent key</Term>
             </p>
-            <p className="text-sm">
+            <p className="text-[15px]">
               {props.agentKey ? <AddressLink address={props.agentKey} /> : "…"}
             </p>
           </div>
           <div className="flex flex-col">
-            <div className="border-t border-line py-3">
-              <div className="flex justify-between text-sm">
+            <div className="border-t border-line py-3.5">
+              <div className="flex justify-between text-[15px]">
                 <span className="text-soft">Spent today</span>
-                <span className="font-mono">
+                <span className="font-mono text-sm">
                   ${usd(usedNow, 0)} of ${daily !== undefined ? usd(daily, 0) : "…"}
                 </span>
               </div>
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
-                <div
-                  className="h-1.5 rounded-full bg-gradient-to-r from-brand-bright to-[#9db5ff]"
-                  style={{ width: `${usedPct}%` }}
-                />
+              <div className="mt-3 h-1 bg-white/[0.08]">
+                <div className="h-1 bg-brand-bright" style={{ width: `${usedPct}%` }} />
               </div>
             </div>
             {[
@@ -425,9 +437,12 @@ function Mandate(props: { vault: Address; guardian?: Address; agentKey?: Address
               ["Max drawdown", drawdown !== undefined ? bps(Number(drawdown)) : "…"],
               ["Max slippage", slippage !== undefined ? bps(Number(slippage)) : "…"],
             ].map(([label, value]) => (
-              <div key={label} className="flex justify-between border-t border-line py-3 text-sm">
+              <div
+                key={label}
+                className="flex justify-between border-t border-line py-3.5 text-[15px] last:border-b"
+              >
                 <span className="text-soft">{label}</span>
-                <span className="font-mono">{value}</span>
+                <span className="font-mono text-sm">{value}</span>
               </div>
             ))}
           </div>
@@ -484,8 +499,8 @@ function DepositWithdraw(props: {
     limit !== undefined &&
     setAmount(usd((limit * BigInt(Math.round(f * 100))) / 100n).replaceAll(",", ""));
   return (
-    <section className="panel border-accent/25 p-6">
-      <div className="flex rounded-full bg-white/[0.06] p-1" role="tablist">
+    <section aria-label="Deposit or withdraw" className="border-t border-line pt-6">
+      <div className="flex gap-7 border-b border-line" role="tablist">
         {(["deposit", "withdraw"] as const).map((t) => (
           <button
             key={t}
@@ -493,18 +508,18 @@ function DepositWithdraw(props: {
             role="tab"
             aria-selected={tab === t}
             onClick={() => setTab(t)}
-            className={`h-9 flex-1 rounded-full text-sm font-semibold capitalize ${tab === t ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}
+            className={`-mb-px border-b-2 pb-3 text-[clamp(20px,1.8vw,24px)] font-medium tracking-[-0.035em] capitalize transition ${tab === t ? "border-ink text-ink" : "border-transparent text-muted hover:text-ink"}`}
           >
             {t}
           </button>
         ))}
       </div>
       {!props.connected ? (
-        <p className="mt-5 text-sm text-muted">
+        <p className="mt-6 text-[15px] text-muted">
           Connect a wallet to {tab} <Token symbol="tUSDG" />.
         </p>
       ) : (
-        <div className="mt-5 flex flex-col gap-3">
+        <div className="mt-6 flex flex-col gap-4">
           <Input
             label={
               <span className="flex justify-between">
@@ -538,7 +553,7 @@ function DepositWithdraw(props: {
                 key={label}
                 type="button"
                 onClick={() => setFraction(f as number)}
-                className="h-8 flex-1 rounded-full bg-white/[0.05] text-xs font-semibold text-muted hover:text-ink"
+                className="h-8 flex-1 rounded-full border border-line-strong font-mono text-xs text-muted transition hover:border-white/30 hover:text-ink"
               >
                 {label}
               </button>
@@ -649,7 +664,7 @@ export function BuyCover(props: {
       {props.hasActive ? (
         <ActiveCover vault={props.vault} />
       ) : (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-4">
           <CoverWithoutTradesWarning show={own?.coverWithoutVaultTrades} />
           <CoverExplained module={Boolean(props.module)} />
           <p className="text-sm text-muted">
@@ -705,11 +720,11 @@ export function BuyCover(props: {
           </Button>
           <ErrorText error={quoteError} />
           {quote && (
-            <div className="flex flex-col gap-3 rounded-2xl border border-accent/30 bg-accent-soft p-4 text-sm">
+            <div className="flex flex-col gap-3 border-t border-line pt-5 text-sm">
               <p className="eyebrow">Your quote</p>
-              <p className="font-serif text-4xl leading-none">
-                {bps(quote.quote.premiumRateBps)}
-                <span className="ml-1.5 font-sans text-sm text-muted">a year</span>
+              <p className="flex items-baseline gap-2">
+                <span className="num-giant text-accent">{bps(quote.quote.premiumRateBps)}</span>
+                <span className="text-[15px] text-muted">a year</span>
               </p>
               <p className="text-muted">
                 for ${usd(BigInt(quote.quote.coverAmount), 0)} of cover, priced at score{" "}
@@ -754,27 +769,25 @@ function ActiveCover({ vault }: { vault: Address }) {
   const left = p.coverAmount > 0n ? Number((p.remainingCover * 1000n) / p.coverAmount) / 10 : 0;
   return (
     <div className="text-sm">
-      <div className="mb-1.5 flex justify-between">
-        <span className="text-muted">Left</span>
-        <span>
-          ${usd(p.remainingCover, 0)} of ${usd(p.coverAmount, 0)}
-        </span>
+      <p className="eyebrow">Left</p>
+      <p className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <span className="num-giant">${usd(p.remainingCover, 0)}</span>
+        <span className="text-[15px] text-muted">of ${usd(p.coverAmount, 0)}</span>
+      </p>
+      <div className="mt-5 h-1 bg-white/[0.08]" aria-hidden>
+        <div className="h-1 bg-brand-bright" style={{ width: `${left}%` }} />
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
-        <div
-          className="h-1.5 rounded-full bg-gradient-to-r from-brand to-[#9db5ff]"
-          style={{ width: `${left}%` }}
-        />
-      </div>
-      <dl className="mt-4 grid grid-cols-[1fr_auto] gap-2">
+      <dl className="mt-6 grid grid-cols-[1fr_auto] text-[15px] [&>*]:border-t [&>*]:border-line [&>*]:py-3">
         <dt className="text-muted">
           <Term term="premium">Premium</Term>
         </dt>
-        <dd>{bps(p.premiumRateBps)} a year</dd>
+        <dd className="text-right font-mono text-sm">{bps(p.premiumRateBps)} a year</dd>
         <dt className="text-muted">Premium owed</dt>
-        <dd>{owed !== undefined ? `$${usd(owed)}` : "…"}</dd>
+        <dd className="text-right font-mono text-sm">
+          {owed !== undefined ? `$${usd(owed)}` : "…"}
+        </dd>
         <dt className="text-muted">Ends</dt>
-        <dd>{when(p.endsAt)}</dd>
+        <dd className="text-right font-mono text-sm">{when(p.endsAt)}</dd>
       </dl>
     </div>
   );
@@ -784,13 +797,13 @@ function ActiveCover({ vault }: { vault: Address }) {
 function Unfreeze({ vault }: { vault: Address }) {
   const tx = useSend();
   return (
-    <section className="panel border-breach/35 p-6">
-      <h2 className="text-lg font-bold">Agent frozen</h2>
-      <p className="mt-2 text-sm leading-relaxed text-muted">
+    <section className="border-t border-breach-solid/60 pt-6">
+      <h2 className="h-section text-breach">Agent frozen</h2>
+      <p className="mt-3 text-[15px] leading-relaxed text-muted">
         A breach froze this vault's agent. As the guardian you can let it act again; any open claim
         is unaffected.
       </p>
-      <div className="mt-4">
+      <div className="mt-5">
         <Button
           kind="secondary"
           loading={tx.busy}
@@ -845,9 +858,9 @@ function SimulateBreach(props: {
       },
     ]);
   return (
-    <details className="panel p-5">
-      <summary className="cursor-pointer text-sm font-semibold text-warn">Testing tools</summary>
-      <p className="mt-3 text-sm leading-relaxed text-muted">
+    <details className="border-t border-line pt-5">
+      <summary className="eyebrow cursor-pointer !text-warn">Testing tools</summary>
+      <p className="mt-4 text-sm leading-relaxed text-muted">
         Your wallet is this vault's agent key, so you can act as a tricked agent: send{" "}
         <Token symbol="tUSDG" /> to the burn address, which no mandate allows. The vault records a
         breach and freezes the agent.
@@ -860,7 +873,7 @@ function SimulateBreach(props: {
       {props.frozen ? (
         <p className="mt-3 text-sm text-muted">The agent is frozen after a breach.</p>
       ) : (
-        <div className="mt-3 flex flex-col gap-3">
+        <div className="mt-4 flex flex-col gap-4">
           <Input
             label="Amount"
             value={amount}
@@ -882,20 +895,20 @@ function SimulateBreach(props: {
 /** What cover pays and what it doesn't, before anyone pays for it. */
 function CoverExplained({ module }: { module: boolean }) {
   return (
-    <details className="rounded-2xl border border-line-strong p-4 text-sm">
+    <details className="border-y border-line py-3.5 text-sm">
       <summary className="cursor-pointer font-medium">What cover pays, and what it doesn't</summary>
-      <div className="mt-3 flex flex-col gap-3">
+      <div className="mt-4 flex flex-col gap-4">
         <div>
-          <p className="font-semibold text-safe">Covered</p>
-          <ul className="mt-1 flex list-disc flex-col gap-1 pl-5 text-muted">
+          <p className="eyebrow !text-accent">Covered</p>
+          <ul className="mt-2 flex list-disc flex-col gap-1 pl-5 text-muted">
             {COVER_COVERS.map((c) => (
               <li key={c}>{c}</li>
             ))}
           </ul>
         </div>
         <div>
-          <p className="font-semibold text-breach">Not covered</p>
-          <ul className="mt-1 flex list-disc flex-col gap-1 pl-5 text-muted">
+          <p className="eyebrow !text-breach">Not covered</p>
+          <ul className="mt-2 flex list-disc flex-col gap-1 pl-5 text-muted">
             {[...COVER_EXCLUDES, ...(module ? [COVER_EXCLUDES_MODULE] : [])].map((c) => (
               <li key={c}>{c}</li>
             ))}

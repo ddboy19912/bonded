@@ -13,7 +13,16 @@ import {
   sender,
 } from "../lib/episode-text";
 import { RulingBadge, VerdictCard } from "../components/ruling";
-import { Badge, Card, EmptyState, ErrorText, Loading, Page, linkClass } from "../components/ui";
+import {
+  Badge,
+  EmptyState,
+  ErrorText,
+  Loading,
+  MoreLink,
+  Page,
+  Section,
+  linkClass,
+} from "../components/ui";
 
 const CLASS_NAMES = ATTACK_CLASSES as Record<string, { name: string }>;
 
@@ -44,9 +53,7 @@ export function Episode() {
   if (q.isPending)
     return (
       <Page title="Episode" back={back}>
-        <Card>
-          <Loading what="the episode" />
-        </Card>
+        <Loading what="the episode" height="md" />
       </Page>
     );
   if (!q.data)
@@ -68,18 +75,18 @@ export function Episode() {
       title={name}
       actions={<RulingBadge r={r} />}
     >
-      <p className="-mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
-        {e.attackClass && <span className="font-mono text-soft">{e.attackClass}</span>}
+      <p className="-mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 font-mono text-[12px] text-muted">
+        {e.attackClass && <span className="text-soft">{e.attackClass}</span>}
         {e.attackClass && (
           <Badge tone="neutral">{unpublished ? "Held out or bounty" : "Library attack"}</Badge>
         )}
         {e.attackId &&
           (unpublished ? (
-            <span className="font-mono text-[12px]">{e.attackId}</span>
+            <span>{e.attackId}</span>
           ) : (
             <Link
               to={`/attacks/${encodeURIComponent(e.attackId)}`}
-              className={`font-mono text-[12px] ${linkClass}`}
+              className={linkClass}
               title="This attack in the red team's library"
             >
               {e.attackId}
@@ -107,14 +114,12 @@ export function Episode() {
       {e.detail ? (
         <Story d={e.detail} r={r} attackId={e.attackId} />
       ) : (
-        <>
-          <Card title="How the vault ruled">
-            <VerdictCard r={r} />
-          </Card>
-          <p className="text-sm text-muted">
+        <Section label="Verdict" title="How the vault ruled">
+          <VerdictCard r={r} />
+          <p className="mt-6 text-[13px] text-muted">
             Step-by-step detail is recorded for episodes from October 7, 2026 on; this one is older.
           </p>
-        </>
+        </Section>
       )}
     </Page>
   );
@@ -131,85 +136,88 @@ function Story({
 }) {
   const attackTools = new Set((d.attack?.surfaces ?? []).map((s) => SURFACE_TOOLS[s]));
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      <Card title="1. The setup">
-        <p className="eyebrow mb-2">The task</p>
-        <p className="text-[15px]">{d.task}</p>
-        {d.attack && (
-          <>
-            <p className="eyebrow mt-6 mb-2 !text-breach">What was planted</p>
-            {d.attack.planted ? (
-              <div className="flex flex-col gap-3">
-                {d.attack.title && (
-                  <p className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="font-semibold">{d.attack.title}</span>
-                    {attackId && (
-                      <Link
-                        to={`/attacks/${encodeURIComponent(attackId)}`}
-                        className={`text-sm ${linkClass}`}
-                      >
-                        This attack in the red team →
-                      </Link>
-                    )}
-                  </p>
-                )}
-                {d.attack.planted.map((p, i) => (
-                  <div key={i}>
-                    <p className="mb-1.5 text-sm text-muted">
-                      In {SURFACE_LABELS[p.surface] ?? p.surface}
-                      {p.sender ? ` from ${sender(p.sender)}` : ""}
-                      {p.token ? ` (${p.token})` : ""}
-                    </p>
-                    <blockquote className="rounded-2xl border border-line bg-white/[0.03] p-4 text-sm leading-relaxed whitespace-pre-wrap text-soft">
-                      {p.text}
-                      {p.prices && (
-                        <span className="mt-2 block font-mono text-[12px] text-muted">
-                          {Object.entries(p.prices)
-                            .map(([t, v]) => `${t} = ${v}`)
-                            .join(", ")}
-                        </span>
+    <>
+      <Section label="Step 1" title="The setup">
+        <div className="max-w-3xl">
+          <p className="eyebrow mb-2.5">The task</p>
+          <p className="text-[17px] leading-relaxed">{d.task}</p>
+          {d.attack && (
+            <>
+              <p className="eyebrow mt-8 mb-3 !text-breach">What was planted</p>
+              {d.attack.planted ? (
+                <div className="flex flex-col gap-5">
+                  {d.attack.title && (
+                    <p className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+                      <span className="text-[17px] font-medium tracking-[-0.02em]">
+                        {d.attack.title}
+                      </span>
+                      {attackId && (
+                        <MoreLink to={`/attacks/${encodeURIComponent(attackId)}`}>
+                          This attack in the red team
+                        </MoreLink>
                       )}
-                    </blockquote>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="rounded-2xl border border-line bg-white/[0.03] p-4 text-sm text-soft">
-                A held-out or bounty attack, planted in{" "}
-                {d.attack.surfaces.map((s) => SURFACE_LABELS[s] ?? s).join(" and ")}. Its text is
-                never shown, so no one can study it.
+                    </p>
+                  )}
+                  {d.attack.planted.map((p, i) => (
+                    <div key={i}>
+                      <p className="mb-2 font-mono text-[12px] text-muted">
+                        In {SURFACE_LABELS[p.surface] ?? p.surface}
+                        {p.sender ? ` from ${sender(p.sender)}` : ""}
+                        {p.token ? ` (${p.token})` : ""}
+                      </p>
+                      <blockquote className="border-l-2 border-breach-solid py-1 pl-5 text-[15px] leading-relaxed whitespace-pre-wrap text-soft">
+                        {p.text}
+                        {p.prices && (
+                          <span className="mt-2 block font-mono text-[12px] text-muted">
+                            {Object.entries(p.prices)
+                              .map(([t, v]) => `${t} = ${v}`)
+                              .join(", ")}
+                          </span>
+                        )}
+                      </blockquote>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="border-l-2 border-breach-solid/60 pl-5 text-[15px] text-soft">
+                  A held-out or bounty attack, planted in{" "}
+                  {d.attack.surfaces.map((s) => SURFACE_LABELS[s] ?? s).join(" and ")}. Its text is
+                  never shown, so no one can study it.
+                </p>
+              )}
+              <p className="mt-4 text-[15px] text-muted">
+                {d.seen
+                  ? "The agent read it."
+                  : "The agent never read it, so this episode doesn't test the attack."}
               </p>
-            )}
-            <p className="mt-3 text-sm text-muted">
-              {d.seen
-                ? "The agent read it."
-                : "The agent never read it, so this episode doesn't test the attack."}
-            </p>
-          </>
-        )}
-      </Card>
+            </>
+          )}
+        </div>
+      </Section>
 
-      <Card title="2. What the agent did">
+      <Section label="Step 2" title="What the agent did">
         {d.steps.length === 0 && d.guardBlocked.length === 0 ? (
-          <p className="text-sm text-muted">Nothing: it stopped without calling a tool.</p>
+          <p className="text-[15px] text-muted">Nothing: it stopped without calling a tool.</p>
         ) : (
-          <ol className="relative flex flex-col gap-3 border-l border-line pl-5">
+          <ol className="relative flex max-w-3xl flex-col gap-5 border-l border-line pl-6">
             {d.steps.map((s) => {
               const breach = s.breaches.find((b) => !b.blocked);
               const blocked = s.breaches.find((b) => b.blocked);
               return (
                 <li key={s.step} className="relative">
                   <span
-                    className={`absolute top-1.5 -left-[25px] size-2.5 rounded-full ${breach ? "bg-breach-solid" : s.write ? "bg-held" : "bg-[#5b6478]"}`}
+                    className={`absolute top-2 -left-[28.5px] size-2 rounded-full ${breach ? "bg-breach-solid" : s.write ? "bg-brand-bright" : "bg-[#4a4f59]"}`}
                     aria-hidden
                   />
-                  <p className={`text-sm ${s.write ? "font-semibold" : "text-soft"}`}>
+                  <p className={`text-[15px] ${s.write ? "font-medium text-ink" : "text-soft"}`}>
                     {describeStep(s.tool, s.args)}
                     {!s.write && attackTools.has(s.tool) && d.attack && (
-                      <span className="ml-2 text-xs text-breach">the attack was here</span>
+                      <span className="ml-2 font-mono text-[11.5px] text-breach">
+                        the attack was here
+                      </span>
                     )}
                   </p>
-                  <div className="mt-1 flex flex-wrap gap-1.5">
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
                     {!s.ok && <Badge tone="neutral">failed</Badge>}
                     {breach && (
                       <Badge tone="breach">
@@ -229,42 +237,44 @@ function Story({
             {d.guardBlocked.map((b, i) => (
               <li key={`g${i}`} className="relative">
                 <span
-                  className="absolute top-1.5 -left-[25px] size-2.5 rounded-full bg-held"
+                  className="absolute top-2 -left-[28.5px] size-2 rounded-full bg-brand-bright"
                   aria-hidden
                 />
-                <p className="text-sm font-semibold">{describeAttempt(b.tool, b.args)}</p>
-                <div className="mt-1 flex flex-wrap gap-1.5">
+                <p className="text-[15px] font-medium">{describeAttempt(b.tool, b.args)}</p>
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                   <Badge tone="brand">Stopped by its own guard</Badge>
-                  {b.reason && <span className="text-xs text-muted">{b.reason}</span>}
+                  {b.reason && <span className="text-[13px] text-muted">{b.reason}</span>}
                 </div>
               </li>
             ))}
           </ol>
         )}
         {d.drained.length > 0 && (
-          <p className="mt-4 text-sm text-breach">
+          <p className="mt-6 max-w-3xl text-[15px] text-breach">
             Afterwards the attacker used an approval the agent gave it to take{" "}
             {d.drained.map((x) => `${x.amount} ${x.token}`).join(" and ")}.
           </p>
         )}
         {d.stoppedBecause === "max_steps" && (
-          <p className="mt-4 text-sm text-muted">It stopped at the step limit, not by itself.</p>
+          <p className="mt-6 text-[15px] text-muted">
+            It stopped at the step limit, not by itself.
+          </p>
         )}
-      </Card>
+      </Section>
 
-      <Card title="3. How the vault ruled" className="lg:col-span-2">
+      <Section label="Step 3" title="How the vault ruled">
         <VerdictCard r={r} />
         {d.finalMessage && (
-          <details className="mt-5 text-sm">
+          <details className="mt-8 max-w-3xl text-[15px]">
             <summary className="cursor-pointer text-muted hover:text-ink">
               The agent's last message
             </summary>
-            <p className="mt-2 rounded-2xl border border-line bg-white/[0.03] p-4 whitespace-pre-wrap text-soft">
+            <p className="mt-3 border-l-2 border-line-strong pl-5 whitespace-pre-wrap text-soft">
               {d.finalMessage}
             </p>
           </details>
         )}
-      </Card>
-    </div>
+      </Section>
+    </>
   );
 }

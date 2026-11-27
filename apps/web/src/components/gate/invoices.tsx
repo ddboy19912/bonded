@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlusIcon } from "lucide-react";
-import { Button } from "@/components/shadcn/button";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/shadcn/empty";
 import {
   Table,
   TableBody,
@@ -13,8 +11,9 @@ import {
 } from "@/components/shadcn/table";
 import { dollars, gateApi, parseUsd, type GateAccount, type GateVendor } from "../../lib/gate";
 import { ModalActions } from "../responsive-modal";
-import { ErrorText, Loading, Unavailable } from "../ui";
+import { EmptyState, ErrorText, Loading, Unavailable } from "../ui";
 import {
+  Button,
   ConfirmButton,
   ModalButton,
   SelectField,
@@ -24,6 +23,7 @@ import {
   useAction,
   useVendors,
   vendorName,
+  TABLE,
 } from "./common";
 
 /** Approve an invoice for payment. */
@@ -125,7 +125,7 @@ export function Invoices({ account, session }: { account: GateAccount; session: 
     </ModalButton>
   );
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-8">
       <TabBar action={approve}>
         A payment goes through only for an invoice approved here, at its amount.
       </TabBar>
@@ -134,16 +134,11 @@ export function Invoices({ account, session }: { account: GateAccount; session: 
       ) : !invoices.data ? (
         <Loading what="invoices" />
       ) : !invoices.data.items.length ? (
-        <Empty>
-          <EmptyHeader>
-            <EmptyTitle>No invoices approved yet</EmptyTitle>
-            {vendors.data && !list.length && (
-              <EmptyDescription>Add a vendor first.</EmptyDescription>
-            )}
-          </EmptyHeader>
-        </Empty>
+        <EmptyState title="No invoices approved yet">
+          {vendors.data && !list.length ? "Add a vendor first." : undefined}
+        </EmptyState>
       ) : (
-        <Table>
+        <Table className={TABLE}>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead>Vendor</TableHead>

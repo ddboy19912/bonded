@@ -1,8 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useSearchParams } from "react-router";
-import { Alert, AlertDescription, AlertTitle } from "@/components/shadcn/alert";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/shadcn/empty";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
 import { Activity } from "../components/gate/activity";
 import { OpenBudgets } from "../components/gate/budgets";
@@ -17,7 +15,7 @@ import { EditRules, Rules } from "../components/gate/rules";
 import { useChainRoot } from "../components/gate/verification";
 import { Vendors } from "../components/gate/vendors";
 import { Watch } from "../components/gate/watch";
-import { Loading, Page, Unavailable } from "../components/ui";
+import { EmptyState, Loading, Page, Stat, Unavailable } from "../components/ui";
 import { short } from "../lib/format";
 import { gateApi, type GateAccount as Account } from "../lib/gate";
 
@@ -39,12 +37,15 @@ const BACK = { to: "/gate", label: "Payment gate" };
 function Frozen({ account, session }: { account: Account; session: string }) {
   const queryClient = useQueryClient();
   return (
-    <Alert variant="destructive" className="flex items-center justify-between gap-4">
-      <div>
-        <AlertTitle>Frozen</AlertTitle>
-        <AlertDescription>
+    <div
+      role="alert"
+      className="flex flex-wrap items-center justify-between gap-x-8 gap-y-4 border-l-2 border-breach-solid py-1 pl-5"
+    >
+      <div className="min-w-0">
+        <p className="text-[17px] font-medium text-breach">Frozen</p>
+        <p className="mt-1 text-[15px] text-soft">
           A breach froze this account. Every check is refused until you lift it.
-        </AlertDescription>
+        </p>
       </div>
       <ConfirmButton
         label="Lift the freeze"
@@ -55,7 +56,7 @@ function Frozen({ account, session }: { account: Account; session: string }) {
         act={() => gateApi.unfreeze(session, account.id)}
         then={() => queryClient.invalidateQueries({ queryKey: ["gate-accounts"] })}
       />
-    </Alert>
+    </div>
   );
 }
 
@@ -81,27 +82,33 @@ function Detail({ account, session }: { account: Account; session: string }) {
       intro={
         <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
           <AccountStatus account={account} />
-          {limit(account.maxPaymentUsd)} a payment · {limit(account.maxDailyUsd)} a day
+          {account.mode === "enforce"
+            ? "Payments that break a rule are blocked."
+            : "Payments that break a rule go through and are logged."}
         </span>
       }
       actions={<EditRules account={account} session={session} />}
     >
+      <div className="grid max-w-3xl grid-cols-2 gap-x-6 sm:gap-x-10">
+        <Stat label="Most for one payment" value={limit(account.maxPaymentUsd)} />
+        <Stat label="Most in one day" value={limit(account.maxDailyUsd)} />
+      </div>
       {account.frozen && <Frozen account={account} session={session} />}
       <Tabs
         value={tab}
         onValueChange={(t) => setParams(t === "activity" ? {} : { tab: t }, { replace: true })}
-        className="gap-6"
+        className="gap-10"
       >
         <TabsList
           ref={strip}
           variant="line"
-          className="h-auto! w-full justify-start gap-5 overflow-x-auto rounded-none border-b p-0 [scrollbar-width:none]"
+          className="h-auto! w-full justify-start gap-7 overflow-x-auto rounded-none border-b p-0 [scrollbar-width:none]"
         >
           {TABS.map((t) => (
             <TabsTrigger
               key={t.id}
               value={t.id}
-              className="h-10 flex-none rounded-md border-0 px-0.5 after:bottom-0! focus-visible:border-0 focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
+              className="h-12 flex-none rounded-md border-0 px-0.5 text-[15px] after:bottom-0! focus-visible:border-0 focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
             >
               {/* With no invoices to match, these are payees rather than vendors. */}
               {t.id === "vendors" && !account.invoiceMatching ? "Payees" : t.label}
@@ -156,14 +163,9 @@ function Load({ id, session }: { id: string; session: string }) {
       ) : accounts.error ? (
         <Unavailable error={accounts.error} onRetry={() => void accounts.refetch()} />
       ) : (
-        <Empty>
-          <EmptyHeader>
-            <EmptyTitle>Account not found</EmptyTitle>
-            <EmptyDescription>
-              This wallet doesn't own a gate account with that link.
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+        <EmptyState title="Account not found">
+          This wallet doesn't own a gate account with that link.
+        </EmptyState>
       )}
     </Page>
   );

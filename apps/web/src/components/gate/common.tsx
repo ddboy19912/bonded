@@ -1,7 +1,5 @@
 import { useId, useState, type ComponentProps, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Badge } from "@/components/shadcn/badge";
-import { Button } from "@/components/shadcn/button";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/shadcn/field";
 import { Input } from "@/components/shadcn/input";
 import {
@@ -15,11 +13,78 @@ import { Spinner } from "@/components/shadcn/spinner";
 import { cn } from "@/lib/utils";
 import { SecretOnce, CopyButton } from "../copy";
 import { ModalActions, ResponsiveModal } from "../responsive-modal";
-import { ErrorText } from "../ui";
+import { Badge as Tag, ErrorText, buttonClass } from "../ui";
 import { short } from "../../lib/format";
 import { gateApi, type GateAccount, type GateVendor } from "../../lib/gate";
 
 /** What the gate page's tabs share: its forms' plumbing and the pieces they're built from. */
+
+type Variant = "default" | "outline" | "secondary" | "ghost" | "destructive" | "link";
+type Size = "default" | "sm" | "lg" | "icon-sm";
+
+const KIND = {
+  default: "primary",
+  outline: "secondary",
+  secondary: "secondary",
+  ghost: "ghost",
+  destructive: "danger",
+} as const;
+
+/** The classes for a gate button: the landing page's pills, or an underlined link. */
+export function pillClass(variant: Variant = "default", size: Size = "default") {
+  if (variant === "link") return "more-link text-sm disabled:opacity-50";
+  const kind = KIND[variant];
+  if (size === "icon-sm") return `btn btn-${kind} size-8 shrink-0`;
+  return buttonClass(kind, size === "default" ? "md" : size);
+}
+
+/**
+ * A button in the gate's pages, in the landing page's style. It takes shadcn's variant and size
+ * names, so a form reads the same as before; `ref` passes through for popover triggers.
+ */
+export function Button({
+  variant,
+  size,
+  className,
+  type = "button",
+  ...props
+}: ComponentProps<"button"> & { variant?: Variant; size?: Size }) {
+  return (
+    <button
+      type={type}
+      {...props}
+      className={cn(
+        pillClass(variant, size),
+        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        className,
+      )}
+    />
+  );
+}
+
+const TONE = {
+  safe: "safe",
+  breach: "breach",
+  warn: "warn",
+  brand: "brand",
+  secondary: "neutral",
+  outline: "neutral",
+} as const;
+
+/** A status tag: an outlined mono label, coloured by what it says. */
+export function Badge({
+  variant = "outline",
+  children,
+}: {
+  variant?: keyof typeof TONE;
+  children: ReactNode;
+}) {
+  return <Tag tone={TONE[variant]}>{children}</Tag>;
+}
+
+/** The gate's tables: mono column heads, rows split by hairlines, nothing boxed. */
+export const TABLE =
+  "[&_th]:font-mono [&_th]:text-[12px] [&_th]:font-normal [&_th]:text-muted [&_td]:py-4";
 
 /** A form's submit: runs it, keeps its error, and says while it's busy. */
 export function useAction() {
@@ -80,8 +145,10 @@ export function HashText({ hash }: { hash: string }) {
 /** A tab's first line: what it's for, and its main action. */
 export function TabBar({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-      <p className="min-w-0 flex-1 basis-64 text-sm text-muted">{children}</p>
+    <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+      <p className="max-w-xl min-w-0 flex-1 basis-64 text-[15px] leading-relaxed text-soft">
+        {children}
+      </p>
       {action}
     </div>
   );
@@ -90,10 +157,10 @@ export function TabBar({ children, action }: { children: ReactNode; action?: Rea
 /** Labels and values, one to a line. */
 export function Facts({ items }: { items: [label: ReactNode, value: ReactNode][] }) {
   return (
-    <dl className="flex flex-col divide-y divide-line text-sm">
+    <dl className="flex flex-col divide-y divide-line border-y border-line text-sm">
       {items.map(([label, value], i) => (
-        <div key={i} className="flex items-baseline justify-between gap-6 py-2.5">
-          <dt className="shrink-0 text-muted">{label}</dt>
+        <div key={i} className="flex items-baseline justify-between gap-6 py-3">
+          <dt className="eyebrow shrink-0">{label}</dt>
           <dd className="min-w-0 text-right break-words">{value}</dd>
         </div>
       ))}
@@ -143,7 +210,7 @@ export function TextField({
           aria-describedby={error || hint ? `${id}-note` : undefined}
           autoComplete="off"
           spellCheck={false}
-          className={cn("h-11 rounded-xl", mono && "font-mono", suffix && "pr-14")}
+          className={cn("h-12 rounded-xl", mono && "font-mono", suffix && "pr-14")}
         />
         {suffix && (
           <span className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-xs font-semibold text-muted">
@@ -181,7 +248,7 @@ export function SelectField({
     <Field>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger id={id} className="w-full rounded-xl data-[size=default]:h-11">
+        <SelectTrigger id={id} className="w-full rounded-xl data-[size=default]:h-12">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -243,8 +310,8 @@ export function ModalButton({
   label: ReactNode;
   title: ReactNode;
   description?: ReactNode;
-  variant?: ComponentProps<typeof Button>["variant"];
-  size?: ComponentProps<typeof Button>["size"];
+  variant?: Variant;
+  size?: Size;
   className?: string;
   wide?: boolean;
   children: (close: () => void) => ReactNode;
@@ -290,8 +357,8 @@ export function ConfirmButton({
   confirm: string;
   act: () => Promise<unknown>;
   then?: () => Promise<unknown>;
-  variant?: ComponentProps<typeof Button>["variant"];
-  size?: ComponentProps<typeof Button>["size"];
+  variant?: Variant;
+  size?: Size;
   className?: string;
   /** The button's name when its label is only an icon. */
   ariaLabel?: string;

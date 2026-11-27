@@ -409,7 +409,7 @@ export function Choice({
   if (icon && !flat) {
     return (
       <label
-        className={`flex flex-col gap-3 rounded-xl border p-4 text-sm transition ${disabled ? "cursor-not-allowed border-line opacity-60" : checked ? "cursor-pointer border-brand-bright bg-brand-bright/[0.06]" : "cursor-pointer border-line hover:border-line-strong hover:bg-white/[0.02]"}`}
+        className={`flex flex-col gap-3 border-t-2 pt-4 pb-2 text-sm transition ${disabled ? "cursor-not-allowed border-line opacity-60" : checked ? "cursor-pointer border-brand-bright" : "cursor-pointer border-line text-muted hover:border-line-strong hover:text-ink"}`}
       >
         <span className="flex items-start justify-between">
           <span

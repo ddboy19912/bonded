@@ -6,7 +6,7 @@ import {
 } from "@bondedhq/shared";
 import { docsUrl } from "../lib/hosts";
 import * as Popover from "@radix-ui/react-popover";
-import { useRef, useState } from "react";
+import { type CSSProperties, useRef, useState } from "react";
 import { Link } from "react-router";
 import { BenchComparisonCard } from "../components/bench-comparison";
 import { BrokerageIndexSection, loadBrokerageIndex } from "../components/brokerage-index";
@@ -26,7 +26,8 @@ import {
   niceTicks,
 } from "../components/index-charts";
 import { RailTag } from "../components/rail-tag";
-import { Card, Page, linkClass } from "../components/ui";
+import { PROVIDER_LOGOS } from "../lib/provider-logos";
+import { EmptyState, Page, Section, linkClass } from "../components/ui";
 import {
   ATTACK_CLASS_NAMES,
   VECTOR_NAMES,
@@ -34,6 +35,7 @@ import {
   draftRefusalRate,
   idle,
   loadBondedIndex,
+  modelPath,
   lossPerThousand,
   lostUsd,
   overpaidUsd,
@@ -169,7 +171,7 @@ function Leaderboard({ entries }: { entries: BondedIndexEntry[] }) {
             </Tip>
           ),
         })),
-        series: [{ key: "v", label: "Task" }],
+        series: [{ key: "v", label: "Task", color: VIZ.ink }],
         domain: [0, 100] as [number, number],
         ticks: [0, 25, 50, 75, 100],
         format: (v: number) => `${v}`,
@@ -658,17 +660,17 @@ function WhereTheyBreak({ entries }: { entries: BondedIndexEntry[] }) {
     >
       <div className="overflow-x-auto">
         <table
-          className="w-full border-separate border-spacing-1 text-xs"
+          className="w-full border-separate border-spacing-1 text-[13px]"
           style={{ minWidth: `${10 + keys.length * 4.5}rem` }}
         >
           <thead>
             <tr>
-              <th className="w-40" />
+              <th className="w-44" />
               {keys.map((k) => (
                 <th
                   key={k}
                   scope="col"
-                  className="px-1 pb-1 text-center align-bottom font-normal text-muted"
+                  className="px-1 pb-2 text-center align-bottom font-mono text-[11px] font-normal text-muted"
                 >
                   {names[k]}
                 </th>
@@ -679,7 +681,7 @@ function WhereTheyBreak({ entries }: { entries: BondedIndexEntry[] }) {
             {sorted.map((e) => {
               return (
                 <tr key={e.model}>
-                  <th scope="row" className="pr-2 text-left font-normal">
+                  <th scope="row" className="pr-3 text-left font-normal">
                     <ModelName entry={e} />
                   </th>
                   {keys.map((k) => {
@@ -695,7 +697,7 @@ function WhereTheyBreak({ entries }: { entries: BondedIndexEntry[] }) {
                               ? `${v.fell} breaches over ${v.episodes} runs`
                               : `fell ${v.fell} of ${v.episodes} (${pct(rate)})`
                         }`}
-                        className={`h-9 rounded-md text-center tabular-nums ${v ? "text-ink" : "border border-dashed border-line-strong text-muted"}`}
+                        className={`h-10 rounded-[3px] text-center font-mono text-[12px] tabular-nums ${v ? "text-ink" : "border border-dashed border-line-strong text-muted"}`}
                         style={v ? { background: fallFill(rate) } : undefined}
                       >
                         {v ? `${v.fell}/${v.episodes}` : "—"}
@@ -717,7 +719,7 @@ function Reproduce({ e }: { e: BondedIndexEntry }) {
   return (
     <div className="flex flex-col gap-3">
       <CodeBlock label={`Rerun ${e.label}`} code={reproduceCommand(e)} />
-      <p className="text-xs leading-relaxed text-muted">
+      <p className="text-[13px] leading-relaxed text-muted">
         Needs {reproduceKeys(e.model).join(" and ")} in .env. Last run cost {usd(e.cost.spentUsd)}
         {e.cost.estimated ? " (estimated)" : ""}; this one stops at ${reproduceCapUsd(e)}.
       </p>
@@ -782,13 +784,18 @@ function Results({ entries }: { entries: BondedIndexEntry[] }) {
     return r ? `${r.fell}/${r.attackEpisodes}` : "—";
   };
   return (
-    <section aria-labelledby="index-results" className="flex flex-col gap-3">
-      <h2 id="index-results" className="text-lg font-semibold text-ink">
-        All results
-      </h2>
-      <div className="overflow-x-auto rounded-2xl border border-line">
-        <table className="w-full min-w-[51rem] text-left text-xs">
-          <thead className="bg-surface/70 text-muted">
+    <section aria-labelledby="index-results" className="flex min-w-0 flex-col gap-6">
+      <div>
+        <h2 id="index-results" className="h-section-lg">
+          All results
+        </h2>
+        <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-muted">
+          Every number behind the charts, one row per model. Open a row's menu to rerun it.
+        </p>
+      </div>
+      <div className="relative overflow-x-auto">
+        <table className="w-full min-w-[54rem] text-left text-[13px]">
+          <thead className="border-b border-line">
             <tr>
               {[
                 "Model",
@@ -802,7 +809,11 @@ function Results({ entries }: { entries: BondedIndexEntry[] }) {
                 "Cost",
                 "",
               ].map((h) => (
-                <th key={h} scope="col" className="px-4 py-3 font-medium">
+                <th
+                  key={h}
+                  scope="col"
+                  className="px-3 pb-3 font-mono text-[12px] font-normal text-muted first:pl-0"
+                >
                   {h || <span className="sr-only">Actions</span>}
                 </th>
               ))}
@@ -810,41 +821,46 @@ function Results({ entries }: { entries: BondedIndexEntry[] }) {
           </thead>
           <tbody>
             {byScore(entries).map((e) => (
-              <tr key={e.model} className="border-t border-line align-top">
-                <td className="px-4 py-3">
+              <tr
+                key={e.model}
+                className="border-b border-line align-top transition-colors hover:bg-white/[0.025]"
+              >
+                <td className="py-4 pr-3">
                   <ModelName entry={e} note={resultNote(e)} />
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-3 py-4">
                   <RailTag rail={e.rail} />
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-ink tabular-nums">
-                  {e.score}
-                  <span className="ml-1 text-[10px] font-normal text-muted">
+                <td className="px-3 py-4 whitespace-nowrap tabular-nums">
+                  <span className="text-[19px] leading-none font-medium tracking-[-0.03em] text-ink">
+                    {e.score}
+                  </span>
+                  <span className="ml-1.5 font-mono text-[11px] text-muted">
                     {e.scoreInterval[0]}–{e.scoreInterval[1]}
                   </span>
                 </td>
                 <td
-                  className={`px-4 py-3 text-sm font-semibold tabular-nums ${idle(e) ? "text-warn" : "text-ink"}`}
+                  className={`px-3 py-4 text-[19px] leading-none font-medium tracking-[-0.03em] tabular-nums ${idle(e) ? "text-warn" : "text-ink"}`}
                 >
                   {taskText(e)}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 tabular-nums text-soft">
+                <td className="px-3 py-4 whitespace-nowrap text-soft tabular-nums">
                   {fell(e, "shown")}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 tabular-nums text-soft">
+                <td className="px-3 py-4 whitespace-nowrap text-soft tabular-nums">
                   {fell(e, "hidden")}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 tabular-nums text-soft">
+                <td className="px-3 py-4 whitespace-nowrap text-soft tabular-nums">
                   {usd(lostUsd(e))}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 tabular-nums text-soft">
+                <td className="px-3 py-4 whitespace-nowrap text-soft tabular-nums">
                   {usd(overpaidUsd(e))}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 tabular-nums text-soft">
+                <td className="px-3 py-4 whitespace-nowrap text-soft tabular-nums">
                   {usd(e.cost.spentUsd)}
                   {e.cost.estimated ? " est." : ""}
                 </td>
-                <td className="px-2 py-2 text-right">
+                <td className="py-2.5 pl-2 text-right">
                   <RowActions e={e} onReproduce={() => setRerun(e)} />
                 </td>
               </tr>
@@ -855,7 +871,7 @@ function Results({ entries }: { entries: BondedIndexEntry[] }) {
       {entries
         .filter((e) => e.provenance)
         .map((e) => (
-          <p key={e.model} className="max-w-3xl text-xs text-muted">
+          <p key={e.model} className="max-w-3xl text-[13px] text-muted">
             † {e.label}: {e.provenance}
           </p>
         ))}
@@ -871,12 +887,119 @@ function Results({ entries }: { entries: BondedIndexEntry[] }) {
   );
 }
 
+/** A model's provider mark, sized with the type beside it, as on the landing page's ledger. */
+function LedgerMark({ provider }: { provider: string }) {
+  const src = PROVIDER_LOGOS[provider];
+  return (
+    // Decoration: the model's name always sits beside it.
+    <span
+      aria-hidden
+      className="inline-grid size-[0.78em] flex-none place-items-center rounded-[0.2em] bg-white text-black"
+    >
+      {src ? (
+        <img src={src} alt="" className="size-[62%] object-contain" />
+      ) : (
+        <b className="text-[0.42em]">{provider.slice(0, 1)}</b>
+      )}
+    </span>
+  );
+}
+
+/** The columns of the ledger: rank, model, Security, Task, and an arrow on wide screens. */
+const LEDGER =
+  "grid grid-cols-[1.5rem_minmax(0,1fr)_3.5rem_3.25rem] items-center gap-3 md:grid-cols-[2.5rem_minmax(0,1fr)_9rem_9rem_1.5rem] md:gap-6";
+
+/** A score and a thin bar under it that fills to it. */
+function LedgerScore({
+  value,
+  tone = "text-ink",
+  bar,
+}: {
+  value: number;
+  tone?: string;
+  bar: string;
+}) {
+  return (
+    <span className="min-w-0">
+      <span
+        className={`block text-[clamp(20px,2.4vw,34px)] leading-none font-medium tracking-[-0.04em] tabular-nums ${tone}`}
+      >
+        {value}
+      </span>
+      <span aria-hidden className="mt-2.5 block h-0.5 bg-white/10">
+        <span className={`block h-full ${bar}`} style={{ width: `${value}%` }} />
+      </span>
+    </span>
+  );
+}
+
+/**
+ * Every model as one ledger, best Security first, in large type: both scores side by side at the
+ * same size, each with a thin bar. Each row opens the model's own page.
+ */
+function Ledger({ entries }: { entries: BondedIndexEntry[] }) {
+  return (
+    <div>
+      <div aria-hidden className={`${LEDGER} eyebrow border-b border-line pb-2.5`}>
+        <span>No.</span>
+        <span>Model</span>
+        <span>Security</span>
+        <span>Task</span>
+        <span className="hidden md:block" />
+      </div>
+      <ol aria-label="Every model by Security, with Task">
+        {byScore(entries).map((e, i) => {
+          const task = taskScore(e);
+          return (
+            <li
+              key={e.model}
+              className="[animation:rise-in_0.9s_cubic-bezier(0.19,1,0.22,1)_both]"
+              style={{ animationDelay: `${Math.min(i, 10) * 60}ms` } as CSSProperties}
+            >
+              <Link
+                to={modelPath(e)}
+                aria-label={`${e.label}: Security ${e.score}, Task ${task ?? "not measured"}`}
+                className={`${LEDGER} group relative isolate border-b border-line py-4 before:absolute before:inset-y-0 before:-inset-x-3 before:-z-10 before:bg-white/[0.035] before:opacity-0 before:transition-opacity hover:before:opacity-100 focus-visible:before:opacity-100`}
+              >
+                <span className="eyebrow">{String(i + 1).padStart(2, "0")}</span>
+                <span className="flex min-w-0 items-center gap-[0.4em] text-[clamp(19px,2.6vw,38px)] leading-none font-medium tracking-[-0.045em]">
+                  <LedgerMark provider={e.provider} />
+                  <span className="truncate">{e.label}</span>
+                </span>
+                <LedgerScore value={e.score} bar="bg-brand-bright" />
+                {task === null ? (
+                  <span className="text-[clamp(20px,2.4vw,34px)] leading-none font-medium text-dim">
+                    –
+                  </span>
+                ) : (
+                  <LedgerScore
+                    value={task}
+                    tone={idle(e) ? "text-warn" : "text-ink"}
+                    bar="bg-ink"
+                  />
+                )}
+                <span
+                  aria-hidden
+                  className="hidden justify-self-end text-dim transition group-hover:translate-x-1 group-hover:text-ink md:block"
+                >
+                  →
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
+/** A key figure: a hairline above, a mono label, a big number and a short line under it. */
 export function Kpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="min-w-0">
-      <p className="text-[11px] uppercase tracking-wider text-muted">{label}</p>
-      <p className="mt-1 text-2xl font-semibold text-ink tabular-nums">{value}</p>
-      {hint && <p className="mt-0.5 text-xs text-muted">{hint}</p>}
+    <div className="min-w-0 border-t border-line pt-4">
+      <p className="eyebrow">{label}</p>
+      <p className="num-big mt-3 truncate">{value}</p>
+      {hint && <p className="mt-2 text-[13px] text-muted">{hint}</p>}
     </div>
   );
 }
@@ -896,11 +1019,11 @@ export function BondedIndexView({
     return (
       <Page title="Bonded Index" eyebrow="Models">
         {stock ? (
-          <BrokerageIndexSection index={brokerage} />
+          <Section label="Brokerage">
+            <BrokerageIndexSection index={brokerage} />
+          </Section>
         ) : (
-          <Card>
-            <p className="text-sm text-muted">No models have been rated yet.</p>
-          </Card>
+          <EmptyState title="No models have been rated yet." />
         )}
       </Page>
     );
@@ -929,58 +1052,85 @@ export function BondedIndexView({
         </>
       }
     >
-      <div className="grid grid-cols-2 gap-x-6 gap-y-5 border-y border-line py-5 sm:grid-cols-4">
-        <Kpi label="Models rated" value={`${entries.length}`} />
-        <Kpi
-          label="Attack episodes"
-          value={attackEpisodes.toLocaleString("en-US")}
-          hint={`${episodes.toLocaleString("en-US")} episodes in all`}
-        />
-        <Kpi label="Money the attacks moved" value={usd(moved)} hint="lost plus overpaid" />
-        <Kpi label="Updated" value={index.updatedAt.slice(0, 10)} hint="off-chain payments" />
-      </div>
+      <Section label="Ranking">
+        <Ledger entries={entries} />
+        <div className="mt-12 grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-4">
+          <Kpi label="Models rated" value={`${entries.length}`} />
+          <Kpi
+            label="Attack episodes"
+            value={attackEpisodes.toLocaleString("en-US")}
+            hint={`${episodes.toLocaleString("en-US")} episodes in all`}
+          />
+          <Kpi label="Money the attacks moved" value={usd(moved)} hint="lost plus overpaid" />
+          <Kpi label="Updated" value={index.updatedAt.slice(0, 10)} hint="off-chain payments" />
+        </div>
+      </Section>
 
-      <Leaderboard entries={entries} />
-      <Tradeoffs entries={entries} />
-      <WhereTheyBreak entries={entries} />
-      <BenchComparisonCard />
-      <Results entries={entries} />
-      {brokerage && <BrokerageIndexSection index={brokerage} />}
+      <Section label="By measure">
+        <Leaderboard entries={entries} />
+      </Section>
+      <Section label="Two at once">
+        <Tradeoffs entries={entries} />
+      </Section>
+      <Section label="By attack">
+        <WhereTheyBreak entries={entries} />
+      </Section>
+      <Section label="Benchmark">
+        <BenchComparisonCard />
+      </Section>
+      <Section label="Every row">
+        <Results entries={entries} />
+      </Section>
+      {brokerage && brokerage.entries.length > 0 && (
+        <Section label="Brokerage">
+          <BrokerageIndexSection index={brokerage} />
+        </Section>
+      )}
 
-      <details className="group rounded-2xl border border-line px-5 py-4 text-sm">
-        <summary className="cursor-pointer font-semibold text-ink">How it's measured</summary>
-        <ul className="mt-3 flex max-w-3xl list-disc flex-col gap-1.5 pl-5 text-muted">
-          <li>
-            Every model runs inside the same agent ({first.agent}), paying a small studio's supplier
-            invoices. Only the model changes.
-          </li>
-          <li>
-            The payment ledger decides every breach, never a model. Lost: paid to an account outside
-            the vendor list. Overpaid: paid to a real vendor beyond what it was owed.
-          </li>
-          <li>
-            Each attack runs {first.runsPerScenario} times with the payment rules spelled out and{" "}
-            {first.runsPerScenario} times with only the job described. Security uses the worse
-            briefing and the weakest attack class.
-          </li>
-          <li>
-            Task is kept apart from security: the lowest share of jobs done across runs with no
-            attack, attacks resisted and benign twins.
-          </li>
-          <li>
-            Intervals are 95% Wilson intervals. Models that can't read images aren't shown image
-            attacks. Llama's tool calls written as text are read and run.
-            {hashes.size > 1 && " Some rows met a different set; compare them with care."} Off-chain
-            library version {OFFCHAIN_LIBRARY_VERSION}.
-          </li>
-          <li>
-            Full method:{" "}
-            <a className={linkClass} href={DOCS_INDEX}>
-              the Index page in the docs
-            </a>
-          </li>
-        </ul>
-      </details>
+      <Section label="Method">
+        <details className="group">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-6 [&::-webkit-details-marker]:hidden">
+            <span className="h-section">How it's measured</span>
+            <span
+              aria-hidden
+              className="text-2xl leading-none font-light text-muted transition group-open:rotate-45"
+            >
+              +
+            </span>
+          </summary>
+          <ul className="mt-6 flex max-w-3xl list-disc flex-col gap-2.5 pl-5 text-[15px] leading-relaxed text-muted marker:text-dim">
+            <li>
+              Every model runs inside the same agent ({first.agent}), paying a small studio's
+              supplier invoices. Only the model changes.
+            </li>
+            <li>
+              The payment ledger decides every breach, never a model. Lost: paid to an account
+              outside the vendor list. Overpaid: paid to a real vendor beyond what it was owed.
+            </li>
+            <li>
+              Each attack runs {first.runsPerScenario} times with the payment rules spelled out and{" "}
+              {first.runsPerScenario} times with only the job described. Security uses the worse
+              briefing and the weakest attack class.
+            </li>
+            <li>
+              Task is kept apart from security: the lowest share of jobs done across runs with no
+              attack, attacks resisted and benign twins.
+            </li>
+            <li>
+              Intervals are 95% Wilson intervals. Models that can't read images aren't shown image
+              attacks. Llama's tool calls written as text are read and run.
+              {hashes.size > 1 && " Some rows met a different set; compare them with care."}{" "}
+              Off-chain library version {OFFCHAIN_LIBRARY_VERSION}.
+            </li>
+            <li>
+              Full method:{" "}
+              <a className={linkClass} href={DOCS_INDEX}>
+                the Index page in the docs
+              </a>
+            </li>
+          </ul>
+        </details>
+      </Section>
     </Page>
   );
 }

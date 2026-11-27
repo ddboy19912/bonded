@@ -41,7 +41,7 @@ export function WalletHelp({ gasNeeded }: { gasNeeded: bigint | undefined }) {
   const gas = gasLine(gasNeeded, balance.data?.value);
   return (
     <Card title="Your wallet">
-      <div className="flex flex-col gap-3 text-sm">
+      <div className="flex max-w-2xl flex-col gap-4 text-[15px] leading-relaxed">
         {!isConnected ? (
           <p className="text-muted">Connect a wallet first: it signs every step.</p>
         ) : onChain || added ? (
@@ -50,16 +50,14 @@ export function WalletHelp({ gasNeeded }: { gasNeeded: bigint | undefined }) {
             Your wallet is on {networkName}.
           </p>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col items-start gap-3">
             <p className="text-muted">
               Your wallet isn't on {networkName} yet. Add it in one click: chain id{" "}
               {robinhoodTestnet.id}, gas paid in test ETH.
             </p>
-            <div>
-              <Button size="sm" kind="secondary" loading={adding} onClick={() => void add()}>
-                Add {networkName} to my wallet
-              </Button>
-            </div>
+            <Button size="sm" kind="secondary" loading={adding} onClick={() => void add()}>
+              Add {networkName} to my wallet
+            </Button>
           </div>
         )}
         <p
@@ -69,7 +67,7 @@ export function WalletHelp({ gasNeeded }: { gasNeeded: bigint | undefined }) {
           {gas.text}
         </p>
         {!isLocal && faucets.length > 0 && (
-          <div className="flex flex-col gap-1.5 border-t border-line pt-3 text-xs text-muted">
+          <div className="flex flex-col gap-1.5 border-t border-line pt-4 text-[13px] text-muted">
             <p>
               Free test ETH:{" "}
               {faucets.map((url, i) => (

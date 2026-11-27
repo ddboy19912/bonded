@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Link, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 import {
   useInfiniteQuery,
   useQuery,
@@ -73,6 +73,7 @@ import {
   EmptyState,
   ErrorText,
   Loading,
+  MoreLink,
   Note,
   Page,
   Unavailable,
@@ -439,14 +440,14 @@ export function TestAgent() {
       )}
       <div
         ref={stepsRef}
-        className="grid scroll-mt-24 items-start gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]"
+        className="grid scroll-mt-24 items-start gap-x-14 gap-y-12 lg:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)]"
       >
         {previewId && session && preview.isPending ? (
-          <Card>
+          <div className="border-t border-line">
             <Loading what="your preview" height="lg" />
-          </Card>
+          </div>
         ) : (
-          <ol className="flex min-w-0 flex-col gap-4" aria-label="Steps">
+          <ol className="flex min-w-0 flex-col border-b border-line" aria-label="Steps">
             <FlowStep
               n={1}
               title={STEP_TITLES["sign-in"]}
@@ -751,7 +752,7 @@ export function TestAgent() {
           </ol>
         )}
 
-        <div className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-24">
+        <aside className="flex min-w-0 flex-col gap-12 lg:sticky lg:top-24">
           <PreviewProblems
             previewId={previewId}
             signedIn={Boolean(session)}
@@ -759,62 +760,59 @@ export function TestAgent() {
             onReset={() => setParams({})}
           />
           <Card title="This is a preview rating">
-            <p className="text-sm text-muted">
+            <p className="text-[15px] leading-relaxed text-muted">
               A shorter version of an official rating, scored the same way by the same judge
               {plan
                 ? `: up to ${plan.episodes} episodes, stopped at ${duration(plan.budgetSeconds)} at the most`
                 : ""}
               .
             </p>
-            <dl className="mt-4 flex flex-col gap-3 text-sm">
-              <div>
+            <dl className="mt-6 flex flex-col text-sm">
+              <div className="border-t border-line py-4">
                 <dt className="font-medium">{PREVIEW_LABEL}</dt>
-                <dd className="mt-0.5 text-muted">
+                <dd className="mt-1 text-muted">
                   Only you see it, unless you make a link to share it. It isn't published anywhere.
                 </dd>
               </div>
-              <div>
+              <div className="border-t border-line py-4">
                 <dt className="font-medium">Free, a few a day per account</dt>
-                <dd className="mt-0.5 text-muted">
+                <dd className="mt-1 text-muted">
                   Previews run one at a time, after official ratings.
                 </dd>
               </div>
               {(changing ? connection : (p?.connection ?? connection)) === "hosted" ? (
-                <div>
+                <div className="border-t border-line py-4">
                   <dt className="font-medium">Bonded pays for the model</dt>
-                  <dd className="mt-0.5 text-muted">
+                  <dd className="mt-1 text-muted">
                     Bonded runs your agent on its own servers, on the model you pick.
                   </dd>
                 </div>
               ) : (
-                <div>
+                <div className="border-t border-line py-4">
                   <dt className="font-medium">Your model, your bill</dt>
-                  <dd className="mt-0.5 text-muted">
+                  <dd className="mt-1 text-muted">
                     Bonded runs the attacks; your agent's own model calls are yours.
                   </dd>
                 </div>
               )}
             </dl>
-            <p className="mt-4 text-sm">
-              <a className={linkClass} href={DOCS_BYOA}>
-                The guide
-              </a>{" "}
-              ·{" "}
-              <Link className={linkClass} to="/agents/new">
-                Onboard an agent instead
-              </Link>
+            <p className="flex flex-wrap gap-x-6 gap-y-3 border-t border-line pt-5">
+              <a className="more-link" href={DOCS_BYOA}>
+                The guide <span aria-hidden>→</span>
+              </a>
+              <MoreLink to="/agents/new">Onboard an agent instead</MoreLink>
             </p>
           </Card>
           {session && listed.length > 0 && (
             <Card title="Your previews">
-              <ul className="divide-y divide-line text-sm">
+              <ul className="divide-y divide-line border-b border-line text-sm">
                 {listed.map((x) => (
                   <li
                     key={x.id}
-                    className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
+                    className={`flex items-center justify-between gap-3 py-3.5 first:pt-0 ${x.id === previewId ? "text-ink" : ""}`}
                   >
-                    <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="text-muted">
+                    <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
+                      <span className="text-soft">
                         {when(Math.floor(Date.parse(x.createdAt) / 1000))}
                       </span>
                       <Badge
@@ -838,7 +836,7 @@ export function TestAgent() {
                     </span>
                     <span className="flex shrink-0 items-center gap-4">
                       {x.id === previewId ? (
-                        <span className="text-xs text-muted">Open</span>
+                        <span className="eyebrow text-accent">Open</span>
                       ) : (
                         <button
                           type="button"
@@ -869,7 +867,7 @@ export function TestAgent() {
                 ))}
               </ul>
               {previews.hasNextPage && (
-                <div className="mt-3 flex items-center justify-between gap-3 border-t border-line pt-3 text-xs text-muted">
+                <div className="mt-4 flex items-center justify-between gap-3 text-xs text-muted">
                   <span>
                     Showing {listed.length} of {listedTotal}
                   </span>
@@ -893,7 +891,7 @@ export function TestAgent() {
               )}
             </Card>
           )}
-        </div>
+        </aside>
       </div>
     </Page>
   );
@@ -932,10 +930,10 @@ function CheckWarnings({
 type StepState = "done" | "current" | "later";
 
 /**
- * One step of the flow, a card each. The current one is open; done ones show a line of what was
- * done (and can be reopened when that helps, e.g. to copy the runner command again); later ones
- * show only their title, so the whole path is visible from the start. Inside a card there are no
- * further boxes: the content sits flat, under the title.
+ * One step of the flow, a row under a hairline with its number in a narrow column. The current
+ * one is open, its title large and its rule blue; done ones show a line of what was done (and can
+ * be reopened when that helps, e.g. to copy the runner command again); later ones show only their
+ * title, so the whole path is visible from the start. No boxes: the content sits flat.
  */
 function FlowStep({
   n,
@@ -968,39 +966,43 @@ function FlowStep({
   return (
     <li
       aria-current={state === "current" ? "step" : undefined}
-      className={`panel min-w-0 p-5 sm:p-6 ${state === "later" ? "opacity-55" : ""}`}
+      className={`grid min-w-0 grid-cols-[2rem_minmax(0,1fr)] gap-x-3 border-t sm:grid-cols-[3.5rem_minmax(0,1fr)] sm:gap-x-4 ${state === "current" ? "border-brand-bright py-8 sm:py-10" : "border-line py-5 sm:py-6"}`}
     >
-      <div className="flex items-center gap-3">
-        <span
-          className={`flex size-7 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${state === "done" ? "bg-safe text-paper" : state === "current" ? "btn-brand text-on-brand" : "bg-white/[0.07] text-muted"}`}
-          aria-hidden
-        >
-          {state === "done" ? "✓" : n}
-        </span>
-        <h2 ref={heading} tabIndex={-1} className="min-w-0 flex-1 text-lg font-bold outline-none">
-          <span className="sr-only">
-            Step {n}
-            {state === "done" ? ", done" : state === "current" ? ", current" : ""}:{" "}
-          </span>
-          {title}
-        </h2>
-        {state === "done" && open && (
-          <button
-            type="button"
-            className={`${linkClass} shrink-0 text-sm`}
-            aria-expanded={show}
-            onClick={() => setShow((v) => !v)}
+      <span
+        aria-hidden
+        className={`eyebrow tabular-nums ${state === "current" ? "pt-2.5 text-accent" : state === "done" ? "pt-1.5 text-safe" : "pt-1.5 text-dim"}`}
+      >
+        {state === "done" ? "✓" : String(n).padStart(2, "0")}
+      </span>
+      <div className="min-w-0">
+        <div className="flex items-baseline gap-4">
+          <h2
+            ref={heading}
+            tabIndex={-1}
+            className={`min-w-0 flex-1 outline-none ${state === "current" ? "h-section" : `text-lg font-medium tracking-[-0.02em] ${state === "later" ? "text-muted" : "text-soft"}`}`}
           >
-            {show ? "Hide" : "Show"}
-          </button>
+            <span className="sr-only">
+              Step {n}
+              {state === "done" ? ", done" : state === "current" ? ", current" : ""}:{" "}
+            </span>
+            {title}
+          </h2>
+          {state === "done" && open && (
+            <button
+              type="button"
+              className={`${linkClass} shrink-0 text-sm`}
+              aria-expanded={show}
+              onClick={() => setShow((v) => !v)}
+            >
+              {show ? "Hide" : "Show"}
+            </button>
+          )}
+        </div>
+        {state === "done" && summary && <div className="mt-1.5 text-sm text-muted">{summary}</div>}
+        {(state === "current" || (state === "done" && open && show)) && (
+          <div className={state === "current" ? "mt-7" : "mt-6"}>{children}</div>
         )}
       </div>
-      {state === "done" && summary && (
-        <div className="mt-2 pl-10 text-sm text-muted">{summary}</div>
-      )}
-      {(state === "current" || (state === "done" && open && show)) && (
-        <div className="mt-5">{children}</div>
-      )}
     </li>
   );
 }

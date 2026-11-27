@@ -2,14 +2,6 @@ import { useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router";
 import { ChevronRightIcon, PlusIcon } from "lucide-react";
-import { Button } from "@/components/shadcn/button";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "@/components/shadcn/empty";
 import {
   Table,
   TableBody,
@@ -20,17 +12,29 @@ import {
 } from "@/components/shadcn/table";
 import {
   AccountStatus,
+  Button,
   KeyOnce,
-  Submit,
-  TextField,
   limit,
+  Submit,
+  TABLE,
+  TextField,
   useAction,
 } from "../components/gate/common";
 import { SignedIn } from "../components/gate/owner";
 import { FreezeSwitch, ModeChoice } from "../components/gate/rules";
 import { useMediaQuery } from "../components/overlay";
 import { ModalActions, ResponsiveModal } from "../components/responsive-modal";
-import { ErrorText, Loading, Page, Unavailable, linkClass } from "../components/ui";
+import {
+  EmptyState,
+  ErrorText,
+  Grid,
+  Loading,
+  Page,
+  Section,
+  Stat,
+  Unavailable,
+  MoreLink,
+} from "../components/ui";
 import { ago, short } from "../lib/format";
 import { gateApi, parseUsd, type GateAccount } from "../lib/gate";
 import { DOCS_GATE } from "../lib/routes";
@@ -72,7 +76,7 @@ function NewAccountForm({
   };
   return (
     <form
-      className="flex flex-col gap-5"
+      className="flex flex-col gap-6"
       onSubmit={(e) => {
         e.preventDefault();
         submit();
@@ -184,7 +188,7 @@ function AccountRow({ account, session }: { account: GateAccount; session: strin
           to={`/gate/${encodeURIComponent(account.id)}`}
           className="block outline-none after:absolute after:inset-0 focus-visible:after:rounded-lg focus-visible:after:ring-2 focus-visible:after:ring-ring"
         >
-          <span className="block truncate text-[15px] font-medium">
+          <span className="block truncate text-[17px] font-medium tracking-[-0.01em]">
             {account.name || short(account.id, 6)}
           </span>
           <span className="mt-1 flex items-center gap-2 text-muted md:hidden">
@@ -214,13 +218,7 @@ function AccountRow({ account, session }: { account: GateAccount; session: strin
   );
 }
 
-function Accounts({
-  session,
-  page,
-}: {
-  session: string;
-  page: (body: ReactNode, actions?: ReactNode) => ReactNode;
-}) {
+function Accounts({ session, page }: { session: string; page: (body: ReactNode) => ReactNode }) {
   const accounts = useQuery({
     queryKey: ["gate-accounts", session],
     queryFn: () => gateApi.accounts(session),
@@ -228,6 +226,8 @@ function Accounts({
   });
   const [creating, setCreating] = useState(false);
   const list = accounts.data?.items ?? [];
+  const enforcing = list.filter((a) => !a.frozen && a.mode === "enforce").length;
+  const frozen = list.filter((a) => a.frozen).length;
   return page(
     <>
       {accounts.isPending ? (
@@ -235,66 +235,78 @@ function Accounts({
       ) : accounts.error ? (
         <Unavailable error={accounts.error} onRetry={() => void accounts.refetch()} />
       ) : !list.length ? (
-        <Empty>
-          <EmptyHeader>
-            <EmptyTitle>No gate accounts yet</EmptyTitle>
-            <EmptyDescription>
-              Make one, and your agents check every payment against its rules.
-            </EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent>
-            <Button onClick={() => setCreating(true)}>New account</Button>
-          </EmptyContent>
-        </Empty>
+        <EmptyState
+          title="No gate accounts yet"
+          action={
+            <Button size="lg" onClick={() => setCreating(true)}>
+              New account
+            </Button>
+          }
+        >
+          Make one, and your agents check every payment against its rules.
+        </EmptyState>
       ) : (
-        <Table aria-label="Gate accounts" className="table-fixed">
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <TableHead>Account</TableHead>
-              <TableHead className="hidden w-32 md:table-cell">Status</TableHead>
-              <TableHead className="hidden w-32 text-right md:table-cell">Per payment</TableHead>
-              <TableHead className="hidden w-32 text-right md:table-cell">Per day</TableHead>
-              <TableHead className="hidden w-32 text-right lg:table-cell">Last check</TableHead>
-              <TableHead className="w-8">
-                <span className="sr-only">Open</span>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {list.map((a) => (
-              <AccountRow key={a.id} account={a} session={session} />
-            ))}
-          </TableBody>
-        </Table>
+        <Section
+          label="Accounts"
+          title="Your accounts"
+          intro="One per business or team. Open one to see its checks, rules and keys."
+          actions={
+            <Button onClick={() => setCreating(true)}>
+              <PlusIcon aria-hidden />
+              New account
+            </Button>
+          }
+        >
+          <Grid>
+            <Stat label="Accounts" value={list.length} />
+            <Stat label="Enforcing" value={enforcing} />
+            <Stat label="Monitoring" value={list.length - enforcing - frozen} />
+            <Stat label="Frozen" value={frozen} />
+          </Grid>
+          <div className="mt-12">
+            <Table aria-label="Gate accounts" className={`table-fixed ${TABLE}`}>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>Account</TableHead>
+                  <TableHead className="hidden w-32 md:table-cell">Status</TableHead>
+                  <TableHead className="hidden w-32 text-right md:table-cell">
+                    Per payment
+                  </TableHead>
+                  <TableHead className="hidden w-32 text-right md:table-cell">Per day</TableHead>
+                  <TableHead className="hidden w-32 text-right lg:table-cell">Last check</TableHead>
+                  <TableHead className="w-8">
+                    <span className="sr-only">Open</span>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {list.map((a) => (
+                  <AccountRow key={a.id} account={a} session={session} />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </Section>
       )}
       <NewAccount session={session} open={creating} onOpenChange={setCreating} />
     </>,
-    list.length > 0 && (
-      <Button onClick={() => setCreating(true)}>
-        <PlusIcon aria-hidden />
-        New account
-      </Button>
-    ),
   );
 }
 
 /** The payment gate: every account the owner has. Each opens on its own page (GateAccount). */
 export function Gate() {
-  const page = (body: ReactNode, actions?: ReactNode) => (
+  const page = (body: ReactNode) => (
     <Page
+      eyebrow="Protect"
       title="Payment gate"
-      actions={actions}
-      intro={
-        <>
-          Set the rules your agents' payments must follow.{" "}
-          <a className={linkClass} href={DOCS_GATE} target="_blank" rel="noreferrer">
-            How to connect an agent
+      intro="Set the rules your agents' payments must follow."
+      actions={
+        <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
+          <a className="more-link" href={DOCS_GATE} target="_blank" rel="noreferrer">
+            How to connect an agent <span aria-hidden>↗</span>
           </a>
-          {" · "}
-          <Link className={linkClass} to="/gate/verify">
-            Check a receipt
-          </Link>
-        </>
+          <MoreLink to="/gate/verify">Check a receipt</MoreLink>
+        </div>
       }
     >
       {body}

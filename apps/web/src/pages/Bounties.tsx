@@ -23,11 +23,11 @@ import { emptyForm, formToYaml, yamlToForm, type SpecForm } from "../lib/spec-fo
 import {
   Badge,
   Button,
-  Card,
   EmptyState,
   ErrorText,
   Loading,
   Page,
+  Section,
   TxLink,
   buttonClass,
   linkClass,
@@ -131,14 +131,17 @@ function Guide() {
   ];
   return (
     <div className="text-sm leading-relaxed">
-      <ol className="flex flex-col gap-4">
+      <ol className="flex flex-col">
         {steps.map(([title, text], i) => (
-          <li key={title} className="grid grid-cols-[32px_1fr] gap-3">
-            <span className="btn-brand flex size-8 items-center justify-center rounded-full font-mono text-xs text-on-brand">
-              {i + 1}
+          <li
+            key={title}
+            className="grid grid-cols-[2.25rem_1fr] gap-3 border-t border-line py-4 first:border-t-0 first:pt-0"
+          >
+            <span className="font-mono text-xs leading-6 text-accent">
+              {String(i + 1).padStart(2, "0")}
             </span>
             <span className="text-muted [&_code]:rounded [&_code]:bg-white/[0.06] [&_code]:px-1 [&_code]:font-mono [&_code]:text-[12px] [&_code]:text-soft">
-              <strong className="block text-ink">{title}</strong>
+              <strong className="block text-[15px] font-medium text-ink">{title}</strong>
               {text}
             </span>
           </li>
@@ -174,7 +177,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
         setDone(true);
         setTimeout(() => setDone(false), 1500);
       }}
-      className="rounded-full px-2.5 py-1 text-xs font-semibold text-accent hover:bg-white/[0.06]"
+      className="px-2 py-1 font-mono text-xs text-accent transition hover:text-ink"
     >
       {done ? "Copied" : label}
     </button>
@@ -313,18 +316,13 @@ function Submit() {
           : null;
 
   return (
-    <section className="panel overflow-hidden">
-      <div className="flex flex-wrap items-start justify-between gap-4 px-6 pt-6">
-        <div>
-          <h2 className="text-lg font-bold">Submit an attack</h2>
-          <p className="mt-1 max-w-2xl text-sm text-muted">
-            Committing first timestamps your attack without revealing it, so nobody can copy it.
-          </p>
-        </div>
-        <GuideButton kind="ghost" />
-      </div>
-
-      <ol className="flex flex-wrap items-center gap-x-3 gap-y-2 px-6 pt-5" aria-label="Progress">
+    <Section
+      label="Submit"
+      title="Submit an attack"
+      intro="Committing first timestamps your attack without revealing it, so nobody can copy it."
+      actions={<GuideButton kind="ghost" />}
+    >
+      <ol className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4" aria-label="Progress">
         {STAGES.map((label, i) => {
           const done = stage > i;
           const current = stage === i;
@@ -332,30 +330,26 @@ function Submit() {
             <li
               key={label}
               aria-current={current ? "step" : undefined}
-              className={`flex items-center gap-2 text-sm ${current ? "text-ink" : done ? "text-soft" : "text-muted"}`}
+              className={`border-t-2 pt-3 transition ${current ? "border-accent text-ink" : done ? "border-accent/40 text-soft" : "border-line text-muted"}`}
             >
-              {i > 0 && (
-                <span
-                  aria-hidden
-                  className={`mr-1 hidden h-px w-10 sm:block ${done || current ? "bg-accent/50" : "bg-line-strong"}`}
-                />
-              )}
-              <span
-                className={`flex size-6 items-center justify-center rounded-full font-mono text-[11px] ${done ? "bg-safe text-paper" : current ? "btn-brand text-on-brand" : "border border-line-strong"}`}
-              >
-                {done ? "✓" : i + 1}
+              <span className="block font-mono text-xs">
+                {done ? "✓" : String(i + 1).padStart(2, "0")}
               </span>
-              <span className={current ? "font-semibold" : ""}>{label}</span>
+              <span
+                className={`mt-1.5 block text-[17px] tracking-[-0.02em] ${current ? "font-medium" : ""}`}
+              >
+                {label}
+              </span>
             </li>
           );
         })}
       </ol>
 
-      <div className="mt-6 border-t border-line px-6 py-6">
+      <div className="mt-12">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h3 className="text-sm font-semibold">How do you want to write it?</h3>
-            <p className="mt-1 text-xs text-muted">
+            <h3 className="h-section">How do you want to write it?</h3>
+            <p className="mt-2 text-[15px] text-muted">
               Both make the same spec. You can switch at any time.
             </p>
           </div>
@@ -364,7 +358,7 @@ function Submit() {
               <button
                 type="button"
                 onClick={() => reset("")}
-                className="rounded-full px-3 py-1.5 text-xs font-semibold text-muted hover:bg-white/[0.06] hover:text-ink"
+                className="px-2 py-1.5 font-mono text-xs text-muted transition hover:text-ink"
               >
                 Clear
               </button>
@@ -372,7 +366,7 @@ function Submit() {
               <button
                 type="button"
                 onClick={() => reset(BOUNTY_SPEC_EXAMPLE)}
-                className="rounded-full px-3 py-1.5 text-xs font-semibold text-accent hover:bg-white/[0.06]"
+                className="px-2 py-1.5 font-mono text-xs text-accent transition hover:text-ink"
               >
                 Start from the example
               </button>
@@ -383,7 +377,7 @@ function Submit() {
         <div
           role="radiogroup"
           aria-label="Write the attack as a form or as YAML"
-          className="mt-4 grid gap-3 sm:grid-cols-2"
+          className="mt-6 grid border-y border-line sm:grid-cols-2 sm:divide-x sm:divide-line"
         >
           {WRITE_MODES.map((m) => {
             const on = mode === m.id;
@@ -394,7 +388,7 @@ function Submit() {
                 role="radio"
                 aria-checked={on}
                 onClick={() => switchTo(m.id)}
-                className={`flex items-start gap-3 rounded-2xl border p-4 text-left transition ${on ? "border-accent/60 bg-accent-soft" : "border-line hover:border-line-strong hover:bg-white/[0.02]"}`}
+                className={`flex items-start gap-3 py-4 text-left transition first:border-b first:border-line sm:px-5 sm:first:border-b-0 sm:first:pl-0 ${on ? "text-ink" : "text-muted hover:text-ink"}`}
               >
                 <span
                   aria-hidden
@@ -403,7 +397,7 @@ function Submit() {
                   {on && <span className="size-2 rounded-full bg-accent" />}
                 </span>
                 <span>
-                  <span className="block text-sm font-semibold text-ink">{m.title}</span>
+                  <span className="block text-[15px] font-medium">{m.title}</span>
                   <span className="mt-0.5 block text-xs leading-relaxed text-muted">{m.note}</span>
                 </span>
               </button>
@@ -412,15 +406,12 @@ function Submit() {
         </div>
 
         {modeNote && (
-          <p
-            className="mt-4 rounded-xl bg-breach-soft px-4 py-2.5 text-xs text-breach"
-            role="status"
-          >
+          <p className="mt-4 border-l-2 border-breach/70 pl-4 text-sm text-breach" role="status">
             {modeNote}
           </p>
         )}
 
-        <div className="mt-8">
+        <div className="mt-10">
           {mode === "form" ? (
             <SpecBuilder form={form} onChange={editForm} />
           ) : (
@@ -440,7 +431,7 @@ function Submit() {
         </div>
 
         <div
-          className={`mt-6 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl px-4 py-3 font-mono text-xs ${!check ? "bg-white/[0.03] text-muted" : "spec" in check ? "bg-safe-soft text-safe" : "bg-breach-soft text-breach"}`}
+          className={`mt-8 flex flex-wrap items-center gap-x-3 gap-y-1 border-l-2 py-1 pl-4 font-mono text-xs ${!check ? "border-line-strong text-muted" : "spec" in check ? "border-accent text-accent" : "border-breach/70 text-breach"}`}
           role="status"
         >
           <span className="min-w-0 flex-1">
@@ -454,7 +445,7 @@ function Submit() {
         </div>
         {mode === "form" && yaml.trim() && (
           <details className="group mt-3">
-            <summary className="cursor-pointer text-xs font-semibold text-muted hover:text-ink">
+            <summary className="cursor-pointer font-mono text-xs text-muted hover:text-ink">
               Show the YAML this makes
             </summary>
             <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/40 p-4 font-mono text-xs whitespace-pre-wrap text-soft">
@@ -464,7 +455,7 @@ function Submit() {
         )}
       </div>
 
-      <dl className="grid gap-x-10 gap-y-5 border-t border-line px-6 py-6 md:grid-cols-2">
+      <dl className="mt-12 grid gap-x-10 gap-y-6 md:grid-cols-2">
         <div className="min-w-0">
           <dt className="flex items-center justify-between gap-2">
             <span className="eyebrow">Salt · save it to reveal</span>
@@ -474,7 +465,7 @@ function Submit() {
                 <button
                   type="button"
                   onClick={() => setSalt(newSalt())}
-                  className="rounded-full px-2.5 py-1 text-xs font-semibold text-muted hover:bg-white/[0.06] hover:text-ink"
+                  className="px-2 py-1 font-mono text-xs text-muted transition hover:text-ink"
                 >
                   New
                 </button>
@@ -505,8 +496,8 @@ function Submit() {
         </div>
       </dl>
 
-      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line bg-white/[0.02] px-6 py-5">
-        <div className="min-w-0 text-sm">
+      <div className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-line pt-6">
+        <div className="min-w-0 text-[15px]">
           {!address ? (
             <span className="text-muted">Use Connect wallet at the top of the page to submit.</span>
           ) : stage === 0 ? (
@@ -519,7 +510,7 @@ function Submit() {
             </span>
           )}
           {id !== undefined && (
-            <span className="block text-xs text-muted">
+            <span className="mt-1 block font-mono text-xs text-muted">
               Submission {id.toString()} · on chain:{" "}
               {["none", "committed", "revealed", "accepted", "rejected"][status ?? 0]}
             </span>
@@ -531,11 +522,11 @@ function Submit() {
           </Button>
         )}
       </div>
-      <div className="px-6 pb-4 empty:hidden">
+      <div className="mt-4 empty:hidden">
         {view}
         <ErrorText error={error} />
       </div>
-    </section>
+    </Section>
   );
 }
 
@@ -570,36 +561,44 @@ export function Bounties() {
     <Page
       eyebrow="For attack researchers"
       title="Bounties"
+      actions={<GuideButton />}
       intro="Find an attack our library misses and get paid. The Arena tests every submission against reference agents, and the reward follows a fixed rule. Accepted attacks join the library in its next release, when every agent Bonded runs is re-rated (agents their operators run never see bounty attacks)."
     >
-      <div className="-mt-1">
-        <GuideButton />
-      </div>
-      <section className="grid gap-4 md:grid-cols-3">
-        <div className="panel p-6">
+      <section
+        aria-label="Rewards"
+        className="grid gap-x-12 gap-y-8 border-t border-line pt-8 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]"
+      >
+        <div className="min-w-0">
           <p className="eyebrow">Bounty pool</p>
-          <p className="mt-2 font-serif text-5xl leading-none tabular-nums">
-            {pool.data === undefined ? "…" : `$${usd(pool.data, 0)}`}
+          <p className="mt-4 text-[clamp(56px,7.4vw,112px)] leading-[0.86] font-medium tracking-[-0.065em] tabular-nums">
+            {pool.data === undefined ? (
+              <span className="text-dim">…</span>
+            ) : (
+              `$${usd(pool.data, 0)}`
+            )}
           </p>
-          <p className="mt-1.5 text-xs text-muted">
+          <p className="mt-4 text-[15px] text-muted">
             <Token symbol="tUSDG" />, funded by 5% of every premium
           </p>
         </div>
-        <div className="panel p-6">
-          <p className="eyebrow">Beat the defended agent</p>
-          <p className="mt-2 font-serif text-5xl leading-none">$2,000</p>
-          <p className="mt-1.5 text-xs text-muted">the top reward</p>
-        </div>
-        <div className="panel p-6">
-          <p className="eyebrow">Open a new class and surface</p>
-          <p className="mt-2 font-serif text-5xl leading-none">$500</p>
-          <p className="mt-1.5 text-xs text-muted">against the undefended agent</p>
+        <div className="grid grid-cols-2 gap-x-6 self-end">
+          <div className="min-w-0 border-t border-line pt-4">
+            <p className="eyebrow">Beat the defended agent</p>
+            <p className="num-big mt-2.5 text-accent">$2,000</p>
+            <p className="mt-2 text-[13px] text-muted">the top reward</p>
+          </div>
+          <div className="min-w-0 border-t border-line pt-4">
+            <p className="eyebrow">Open a new class and surface</p>
+            <p className="num-big mt-2.5">$500</p>
+            <p className="mt-2 text-[13px] text-muted">against the undefended agent</p>
+          </div>
         </div>
       </section>
       <Submit />
-      <Card
+      <Section
+        label="Results"
         title="Submissions"
-        description="Payloads stay private."
+        intro="Payloads stay private."
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Select
@@ -659,23 +658,26 @@ export function Bounties() {
             {filtered ? "Try other filters." : "Be the first to find an attack we miss."}
           </EmptyState>
         )}
-        <ul className="flex flex-col gap-3">
+        <ul className="flex flex-col border-b border-line empty:border-b-0">
           {submissions?.map((b) => (
-            <li key={b.submissionId} className="rounded-2xl border border-line p-4 text-sm">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <span>
-                  <span className="font-mono text-muted">#{b.submissionId}</span>{" "}
-                  <span className="font-semibold">{b.title}</span>{" "}
-                  <span className="text-muted">
-                    · {b.attackClass} via {b.surfaces.join(", ")}
-                  </span>
+            <li
+              key={b.submissionId}
+              className="grid gap-x-5 gap-y-1 border-t border-line py-5 text-sm sm:grid-cols-[3.5rem_minmax(0,1fr)_auto]"
+            >
+              <span className="font-mono text-xs leading-7 text-muted">#{b.submissionId}</span>
+              <span className="min-w-0">
+                <span className="block text-[17px] font-medium tracking-[-0.02em]">{b.title}</span>
+                <span className="mt-1 block font-mono text-xs text-muted">
+                  {b.attackClass} via {b.surfaces.join(", ")}
                 </span>
+              </span>
+              <span className="sm:row-span-2 sm:text-right">
                 <Badge tone={STATUS_TONE[b.status]}>{b.status}</Badge>
-              </div>
-              <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-muted">
+              </span>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted sm:col-start-2">
                 <span>Hunter {short(b.hunter)}</span>
                 {b.reward && b.reward !== "0" && (
-                  <span className="text-safe">Reward ${usd(BigInt(b.reward))}</span>
+                  <span className="text-accent">Reward ${usd(BigInt(b.reward))}</span>
                 )}
                 {b.reason && <span>{b.reason}</span>}
                 {b.txHash && <TxLink hash={b.txHash} />}
@@ -694,7 +696,7 @@ export function Bounties() {
             noun="submissions"
           />
         )}
-      </Card>
+      </Section>
     </Page>
   );
 }

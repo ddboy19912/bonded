@@ -343,6 +343,12 @@
     transform: scale(0.96);
   }
 }
+/* A bar that fills in once from the left: `[animation:grow-x_1.4s_cubic-bezier(0.19,1,0.22,1)_both] origin-left`. */
+@keyframes grow-x {
+  from {
+    transform: scaleX(0);
+  }
+}
 @keyframes rise-in {
   from {
     opacity: 0;

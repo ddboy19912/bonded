@@ -49,24 +49,24 @@ export function ShareReport({
   };
   const url = token ? sharedReportUrl(token) : undefined;
   return (
-    <section className="mt-8 flex flex-col gap-2 border-t border-line pt-6 text-sm">
+    <section className="mt-12 flex flex-col gap-3 border-t border-line pt-8 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="font-semibold">Share this report</p>
+        <p className="text-xl font-medium tracking-[-0.03em]">Share this report</p>
         {pdfFileName && <SavePdfButton fileName={pdfFileName} size="sm" />}
       </div>
       {url ? (
         <>
-          <p className="text-muted">
+          <p className="max-w-2xl text-muted">
             Anyone with this link can read the report. It doesn't show who you are, your agent's
             address, or its code. It stays off the leaderboard and the Index.
           </p>
-          <div className="mt-1 flex flex-wrap items-center gap-2">
+          <div className="mt-2 flex flex-wrap items-center gap-2">
             <input
               readOnly
               aria-label="Link to this report"
               value={url}
               onFocus={(e) => e.currentTarget.select()}
-              className="min-w-0 flex-1 rounded-lg border border-line-strong bg-white/[0.02] px-3 py-2 font-mono text-xs"
+              className="h-9 min-w-0 flex-1 basis-56 rounded-full border border-line-strong bg-white/[0.02] px-4 font-mono text-xs text-soft outline-none focus:border-brand-bright"
             />
             <CopyButton text={url} label="Copy link" />
             <Button
@@ -83,11 +83,11 @@ export function ShareReport({
         </>
       ) : (
         <>
-          <p className="text-muted">
+          <p className="max-w-2xl text-muted">
             Make a read-only link to send to someone. It doesn't show who you are, your agent's
             address, or its code, and you can turn it off at any time.
           </p>
-          <div className="mt-1">
+          <div className="mt-2">
             <Button
               kind="secondary"
               size="sm"

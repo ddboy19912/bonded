@@ -21,7 +21,7 @@ import { CONNECTION_TEXT, ConnectStep, ConnectionChoice } from "./connection-set
 import { ConnectionCheck } from "./connection-check";
 import { Estimate, NotificationSettingsForm, RatingLive } from "./rating-live";
 import { RatingCompareView } from "./report-actions";
-import { Badge, Button, Card, ErrorText, Loading, Unavailable, linkClass } from "./ui";
+import { Badge, Button, Card, ErrorText, Loading, Note, Unavailable, linkClass } from "./ui";
 
 type Registered = Extract<SelfAgentRecord, { registered: true }>;
 
@@ -98,6 +98,17 @@ export function ConnectAndCheck({
     }
   };
   const H = headingLevel;
+  /** A part's title: its number in mono, then the words (the number is read as "1."). */
+  const title = (n: number, words: string) => (
+    <H className="flex items-baseline gap-3 text-lg font-medium tracking-[-0.02em]">
+      <span aria-hidden className="eyebrow tabular-nums">
+        {String(n).padStart(2, "0")}
+      </span>
+      <span>
+        <span className="sr-only">{n}.</span> {words}
+      </span>
+    </H>
+  );
   const revoke = async () => {
     setRevoking(true);
     setError(null);
@@ -112,8 +123,8 @@ export function ConnectAndCheck({
   };
   return (
     <>
-      <section className="flex flex-col gap-3">
-        <H className="font-semibold">1. How it connects</H>
+      <section className="flex flex-col gap-4 border-t border-line pt-6">
+        {title(1, "How it connects")}
         <ConnectionChoice
           connection={connection}
           mode={status.mode}
@@ -127,8 +138,8 @@ export function ConnectAndCheck({
           </p>
         )}
         {leavingUrl && (
-          <div className="flex flex-col gap-2 rounded-2xl border border-warn/30 bg-warn-soft p-4 text-sm">
-            <p>
+          <Note tone="warn">
+            <p className="text-ink">
               Bonded reaches it at its URL now
               {status.agentUrl ? (
                 <>
@@ -139,16 +150,16 @@ export function ConnectAndCheck({
               . To use the runner instead, stop using the URL: its secret stops working, and the
               agent needs a new connection check.
             </p>
-            <div>
+            <div className="mt-3">
               <Button size="sm" kind="secondary" loading={leaving} onClick={() => void leaveUrl()}>
                 {leaving && !session ? "Sign in your wallet…" : "Stop using the URL"}
               </Button>
             </div>
-          </div>
+          </Note>
         )}
       </section>
-      <section className="flex flex-col gap-3">
-        <H className="font-semibold">2. Connect it</H>
+      <section className="flex flex-col gap-4 border-t border-line pt-6">
+        {title(2, "Connect it")}
         <ConnectStep
           subject={subject}
           auth={auth}
@@ -170,8 +181,8 @@ export function ConnectAndCheck({
         )}
         <ErrorText error={error} />
       </section>
-      <section className="flex flex-col gap-3">
-        <H className="font-semibold">3. Check the connection</H>
+      <section className="flex flex-col gap-4 border-t border-line pt-6">
+        {title(3, "Check the connection")}
         <ConnectionCheck
           key={`${agentId}:${connection}`}
           subject={subject}
@@ -199,12 +210,12 @@ export function ConnectAndCheck({
 function SignInOnce({ owner }: { owner: ReturnType<typeof useOwnerSession> }) {
   if (owner.session) return null;
   return (
-    <div className="flex flex-col gap-2 rounded-2xl border border-line-strong p-4 text-sm">
-      <p className="text-muted">
+    <Note tone="brand">
+      <p>
         Sign in once with your wallet (no gas) to run checks, set the Agent URL and see the estimate
         without signing each step. It lasts 12 hours.
       </p>
-      <div>
+      <div className="mt-3">
         <Button
           size="sm"
           kind="secondary"
@@ -214,8 +225,10 @@ function SignInOnce({ owner }: { owner: ReturnType<typeof useOwnerSession> }) {
           {owner.signingIn ? "Sign in your wallet…" : "Sign in"}
         </Button>
       </div>
-      <ErrorText error={owner.error} />
-    </div>
+      <div className="mt-2">
+        <ErrorText error={owner.error} />
+      </div>
+    </Note>
   );
 }
 
@@ -255,7 +268,7 @@ export function NewAgentConnection({
   if (runner.error)
     return <Unavailable error={runner.error} onRetry={() => void runner.refetch()} />;
   return (
-    <div className="flex flex-col gap-5 text-sm">
+    <div className="flex flex-col gap-8 text-sm">
       <SignInOnce owner={owner} />
       <ConnectAndCheck
         agentId={agentId}
@@ -391,8 +404,8 @@ export function ConnectAgent({
         </Badge>
       }
     >
-      <div className="flex flex-col gap-5 text-sm">
-        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 [&_dt]:text-muted">
+      <div className="flex flex-col gap-8 text-sm">
+        <dl className="grid grid-cols-[6.5rem_minmax(0,1fr)] border-b border-line sm:grid-cols-[9rem_minmax(0,1fr)] [&>dd]:border-t [&>dd]:border-line [&>dd]:py-3 [&>dt]:border-t [&>dt]:border-line [&>dt]:py-3 [&>dt]:font-mono [&>dt]:text-[12px] [&>dt]:leading-5 [&>dt]:text-muted">
           <dt>Mode</dt>
           <dd>
             {mode === "chain"
@@ -441,15 +454,12 @@ export function ConnectAgent({
         </dl>
 
         {standing?.superseded && (
-          <p
-            role="alert"
-            className="rounded-xl border border-breach/35 bg-breach-soft px-3.5 py-2.5"
-          >
+          <Note tone="breach" role="alert">
             Its score is superseded: the latest rating was stopped by the agent (
             {standing.superseded.reason}). No new cover until a complete rating posts.
             {cooling &&
               ` The next rating can start ${when(Math.floor(Date.parse(cooling) / 1000))}; the wait doubles with each stop in a row, up to 48 hours.`}
-          </p>
+          </Note>
         )}
         {runner.error && !runner.data && (
           <Unavailable error={runner.error} onRetry={() => void runner.refetch()} />
@@ -467,9 +477,7 @@ export function ConnectAgent({
               Only the agent's owner can make a runner token or ask for a rating: connect the
               owner's wallet.
             </p>
-            {lapse && (
-              <p className="rounded-xl border border-warn/30 bg-warn-soft px-3.5 py-2.5">{lapse}</p>
-            )}
+            {lapse && <Note tone="warn">{lapse}</Note>}
             {runner.data?.lastSkip && (
               <p className="text-xs text-muted">
                 Skipped {when(Math.floor(Date.parse(runner.data.lastSkip.at) / 1000))}:{" "}
@@ -504,20 +512,23 @@ export function ConnectAgent({
               </>
             )}
 
-            <section className="flex flex-col gap-3">
-              <h3 className="font-semibold">4. Rate it</h3>
-              <p className="text-muted">
+            <section className="flex flex-col gap-4 border-t border-line pt-6">
+              <h3 className="flex items-baseline gap-3 text-lg font-medium tracking-[-0.02em]">
+                <span aria-hidden className="eyebrow tabular-nums">
+                  04
+                </span>
+                <span>
+                  <span className="sr-only">4.</span> Rate it
+                </span>
+              </h3>
+              <p className="max-w-2xl text-muted">
                 Every published attack runs against your agent, plus a held-out set made for this
                 rating alone, then the signed score is posted on chain. The rating stops at the
                 first episode your agent fails (a crash, an error exit, a timeout) and has a time
                 limit; a stopped rating stays in the history below and doesn't change the score.
                 While it stays connected, the score is renewed in its last 3 days.
               </p>
-              {lapse && (
-                <p className="rounded-xl border border-warn/30 bg-warn-soft px-3.5 py-2.5">
-                  {lapse}
-                </p>
-              )}
+              {lapse && <Note tone="warn">{lapse}</Note>}
               {runner.data?.lastSkip && (
                 <p className="text-xs text-muted">
                   Skipped {when(Math.floor(Date.parse(runner.data.lastSkip.at) / 1000))}:{" "}
@@ -541,10 +552,10 @@ export function ConnectAgent({
                 )
               )}
               {handsChanged && (
-                <p className="rounded-xl border border-warn/30 bg-warn-soft px-3.5 py-2.5">
+                <Note tone="warn">
                   This agent changed hands since it was registered. Re-register it to rate under
                   your own config.
-                </p>
+                </Note>
               )}
               <div className="flex flex-wrap items-center gap-3">
                 <Button
@@ -594,7 +605,7 @@ export function ConnectAgent({
                   (a) => a.status === "done" && a.score !== null,
                 );
                 return latest && before ? (
-                  <div className="rounded-2xl border border-line-strong p-4">
+                  <div className="border-t border-line pt-5">
                     <RatingCompareView
                       from={before.runId}
                       to={latest.runId}
@@ -650,11 +661,11 @@ function Attempts({ agentId, attempts }: { agentId: string; attempts: RatingAtte
     setMore(next.page < next.pages);
   };
   return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-xs font-semibold text-soft">Ratings</span>
-      <ul className="flex flex-col gap-1.5 text-xs">
+    <div className="flex flex-col gap-3 border-t border-line pt-5">
+      <span className="eyebrow">Ratings</span>
+      <ul className="flex flex-col divide-y divide-line text-xs">
         {[...attempts, ...older].map((a) => (
-          <li key={a.runId} className="flex flex-col gap-0.5">
+          <li key={a.runId} className="flex flex-col gap-1 py-2.5 first:pt-0">
             <span className="flex flex-wrap items-baseline gap-2">
               <span className="text-muted">{when(Math.floor(Date.parse(a.createdAt) / 1000))}</span>
               <Badge
@@ -677,7 +688,7 @@ function Attempts({ agentId, attempts }: { agentId: string; attempts: RatingAtte
         <button
           type="button"
           onClick={() => void loadOlder()}
-          className="self-start text-xs text-accent hover:underline"
+          className={`${linkClass} self-start text-xs`}
         >
           Show older ratings
         </button>

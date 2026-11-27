@@ -108,7 +108,7 @@ export function useOperatorToken() {
 export function OperatorTokenField() {
   const { token, setToken } = useOperatorToken();
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-2">
       <Input
         label="Operator token (API_TOKEN)"
         type="password"
@@ -116,7 +116,7 @@ export function OperatorTokenField() {
         onChange={setToken}
         placeholder="kept in memory only"
       />
-      <span className="text-xs text-muted">
+      <span className="text-[13px] leading-relaxed text-muted">
         Starting ratings and signing quotes are operator actions. The token stays in this tab and is
         never saved.
       </span>

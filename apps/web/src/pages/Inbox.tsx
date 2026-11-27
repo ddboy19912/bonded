@@ -11,15 +11,16 @@ import { useOwnerSession } from "../lib/owner-session";
 import { useInbox } from "../components/inbox-bell";
 import { InfoPanel } from "../components/overlay";
 import { NoticeIcon } from "../components/notice-icon";
+import type { NoticeIconName, NoticeTone } from "../lib/notification-kinds";
 import { FixLink } from "../components/problem";
 import {
   Badge,
   Button,
-  Card,
   EmptyState,
   ErrorText,
   Loading,
   Page,
+  Section,
   Skeleton,
   Switch,
   Unavailable,
@@ -27,6 +28,15 @@ import {
   linkClass,
 } from "../components/ui";
 import { SignInButton } from "../components/sign-in";
+
+/** What shows here, for someone who hasn't signed in: the empty state's list, as icons. */
+const KINDS: { icon: NoticeIconName; tone: NoticeTone; text: string }[] = [
+  { icon: "clock", tone: "warn", text: "A score about to expire" },
+  { icon: "plug", tone: "warn", text: "The runner offline" },
+  { icon: "shield", tone: "breach", text: "A breach or a claim" },
+  { icon: "umbrella", tone: "warn", text: "Cover lapsing" },
+  { icon: "fuel", tone: "warn", text: "Low gas" },
+];
 
 /** Which notifications the owner gets: each type can be turned off (webhook, email and this list). */
 export function MuteSettings({ session }: { session: string }) {
@@ -157,28 +167,29 @@ export function Inbox() {
       : Date.parse(i.createdAt) > seenBefore;
   const freshCount = items.filter(fresh).length;
   const feed = (
-    <div className="flex max-w-3xl flex-col gap-8">
-      <p className="text-sm text-muted" aria-live="polite">
+    <div className="flex flex-col">
+      <p className="h-section mb-10 text-muted sm:mb-14" aria-live="polite">
         {freshCount > 0 ? (
           <>
-            <span className="font-semibold text-ink">{freshCount} new</span> since you last looked
+            <span className="text-accent">{freshCount} new</span> since you last looked
           </>
         ) : (
           "You're all caught up."
         )}
       </p>
       {dayGroups(items, now).map((g) => (
-        <section key={g.label} aria-label={g.label}>
-          <h2 className="border-b border-line pb-2 text-xs font-semibold tracking-wide text-muted uppercase">
-            {g.label}
-          </h2>
-          <ul className="flex flex-col" aria-label={`Notifications, ${g.label.toLowerCase()}`}>
+        <section key={g.label} aria-label={g.label} className="app-sec pb-4">
+          <h2 className="eyebrow app-sec-lab">{g.label}</h2>
+          <ul
+            className="flex min-w-0 flex-col divide-y divide-line"
+            aria-label={`Notifications, ${g.label.toLowerCase()}`}
+          >
             {g.items.map((i) => {
               const isNew = fresh(i);
               const kind = noticeKind(i);
               const { title, detail } = inboxLines(i);
               return (
-                <li key={i.id} className="flex gap-4 py-4 text-sm">
+                <li key={i.id} className="flex gap-4 py-5 text-sm first:pt-0">
                   <span className="relative">
                     <NoticeIcon icon={kind?.icon} tone={kind?.tone} />
                     {isNew && (
@@ -193,7 +204,9 @@ export function Inbox() {
                       {kind && <span className="eyebrow">{kind.title}</span>}
                       {isNew && <Badge tone="brand">New</Badge>}
                     </div>
-                    <p className={`text-[15px] ${isNew ? "font-semibold" : "font-medium"}`}>
+                    <p
+                      className={`text-[17px] leading-snug tracking-[-0.01em] ${isNew ? "font-semibold" : "font-medium"}`}
+                    >
                       {title}
                     </p>
                     {detail && <p className="text-soft">{detail}</p>}
@@ -221,7 +234,7 @@ export function Inbox() {
         </section>
       ))}
       {next && (
-        <div className="flex flex-col items-start gap-2">
+        <div className="flex flex-col items-start gap-2 pt-8 lg:pl-[calc(9.5rem+32px)]">
           <Button size="sm" kind="secondary" loading={loadingMore} onClick={() => void loadMore()}>
             Load more
           </Button>
@@ -251,24 +264,33 @@ export function Inbox() {
       }
     >
       {!owner.session ? (
-        <EmptyState
+        <Section
+          label="Your inbox"
           title="Sign in to see them"
-          action={
-            <SignInButton
-              wallet={{
-                signIn: () => void owner.signIn(),
-                signingIn: owner.signingIn,
-                error: owner.error,
-              }}
-            />
-          }
+          intro="Notifications are for your agents and previews."
         >
-          Notifications are for your agents and previews.
-        </EmptyState>
+          <SignInButton
+            size="lg"
+            wallet={{
+              signIn: () => void owner.signIn(),
+              signingIn: owner.signingIn,
+              error: owner.error,
+            }}
+          />
+          <div className="mt-14 border-t border-line pt-5">
+            <p className="eyebrow">What shows here</p>
+            <ul className="mt-5 grid gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
+              {KINDS.map((k) => (
+                <li key={k.text} className="flex items-center gap-3.5 text-[15px] text-soft">
+                  <NoticeIcon icon={k.icon} tone={k.tone} />
+                  {k.text}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Section>
       ) : inbox.isPending ? (
-        <Card>
-          <Loading what="your notifications" />
-        </Card>
+        <Loading what="your notifications" height="md" />
       ) : inbox.error ? (
         <Unavailable error={inbox.error} onRetry={() => void inbox.refetch()} />
       ) : !inbox.data?.items.length ? (

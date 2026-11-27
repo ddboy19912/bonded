@@ -234,38 +234,40 @@ export function SignInDialog({
       description={heads[view].description}
     >
       {view === "choose" && (
-        <div className="flex flex-col gap-3">
-          <Option
-            icon={<Mail className="size-5" aria-hidden />}
-            title="Continue with email"
-            hint="Your email and a one-time code."
-            onClick={() => {
-              setError(null);
-              setView("email");
-            }}
-          />
-          {passkeysWork() && (
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col divide-y divide-line border-y border-line">
             <Option
-              icon={<KeyRound className="size-5" aria-hidden />}
-              title="Sign in with a passkey"
-              hint="If you added one before."
-              busy={busy === "passkey"}
-              onClick={() => void signInWithPasskey()}
+              icon={<Mail className="size-5" aria-hidden />}
+              title="Continue with email"
+              hint="Your email and a one-time code."
+              onClick={() => {
+                setError(null);
+                setView("email");
+              }}
             />
-          )}
-          <Option
-            icon={<Wallet className="size-5" aria-hidden />}
-            title={walletConnected ? "Sign in with your wallet" : "Use a crypto wallet"}
-            hint="One signature. You won't send anything or pay gas."
-            onClick={onWallet}
-          />
+            {passkeysWork() && (
+              <Option
+                icon={<KeyRound className="size-5" aria-hidden />}
+                title="Sign in with a passkey"
+                hint="If you added one before."
+                busy={busy === "passkey"}
+                onClick={() => void signInWithPasskey()}
+              />
+            )}
+            <Option
+              icon={<Wallet className="size-5" aria-hidden />}
+              title={walletConnected ? "Sign in with your wallet" : "Use a crypto wallet"}
+              hint="One signature. You won't send anything or pay gas."
+              onClick={onWallet}
+            />
+          </div>
           <ErrorText error={error} />
         </div>
       )}
 
       {view === "email" && (
         <form
-          className="flex flex-col gap-4"
+          className="flex flex-col gap-5"
           onSubmit={(e) => {
             e.preventDefault();
             void sendCode();
@@ -282,7 +284,7 @@ export function SignInDialog({
             placeholder="you@example.com"
           />
           <ErrorText error={error} />
-          <Button type="submit" loading={busy === "code"} disabled={!email.includes("@")}>
+          <Button type="submit" size="lg" loading={busy === "code"} disabled={!email.includes("@")}>
             Email me a code
           </Button>
           {back("choose")}
@@ -291,7 +293,7 @@ export function SignInDialog({
 
       {view === "code" && (
         <form
-          className="flex flex-col gap-4"
+          className="flex flex-col gap-5"
           onSubmit={(e) => {
             e.preventDefault();
             void signInWithCode();
@@ -307,7 +309,7 @@ export function SignInDialog({
             hint="It works for 10 minutes. Check spam if it hasn't arrived."
           />
           <ErrorText error={error} />
-          <Button type="submit" loading={busy === "session"} disabled={code.length !== 6}>
+          <Button type="submit" size="lg" loading={busy === "session"} disabled={code.length !== 6}>
             Sign in
           </Button>
           <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
@@ -330,7 +332,9 @@ export function SignInDialog({
 
       {view === "offer" && (
         <div className="flex flex-col gap-2">
-          <p className="text-sm text-muted">You're signed in as {pending?.account?.email}.</p>
+          <p className="text-[15px] leading-relaxed text-soft">
+            You're signed in as {pending?.account?.email}.
+          </p>
           <ErrorText error={error} />
           <ModalActions>
             <Button kind="secondary" onClick={() => pending && complete(pending)}>
@@ -364,14 +368,22 @@ function Option({
       type="button"
       disabled={busy}
       onClick={onClick}
-      className="flex w-full items-center gap-4 rounded-xl border border-line-strong px-4 py-3.5 text-left transition-colors hover:border-accent/60 hover:bg-white/[0.03] disabled:opacity-60"
+      className="group flex w-full items-center gap-4 py-4 text-left outline-none disabled:opacity-60"
     >
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
+      <span className="flex size-6 shrink-0 items-center justify-center text-accent">
         {busy ? <Spinner /> : icon}
       </span>
-      <span className="flex min-w-0 flex-col">
-        <span className="font-medium text-ink">{title}</span>
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="text-[17px] font-medium tracking-[-0.01em] text-ink transition-colors group-hover:text-accent group-focus-visible:text-accent">
+          {title}
+        </span>
         <span className="text-sm text-muted">{hint}</span>
+      </span>
+      <span
+        aria-hidden
+        className="text-muted transition group-hover:translate-x-1 group-hover:text-accent group-focus-visible:translate-x-1 group-focus-visible:text-accent"
+      >
+        →
       </span>
     </button>
   );
@@ -400,7 +412,7 @@ export function HeaderSignIn() {
         title="Signed in"
         description={`As ${owner.email}.`}
       >
-        <p className="text-sm text-muted">
+        <p className="text-[15px] leading-relaxed text-soft">
           Your email works for testing agents, the payment gate and notifications.{" "}
           {isConnected
             ? "Your connected wallet is used for vaults, cover and bonds."

@@ -3,9 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { ChevronRightIcon, ListFilterIcon } from "lucide-react";
 import { GATE_RULES, GATE_RULE_WORDS } from "@bondedhq/shared";
-import { Badge } from "@/components/shadcn/badge";
-import { Button } from "@/components/shadcn/button";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/shadcn/empty";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import {
   Table,
@@ -28,8 +25,8 @@ import {
   type GateWatchedPayment,
 } from "../../lib/gate";
 import { ResponsiveModal } from "../responsive-modal";
-import { ErrorText, Loading, Unavailable, linkClass } from "../ui";
-import { ChainLogo, Facts, HashText, SelectField } from "./common";
+import { EmptyState, ErrorText, Loading, Unavailable, linkClass } from "../ui";
+import { Badge, Button, ChainLogo, Facts, HashText, SelectField, TABLE } from "./common";
 import { VerifyPanel, type ChainRoot } from "./verification";
 
 export const RESULT: Record<
@@ -325,21 +322,17 @@ export function Activity({
   if (!first.data) return <Loading what="decisions" />;
   if (!items.length && !filtered)
     return (
-      <Empty>
-        <EmptyHeader>
-          <EmptyTitle>No checks yet</EmptyTitle>
-          <EmptyDescription>
-            Your agent's checks show here.{" "}
-            <Link className={linkClass} to="?tab=connect">
-              Connect your agent
-            </Link>
-          </EmptyDescription>
-        </EmptyHeader>
-      </Empty>
+      <EmptyState title="No checks yet">
+        Your agent's checks show here.{" "}
+        <Link className={linkClass} to="?tab=connect">
+          Connect your agent
+        </Link>
+      </EmptyState>
     );
   return (
-    <div className="flex flex-col items-start gap-4">
-      <div className="flex w-full justify-end">
+    <div className="flex flex-col items-start gap-6">
+      <div className="flex w-full flex-wrap items-end justify-between gap-x-8 gap-y-4">
+        <h2 className="h-section">Payments, newest first</h2>
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm">
@@ -348,7 +341,7 @@ export function Activity({
               {filtered > 0 && <Badge variant="brand">{filtered}</Badge>}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="flex flex-col gap-4">
+          <PopoverContent className="flex flex-col gap-5 p-5">
             <SelectField
               label="Source"
               value={source}
@@ -371,7 +364,7 @@ export function Activity({
         </Popover>
       </div>
       {!items.length && <p className="text-sm text-muted">Nothing matches these filters.</p>}
-      <Table aria-label="Decisions" className={items.length ? "table-fixed" : "hidden"}>
+      <Table aria-label="Decisions" className={items.length ? `table-fixed ${TABLE}` : "hidden"}>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             <TableHead className="hidden w-24 md:table-cell">Result</TableHead>

@@ -7,7 +7,7 @@ import { TEST_AGENT } from "../lib/routes";
 import { BrokerageFindingsReport, brokerageReportOf } from "../components/brokerage-findings";
 import { PrintHeader, reportFileName, SavePdfButton } from "../components/save-pdf";
 import { PreviewReport } from "../components/preview-report";
-import { EmptyState, Loading, Page, Unavailable, buttonClass } from "../components/ui";
+import { Loading, Page, Unavailable, buttonClass } from "../components/ui";
 
 /**
  * A preview report its owner shared by a read-only link: the report and when it ran, nothing
@@ -30,9 +30,14 @@ export function SharedReport() {
   if (shared.isPending) return <Loading what="the report" height="md" />;
   if (shared.error)
     return shared.error instanceof ApiError && shared.error.status === 404 ? (
-      <EmptyState title="This link doesn't work" action={cta}>
-        Whoever shared it may have turned it off, or the link is incomplete.
-      </EmptyState>
+      <Page
+        eyebrow="Shared report"
+        title="This link doesn't work"
+        intro="Whoever shared it may have turned it off, or the link is incomplete."
+        actions={cta}
+      >
+        {null}
+      </Page>
     ) : (
       <Unavailable error={shared.error} onRetry={() => void shared.refetch()} />
     );
@@ -53,10 +58,10 @@ export function SharedReport() {
         )}
       </div>
       {/* After the report, where a reader who wants it has finished reading it. */}
-      <section className="mt-2 flex flex-wrap items-center justify-between gap-4 border-t border-line pt-6 text-sm">
+      <section className="flex flex-wrap items-end justify-between gap-6 border-t border-line pt-8 text-sm">
         <div>
-          <p className="font-semibold">Keep a copy</p>
-          <p className="text-muted">Save this report as a PDF to send, print or file.</p>
+          <p className="text-xl font-medium tracking-[-0.03em]">Keep a copy</p>
+          <p className="mt-1 text-muted">Save this report as a PDF to send, print or file.</p>
         </div>
         <SavePdfButton fileName={reportFileName(world, run.created_at)} />
       </section>

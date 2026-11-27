@@ -198,7 +198,7 @@ describe("task score tile", () => {
           },
         },
       ]);
-      const panel = (await screen.findByText(verdict)).closest(".panel") as HTMLElement;
+      const panel = (await screen.findByText(verdict)).closest("[data-score]") as HTMLElement;
       expect(panel.querySelector(`circle[stroke="${colour}"]`)).toBeTruthy();
     },
   );

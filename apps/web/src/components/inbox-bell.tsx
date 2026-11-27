@@ -23,7 +23,7 @@ export function InboxBell() {
   return (
     <Link
       to="/inbox"
-      className="relative inline-flex size-11 shrink-0 items-center justify-center rounded-full border border-line-strong text-muted hover:text-ink"
+      className="relative inline-flex size-11 shrink-0 items-center justify-center rounded-full text-muted shadow-[inset_0_0_0_1px_rgb(255_255_255/0.2)] transition-colors hover:text-ink hover:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.4)]"
       aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}
     >
       <svg
@@ -39,7 +39,7 @@ export function InboxBell() {
         <path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" />
       </svg>
       {unread > 0 && (
-        <span className="absolute -top-1 -right-1 min-w-5 rounded-full bg-breach-solid px-1 text-center text-[11px] font-semibold text-white">
+        <span className="absolute -top-1 -right-1 min-w-5 rounded-full bg-breach-solid px-1 text-center font-mono text-[11px] leading-5 font-medium text-black">
           {unread > 9 ? "9+" : unread}
         </span>
       )}

@@ -65,7 +65,7 @@ const LAYOUT = {
     hostingsThree: "mt-1 divide-y divide-line",
     advanced: "border-t border-line pt-4",
   },
-  /** A bordered card for each option. */
+  /** A tile for each option; Advanced under a hairline, as in the flat layout. */
   boxed: {
     root: "gap-5",
     fieldset: "flex flex-col gap-2",
@@ -74,7 +74,7 @@ const LAYOUT = {
     hostingHint: "mb-2 text-xs text-muted",
     hostings: "grid gap-2 sm:grid-cols-2",
     hostingsThree: "grid gap-2 sm:grid-cols-3",
-    advanced: "rounded-2xl border border-line-strong p-4",
+    advanced: "border-t border-line pt-4",
   },
 } as const;
 
@@ -123,7 +123,7 @@ export function FrameworkQuestions({
   const askFramework = hosting !== "bonded";
   const hostingQuestion = (
     <fieldset className={L.fieldset}>
-      <legend className="font-medium">Where do you run it?</legend>
+      <legend className="text-[15px] font-medium text-ink">Where do you run it?</legend>
       <p className={L.hostingHint}>
         {hostings.includes("bonded") ? HOSTING_HINT_HOSTED : HOSTING_HINT}
       </p>
@@ -148,7 +148,7 @@ export function FrameworkQuestions({
       {hostings.includes("bonded") && hostingQuestion}
       {askFramework && (
         <fieldset className={L.fieldset}>
-          <legend className={`${L.frameworkLegend} font-medium`}>
+          <legend className={`${L.frameworkLegend} text-[15px] font-medium text-ink`}>
             Which framework is your agent built on?
           </legend>
           <div className={L.frameworks}>
@@ -324,7 +324,9 @@ export function UseYourVault({ vault }: { vault?: string | null }) {
     >
       <div className="flex flex-col gap-4 text-sm">
         <fieldset>
-          <legend className="mb-2 font-medium">Which framework is your agent built on?</legend>
+          <legend className="mb-3 text-[15px] font-medium text-ink">
+            Which framework is your agent built on?
+          </legend>
           <div className="flex flex-wrap gap-2">
             {FRAMEWORKS.map((f) => (
               <label
