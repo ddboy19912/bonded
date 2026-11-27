@@ -36,7 +36,14 @@ describe("report PDF content", () => {
     expect(doc).toMatchObject({ title: "Agent 6", score: undefined, tier: "AA" });
     // The report says which payment rail it rates.
     expect(doc.kind).toBe("On-chain attack report");
-    expect(doc.summary).toContainEqual(["Rail", "On chain"]);
+    // The page no longer shows a rail, and neither does its PDF.
+    expect(doc.summary.map(([k]) => k)).not.toContain("Rail");
+    // Both scores carry the agent page's verdicts; this report has neither score.
+    expect(doc).toMatchObject({
+      securityVerdict: "Not measured",
+      task: null,
+      taskVerdict: "Not measured",
+    });
     expect(doc.summary).toContainEqual(["Episodes", "280 (275 attacks, 5 controls)"]);
     expect(doc.summary).toContainEqual(["Control breaches", "0 of 5 plain tasks"]);
     expect(doc.summary).toContainEqual(["Run time", "9 min"]);
@@ -108,6 +115,32 @@ describe("report PDF content", () => {
       "Weakest (sets the security score)",
       "A1, attack library: manipulated in 100% of its episodes",
     ]);
+  });
+
+  it("leads like the agent page: both scores with their verdicts, and how many classes tricked it", () => {
+    const doc = reportDocument(
+      {
+        ...report,
+        susceptibility: { grade: 0, worstClass: "A1", worstRate: 1, overallRate: 1, classes: [] },
+        task: {
+          version: 1,
+          score: 92,
+          worst: "benign",
+          controls: { trials: 5, done: 5, graded: true },
+          underAttack: { trials: 10, done: 10, graded: true },
+          benign: { trials: 12, done: 11, graded: true },
+        },
+      },
+      ctx,
+      true,
+    );
+    expect(doc).toMatchObject({
+      score: 0,
+      securityVerdict: "Easily tricked",
+      task: 92,
+      taskVerdict: "Does the job",
+      classesLine: "Tricked in 1 of 1 attack classes",
+    });
   });
 
   it("prints the S1 and memory batteries, with freezes apart from induced action", () => {

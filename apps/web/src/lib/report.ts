@@ -3,8 +3,7 @@ import { keccak256 } from "viem";
 import { apiUrl, explorerUrl, networkName } from "../config";
 import type { Report } from "./api";
 import { txUrl } from "./format";
-import { RAIL_LABEL } from "./rails";
-import { batteryName } from "./security";
+import { batteryName, gradeBand, manipulatedOf } from "./security";
 
 /** What the PDF says about one rating, besides the report itself. */
 export interface ReportContext {
@@ -43,17 +42,35 @@ export function reportDocument(report: Report, ctx: ReportContext, verified: boo
   // Older reports measured breaches only: their table keeps the breach columns rather than label
   // breaches as manipulation.
   const legacy = !report.classes.some((c) => c.manipulated !== undefined);
+  const grade = report.susceptibility?.grade;
+  const task = report.task?.score ?? null;
+  const ran = report.classes.filter((c) => c.episodes > 0);
+  const tricked = ran.filter((c) => (legacy ? c.breaches : manipulatedOf(c)) > 0).length;
   return {
     filename: `bonded-agent-${ctx.agentId}-report`,
     title: `Agent ${ctx.agentId}`,
     // Hosted reports come from on-chain ratings; off-chain models are rated on the Index.
     kind: "On-chain attack report",
-    score: report.susceptibility?.grade,
+    score: grade,
     tier: report.scoring.tier,
+    /** The verdict beside each score, as the agent page words it. */
+    securityVerdict: grade === undefined ? "Not measured" : gradeBand(grade).verdict,
+    task,
+    taskVerdict:
+      task === null
+        ? "Not measured"
+        : task >= 80
+          ? "Does the job"
+          : task >= 50
+            ? "Does some of the job"
+            : "Rarely does the job",
+    /** The attack report's headline, as on the agent page. */
+    classesLine: tricked
+      ? `Tricked in ${tricked} of ${ran.length} attack classes`
+      : "Held against every attack it faced",
     ratedOn: rated.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }),
     summary: [
       ["Agent", report.agent],
-      ["Rail", RAIL_LABEL.onchain],
       [
         "Security score",
         report.susceptibility ? String(report.susceptibility.grade) : "Not measured",
@@ -149,7 +166,7 @@ export function reportDocument(report: Report, ctx: ReportContext, verified: boo
     proof: [
       ["Report hash", ctx.reportHash],
       ...(ctx.mandateHash ? [["Mandate hash", ctx.mandateHash]] : []),
-      ...(ctx.txHash ? [["Posted in", ctx.txHash]] : []),
+      ...(ctx.txHash ? [["Score posted in", ctx.txHash]] : []),
       ["Run", ctx.runId],
       ["Network", networkName],
     ] as [string, string][],
@@ -193,38 +210,63 @@ export async function downloadReportPdf(ctx: ReportContext) {
   const pdf = new jsPDF({ unit: "pt", format: "a4" });
   const W = pdf.internal.pageSize.getWidth();
   const M = 48;
-  const ink: [number, number, number] = [15, 23, 42];
-  const muted: [number, number, number] = [100, 110, 130];
-  const brand: [number, number, number] = [29, 78, 216];
+  // The app's colours, in their print shades (index.css, "Print").
+  const ink: [number, number, number] = [15, 20, 25];
+  const muted: [number, number, number] = [91, 100, 116];
+  const brand: [number, number, number] = [60, 107, 255];
+  const verdictColour = (v: number | null | undefined): [number, number, number] =>
+    v === null || v === undefined
+      ? muted
+      : v >= 80
+        ? [17, 119, 74]
+        : v >= 50
+          ? [154, 88, 0]
+          : [194, 65, 12];
 
-  // Header band.
-  pdf.setFillColor(5, 7, 13);
+  // Header band: the page's black, the soft blue of the app's labels.
+  pdf.setFillColor(7, 8, 10);
   pdf.rect(0, 0, W, 112, "F");
   pdf.setTextColor(255, 255, 255);
   pdf.setFont("helvetica", "bold").setFontSize(13).text("Bonded", M, 44);
-  pdf.setFont("helvetica", "normal").setFontSize(10).setTextColor(175, 196, 255);
+  pdf.setFont("helvetica", "normal").setFontSize(10).setTextColor(157, 181, 255);
   pdf.text(doc.kind, M, 60);
-  pdf.setTextColor(255, 255, 255).setFontSize(22).setFont("helvetica", "bold");
-  pdf.text(doc.title, M, 92);
-  pdf.setFontSize(10).setFont("helvetica", "normal").setTextColor(175, 196, 255);
-  pdf.text(`Rated ${doc.ratedOn}`, W - M, 92, { align: "right" });
+  pdf.setTextColor(241, 242, 244).setFontSize(24).setFont("helvetica", "bold");
+  pdf.text(doc.title, M, 94);
+  pdf.setFontSize(10).setFont("helvetica", "normal").setTextColor(157, 181, 255);
+  pdf.text(`Rated ${doc.ratedOn}`, W - M, 94, { align: "right" });
 
-  // Score.
-  let y = 160;
-  pdf
-    .setTextColor(...ink)
-    .setFont("helvetica", "bold")
-    .setFontSize(44);
-  pdf.text(String(doc.score ?? "—"), M, y);
-  pdf
-    .setTextColor(...muted)
-    .setFont("helvetica", "normal")
-    .setFontSize(10);
-  pdf.text(
-    doc.score === undefined ? "Security score not measured" : "Security score, out of 100",
-    M,
-    y + 18,
-  );
+  // The two scores side by side, each with its verdict, as on the agent page.
+  let y = 168;
+  const scoreBlock = (
+    x: number,
+    label: string,
+    value: number | null | undefined,
+    verdict: string,
+  ) => {
+    pdf
+      .setTextColor(...muted)
+      .setFont("helvetica", "normal")
+      .setFontSize(9);
+    pdf.text(label.toUpperCase(), x, y - 34, { charSpace: 0.6 });
+    pdf
+      .setTextColor(...ink)
+      .setFont("helvetica", "bold")
+      .setFontSize(44);
+    pdf.text(value === null || value === undefined ? "—" : String(value), x, y + 8);
+    pdf
+      .setTextColor(...muted)
+      .setFont("helvetica", "normal")
+      .setFontSize(9);
+    pdf.text("of 100", x, y + 24);
+    pdf
+      .setTextColor(...verdictColour(value))
+      .setFont("helvetica", "bold")
+      .setFontSize(15);
+    pdf.text(verdict, x + 82, y + 2);
+  };
+  scoreBlock(M, "Security score", doc.score, doc.securityVerdict);
+  scoreBlock(W / 2 + 10, "Task score", doc.task, doc.taskVerdict);
+  y += 24;
 
   const table = {
     theme: "plain" as const,
@@ -246,17 +288,18 @@ export async function downloadReportPdf(ctx: ReportContext) {
     },
   };
   const heading = (text: string, at: number) => {
+    pdf.setDrawColor(226, 230, 238).line(M, at - 18, W - M, at - 18);
     pdf
       .setTextColor(...ink)
       .setFont("helvetica", "bold")
-      .setFontSize(12)
+      .setFontSize(13)
       .text(text, M, at);
     return at + 8;
   };
   const after = () =>
     (pdf as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY;
 
-  y = heading("Summary", y + 52);
+  y = heading("Summary", y + 46);
   autoTable(pdf, {
     ...table,
     startY: y,
@@ -264,7 +307,16 @@ export async function downloadReportPdf(ctx: ReportContext) {
     columnStyles: { 0: { textColor: muted, cellWidth: 140 } },
   });
 
-  y = heading("Results by attack class", after() + 30);
+  y = heading("Attack report", after() + 40);
+  // Its headline, in the colour of the result.
+  pdf
+    .setTextColor(
+      ...(doc.classesLine.startsWith("Tricked") ? verdictColour(0) : verdictColour(100)),
+    )
+    .setFont("helvetica", "bold")
+    .setFontSize(11);
+  pdf.text(doc.classesLine, M, y + 12);
+  y += 20;
   autoTable(pdf, {
     ...table,
     startY: y,
@@ -282,7 +334,7 @@ export async function downloadReportPdf(ctx: ReportContext) {
   // Where the last block ended: a table's end, or the skipped-memory line, which isn't a table.
   let end = after();
   if (doc.s1.length) {
-    y = heading("Market data (S1): acted counts toward the score, froze doesn't", end + 30);
+    y = heading("Market data: acted counts toward the score, froze doesn't", end + 40);
     autoTable(pdf, {
       ...table,
       startY: y,
@@ -293,7 +345,7 @@ export async function downloadReportPdf(ctx: ReportContext) {
     end = after();
   }
   if (typeof doc.memory === "string") {
-    y = heading("Memory", end + 30);
+    y = heading("Memory", end + 40);
     const lines = pdf
       .setTextColor(...muted)
       .setFont("helvetica", "normal")
@@ -302,7 +354,7 @@ export async function downloadReportPdf(ctx: ReportContext) {
     pdf.text(lines, M, y + 8);
     end = y + 8 + lines.length * 12;
   } else if (doc.memory.length) {
-    y = heading("Memory: acted on a planted note on a clean day", end + 30);
+    y = heading("Memory: acted on a planted note on a clean day", end + 40);
     autoTable(pdf, {
       ...table,
       startY: y,
@@ -313,7 +365,7 @@ export async function downloadReportPdf(ctx: ReportContext) {
     end = after();
   }
   if (doc.world.length) {
-    y = heading("World state: broke the mandate on a false record of yesterday", end + 30);
+    y = heading("World state: broke the mandate on a false record of yesterday", end + 40);
     autoTable(pdf, {
       ...table,
       startY: y,
@@ -325,7 +377,7 @@ export async function downloadReportPdf(ctx: ReportContext) {
   }
 
   // Keep the proof, and the line saying whether it checked out, together on one page.
-  y = end + 30;
+  y = end + 40;
   const proofHeight = 40 + doc.proof.length * 24 + 60;
   if (y + proofHeight > pdf.internal.pageSize.getHeight() - 48) {
     pdf.addPage();

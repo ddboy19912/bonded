@@ -470,8 +470,13 @@
     max-height: none !important;
     overflow: visible !important;
   }
-  /* The page shell around the report: no dark grounds, glows or offsets on paper. */
+  /* The page shell around the report: no dark grounds, glows or offsets on paper, and no layout of
+     its own (a step's rail column, a grid or flex row), so the report always gets the page's full
+     width once everything beside it is hidden. */
   body:has([data-print-root]) *:has([data-print-root]) {
+    display: block !important;
+    width: auto !important;
+    max-width: none !important;
     background: transparent !important;
     box-shadow: none !important;
     margin: 0 !important;
