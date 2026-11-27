@@ -109,7 +109,7 @@ afterEach(() => {
 });
 
 describe("Test your agent", () => {
-  it("starts with one Sign in button, and shows the whole path", () => {
+  it("starts with one Sign in button, and shows the whole path", async () => {
     wallet.address = undefined;
     show();
     expect(within(current()).getByText(/your email, a passkey or a crypto wallet/)).toBeTruthy();
@@ -126,21 +126,25 @@ describe("Test your agent", () => {
       "Your preview report",
     ])
       expect(screen.getByRole("heading", { name: new RegExp(title) })).toBeTruthy();
-    expect(screen.getAllByText(/Preview: private, not published/).length).toBeGreaterThan(0);
-    // The page says this is a preview: nothing else on it does.
-    expect(screen.getByRole("heading", { name: "This is a preview rating" })).toBeTruthy();
+    // What a preview is opens in a modal from the intro.
+    fireEvent.click(screen.getByRole("button", { name: "What's a preview?" }));
+    const about = await screen.findByRole("dialog", { name: "What's a preview?" });
+    expect(within(about).getByText("Private")).toBeTruthy();
+    expect(within(about).getByText(/never published or put on chain/)).toBeTruthy();
   });
 
   it("says how big a preview is from the API's plan, and nothing when it has none", async () => {
     show();
-    expect(
-      await screen.findByText(/up to 56 episodes, stopped at 37 min at the most/),
-    ).toBeTruthy();
+    await waitFor(() => expect(byoaApi.previewAllowance).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "What's a preview?" }));
+    expect(await screen.findByText(/up to 56 episodes, 37 min at most/)).toBeTruthy();
     cleanup();
     vi.mocked(byoaApi.previewAllowance).mockResolvedValue({ allowed: true, queued: 0, plan: null });
     show();
     await waitFor(() => expect(byoaApi.previewAllowance).toHaveBeenCalledTimes(2));
-    expect(screen.queryByText(/minutes|min at the most/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "What's a preview?" }));
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+    expect(screen.queryByText(/episodes, .* at most/)).toBeNull();
   });
 
   it("signs in with an email code, with no wallet at all, as the account", async () => {
@@ -362,8 +366,9 @@ describe("Test your agent", () => {
     await waitFor(() =>
       expect(check).toHaveBeenCalledWith({ kind: "preview", id: "ph" }, { session: "sess" }),
     );
-    // Bonded pays for its model, and the page says so.
-    expect(screen.getByText("Bonded pays for the model")).toBeTruthy();
+    // Bonded pays for its model, and "What's a preview?" says so.
+    fireEvent.click(screen.getByRole("button", { name: "What's a preview?" }));
+    expect(await screen.findByText("Bonded pays for the model")).toBeTruthy();
   });
 
   it("asks for the daily preview of the world being chosen", async () => {
@@ -543,8 +548,11 @@ describe("Test your agent", () => {
       expect(within(current()).getByText("Start the preview rating")).toBeTruthy(),
     );
     expect(await screen.findByText(/About 19 min for 56 episodes/)).toBeTruthy();
-    // How big a preview is comes from the API's plan, beside the steps.
-    expect(screen.getByText(/up to 56 episodes, stopped at 37 min at the most/)).toBeTruthy();
+    // How big a preview is comes from the API's plan, in "What's a preview?".
+    fireEvent.click(screen.getByRole("button", { name: "What's a preview?" }));
+    expect(await screen.findByText(/up to 56 episodes, 37 min at most/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Got it" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     // The check's advice stays reachable after it passed, folded away until asked for.
     fireEvent.click(screen.getByText("1 thing worth fixing before you start"));
     expect(screen.getByText(/It read 2 of 9 surfaces/)).toBeTruthy();
@@ -734,7 +742,7 @@ describe("Test your agent", () => {
       .mockResolvedValue({ items: [made, ...many], total: 4, next: null });
     show();
     expect(await screen.findByText("Expired")).toBeTruthy();
-    expect(screen.getAllByRole("button", { name: "Open it" })).toHaveLength(4);
+    expect(screen.getAllByRole("button", { name: /^Open the preview from/ })).toHaveLength(4);
     expect(list).toHaveBeenCalledTimes(2);
   });
 
@@ -772,10 +780,10 @@ describe("Test your agent", () => {
       );
     show();
     expect(await screen.findByText("Showing 10 of 12")).toBeTruthy();
-    expect(screen.getAllByRole("button", { name: "Open it" })).toHaveLength(10);
+    expect(screen.getAllByRole("button", { name: /^Open the preview from/ })).toHaveLength(10);
     fireEvent.click(screen.getByRole("button", { name: "Show 2 more" }));
     await waitFor(() =>
-      expect(screen.getAllByRole("button", { name: "Open it" })).toHaveLength(12),
+      expect(screen.getAllByRole("button", { name: /^Open the preview from/ })).toHaveLength(12),
     );
     expect(list).toHaveBeenCalledWith("sess", { before: "c10", limit: 10 });
     expect(screen.queryByText(/Showing/)).toBeNull();
@@ -797,7 +805,7 @@ describe("Test your agent", () => {
     show();
     const jump = vi.fn();
     Element.prototype.scrollIntoView = jump;
-    fireEvent.click(await screen.findByRole("button", { name: "Open it" }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Open the preview from/ }));
     await waitFor(() => expect(screen.getByTestId("search").textContent).toBe("?preview=old"));
     // The preview opens in the steps above the list, so the page moves there.
     await waitFor(() => expect(jump).toHaveBeenCalled());

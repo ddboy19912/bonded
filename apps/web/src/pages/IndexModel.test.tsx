@@ -212,9 +212,12 @@ describe("a model's result page", () => {
     view("muse-spark-1.3");
     expect(screen.getByText("Attack library").nextElementSibling?.textContent).toBe("v1");
     expect(screen.queryByText(/^rated 2026/)).toBeNull();
-    expect(
-      screen.getByText(/Where these numbers come from: Library attacks: Index run of 26 Oct/),
-    ).toBeTruthy();
+    // Where the numbers come from is folded under a note the reader opens.
+    const note = screen.getByRole("button", { name: "Where these numbers come from" });
+    expect(note.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(note);
+    expect(note.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByText(/^Library attacks: Index run of 26 Oct/)).toBeTruthy();
     cleanup();
     view("llama-4-maverick");
     expect(screen.getByText("No attack class got through.")).toBeTruthy();

@@ -30,26 +30,38 @@ export function Logo({
   return <img src={src} alt="Bonded" className={`${className} w-auto`} />;
 }
 
+/**
+ * A block of a page: a hairline across the top, its title in large tight type, and its content in
+ * the open. No box: the founder's rule is open layout, with rules only where they separate things.
+ */
 export function Card({
   title,
   description,
   children,
   actions,
   className = "",
+  printKeep = false,
 }: {
   title?: ReactNode;
   description?: ReactNode;
   children: ReactNode;
   actions?: ReactNode;
   className?: string;
+  /** On paper, keep it on one page with its title (for short cards). */
+  printKeep?: boolean;
 }) {
   return (
-    <section className={`panel min-w-0 p-5 sm:p-6 ${className}`}>
+    <section
+      data-print-keep={printKeep || undefined}
+      className={`min-w-0 border-t border-line pt-6 ${className}`}
+    >
       {(title || actions) && (
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            {title && <h2 className="text-lg font-bold">{title}</h2>}
-            {description && <p className="mt-1 max-w-2xl text-sm text-muted">{description}</p>}
+            {title && <h2 className="h-section">{title}</h2>}
+            {description && (
+              <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-muted">{description}</p>
+            )}
           </div>
           {actions}
         </div>
@@ -71,15 +83,13 @@ export function Stat({
   size?: "md" | "lg";
 }) {
   return (
-    <div className="min-w-0">
+    <div className="min-w-0 border-t border-line pt-4">
       <div className="eyebrow">{label}</div>
-      <div
-        className={`mt-2 truncate tabular-nums ${size === "lg" ? "font-serif text-5xl leading-none" : "text-2xl font-bold tracking-tight"}`}
-      >
+      <div className={`mt-2.5 truncate tabular-nums ${size === "lg" ? "num-giant" : "num-big"}`}>
         {value}
       </div>
       {hint && (
-        <div className="mt-1 text-xs text-muted">
+        <div className="mt-2 text-[13px] text-muted">
           {typeof hint === "string" ? <Rich>{hint}</Rich> : hint}
         </div>
       )}
@@ -92,11 +102,11 @@ export function Grid({ children }: { children: ReactNode }) {
 }
 
 const BADGE: Record<Tone, string> = {
-  safe: "bg-safe-soft text-safe",
-  breach: "bg-breach-soft text-breach",
-  neutral: "bg-white/[0.07] text-soft",
-  brand: "bg-accent-soft text-accent",
-  warn: "bg-warn-soft text-warn",
+  safe: "border-safe/35 text-safe",
+  breach: "border-breach/40 text-breach",
+  neutral: "border-line-strong text-soft",
+  brand: "border-accent/40 text-accent",
+  warn: "border-warn/40 text-warn",
 };
 
 export function Badge({
@@ -110,7 +120,7 @@ export function Badge({
 }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap ${BADGE[tone]}`}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-px font-mono text-[11.5px] leading-[18px] whitespace-nowrap ${BADGE[tone]}`}
     >
       {dot && <span className="size-1.5 rounded-full bg-current" aria-hidden />}
       {children}
@@ -215,22 +225,23 @@ export function TxLink({ hash }: { hash: string }) {
 export type ButtonKind = "primary" | "secondary" | "ghost" | "danger" | "light";
 export type ButtonSize = "sm" | "md" | "lg";
 
+/** The look of each kind of button: the classes in index.css (`.btn-*`) hold the hover fill. */
 const BUTTON_KIND: Record<ButtonKind, string> = {
-  primary: "btn-brand text-on-brand hover:brightness-110",
-  light: "bg-ink text-paper hover:bg-white",
-  secondary: "border border-line-strong text-ink hover:bg-white/[0.06]",
-  ghost: "text-soft hover:bg-white/[0.06] hover:text-ink",
-  danger: "border border-breach/40 text-breach hover:bg-breach-soft",
+  primary: "btn-primary",
+  light: "btn-light",
+  secondary: "btn-secondary",
+  ghost: "btn-ghost",
+  danger: "btn-danger",
 };
 const BUTTON_SIZE: Record<ButtonSize, string> = {
   sm: "h-9 px-4 text-sm",
-  md: "h-11 px-5 text-sm",
-  lg: "h-12 px-6 text-base",
+  md: "h-11 px-5 text-[15px]",
+  lg: "h-12 px-6 text-[15px]",
 };
 
 /** The classes for a button, for links that should look like one. */
 export function buttonClass(kind: ButtonKind = "primary", size: ButtonSize = "md") {
-  return `inline-flex items-center justify-center gap-2 rounded-full font-semibold whitespace-nowrap transition disabled:cursor-not-allowed disabled:opacity-40 ${BUTTON_KIND[kind]} ${BUTTON_SIZE[size]}`;
+  return `btn ${BUTTON_KIND[kind]} ${BUTTON_SIZE[size]}`;
 }
 
 export function Button({
@@ -293,7 +304,7 @@ export function Spinner({ large = false }: { large?: boolean }) {
 }
 
 const FIELD =
-  "h-11 w-full rounded-xl border bg-white/[0.03] px-3.5 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-accent focus:ring-3 focus:ring-accent/15";
+  "h-12 w-full rounded-xl border bg-white/[0.02] px-4 text-[15px] text-ink outline-none transition placeholder:text-dim hover:border-white/30 focus:border-brand-bright focus:bg-transparent";
 
 export function Input(props: {
   value: string;
@@ -314,8 +325,8 @@ export function Input(props: {
   const id = useId();
   const mono = props.mono ?? true;
   return (
-    <div className="flex min-w-0 flex-col gap-1.5 text-sm">
-      <label htmlFor={id} className="font-medium text-soft">
+    <div className="flex min-w-0 flex-col gap-2 text-sm">
+      <label htmlFor={id} className="eyebrow">
         {props.label}
       </label>
       <div className="relative">
@@ -356,8 +367,8 @@ export function Select(props: {
 }) {
   const id = useId();
   return (
-    <div className="flex min-w-0 flex-col gap-1.5 text-sm">
-      <label htmlFor={id} className="font-medium text-soft">
+    <div className="flex min-w-0 flex-col gap-2 text-sm">
+      <label htmlFor={id} className="eyebrow">
         {props.label}
       </label>
       <select
@@ -393,58 +404,113 @@ export function Choice({
   title: ReactNode;
   children?: ReactNode;
   name?: string;
-  /** A logo or icon for the option: the card then stacks it on top, with the radio at its right. */
+  /** A logo or icon for the option: the tile then stacks it on top, with the mark at its right. */
   icon?: ReactNode;
   type?: "radio" | "checkbox";
   /** Not available here; `children` should say why. */
   disabled?: boolean;
-  /** A row in a plain list, for places where a box per option is too much. */
+  /** A row in a plain list, for places where a tile per option is too much. */
   flat?: boolean;
 }) {
-  if (icon && !flat) {
+  const input = (
+    <input
+      type={type}
+      name={name}
+      checked={checked}
+      onChange={onChange}
+      disabled={disabled}
+      className="peer sr-only"
+    />
+  );
+  const text = (
+    <span className="min-w-0">
+      <span
+        className={`block text-[15px] font-medium tracking-[-0.01em] transition-colors ${checked ? "text-ink" : "text-soft"}`}
+      >
+        {title}
+      </span>
+      {children && (
+        <span className="mt-1 block text-[13.5px] leading-relaxed text-muted">{children}</span>
+      )}
+    </span>
+  );
+  if (flat)
     return (
       <label
-        className={`flex flex-col gap-3 rounded-2xl border p-4 text-sm transition ${disabled ? "cursor-not-allowed border-line-strong opacity-60" : checked ? "cursor-pointer border-accent/60 bg-accent-soft" : "cursor-pointer border-line-strong hover:bg-white/[0.03]"}`}
+        className={`group flex items-start gap-3.5 py-3.5 transition ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
       >
-        <span className="flex items-start justify-between">
-          <span
-            aria-hidden
-            className={`flex size-7 items-center transition [&_svg]:size-7 ${checked ? "text-ink" : "text-muted"}`}
-          >
-            {icon}
-          </span>
-          <input
-            type={type}
-            name={name}
-            checked={checked}
-            onChange={onChange}
-            disabled={disabled}
-          />
-        </span>
-        <span>
-          <span className="font-semibold">{title}</span>
-          {children && <span className="mt-0.5 block text-muted">{children}</span>}
-        </span>
+        {input}
+        <ChoiceMark checked={checked} type={type} className="mt-0.5" />
+        {text}
       </label>
     );
-  }
   return (
     <label
-      className={`flex items-start gap-3 text-sm transition ${flat ? `py-3 ${disabled ? "cursor-not-allowed opacity-60" : checked ? "cursor-pointer" : "cursor-pointer text-muted hover:text-ink"}` : `rounded-2xl border p-4 ${disabled ? "cursor-not-allowed border-line-strong opacity-60" : checked ? "cursor-pointer border-accent/60 bg-accent-soft" : "cursor-pointer border-line-strong hover:bg-white/[0.03]"}`}`}
+      className={`group relative flex h-full gap-4 rounded-2xl p-5 transition duration-200 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-paper ${icon ? "items-start sm:flex-col" : "items-start"} ${disabled ? "cursor-not-allowed opacity-50 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)]" : checked ? "cursor-pointer bg-brand-bright/[0.07] shadow-[inset_0_0_0_1.5px_var(--color-brand-bright)]" : "cursor-pointer shadow-[inset_0_0_0_1px_rgb(255_255_255/0.1)] hover:bg-white/[0.025] hover:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.22)]"}`}
     >
-      <input
-        type={type}
-        name={name}
-        checked={checked}
-        onChange={onChange}
-        disabled={disabled}
-        className={`mt-0.5 ${flat ? "accent-brand-bright" : ""}`}
-      />
-      <span>
-        <span className={`font-semibold ${flat && checked ? "text-ink" : ""}`}>{title}</span>
-        {children && <span className="mt-0.5 block text-muted">{children}</span>}
-      </span>
+      {input}
+      {icon ? (
+        <>
+          {/* A row on a phone (icon, text, mark); stacked from tablet up, the mark top right. */}
+          <span className="flex shrink-0 items-start justify-between sm:w-full">
+            <span
+              aria-hidden
+              className={`flex size-9 items-center justify-center rounded-xl transition [&_svg]:size-5 [&_img]:size-5 ${checked ? "bg-brand-bright/15 text-ink" : "bg-white/[0.05] text-muted group-hover:text-soft"}`}
+            >
+              {icon}
+            </span>
+            <span className="hidden sm:block">
+              <ChoiceMark checked={checked} type={type} />
+            </span>
+          </span>
+          <span className="min-w-0 flex-1">{text}</span>
+          <span className="mt-0.5 sm:hidden">
+            <ChoiceMark checked={checked} type={type} />
+          </span>
+        </>
+      ) : (
+        <>
+          <ChoiceMark checked={checked} type={type} className="mt-0.5" />
+          {text}
+        </>
+      )}
     </label>
+  );
+}
+
+/** A choice's mark: a ring that fills blue with a dot (radio), or a box with a tick (checkbox). */
+function ChoiceMark({
+  checked,
+  type,
+  className = "",
+}: {
+  checked: boolean;
+  type: "radio" | "checkbox";
+  className?: string;
+}) {
+  return (
+    <span
+      aria-hidden
+      className={`grid size-[18px] shrink-0 place-items-center transition duration-200 ${type === "radio" ? "rounded-full" : "rounded-[5px]"} ${checked ? "bg-brand-bright shadow-[0_0_0_4px_rgb(60_107_255/0.18)]" : "shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.28)] group-hover:shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.5)]"} ${className}`}
+    >
+      {type === "radio" ? (
+        <span
+          className={`size-1.5 rounded-full bg-white transition duration-200 ${checked ? "scale-100" : "scale-0"}`}
+        />
+      ) : (
+        <svg
+          viewBox="0 0 12 12"
+          className={`size-3 text-white transition duration-200 ${checked ? "opacity-100" : "opacity-0"}`}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="m2.5 6.2 2.3 2.3 4.7-5" />
+        </svg>
+      )}
+    </span>
   );
 }
 
@@ -522,17 +588,23 @@ export function EmptyState({
   title,
   children,
   action,
+  divider = true,
 }: {
   title: ReactNode;
   children?: ReactNode;
   action?: ReactNode;
+  /** The hairline above it. Off when a line already sits right above (a tab bar). */
+  divider?: boolean;
 }) {
   return (
-    <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-line-strong px-6 py-10 text-center">
-      <img src="/brand/bonded-symbol-blue.svg" alt="" className="mb-1 h-7 opacity-40" />
-      <p className="font-semibold">{title}</p>
-      {children && <p className="max-w-md text-sm text-muted">{children}</p>}
-      {action && <div className="mt-2">{action}</div>}
+    <div
+      className={`flex flex-col items-start gap-2 py-10 ${divider ? "border-t border-line" : ""}`}
+    >
+      <p className="text-[clamp(22px,2.2vw,30px)] leading-tight font-medium tracking-[-0.04em] text-soft">
+        {title}
+      </p>
+      {children && <p className="max-w-md text-[15px] text-muted">{children}</p>}
+      {action && <div className="mt-4">{action}</div>}
     </div>
   );
 }
@@ -585,7 +657,7 @@ export function ErrorText({ error }: { error: unknown }) {
 /** A section whose data couldn't be loaded: what went wrong, and a way to try again. */
 export function Unavailable({ error, onRetry }: { error: unknown; onRetry: () => void }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-breach/30 bg-breach-soft p-4">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-l-2 border-breach-solid py-1 pl-4">
       <ErrorText error={error} />
       <Button kind="secondary" size="sm" onClick={onRetry}>
         Try again
@@ -627,7 +699,7 @@ export function Tooltip({ content, children }: { content: ReactNode; children: R
               left: Math.min(Math.max(at.x, 140), window.innerWidth - 140),
               top: at.y,
             }}
-            className={`pointer-events-none fixed z-50 w-max max-w-64 -translate-x-1/2 rounded-xl border border-line-strong bg-raised px-3 py-2 text-left text-xs leading-relaxed font-normal tracking-normal text-soft normal-case shadow-(--shadow-raised) ${at.below ? "" : "-translate-y-full"}`}
+            className={`tip pointer-events-none fixed z-50 w-max max-w-72 -translate-x-1/2 text-left font-normal tracking-normal normal-case ${at.below ? "" : "-translate-y-full"}`}
           >
             {content}
           </span>,
@@ -651,11 +723,72 @@ export function Term({ term, children }: { term: GlossaryTerm; children: ReactNo
 /** Wraps a plain <table> with the app's table styles, and scrolls sideways on small screens. */
 export function Table({ children }: { children: ReactNode }) {
   return (
-    <div className="-mx-5 overflow-x-auto sm:-mx-6">
-      <table className="w-full text-sm [&_tbody_tr]:border-t [&_tbody_tr]:border-line [&_tbody_tr:hover]:bg-white/[0.025] [&_td]:py-3.5 [&_td:first-child]:pl-5 sm:[&_td:first-child]:pl-6 [&_td:last-child]:pr-5 sm:[&_td:last-child]:pr-6 [&_th]:pb-3 [&_th]:text-left [&_th]:text-[10.5px] [&_th]:font-medium [&_th]:tracking-[0.14em] [&_th]:text-muted [&_th]:uppercase [&_th:first-child]:pl-5 sm:[&_th:first-child]:pl-6 [&_th:last-child]:pr-5 sm:[&_th:last-child]:pr-6">
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm [&_tbody_tr]:border-t [&_tbody_tr]:border-line [&_tbody_tr]:transition-colors [&_tbody_tr:hover]:bg-white/[0.025] [&_td]:px-3 [&_td]:py-4 [&_td:first-child]:pl-0 [&_td:last-child]:pr-0 [&_th]:px-3 [&_th]:pb-3 [&_th:not(.text-right)]:text-left [&_th]:font-mono [&_th]:text-[12px] [&_th]:font-normal [&_th]:text-muted [&_th:first-child]:pl-0 [&_th:last-child]:pr-0 [&_thead]:border-b [&_thead]:border-line">
         {children}
       </table>
     </div>
+  );
+}
+
+/**
+ * A part of a page in the Overview's layout: its mono label in a narrow column at the left (sticky
+ * on wide screens), then a large title, a line under it, and the content. A hairline sits above.
+ */
+export function Section({
+  label,
+  title,
+  intro,
+  actions,
+  id,
+  children,
+  className = "",
+}: {
+  /** The mono label at the left. Left out, the content takes the full width. */
+  label?: ReactNode;
+  title?: ReactNode;
+  intro?: ReactNode;
+  actions?: ReactNode;
+  id?: string;
+  children?: ReactNode;
+  className?: string;
+}) {
+  const headingId = useId();
+  return (
+    <section
+      id={id}
+      className={`app-sec ${className}`}
+      aria-labelledby={title ? headingId : undefined}
+    >
+      {label && <p className="eyebrow app-sec-lab">{label}</p>}
+      <div className={`min-w-0 ${label ? "" : "lg:col-span-2"}`}>
+        {(title || intro || actions) && (
+          <div className="mb-8 flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+            <div className="min-w-0">
+              {title && (
+                <h2 id={headingId} className="h-section-lg">
+                  {title}
+                </h2>
+              )}
+              {intro && (
+                <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-muted">{intro}</p>
+              )}
+            </div>
+            {actions && <div className="flex flex-wrap items-center gap-3">{actions}</div>}
+          </div>
+        )}
+        {children}
+      </div>
+    </section>
+  );
+}
+
+/** An underlined text link with an arrow that moves on hover, as at the foot of an Overview section. */
+export function MoreLink({ to, children }: { to: string; children: ReactNode }) {
+  return (
+    <Link to={to} className="more-link">
+      {children} <span aria-hidden>→</span>
+    </Link>
   );
 }
 
@@ -675,22 +808,31 @@ export function Page({
   children: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-end justify-between gap-5">
+    <div className="flex flex-col gap-10 sm:gap-14">
+      <header className="page-head flex flex-wrap items-end justify-between gap-x-8 gap-y-6">
         <div className="min-w-0">
           {back && (
             <Link
               to={back.to}
-              className="mb-3 inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink"
+              data-print-hide
+              className="eyebrow group mb-6 inline-flex items-center gap-2 transition hover:text-ink"
             >
-              <span aria-hidden>←</span> {back.label}
+              <span aria-hidden className="transition group-hover:-translate-x-1">
+                ←
+              </span>{" "}
+              {back.label}
             </Link>
           )}
-          {eyebrow && <p className="eyebrow mb-2.5">{eyebrow}</p>}
-          <h1 className="font-serif text-5xl leading-none sm:text-[56px]">{title}</h1>
-          {intro && <p className="mt-3 max-w-2xl text-[15px] text-muted">{intro}</p>}
+          {/* The back link already names where the page sits; the same words again would stutter. */}
+          {eyebrow && eyebrow !== back?.label && <p className="eyebrow mb-5">{eyebrow}</p>}
+          <h1 className="h-display">{title}</h1>
+          {intro && <p className="mt-6 max-w-2xl text-base leading-relaxed text-muted">{intro}</p>}
         </div>
-        {actions && <div className="flex flex-wrap gap-2.5">{actions}</div>}
+        {actions && (
+          <div data-print-hide className="flex flex-wrap gap-2.5">
+            {actions}
+          </div>
+        )}
       </header>
       {children}
     </div>

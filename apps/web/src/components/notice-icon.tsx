@@ -14,13 +14,13 @@ const PATHS: Record<NoticeIconName, string> = {
 };
 
 const TONE: Record<NoticeTone | "neutral", string> = {
-  safe: "bg-safe-soft text-safe",
-  warn: "bg-warn-soft text-warn",
-  breach: "bg-breach-soft text-breach",
-  neutral: "bg-white/[0.07] text-muted",
+  safe: "border-safe/35 text-safe",
+  warn: "border-warn/35 text-warn",
+  breach: "border-breach/40 text-breach",
+  neutral: "border-line-strong text-muted",
 };
 
-/** A notification's icon in a soft circle, coloured by how it reads (good, to do, wrong). */
+/** A notification's icon in a thin ring, coloured by how it reads (good, to do, wrong). */
 export function NoticeIcon({
   icon = "bell",
   tone,
@@ -31,7 +31,7 @@ export function NoticeIcon({
   return (
     <span
       aria-hidden
-      className={`flex size-9 shrink-0 items-center justify-center rounded-full ${TONE[tone ?? "neutral"]}`}
+      className={`flex size-9 shrink-0 items-center justify-center rounded-full border ${TONE[tone ?? "neutral"]}`}
     >
       <svg
         viewBox="0 0 24 24"

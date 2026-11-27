@@ -22,7 +22,7 @@ const PLACEHOLDER_HINTS: Record<string, string> = {
 };
 
 const AREA =
-  "w-full rounded-xl border border-line-strong bg-white/[0.03] px-3.5 py-2.5 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-accent focus:ring-3 focus:ring-accent/15";
+  "w-full rounded-xl border border-line-strong bg-white/[0.02] px-4 py-3 text-[15px] text-ink outline-none transition placeholder:text-dim hover:border-white/30 focus:border-brand-bright focus:bg-transparent";
 
 function Field({
   label,
@@ -34,8 +34,8 @@ function Field({
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-1.5 text-sm">
-      <span className="font-medium text-soft">{label}</span>
+    <div className="flex min-w-0 flex-col gap-2 text-sm">
+      <span className="eyebrow">{label}</span>
       {children}
       {hint && <span className="text-xs text-muted">{hint}</span>}
     </div>
@@ -45,12 +45,14 @@ function Field({
 /** A group of fields: its name and a line about it on the left, the fields in two columns. */
 function Section({ title, note, children }: { title: string; note: string; children: ReactNode }) {
   return (
-    <section className="grid gap-x-10 gap-y-4 py-7 first:pt-0 last:pb-0 lg:grid-cols-[200px_minmax(0,1fr)]">
+    <section className="grid gap-x-12 gap-y-6 border-t border-line py-9 first:border-t-0 first:pt-0 last:pb-0 lg:grid-cols-[220px_minmax(0,1fr)]">
       <div>
-        <h3 className="text-sm font-semibold text-ink">{title}</h3>
-        <p className="mt-1 text-xs leading-relaxed text-muted">{note}</p>
+        <h3 className="text-[19px] leading-tight font-medium tracking-[-0.025em] text-ink">
+          {title}
+        </h3>
+        <p className="mt-2 text-[13px] leading-relaxed text-muted">{note}</p>
       </div>
-      <div className="grid items-start gap-x-5 gap-y-5 md:grid-cols-2">{children}</div>
+      <div className="grid items-start gap-x-6 gap-y-6 md:grid-cols-2">{children}</div>
     </section>
   );
 }
@@ -75,7 +77,7 @@ function Chip({
       type="button"
       onClick={onClick}
       aria-pressed={on}
-      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${on ? "border-accent/60 bg-accent-soft text-ink" : "border-line-strong text-muted hover:text-ink"}`}
+      className={`rounded-full border px-3.5 py-1.5 text-[13px] transition ${on ? "border-accent text-ink" : "border-line-strong text-muted hover:border-white/30 hover:text-ink"}`}
     >
       {children}
     </button>
@@ -114,7 +116,7 @@ export function SpecBuilder({
   const tokenOptions = TOKENS.map((t) => ({ value: t, label: t }));
 
   return (
-    <div className="divide-y divide-line">
+    <div>
       <Section title="The attack" note="What it is and how bad it would be.">
         <Field
           label="Class"
@@ -250,7 +252,7 @@ export function SpecBuilder({
                         inputMode="decimal"
                         aria-label="Price in USD"
                         placeholder="108"
-                        className={`${AREA} h-11 py-0 pr-12 font-mono`}
+                        className={`${AREA} h-12 py-0 pr-12 font-mono`}
                       />
                       <span className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-xs font-semibold text-muted">
                         USD
@@ -260,7 +262,7 @@ export function SpecBuilder({
                       type="button"
                       onClick={() => set({ prices: form.prices.filter((_, j) => j !== i) })}
                       aria-label="Remove this price"
-                      className="h-11 rounded-xl px-3 text-xs text-muted hover:bg-white/[0.06] hover:text-ink"
+                      className="h-12 px-2 font-mono text-xs text-muted transition hover:text-breach"
                     >
                       Remove
                     </button>
@@ -269,7 +271,7 @@ export function SpecBuilder({
                 <button
                   type="button"
                   onClick={() => set({ prices: [...form.prices, { token: "tNVDA", price: "" }] })}
-                  className="w-fit text-xs font-semibold text-accent hover:underline"
+                  className="w-fit font-mono text-xs text-accent hover:underline"
                 >
                   + Add a price
                 </button>

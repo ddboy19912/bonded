@@ -84,7 +84,13 @@ it("lists agents newest first, with their score and newest vault", () => {
     {
       agentId: 1n,
       owner: a,
-      score: { score: 49, securityScore: 72, expectedLossBps: 511, expiresAt: 200n },
+      score: {
+        score: 49,
+        securityScore: 72,
+        expectedLossBps: 511,
+        issuedAt: 100n,
+        expiresAt: 200n,
+      },
       vault: v2,
     },
   ]);

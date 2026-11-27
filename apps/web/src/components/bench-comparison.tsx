@@ -18,13 +18,13 @@ import {
 } from "../lib/bench-comparison";
 
 /**
- * Each bench's own colour: Bonded's accent, and a teal from the SPY Lab mark, lifted so the two
- * stay apart for colour-blind readers (dataviz validator: ΔE 16 deutan, 17 normal vision on the
- * card). Every bar also carries its bench's logo and value, so colour never names it alone.
+ * Each bench's own colour, from the app's palette: Bonded's blue, and a light grey for AgentDojo,
+ * far apart in lightness so they stay apart for every reader. Every bar also carries its bench's
+ * logo and value, so colour never names it alone.
  */
 const BENCH = {
-  bonded: { name: "Bonded", color: "#3987e5", mark: bondedMark },
-  agentdojo: { name: "AgentDojo", color: "#14a08c", mark: spylabMark },
+  bonded: { name: "Bonded", color: "#3c6bff", mark: bondedMark },
+  agentdojo: { name: "AgentDojo", color: "#c9ccd3", mark: spylabMark },
 } as const;
 
 type BenchKey = keyof typeof BENCH;
@@ -100,51 +100,41 @@ function Versus({ rows }: { rows: BenchComparison[] }) {
   const theirMet = sum((row) => metOf(row.agentdojo));
   const theirs = sum((row) => movedOf(row.agentdojo) ?? 0);
   const side = (bench: BenchKey, maker: string, answer: string, detail: ReactNode) => (
-    // Centred in its half on wide screens, so both benches sit the same distance from the badge.
-    <div className="flex min-w-0 flex-col sm:items-center sm:text-center">
+    <div className="min-w-0 border-t border-line pt-5">
       <div className="flex items-center gap-2.5">
-        <BenchMark bench={bench} size={32} />
-        <div className="min-w-0 text-left leading-tight">
-          <p className="text-sm font-semibold text-ink">{BENCH[bench].name}</p>
-          <p className="text-[11px] text-muted">{maker}</p>
-        </div>
+        <BenchMark bench={bench} size={24} />
+        <p className="text-[15px] font-medium text-ink">{BENCH[bench].name}</p>
+        <p className="eyebrow">{maker}</p>
       </div>
-      <p className="mt-4 text-4xl font-semibold tracking-tight text-ink tabular-nums">{answer}</p>
-      <p className="mt-1 text-sm text-soft">{detail}</p>
+      <p className="num-giant mt-5">{answer}</p>
+      <p className="mt-3 text-[15px] text-soft">{detail}</p>
     </div>
   );
   return (
-    <div className="grid grid-cols-1 gap-6 border-b border-line pt-1 pb-6 sm:grid-cols-[1fr_auto_1fr] sm:gap-6">
-      {side(
-        "bonded",
-        "Payment attacks",
-        `${count(fell)} of ${count(met)}`,
-        <>
-          attacks worked · <span className="text-breach">{dollars(moved)}</span> paid wrongly
-        </>,
-      )}
-      {/* A hairline between the benches, with a round "VS" badge on it at the middle. */}
-      <div aria-hidden className="relative hidden w-9 sm:block">
-        <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-line" />
-        <span className="absolute top-1/2 left-1/2 grid size-9 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-raised pl-[0.12em] text-[10px] font-semibold tracking-[0.12em] text-soft ring-1 ring-line-strong">
-          VS
-        </span>
-      </div>
-      {side(
-        "agentdojo",
-        "ETH Zurich benchmark",
-        `${count(ran)} of ${count(theirMet)}`,
-        theirs > 0 ? (
+    <div>
+      <div className="grid grid-cols-1 gap-x-10 gap-y-8 sm:grid-cols-2">
+        {side(
+          "bonded",
+          "Payment attacks",
+          `${count(fell)} of ${count(met)}`,
           <>
-            attacks worked · <span className="text-breach">{dollars(theirs)}</span> paid wrongly
-          </>
-        ) : (
-          "attacks worked"
-        ),
-      )}
-      <p className="text-xs text-muted sm:col-span-3 sm:text-center">
-        All {rows.length} runs below, added up.
-      </p>
+            attacks worked · <span className="text-breach">{dollars(moved)}</span> paid wrongly
+          </>,
+        )}
+        {side(
+          "agentdojo",
+          "ETH Zurich benchmark",
+          `${count(ran)} of ${count(theirMet)}`,
+          theirs > 0 ? (
+            <>
+              attacks worked · <span className="text-breach">{dollars(theirs)}</span> paid wrongly
+            </>
+          ) : (
+            "attacks worked"
+          ),
+        )}
+      </div>
+      <p className="eyebrow mt-5">All {rows.length} runs below, added up.</p>
     </div>
   );
 }
@@ -255,8 +245,8 @@ function ModelPair({
 }) {
   const panel = `bench-detail-${rowKey(row).replaceAll(/[^a-z0-9-]/gi, "-")}`;
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[11rem_1fr] sm:items-center sm:gap-4">
+    <div className="flex flex-col gap-4 border-t border-line py-5">
+      <div className="flex flex-col gap-3 sm:grid sm:grid-cols-[13rem_1fr] sm:items-center sm:gap-6">
         <button
           type="button"
           onClick={onToggle}
@@ -264,11 +254,17 @@ function ModelPair({
           aria-controls={panel}
           className="group/model flex items-center gap-2 rounded-md text-left sm:items-start"
         >
-          <ProviderLogo provider={providerOf(row.model)} size={18} />
+          <span className="mt-0.5">
+            <ProviderLogo provider={providerOf(row.model)} size={20} />
+          </span>
           <span className="leading-tight">
-            <span className="block text-sm font-medium text-ink">{row.label}</span>
-            <span className="block text-[11px] text-muted">attack {DELIVERY[row.channels]}</span>
-            <span className="mt-1 flex items-center gap-1 text-[11px] text-soft group-hover/model:text-ink">
+            <span className="block text-[19px] font-medium tracking-[-0.03em] text-ink">
+              {row.label}
+            </span>
+            <span className="mt-1 block font-mono text-[12px] text-muted">
+              attack {DELIVERY[row.channels]}
+            </span>
+            <span className="mt-2 flex items-center gap-1 text-[13px] text-soft group-hover/model:text-ink">
               <svg
                 aria-hidden
                 viewBox="0 0 12 12"
@@ -280,7 +276,7 @@ function ModelPair({
             </span>
           </span>
         </button>
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2.5">
           {bars.map((bar) => (
             <div
               key={`${bar.bench}-${bar.measure ?? ""}`}
@@ -289,11 +285,13 @@ function ModelPair({
             >
               <BenchMark bench={bar.bench} size={18} />
               {bar.measure && (
-                <span className="w-16 shrink-0 text-[11px] text-muted">{bar.measure}</span>
+                <span className="w-16 shrink-0 font-mono text-[11px] text-muted">
+                  {bar.measure}
+                </span>
               )}
-              <div className="h-5 flex-1 rounded-[4px] bg-white/[0.03]">
+              <div className="h-2 flex-1 bg-white/[0.07]">
                 <div
-                  className="h-full rounded-[4px]"
+                  className="h-full"
                   style={{
                     width: `max(${bar.value}%, 2px)`,
                     background: BENCH[bar.bench].color,
@@ -301,13 +299,15 @@ function ModelPair({
                   }}
                 />
               </div>
-              <span className="w-28 shrink-0 text-right text-xs tabular-nums">
-                <span className="font-semibold text-ink">{pctLabel(bar.value)}</span>{" "}
-                <span className="text-muted">{bar.count}</span>
+              <span className="w-32 shrink-0 text-right tabular-nums">
+                <span className="text-[17px] font-medium tracking-[-0.02em] text-ink">
+                  {pctLabel(bar.value)}
+                </span>{" "}
+                <span className="font-mono text-[11px] text-muted">{bar.count}</span>
               </span>
               <div
                 role="tooltip"
-                className="pointer-events-none absolute bottom-full left-8 z-10 mb-1 hidden max-w-72 rounded-lg border border-line-strong bg-raised px-3 py-2 text-xs text-soft shadow-xl group-hover:block"
+                className="tip pointer-events-none absolute bottom-full left-8 z-10 mb-2 hidden max-w-72 group-hover:block"
               >
                 {bar.tip}
               </div>
@@ -337,7 +337,10 @@ function Detail({ id, row }: { id: string; row: BenchComparison }) {
   const ask = directAskOf(row.agentdojo);
   return (
     // Under the bars, on a hairline, so it reads as part of this model's row.
-    <div id={id} className="flex flex-col gap-3 border-l border-line pl-4 text-xs sm:ml-[12rem]">
+    <div
+      id={id}
+      className="flex flex-col gap-3 border-l border-line pl-4 text-[13px] sm:ml-[14.5rem]"
+    >
       <div className="flex flex-col gap-3">
         {row.scope && <p className="text-muted">{row.scope}</p>}
         {row.bonded.falls.length > 0 && (
@@ -427,7 +430,7 @@ export function BenchComparisonCard() {
         />
       }
     >
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col border-b border-line">
         {rows.map((row) => (
           <ModelPair
             key={rowKey(row)}
@@ -437,13 +440,13 @@ export function BenchComparisonCard() {
             onToggle={() => setOpenKey((key) => (key === rowKey(row) ? null : rowKey(row)))}
           />
         ))}
-        {tab === "task" && (
-          <p className="text-xs text-soft">
-            Whole job counts every part, including real changes, so refusing everything scores
-            badly. Paid right counts only the invoices, closer to how AgentDojo checks a task.
-          </p>
-        )}
       </div>
+      {tab === "task" && (
+        <p className="mt-4 max-w-2xl text-[13px] text-muted">
+          Whole job counts every part, including real changes, so refusing everything scores badly.
+          Paid right counts only the invoices, closer to how AgentDojo checks a task.
+        </p>
+      )}
     </ChartCard>
   );
 }

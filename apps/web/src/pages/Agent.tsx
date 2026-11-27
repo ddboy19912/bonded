@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
+import { Info } from "lucide-react";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useAccount, useReadContract, useReadContracts } from "wagmi";
@@ -14,21 +15,28 @@ import {
   tierForScore,
 } from "@bondedhq/shared";
 import type { Address } from "viem";
-import { deployment } from "../config";
-import { downloadReportJson, downloadReportPdf, type ReportContext } from "../lib/report";
-import { ApiError, api, type SelfAgentRecord } from "../lib/api";
+import { deployment, explorerUrl } from "../config";
+import {
+  downloadReportJson,
+  fetchReportBytes,
+  matchesHash,
+  reportDocument,
+  type ReportContext,
+} from "../lib/report";
+import { PrintBrand } from "../components/save-pdf";
+import { ApiError, api, type Report, type SelfAgentRecord } from "../lib/api";
 import { liveCheckView, teeView } from "../lib/tee";
 import { RAIL_HINT, RAIL_LABEL } from "../lib/rails";
 import { isRpcUnavailable } from "../lib/errors";
 import { apiLookups, isRegistered } from "../lib/agent";
-import { moduleCoverNote, useAgents } from "../lib/chain";
+import { moduleCoverNote, useAgents, useScoreTx } from "../lib/chain";
 import { OwnerTools } from "../components/owner-tools";
 import { CoverWithoutTradesWarning, HealthPanel, VaultTrading } from "../components/health-panel";
 import { UseYourVault } from "../components/framework-questions";
 import { byoaApi } from "../lib/byoa-api";
 import { BreachEvidenceList, TopFixes } from "../components/report-actions";
 import { BatteryTables } from "../components/battery-tables";
-import { ClassTrackTable } from "../components/class-track-table";
+import { ClassSummary, ClassTrackTable } from "../components/class-track-table";
 import { classResults, gradeResults, weakestSentence } from "../lib/class-tracks";
 import { Square } from "../components/class-squares";
 import { batteryName, gradeBand, gradeStroke, gradeTone, manipulatedOf } from "../lib/security";
@@ -38,19 +46,24 @@ import { ModuleCover } from "../components/module-cover";
 import { BindingLine } from "../components/connect-agent";
 import { classCells, coverageRows, livenessLine, untestedClasses, untestedLine } from "../lib/byoa";
 import { Token } from "../components/token";
-import { bps, short, usd, when } from "../lib/format";
+import { copyText } from "../components/copy-button";
+import { addressUrl, bps, day, short, txUrl, usd, when } from "../lib/format";
 import {
   AddressLink,
   Badge,
   Card,
   EmptyState,
   ErrorText,
+  Grid,
   LinkButton,
   Loading,
+  MoreLink,
   Page,
   ScoreRing,
+  Section,
+  Stat,
   Term,
-  TxLink,
+  Tooltip,
   Unavailable,
   buttonClass,
   linkClass,
@@ -123,6 +136,23 @@ export function Agent() {
   const ownRecord = self.data?.registered ? self.data : undefined;
 
   const back = { to: "/agents", label: "All agents" };
+  // The transaction that posted the score: the API's record, else the registry's own log.
+  const scoreTx = useScoreTx(rated && a ? agentId : undefined, a?.issuedAt);
+  const postedTx = score.data?.tx_hash ?? scoreTx.data ?? null;
+  // BondedRegistry on the explorer, scrolled to scoreOf and opened (the anchor is its selector).
+  const checkUrl = explorerUrl
+    ? `${addressUrl(deployment.registry)}?tab=read_write_contract#0x752821e9`
+    : undefined;
+  // The rules its vault (or account module) enforces now, read from the chain: the rated mandate
+  // hash should be the same.
+  const enforcer = vault ?? guarded?.module;
+  const liveMandate = useReadContract({
+    address: enforcer,
+    abi: mandateVaultAbi,
+    functionName: "mandateHash",
+    query: { enabled: Boolean(enforcer) },
+  });
+
   if (!valid)
     return (
       <Page title="Agent" back={back}>
@@ -132,9 +162,7 @@ export function Agent() {
   if (reads.isLoading)
     return (
       <Page title={`Agent ${id}`} back={back}>
-        <Card>
-          <Loading what={`agent ${id}`} height="md" />
-        </Card>
+        <Loading what={`agent ${id}`} height="md" />
       </Page>
     );
   const readError = reads.error ?? [onchain, owner, bond, fresh].find((r) => r?.error)?.error;
@@ -195,400 +223,472 @@ export function Agent() {
   const task = report?.task ?? entry?.task;
   const weakestLine = results && weakestSentence(results);
   const band = gradeBand(a?.securityScore ?? 0);
-  const glow =
-    band.min >= 80
-      ? "rgb(110 231 183 / .12)"
-      : band.min >= 50
-        ? "rgb(255 179 71 / .12)"
-        : "rgb(255 122 69 / .12)";
 
   return (
-    <Page
-      title={`Agent ${id}`}
-      back={back}
-      intro="Its latest rating: Security · Task, plus the insurance score that prices cover."
-      actions={
-        <>
-          {vault && (
-            <Link to={`/vaults/${vault}`} className={buttonClass("secondary")}>
-              Open vault
+    <div data-print-root>
+      {a && (
+        <PrintBrand
+          kind="On-chain attack report"
+          date={`Rated ${new Date(Number(a.issuedAt) * 1000).toLocaleDateString("en-GB", { dateStyle: "long" })}`}
+        />
+      )}
+      <Page
+        title={`Agent ${id}`}
+        back={back}
+        intro="Its latest rating: Security · Task, plus the insurance score that prices cover."
+        actions={
+          <>
+            {vault && (
+              <Link to={`/vaults/${vault}`} className={buttonClass("secondary")}>
+                Open vault
+              </Link>
+            )}
+            <Link to="/arena" className={buttonClass("light")}>
+              Watch the Arena
+            </Link>
+          </>
+        }
+      >
+        <div className="-mt-4 flex flex-wrap gap-2 sm:-mt-8">
+          <span title={RAIL_HINT.onchain}>
+            <Badge>{RAIL_LABEL.onchain}</Badge>
+          </span>
+          {tier && <Badge tone={tone}>Insurance tier {tier}</Badge>}
+          {rated &&
+            (fresh?.result ? (
+              <Badge tone="safe" dot>
+                <span title={a ? `Signed ${when(a.issuedAt)}` : undefined}>
+                  Score valid{a ? ` until ${when(a.expiresAt)}` : ""}
+                </span>
+              </Badge>
+            ) : (
+              <Badge>{a ? `Rated ${day(a.issuedAt)} · re-rating due` : "Re-rating due"}</Badge>
+            ))}
+          {report && <Badge>{report.mandateMode} mode</Badge>}
+          {score.data?.superseded && (
+            <Badge tone="breach" dot>
+              Score superseded: no new cover until a complete rating
+            </Badge>
+          )}
+          {report?.sentinel && (
+            <Link to="/sentinel">
+              <Badge tone="brand" dot>
+                Rated with Sentinel on
+              </Badge>
             </Link>
           )}
-          <Link to="/arena" className={buttonClass("light")}>
-            Watch the Arena
-          </Link>
-        </>
-      }
-    >
-      <div className="-mt-2 flex flex-wrap gap-2">
-        <span title={RAIL_HINT.onchain}>
-          <Badge>{RAIL_LABEL.onchain}</Badge>
-        </span>
-        {tier && <Badge tone={tone}>Insurance tier {tier}</Badge>}
-        {rated &&
-          (fresh?.result ? (
-            <Badge tone="safe" dot>
-              <span title={a ? `Signed ${when(a.issuedAt)}` : undefined}>
-                Score valid{a ? ` until ${when(a.expiresAt)}` : ""}
-              </span>
-            </Badge>
-          ) : (
-            <Badge tone="warn" dot>
-              Score expired
-            </Badge>
-          ))}
-        {report && <Badge>{report.mandateMode} mode</Badge>}
-        {score.data?.superseded && (
-          <Badge tone="breach" dot>
-            Score superseded: no new cover until a complete rating
-          </Badge>
-        )}
-        {report?.sentinel && (
-          <Link to="/sentinel">
-            <Badge tone="brand" dot>
-              Rated with Sentinel on
-            </Badge>
-          </Link>
-        )}
-      </div>
+        </div>
 
-      {rated && a ? (
-        <section className="grid gap-4 lg:grid-cols-2">
-          <div
-            className="panel flex flex-wrap items-center gap-x-8 gap-y-6 p-6 sm:p-7"
-            style={{
-              backgroundImage: `radial-gradient(ellipse at 20% 0%, ${glow}, transparent 60%)`,
-            }}
-          >
-            <ScoreRing score={a.securityScore} stroke={gradeStroke(a.securityScore)} />
-            <div className="min-w-0 flex-[1_1_240px]">
-              <p className="eyebrow">Security score</p>
-              <p className={`mt-1 font-serif text-3xl ${band.tone}`}>{band.verdict}</p>
-              <p className="mt-2 max-w-md text-sm leading-relaxed text-soft">
-                {weakestLine ? (
-                  <>
-                    {weakestLine}{" "}
-                    {weakCount > 0 && (
-                      <span className="text-muted">That result sets the score.</span>
-                    )}
-                  </>
-                ) : (
-                  "How hard it is to trick: 100 means no attack moved it."
-                )}
-              </p>
-              {results && (
-                <div className="mt-5">
-                  <div className="flex gap-1.5">
-                    {results.map((r) => (
-                      <Square key={r.cls} r={r} size="size-6" />
-                    ))}
-                  </div>
-                  <p className="mt-2 text-xs text-muted">
-                    {weakCount
-                      ? `${weakCount} of ${results.filter((r) => r.tracks.length).length} classes weak`
-                      : "No weak classes"}{" "}
-                    · hover a square for its numbers
-                  </p>
-                </div>
-              )}
-              {report?.dollarsAtRisk && <DollarsAtRiskNote d={report.dollarsAtRisk} />}
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="panel col-span-2 flex min-w-0 flex-wrap items-center gap-x-8 gap-y-4 p-6 sm:p-7">
-              {task && task.score !== null ? (
-                <ScoreRing score={task.score} stroke={gradeStroke(task.score)} />
-              ) : (
-                <span className="flex size-[150px] shrink-0 items-center justify-center rounded-full border border-dashed border-line-strong font-serif text-5xl text-muted">
-                  —
-                </span>
-              )}
-              <div className="min-w-0 flex-[1_1_200px]">
-                <p className="eyebrow">
-                  <Term term="taskScore">Task score</Term>
-                </p>
-                {task && task.score !== null ? (
-                  <>
-                    <p className={`mt-1 font-serif text-3xl ${gradeTone(task.score)}`}>
-                      {task.score >= 80
-                        ? "Does the job"
-                        : task.score >= 50
-                          ? "Does some of the job"
-                          : "Rarely does the job"}
+        <Section>
+          {rated && a ? (
+            <>
+              <div className="grid gap-x-14 gap-y-12 md:grid-cols-2">
+                <div data-score="security" className="min-w-0">
+                  <p className="eyebrow">Security score</p>
+                  <div className="mt-5 flex flex-wrap items-center gap-x-7 gap-y-4">
+                    <ScoreRing score={a.securityScore} stroke={gradeStroke(a.securityScore)} />
+                    <p className={`${VERDICT} min-w-0 flex-[1_1_160px] ${band.tone}`}>
+                      {band.verdict}
                     </p>
-                    <p className="mt-2 text-sm leading-relaxed text-soft">
+                  </div>
+                  <p className="mt-6 max-w-md text-[15px] leading-relaxed text-soft">
+                    {weakestLine ? (
+                      <>
+                        {weakestLine}{" "}
+                        {weakCount > 0 && (
+                          <span className="text-muted">That result sets the score.</span>
+                        )}
+                      </>
+                    ) : (
+                      "How hard it is to trick: 100 means no attack moved it."
+                    )}
+                  </p>
+                  {results && (
+                    <div className="mt-5">
+                      <div className="flex flex-wrap gap-1.5">
+                        {results.map((r) => (
+                          <Square key={r.cls} r={r} size="size-6" />
+                        ))}
+                      </div>
+                      <p className="mt-2.5 font-mono text-xs text-muted">
+                        {weakCount
+                          ? `${weakCount} of ${results.filter((r) => r.tracks.length).length} classes weak`
+                          : "No weak classes"}
+                        <span className="print:hidden"> · hover a square for its numbers</span>
+                      </p>
+                    </div>
+                  )}
+                  {report?.dollarsAtRisk && <DollarsAtRiskNote d={report.dollarsAtRisk} />}
+                </div>
+                <div data-score="task" className="min-w-0">
+                  <p className="eyebrow">
+                    <Term term="taskScore">Task score</Term>
+                  </p>
+                  <div className="mt-5 flex flex-wrap items-center gap-x-7 gap-y-4">
+                    {task && task.score !== null ? (
+                      <ScoreRing score={task.score} stroke={gradeStroke(task.score)} />
+                    ) : (
+                      <span className="flex size-[150px] shrink-0 items-center justify-center rounded-full border border-dashed border-line-strong text-5xl font-medium text-muted">
+                        —
+                      </span>
+                    )}
+                    {task && task.score !== null ? (
+                      <p className={`${VERDICT} min-w-0 flex-[1_1_160px] ${gradeTone(task.score)}`}>
+                        {task.score >= 80
+                          ? "Does the job"
+                          : task.score >= 50
+                            ? "Does some of the job"
+                            : "Rarely does the job"}
+                      </p>
+                    ) : (
+                      <p className={`${VERDICT} min-w-0 flex-[1_1_160px] text-muted`}>
+                        Not measured
+                      </p>
+                    )}
+                  </div>
+                  {task && task.score !== null ? (
+                    <p className="mt-6 max-w-md text-[15px] leading-relaxed text-soft">
                       {taskLine(task)} {taskWorstLine(task)}
                     </p>
-                  </>
-                ) : (
-                  <p className="mt-2 text-sm leading-relaxed text-soft">
-                    {task
-                      ? `Not measured: too few episodes to count. ${taskLine(task)}`
-                      : "Not measured for this rating: it ran before the Task score existed."}
-                  </p>
-                )}
-                {task && task.benign.trials > 0 && (
-                  <p className="mt-2 text-xs text-muted">
-                    <Term term="benignTwins">What is a benign twin?</Term>
-                  </p>
-                )}
+                  ) : (
+                    <p className="mt-6 max-w-md text-[15px] leading-relaxed text-soft">
+                      {task
+                        ? `Not measured: too few episodes to count. ${taskLine(task)}`
+                        : "Not measured for this rating: it ran before the Task score existed."}
+                    </p>
+                  )}
+                  {task && task.benign.trials > 0 && (
+                    <p className="mt-2.5 text-[13px] text-muted">
+                      <Term term="benignTwins">What is a benign twin?</Term>
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-            <Tile
-              label="Insurance score"
-              value={`${a.score} · ${tier}`}
-              hint="prices cover, not the headline"
-            />
-            <Tile
-              label={<Term term="expectedLoss">Expected loss</Term>}
-              value={bps(a.expectedLossBps)}
-              hint="of cover a year"
-            />
-            <Tile
-              label={<Term term="bond">Operator bond</Term>}
-              value={bond?.result !== undefined ? `$${usd(bond.result, 0)}` : "…"}
-              hint="pays first on a claim"
-            />
-            <Tile
-              label={<Term term="tee">Key custody</Term>}
-              value={tee.inTee ? "TEE" : "Operator"}
-              hint={tee.inTee ? "key made inside Intel TDX" : "key on the operator's server"}
-            />
+              <div className="mt-14">
+                <Grid>
+                  <Stat
+                    label="Insurance score"
+                    value={`${a.score} · ${tier}`}
+                    hint="prices cover, not the headline"
+                  />
+                  <Stat
+                    label={<Term term="expectedLoss">Expected loss</Term>}
+                    value={bps(a.expectedLossBps)}
+                    hint="of cover a year"
+                  />
+                  <Stat
+                    label={<Term term="bond">Operator bond</Term>}
+                    value={bond?.result !== undefined ? `$${usd(bond.result, 0)}` : "…"}
+                    hint="pays first on a claim"
+                  />
+                  <Stat
+                    label={<Term term="tee">Key custody</Term>}
+                    value={tee.inTee ? "TEE" : "Operator"}
+                    hint={tee.inTee ? "key made inside Intel TDX" : "key on the operator's server"}
+                  />
+                </Grid>
+              </div>
+            </>
+          ) : (
+            <EmptyState title="Not rated yet">
+              Its owner can ask for a rating from this page once it's registered for ratings.
+            </EmptyState>
+          )}
+        </Section>
+
+        {isOwnerOf(address, owner?.result) && ownRecord && (
+          <div data-print-hide className={INDENT}>
+            <HealthPanel agentId={id} record={self.data} />
           </div>
-        </section>
-      ) : (
-        <EmptyState title="Not rated yet">
-          Its owner can ask for a rating from this page once it's registered for ratings.
-        </EmptyState>
-      )}
+        )}
 
-      {isOwnerOf(address, owner?.result) && ownRecord && (
-        <HealthPanel agentId={id} record={self.data} />
-      )}
+        <div data-print-hide className={INDENT}>
+          <OwnerTools
+            // A new agent's page starts with fresh owner controls (its own token, rating, errors).
+            key={`${deployment.chainId}:${id}`}
+            agentId={id}
+            owner={owner?.result}
+            scoreExpired={Boolean(rated && fresh && fresh.result === false)}
+          />
+        </div>
 
-      <OwnerTools
-        // A new agent's page starts with fresh owner controls (its own token, rating, errors).
-        key={`${deployment.chainId}:${id}`}
-        agentId={id}
-        owner={owner?.result}
-        scoreExpired={Boolean(rated && fresh && fresh.result === false)}
-      />
+        {isOwnerOf(address, owner?.result) &&
+          ownRecord?.kind === "remote" &&
+          (vault || guarded) && (
+            <div data-print-hide className={INDENT}>
+              <UseYourVault vault={vault ?? guarded?.module ?? null} />
+            </div>
+          )}
 
-      {isOwnerOf(address, owner?.result) && ownRecord?.kind === "remote" && (vault || guarded) && (
-        <UseYourVault vault={vault ?? guarded?.module ?? null} />
-      )}
-
-      <div className="flex flex-wrap items-start gap-4">
-        <div className="flex min-w-0 flex-[999_1_560px] flex-col gap-4">
-          {report ? (
-            <Card
-              title="Attack report"
-              actions={
-                <span className="text-sm text-muted">
-                  {report.episodes.attacks} attacks · {report.episodes.controls} controls ·{" "}
-                  {report.forked ? "fork of the live chain" : "local chain"}
-                </span>
-              }
-            >
-              {weakLines.length > 0 && (
-                <div className="mb-5 flex gap-3.5 rounded-2xl border border-breach/35 bg-breach-soft p-4">
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-breach/20 font-bold text-breach">
-                    !
-                  </span>
-                  <span>
-                    <strong className="block">
-                      {weakClasses.length === 1
-                        ? "One weak class"
-                        : `${weakClasses.length} weak classes`}
-                      : {weakClasses.join(", ")}
-                    </strong>
-                    <span className="mt-1 block text-sm text-soft">
-                      {weakLines.join(". ")}. Every other graded class and track held.
-                    </span>
+        {report ? (
+          <Section
+            label="Report"
+            title="Attack report"
+            intro={
+              <span className="font-mono text-[13px]">
+                {report.episodes.attacks} attacks · {report.episodes.controls} controls ·{" "}
+                {report.forked ? "fork of the live chain" : "local chain"}
+              </span>
+            }
+          >
+            {results ? (
+              <div className="mb-12">
+                <ClassSummary results={results} />
+              </div>
+            ) : (
+              weakLines.length > 0 && (
+                <div className="mb-8 border-l-2 border-breach-solid pl-4">
+                  <strong className="block text-[17px] font-medium tracking-[-0.02em] text-breach">
+                    {weakClasses.length === 1
+                      ? "One weak class"
+                      : `${weakClasses.length} weak classes`}
+                    : {weakClasses.join(", ")}
+                  </strong>
+                  <span className="mt-1 block text-sm text-soft">
+                    {weakLines.join(". ")}. Every other graded class and track held.
                   </span>
                 </div>
-              )}
-              {(topFixes(report).length > 0 || evidenceOf(report).length > 0) && (
-                <div className="mb-5 flex flex-col gap-4">
-                  <TopFixes report={report} />
-                  <BreachEvidenceList report={report} />
+              )
+            )}
+            {(topFixes(report).length > 0 || evidenceOf(report).length > 0) && (
+              <div className="mb-10 flex flex-col gap-6">
+                <TopFixes report={report} />
+                <BreachEvidenceList report={report} />
+              </div>
+            )}
+            <div data-print-list className="flex flex-col">
+              {exercisedShown && (
+                <div
+                  data-print-head
+                  className={`${classGrid} pb-2.5 font-mono text-[12px] text-muted`}
+                >
+                  <span />
+                  <span />
+                  <span />
+                  <span className="text-right">Exercised</span>
+                  <span className="text-right">Result</span>
                 </div>
               )}
-              <div className="flex flex-col">
-                {exercisedShown && (
-                  <div className={`${classGrid} pb-2 text-[11px] text-muted`}>
-                    <span />
-                    <span />
-                    <span />
-                    <span className="text-right">Exercised</span>
-                    <span className="text-right">Result</span>
-                  </div>
-                )}
-                {report.classes.map((c) => {
-                  const m = manipulatedOf(c);
-                  const held = c.episodes ? (c.episodes - m) / c.episodes : 1;
-                  const cells = classCells(c);
-                  return (
-                    <div key={c.class} className={`${classGrid} border-t border-white/[0.06] py-3`}>
-                      <span className="font-mono text-xs text-muted">{c.class}</span>
-                      <span className="truncate text-sm">{c.name}</span>
-                      <span className="flex h-2 overflow-hidden rounded-full bg-white/[0.06]">
+              {report.classes.map((c) => {
+                const m = manipulatedOf(c);
+                const held = c.episodes ? (c.episodes - m) / c.episodes : 1;
+                const cells = classCells(c);
+                return (
+                  <div key={c.class} className={`${classGrid} border-t border-line py-3.5`}>
+                    <span className="font-mono text-xs text-muted">{c.class}</span>
+                    <span className="truncate text-[15px]">{c.name}</span>
+                    <span className="flex h-1.5 gap-[2px]" aria-hidden>
+                      {held > 0 && (
                         <span
-                          className="bg-gradient-to-r from-brand to-held"
+                          className="rounded-[1px] bg-brand-bright"
                           style={{ width: `${held * 100}%` }}
                         />
+                      )}
+                      {held < 1 && (
                         <span
-                          className="bg-breach-solid"
+                          className="rounded-[1px] bg-breach-solid"
                           style={{ width: `${(1 - held) * 100}%` }}
                         />
-                      </span>
-                      {exercisedShown ? (
-                        <>
-                          <span
-                            className={`text-right font-mono text-xs ${untested.has(c.class) || cells.result === "not reached" ? "text-warn" : "text-muted"}`}
-                            title={
-                              untested.has(c.class)
-                                ? "Never tested the agent: priced as untested within its group"
-                                : undefined
-                            }
-                          >
-                            {cells.exercised}
-                          </span>
-                          <span
-                            className={`text-right font-mono text-xs ${cells.tone === "breach" ? "text-breach" : cells.tone === "warn" ? "text-warn" : "text-muted"}`}
-                          >
-                            {cells.result}
-                          </span>
-                        </>
-                      ) : (
-                        <span
-                          className={`text-right font-mono text-xs ${m ? "text-breach" : "text-muted"}`}
-                          title={`manipulated in ${m} of ${c.episodes} episodes, ${c.breaches} breached`}
-                        >
-                          {m ? `${m} of ${c.episodes}` : `held ${c.episodes}`}
-                        </span>
                       )}
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="mt-6">
-                <BatteryTables report={report} />
-              </div>
-              {exercisedShown && (
-                <p className="mt-3 text-xs text-muted">
-                  Exercised: the attack episodes that tested the agent, because it was breached or
-                  did its task anyway. For an agent its operator runs, only those count: an episode
-                  in which it did nothing at all proves nothing.
-                  {untestedLine(report) && ` ${untestedLine(report)}`}
-                </p>
-              )}
-              <p className="mt-4 text-xs text-muted">
-                {report.unpublished?.episodes
-                  ? `${report.unpublished.episodes} of the attack episodes ran ${report.unpublished.attacks} unpublished attacks (held out, or accepted bounties) that the operator couldn't study in advance.`
-                  : "Published attacks only: an in-library result, not a held-out evaluation."}
-                {score.data?.heldOut &&
-                  ` ${score.data.heldOut.attacks ?? "Its"} held-out attacks were made for this rating alone${score.data.heldOut.source === "rewrite" ? " (rewrites of published seeds)" : score.data.heldOut.model ? ` (drafted by ${score.data.heldOut.model})` : ""}, seed ${score.data.heldOut.seed}.`}
+                    </span>
+                    {exercisedShown ? (
+                      <>
+                        <span
+                          className={`text-right font-mono text-xs ${untested.has(c.class) || cells.result === "not reached" ? "text-warn" : "text-muted"}`}
+                          title={
+                            untested.has(c.class)
+                              ? "Never tested the agent: priced as untested within its group"
+                              : undefined
+                          }
+                        >
+                          {cells.exercised}
+                        </span>
+                        <span
+                          className={`text-right font-mono text-xs ${cells.tone === "breach" ? "text-breach" : cells.tone === "warn" ? "text-warn" : "text-muted"}`}
+                        >
+                          {cells.result}
+                        </span>
+                      </>
+                    ) : (
+                      <span
+                        className={`text-right font-mono text-xs ${m ? "text-breach" : "text-muted"}`}
+                        title={`manipulated in ${m} of ${c.episodes} episodes, ${c.breaches} breached`}
+                      >
+                        {m ? `${m} of ${c.episodes}` : `held ${c.episodes}`}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-12">
+              <BatteryTables report={report} />
+            </div>
+            {exercisedShown && (
+              <p className="mt-4 max-w-3xl text-[13px] leading-relaxed text-muted">
+                Exercised: the attack episodes that tested the agent, because it was breached or did
+                its task anyway. For an agent its operator runs, only those count: an episode in
+                which it did nothing at all proves nothing.
+                {untestedLine(report) && ` ${untestedLine(report)}`}
               </p>
-              {score.data?.binding && (
-                <div className="mt-4 flex flex-col gap-1.5 border-t border-white/[0.06] pt-4">
-                  <span className="eyebrow">Binding</span>
-                  <BindingLine binding={score.data.binding} />
-                </div>
-              )}
-              <Coverage coverage={score.data?.coverage ?? report.coverage ?? null} />
-              {livenessLine(report.liveness) && (
-                <p className="mt-3 text-xs text-muted">{livenessLine(report.liveness)}</p>
-              )}
-            </Card>
-          ) : rated ? (
-            <Card
-              title="Attack report"
-              actions={
-                entry && (run.isError || score.isError) ? (
-                  <span className="text-sm text-muted">From the published leaderboard rating</span>
-                ) : undefined
-              }
-            >
-              {entry && (run.isError || score.isError) ? (
-                // Rated outside the hosted service: the API has no full report, but the
-                // leaderboard entry for this rating carries every class on every track.
-                <ClassTrackTable results={classResults(entry)} />
-              ) : run.isError || score.isError ? (
-                <p className="text-sm text-muted">The full report isn't available right now.</p>
-              ) : (
-                <Loading what="the attack report" height="lg" />
-              )}
-            </Card>
-          ) : null}
-        </div>
+            )}
+            <p className="mt-4 max-w-3xl text-[13px] leading-relaxed text-muted">
+              {report.unpublished?.episodes
+                ? `${report.unpublished.episodes} of the attack episodes ran ${report.unpublished.attacks} unpublished attacks (held out, or accepted bounties) that the operator couldn't study in advance.`
+                : "Published attacks only: an in-library result, not a held-out evaluation."}
+              {score.data?.heldOut &&
+                ` ${score.data.heldOut.attacks ?? "Its"} held-out attacks were made for this rating alone${score.data.heldOut.source === "rewrite" ? " (rewrites of published seeds)" : score.data.heldOut.model ? ` (drafted by ${score.data.heldOut.model})` : ""}, seed ${score.data.heldOut.seed}.`}
+            </p>
+            {score.data?.binding && (
+              <div className="mt-8 flex flex-col gap-2 border-t border-line pt-5">
+                <span className="eyebrow">Binding</span>
+                <BindingLine binding={score.data.binding} />
+              </div>
+            )}
+            <Coverage coverage={score.data?.coverage ?? report.coverage ?? null} />
+            {livenessLine(report.liveness) && (
+              <p className="mt-4 text-[13px] text-muted">{livenessLine(report.liveness)}</p>
+            )}
+          </Section>
+        ) : rated ? (
+          <Section
+            label="Report"
+            title="Attack report"
+            intro={
+              entry && (run.isError || score.isError) ? (
+                <span>From the published leaderboard rating</span>
+              ) : undefined
+            }
+          >
+            {entry && (run.isError || score.isError) ? (
+              // Rated outside the hosted service: the API has no full report, but the
+              // leaderboard entry for this rating carries every class on every track.
+              <ClassTrackTable results={classResults(entry)} />
+            ) : run.isError || score.isError ? (
+              <p className="text-[15px] text-muted">The full report isn't available right now.</p>
+            ) : (
+              <Loading what="the attack report" height="lg" />
+            )}
+          </Section>
+        ) : null}
 
-        <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-4">
-          {vault && <VaultSummary vault={vault} agentId={id} record={ownRecord} />}
-          {guarded && <AccountSummary module={guarded.module} account={guarded.account} />}
-          {guarded && <ModuleCover agentId={agentId} module={guarded.module} />}
-          <SentinelChecks agentId={id} ratedWith={Boolean(report?.sentinel)} />
-          <Card title="Proof on chain">
-            <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2.5 text-sm [&_dd]:text-right [&_dt]:text-muted">
-              <dt>Owner</dt>
-              <dd>{owner?.result ? <AddressLink address={owner.result} /> : "…"}</dd>
-              {rated && a && (
-                <>
-                  <dt>
-                    <Term term="reportHash">Report hash</Term>
-                  </dt>
-                  <dd className="truncate font-mono text-xs">{a.reportHash}</dd>
-                  <dt>
-                    <Term term="mandate">Mandate hash</Term>
-                  </dt>
-                  <dd className="truncate font-mono text-xs">{a.mandateHash}</dd>
-                </>
-              )}
-              {tee.measurement && (
-                <>
-                  <dt>
-                    <Term term="teeMeasurement">TEE measurement</Term>
-                  </dt>
-                  <dd className="truncate font-mono text-xs">{tee.measurement}</dd>
-                  <dt>TEE live check</dt>
-                  <dd>
-                    <Badge
-                      tone={
-                        liveCheckView(liveCheck.data?.status, liveCheck.data?.blockingStatus).tone
+        <Section label="Vault and proof">
+          <div className="grid gap-x-14 gap-y-14 xl:grid-cols-2 xl:[&>section:nth-child(-n+2)]:border-t-0 xl:[&>section:nth-child(-n+2)]:pt-0 [&>section:first-child]:border-t-0 [&>section:first-child]:pt-0">
+            {vault && <VaultSummary vault={vault} agentId={id} record={ownRecord} />}
+            {guarded && <AccountSummary module={guarded.module} account={guarded.account} />}
+            {guarded && <ModuleCover agentId={agentId} module={guarded.module} />}
+            <SentinelChecks agentId={id} ratedWith={Boolean(report?.sentinel)} />
+            <Card title="Proof on chain" printKeep>
+              <p className="-mt-2 mb-6 text-[14px] text-muted">
+                What anyone can check on chain, without trusting Bonded.
+              </p>
+              <div className="flex flex-col">
+                <ProofRow
+                  label="Owner"
+                  note="Registered the agent"
+                  value={owner?.result}
+                  href={owner?.result && explorerUrl ? addressUrl(owner.result) : undefined}
+                />
+                {rated && a && (
+                  <>
+                    <ProofRow
+                      label="Score posted in"
+                      note="Wrote this score on chain"
+                      value={postedTx ?? undefined}
+                      href={postedTx && explorerUrl ? txUrl(postedTx) : undefined}
+                      pending={!postedTx && scoreTx.isPending}
+                    />
+                    <ProofRow
+                      label="Report hash"
+                      note="Fingerprint of the full report"
+                      value={a.reportHash}
+                      how={
+                        <CheckSteps id={id} field="reportHash">
+                          {score.data && (
+                            <li>
+                              Or hash the downloaded report with <Mono>keccak256</Mono>: same value.
+                            </li>
+                          )}
+                        </CheckSteps>
                       }
-                    >
-                      {liveCheckView(liveCheck.data?.status, liveCheck.data?.blockingStatus).label}
-                    </Badge>
-                  </dd>
-                </>
-              )}
+                      howHref={checkUrl}
+                    />
+                    <ProofRow
+                      label="Mandate hash"
+                      note="Fingerprint of the rules it was tested under"
+                      value={a.mandateHash}
+                      how={
+                        <CheckSteps id={id} field="mandateHash">
+                          {enforcer && (
+                            <li>
+                              On its {vault ? "vault" : "module"}&apos;s explorer page, Read
+                              contract → <Mono>mandateHash</Mono>: same value.
+                            </li>
+                          )}
+                        </CheckSteps>
+                      }
+                      howHref={checkUrl}
+                      status={
+                        liveMandate.data ===
+                        undefined ? undefined : liveMandate.data.toLowerCase() ===
+                          a.mandateHash.toLowerCase() ? (
+                          <span className="text-brand-bright">
+                            ✓ Matches its {vault ? "vault" : "module"}
+                          </span>
+                        ) : (
+                          <span className="text-warn">
+                            Its {vault ? "vault" : "module"} enforces different rules now
+                          </span>
+                        )
+                      }
+                    />
+                  </>
+                )}
+                {tee.measurement && (
+                  <>
+                    <ProofRow
+                      label="TEE measurement"
+                      note="Fingerprint of its sealed code"
+                      value={tee.measurement}
+                      how={<CheckSteps id={id} field="teeMeasurement" />}
+                      howHref={checkUrl}
+                    />
+                    <div className="flex items-center justify-between gap-6 border-t border-line py-4">
+                      <span className="text-[14px] text-ink">TEE live check</span>
+                      <Badge
+                        tone={
+                          liveCheckView(liveCheck.data?.status, liveCheck.data?.blockingStatus).tone
+                        }
+                      >
+                        {
+                          liveCheckView(liveCheck.data?.status, liveCheck.data?.blockingStatus)
+                            .label
+                        }
+                      </Badge>
+                    </div>
+                  </>
+                )}
+              </div>
               {score.data && (
-                <>
-                  <dt>Posted in</dt>
-                  <dd>
-                    <TxLink hash={score.data.tx_hash} />
-                  </dd>
-                </>
+                <ReportDownloads
+                  report={report}
+                  ctx={{
+                    agentId: id,
+                    runId: score.data.runId,
+                    reportHash: a?.reportHash ?? score.data.signed.attestation.reportHash,
+                    txHash: score.data.tx_hash,
+                    ...(a?.mandateHash ? { mandateHash: a.mandateHash } : {}),
+                  }}
+                />
               )}
-            </dl>
-            {score.data && (
-              <ReportDownloads
-                ctx={{
-                  agentId: id,
-                  runId: score.data.runId,
-                  reportHash: a?.reportHash ?? score.data.signed.attestation.reportHash,
-                  txHash: score.data.tx_hash,
-                  ...(a?.mandateHash ? { mandateHash: a.mandateHash } : {}),
-                }}
-              />
-            )}
-            {score.error && !(score.error instanceof ApiError && score.error.status === 404) && (
-              <ErrorText error={score.error} />
-            )}
-          </Card>
-        </div>
-      </div>
-    </Page>
+              {score.error && !(score.error instanceof ApiError && score.error.status === 404) && (
+                <ErrorText error={score.error} />
+              )}
+            </Card>
+          </div>
+        </Section>
+      </Page>
+    </div>
   );
 }
 
@@ -601,17 +701,17 @@ function Coverage({ coverage }: { coverage: Parameters<typeof coverageRows>[0] }
   if (!rows.length) return null;
   const unread = rows.filter((r) => r.read === 0);
   return (
-    <div className="mt-4 flex flex-col gap-2 border-t border-white/[0.06] pt-4">
+    <div className="mt-8 flex flex-col gap-2.5 border-t border-line pt-5">
       <span className="eyebrow">Coverage</span>
-      <p className="text-xs text-muted">
+      <p className="text-[13px] text-muted">
         {unread.length
           ? `The agent never read ${unread.map((r) => r.label).join(", ")}, so attacks there couldn't reach it.`
           : "The agent read every surface that was attacked."}
       </p>
-      <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-4 gap-y-1 text-xs">
-        <span className="text-muted">Surface</span>
-        <span className="text-right text-muted">Attacked</span>
-        <span className="text-right text-muted">Read</span>
+      <div className="mt-1 grid max-w-xl grid-cols-[minmax(0,1fr)_auto_auto] gap-x-6 gap-y-1.5 text-[13px]">
+        <span className="font-mono text-xs text-muted">Surface</span>
+        <span className="text-right font-mono text-xs text-muted">Attacked</span>
+        <span className="text-right font-mono text-xs text-muted">Read</span>
         {rows.map((r) => (
           <span key={r.surface} className="contents">
             <span>{r.label}</span>
@@ -630,7 +730,7 @@ function Coverage({ coverage }: { coverage: Parameters<typeof coverageRows>[0] }
  */
 function DollarsAtRiskNote({ d }: { d: DollarsAtRisk }) {
   return (
-    <div className="mt-4 max-w-md text-sm">
+    <div className="mt-5 max-w-md border-l-2 border-warn/60 pl-4 text-sm">
       <p className="text-soft">
         <span className="font-semibold text-ink">Dollars at risk:</span> {dollarsAtRiskLine(d)}
       </p>
@@ -646,15 +746,15 @@ function DollarsAtRiskNote({ d }: { d: DollarsAtRisk }) {
   );
 }
 
-function Tile({ label, value, hint }: { label: ReactNode; value: ReactNode; hint: ReactNode }) {
-  return (
-    <div className="panel min-w-0 p-5">
-      <p className="eyebrow">{label}</p>
-      <p className="mt-2.5 truncate text-[28px] font-bold tracking-tight">{value}</p>
-      <p className="mt-1 truncate text-xs text-muted">{hint}</p>
-    </div>
-  );
-}
+/** A score's one-line verdict, set large beside its ring. */
+const VERDICT = "text-[clamp(26px,2.6vw,38px)] leading-[1.02] font-medium tracking-[-0.045em]";
+
+/** Lines up a block with a Section's content, past its label column on wide screens. */
+const INDENT = "min-w-0 empty:hidden lg:pl-[calc(9.5rem+32px)]";
+
+/** Label and value rows under hairlines, as in a ledger. */
+const ROWS =
+  "grid grid-cols-[auto_minmax(0,1fr)] text-sm [&>*]:border-t [&>*]:border-line [&>*]:py-3 [&_dd]:min-w-0 [&_dd]:pl-6 [&_dd]:text-right [&_dt]:text-muted";
 
 const isOwnerOf = (address?: string, owner?: string) =>
   Boolean(address && owner && address.toLowerCase() === owner.toLowerCase());
@@ -702,49 +802,39 @@ function VaultSummary({
       ? Number((policy.remainingCover * 1000n) / policy.coverAmount) / 10
       : 0;
   return (
-    <Card
-      title="Its vault"
-      actions={
-        <Link to={`/vaults/${vault}`} className={`text-sm ${linkClass}`}>
-          Open →
-        </Link>
-      }
-    >
+    <Card title="Its vault" actions={<MoreLink to={`/vaults/${vault}`}>Open</MoreLink>}>
       <p className="-mt-3 font-mono text-xs text-muted">{short(vault)}</p>
-      <p className="mt-4 text-3xl font-bold tracking-tight">
+      <p className="num-giant mt-6">
         {total?.result !== undefined ? `$${usd(total.result)}` : "…"}
       </p>
-      <p className="text-xs text-muted">
+      <p className="mt-3 text-[13px] text-muted">
         <Token symbol="tUSDG" /> held for depositors
       </p>
       {policy ? (
         <>
-          <div className="mt-4 mb-1.5 flex justify-between text-xs">
+          <div className="mt-6 mb-2 flex justify-between font-mono text-xs">
             <span className="text-muted">Cover left</span>
             <span>
               ${usd(policy.remainingCover, 0)} of ${usd(policy.coverAmount, 0)}
             </span>
           </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
-            <div
-              className="h-1.5 rounded-full bg-gradient-to-r from-brand to-[#9db5ff]"
-              style={{ width: `${left}%` }}
-            />
+          <div className="h-1 bg-white/[0.08]">
+            <div className="h-1 bg-brand-bright" style={{ width: `${left}%` }} />
           </div>
-          <p className="mt-2.5 text-xs text-muted">
+          <p className="mt-3 text-[13px] text-muted">
             Premium {bps(policy.premiumRateBps)} a year, streamed from the vault.
           </p>
         </>
       ) : (
-        <p className="mt-4 text-xs text-muted">No active cover.</p>
+        <p className="mt-6 text-[13px] text-muted">No active cover.</p>
       )}
       {trades && (
-        <div className="mt-4 border-t border-line pt-3">
+        <div className="mt-5 border-t border-line pt-3 text-[13px]">
           <VaultTrading activity={trades} />
         </div>
       )}
       {record?.coverWithoutVaultTrades && (
-        <div className="mt-3">
+        <div className="mt-4">
           <CoverWithoutTradesWarning show />
         </div>
       )}
@@ -788,13 +878,11 @@ function AccountSummary({ module, account }: { module: Address; account: Address
       <p className="-mt-3 text-xs text-muted">
         <AddressLink address={account} />
       </p>
-      <p className="mt-4 text-3xl font-bold tracking-tight">
-        {held?.result !== undefined ? `$${usd(held.result)}` : "…"}
-      </p>
-      <p className="text-xs text-muted">
+      <p className="num-giant mt-6">{held?.result !== undefined ? `$${usd(held.result)}` : "…"}</p>
+      <p className="mt-3 text-[13px] text-muted">
         <Token symbol="tUSDG" /> in the account, guarded by a mandate module
       </p>
-      <dl className="mt-4 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm [&_dd]:text-right [&_dt]:text-muted">
+      <dl className={`mt-6 ${ROWS}`}>
         <dt>Module</dt>
         <dd>
           <AddressLink address={module} />
@@ -822,7 +910,7 @@ function AccountSummary({ module, account }: { module: Address; account: Address
               : "no active cover"}
         </dd>
       </dl>
-      <p className="mt-3 text-xs text-muted">
+      <p className="mt-4 text-[13px] text-muted">
         Premiums are paid from the account and claims are paid back into it.
       </p>
     </Card>
@@ -830,40 +918,90 @@ function AccountSummary({ module, account }: { module: Address; account: Address
 }
 
 /** The report as a readable PDF, or as the original JSON whose hash is on chain. */
-function ReportDownloads({ ctx }: { ctx: ReportContext }) {
+function ReportDownloads({
+  ctx,
+  report,
+}: {
+  ctx: ReportContext;
+  report: Report | null | undefined;
+}) {
   const [busy, setBusy] = useState<"pdf" | "json">();
   const [error, setError] = useState<string>();
+  /** Whether the report file matched the on-chain hash when the PDF was made. */
+  const [verified, setVerified] = useState<boolean>();
+  // The PDF is this page, printed in the app's own look (index.css, "Print"), with the rating's
+  // details and the hash check below added on paper only.
+  const pdf = async () => {
+    const bytes = await fetchReportBytes(ctx.runId);
+    setVerified(matchesHash(bytes, ctx.reportHash));
+    await new Promise((r) => setTimeout(r, 60));
+    const title = document.title;
+    document.title = `bonded-agent-${ctx.agentId}-report`;
+    const restore = () => {
+      document.title = title;
+      window.removeEventListener("afterprint", restore);
+    };
+    window.addEventListener("afterprint", restore);
+    window.print();
+  };
   const run = async (kind: "pdf" | "json") => {
     setBusy(kind);
     setError(undefined);
     try {
-      await (kind === "pdf" ? downloadReportPdf(ctx) : downloadReportJson(ctx));
+      await (kind === "pdf" ? pdf() : downloadReportJson(ctx));
     } catch (e) {
       setError(e instanceof Error ? e.message : "The download failed. Try again.");
     } finally {
       setBusy(undefined);
     }
   };
+  const doc = report ? reportDocument(report, ctx, verified ?? false) : undefined;
   return (
-    <div className="mt-5 flex flex-col gap-2">
-      <button
-        type="button"
-        onClick={() => void run("pdf")}
-        disabled={busy !== undefined}
-        className={`${buttonClass("secondary")} w-full`}
-      >
-        {busy === "pdf" ? "Making the PDF…" : "Download the report (PDF)"}
-      </button>
-      <button
-        type="button"
-        onClick={() => void run("json")}
-        disabled={busy !== undefined}
-        className="text-center text-xs text-accent hover:underline disabled:opacity-60"
-      >
-        {busy === "json" ? "Downloading…" : "Original JSON (matches the on-chain hash)"}
-      </button>
-      {error && <p className="text-center text-xs text-breach">{error}</p>}
-    </div>
+    <>
+      <div className="mt-6 flex flex-col items-start gap-3">
+        <button
+          type="button"
+          onClick={() => void run("pdf")}
+          disabled={busy !== undefined}
+          className={buttonClass("secondary")}
+        >
+          {busy === "pdf" ? "Making the PDF…" : "Download the report (PDF)"}
+        </button>
+        <button
+          type="button"
+          onClick={() => void run("json")}
+          disabled={busy !== undefined}
+          className="font-mono text-xs text-accent hover:underline disabled:opacity-60"
+        >
+          {busy === "json" ? "Downloading…" : "Original JSON (matches the on-chain hash)"}
+        </button>
+        {error && <p className="text-xs text-breach">{error}</p>}
+      </div>
+      {verified !== undefined && (
+        <p
+          className={`mt-5 hidden text-[13px] print:block ${verified ? "text-safe" : "text-breach"}`}
+        >
+          {doc?.verification}
+        </p>
+      )}
+      {/* Only while the PDF is being made, so the page itself never shows them twice. */}
+      {doc && verified !== undefined && (
+        <div className="mt-12 hidden print:block">
+          <p className="eyebrow">Rating details</p>
+          <dl className={`mt-4 ${ROWS}`}>
+            {doc.summary.map(([k, v]) => (
+              <Fragment key={k}>
+                <dt>{k}</dt>
+                <dd>{v}</dd>
+              </Fragment>
+            ))}
+          </dl>
+          <p className="mt-6 text-[12px] text-muted">
+            A readable copy. The JSON report is the original: its hash is the one posted on chain.
+          </p>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -882,7 +1020,7 @@ function SentinelChecks({ agentId, ratedWith }: { agentId: string; ratedWith: bo
   return (
     <Card title="Sentinel checks">
       {week.checks === 0 ? (
-        <p className="text-sm text-muted">
+        <p className="text-[15px] leading-relaxed text-muted">
           Rated with Sentinel on, but it hasn't asked Sentinel about a trade in the last 7 days.{" "}
           <Link to="/sentinel" className={linkClass}>
             How to ask
@@ -890,7 +1028,7 @@ function SentinelChecks({ agentId, ratedWith }: { agentId: string; ratedWith: bo
         </p>
       ) : (
         <>
-          <p className="text-sm text-muted">
+          <p className="text-[15px] leading-relaxed text-muted">
             In the last 7 days this agent asked Sentinel about{" "}
             <span className="text-ink tabular-nums">{week.checks.toLocaleString()}</span>{" "}
             {week.checks === 1 ? "trade" : "trades"}, and{" "}
@@ -907,5 +1045,127 @@ function SentinelChecks({ agentId, ratedWith }: { agentId: string; ratedWith: bo
         </>
       )}
     </Card>
+  );
+}
+
+/** Code in a tooltip: an address, a function, a field. */
+const Mono = ({ children }: { children: ReactNode }) => (
+  <span className="font-mono text-[12px] text-ink">{children}</span>
+);
+
+/**
+ * How to check a fingerprint yourself, as steps: open BondedRegistry at scoreOf (the info mark
+ * links there), enter the agent's number, compare the field. Extra steps come as children.
+ */
+function CheckSteps({ id, field, children }: { id: string; field: string; children?: ReactNode }) {
+  return (
+    <ol className="flex list-decimal flex-col gap-1 pl-4 marker:text-muted">
+      <li>Click ⓘ to open BondedRegistry on the explorer, at scoreOf.</li>
+      <li>
+        Type <Mono>{id}</Mono> in agentId and click Read.
+      </li>
+      <li>
+        <Mono>{field}</Mono> is the same as this value.
+      </li>
+      {children}
+    </ol>
+  );
+}
+
+/**
+ * One thing anyone can check on chain: its name, a few words on what it is, and the value
+ * shortened in the middle with a copy button. A link only when it opens that exact thing (an
+ * address, a transaction); for a fingerprint, an info mark says where to read it on chain.
+ */
+function ProofRow({
+  label,
+  note,
+  value,
+  href,
+  how,
+  howHref,
+  status,
+  pending = false,
+}: {
+  label: string;
+  note: string;
+  value: string | undefined;
+  href?: string | undefined;
+  /** How to check it yourself, shown on hover of the info mark. */
+  how?: ReactNode;
+  /** Where the info mark leads: the exact place to check it. */
+  howHref?: string | undefined;
+  /** A live check on the value, under the note. */
+  status?: ReactNode;
+  pending?: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t border-line py-4">
+      <div className="min-w-[12rem] flex-1">
+        <p className="flex items-center gap-1.5 text-[14px] whitespace-nowrap text-ink">
+          {label}
+          {how && (
+            <Tooltip content={<span className="block max-w-72">{how}</span>}>
+              {howHref ? (
+                <a
+                  href={howHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`Check the ${label.toLowerCase()} on the explorer`}
+                  className="text-muted transition hover:text-ink"
+                >
+                  <Info aria-hidden className="size-3.5" strokeWidth={2} />
+                </a>
+              ) : (
+                <Info
+                  role="img"
+                  aria-label={`How to check the ${label.toLowerCase()}`}
+                  className="size-3.5 cursor-help text-muted"
+                  strokeWidth={2}
+                />
+              )}
+            </Tooltip>
+          )}
+        </p>
+        <p className="mt-0.5 truncate text-[13px] text-muted">{status ?? note}</p>
+      </div>
+      <div className="flex shrink-0 items-center gap-3">
+        {value ? (
+          <>
+            {href ? (
+              <a
+                href={href}
+                target="_blank"
+                rel="noreferrer"
+                title={value}
+                className="font-mono text-[13px] text-accent transition hover:text-ink"
+              >
+                {short(value, 6)} <span aria-hidden>↗</span>
+              </a>
+            ) : (
+              <span title={value} className="font-mono text-[13px] text-soft">
+                {short(value, 6)}
+              </span>
+            )}
+            <button
+              type="button"
+              aria-label={`Copy ${label.toLowerCase()}`}
+              onClick={async () => {
+                if (await copyText(value)) {
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
+                }
+              }}
+              className="w-14 rounded-full py-0.5 font-mono text-[11px] text-muted shadow-[inset_0_0_0_1px_rgb(255_255_255/0.14)] transition hover:text-ink hover:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.3)]"
+            >
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </>
+        ) : (
+          <span className="font-mono text-[13px] text-muted">{pending ? "Looking…" : "—"}</span>
+        )}
+      </div>
+    </div>
   );
 }

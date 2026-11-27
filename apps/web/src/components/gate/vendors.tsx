@@ -1,9 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronRightIcon, PlusIcon } from "lucide-react";
-import { Badge } from "@/components/shadcn/badge";
-import { Button } from "@/components/shadcn/button";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/shadcn/empty";
 import {
   Table,
   TableBody,
@@ -14,8 +11,10 @@ import {
 } from "@/components/shadcn/table";
 import { gateApi, type GateAccount, type GateTicket, type GateVendor } from "../../lib/gate";
 import { ModalActions, ResponsiveModal } from "../responsive-modal";
-import { ErrorText, Loading, Unavailable } from "../ui";
+import { EmptyState, ErrorText, Loading, Unavailable } from "../ui";
 import {
+  Badge,
+  Button,
   ConfirmButton,
   Facts,
   ModalButton,
@@ -24,6 +23,7 @@ import {
   TextField,
   useAction,
   useVendors,
+  TABLE,
 } from "./common";
 
 /** A vendor id from its name: what agents send for a bank change. */
@@ -214,28 +214,28 @@ function VendorDetail({
       />
     );
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       <Facts
         items={[
           ["Verified account", <span className="font-mono text-[0.92em]">{vendor.account}</span>],
           ["Vendor id", <span className="font-mono text-[0.92em]">{vendor.id}</span>],
         ]}
       />
-      <section aria-label="Bank changes" className="flex flex-col gap-3">
+      <section aria-label="Bank changes" className="flex flex-col gap-4">
         <div className="flex items-center justify-between gap-4">
-          <h3 className="text-sm font-semibold">Bank changes</h3>
+          <h3 className="h-section">Bank changes</h3>
           <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
             Add a verified change
           </Button>
         </div>
-        <p className="text-sm text-muted">
+        <p className="text-[15px] leading-relaxed text-muted">
           Their account changes only with a ticket finance verified, say by calling a number you
           already had. Each ticket covers one change.
         </p>
         {tickets.length > 0 && (
-          <ul className="flex flex-col divide-y divide-line">
+          <ul className="flex flex-col divide-y divide-line border-y border-line">
             {tickets.map((t) => (
-              <li key={t.id} className="flex items-center gap-3 py-2.5 text-sm">
+              <li key={t.id} className="flex items-center gap-3 py-3 text-sm">
                 <span className="min-w-0 flex-1">
                   <span className="block font-mono text-[0.92em]">{t.id}</span>
                   <span className="block truncate font-mono text-[0.92em] text-muted">
@@ -341,7 +341,7 @@ export function Vendors({ account, session }: { account: GateAccount; session: s
     </ModalButton>
   );
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-8">
       <TabBar action={add}>Who your agents may pay, and the account you know is theirs.</TabBar>
       {tickets.error && (
         <Unavailable error={tickets.error} onRetry={() => void tickets.refetch()} />
@@ -351,14 +351,9 @@ export function Vendors({ account, session }: { account: GateAccount; session: s
       ) : !vendors.data ? (
         <Loading what="vendors" />
       ) : !vendors.data.items.length ? (
-        <Empty>
-          <EmptyHeader>
-            <EmptyTitle>No vendors yet</EmptyTitle>
-            <EmptyDescription>Until you add one, every payee is unknown.</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+        <EmptyState title="No vendors yet">Until you add one, every payee is unknown.</EmptyState>
       ) : (
-        <Table className="table-fixed">
+        <Table className={`table-fixed ${TABLE}`}>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead>Vendor</TableHead>

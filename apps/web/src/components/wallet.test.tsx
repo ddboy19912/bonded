@@ -3,10 +3,10 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RainbowKitProvider } from "@rainbow-me/rainbowkit";
 import { WagmiProvider } from "wagmi";
-import { connect } from "wagmi/actions";
 import { wagmiConfig } from "../wagmi";
 import { robinhoodTestnet } from "../config";
 import { ConnectButton } from "./wallet";
+import { ensureTestnet } from "../lib/network";
 
 const { provider, genericRequest, emit } = vi.hoisted(() => {
   // Browser-wallet coverage must not depend on a developer's local Reown credentials.
@@ -43,7 +43,6 @@ const { provider, genericRequest, emit } = vi.hoisted(() => {
 });
 
 const address = "0x0000000000000000000000000000000000000001";
-const phantom = () => wagmiConfig.connectors.find((connector) => connector.name === "Phantom")!;
 let client: QueryClient;
 
 function renderWallet() {
@@ -153,7 +152,7 @@ describe("RainbowKit wallet integration", () => {
     expect(wagmiConfig.state.status).toBe("disconnected");
   });
 
-  it("switches an unsupported network through RainbowKit's chain menu", async () => {
+  it("connects on any network without asking to switch, and names the network", async () => {
     let chainId = "0x1";
     provider.request.mockImplementation(
       async ({ method, params }: { method: string; params?: { chainId: string }[] }) => {
@@ -169,15 +168,49 @@ describe("RainbowKit wallet integration", () => {
       },
     );
     renderWallet();
-    await act(async () => {
-      await connect(wagmiConfig, { connector: phantom() });
-    });
-    fireEvent.click(await screen.findByRole("button", { name: "Chain Selector" }));
-    fireEvent.click(await screen.findByRole("button", { name: new RegExp(robinhoodTestnet.name) }));
+    // Through RainbowKit's own picker, which asks for the testnet at connect.
+    await selectPhantom();
+    await waitFor(() => expect(wagmiConfig.state.status).toBe("connected"));
+    expect(
+      provider.request.mock.calls.some(([a]) => a.method === "wallet_switchEthereumChain"),
+    ).toBe(false);
+    // On Ethereum, the header still shows the wallet, never a "Wrong network" alarm.
+    expect(await screen.findByRole("button", { name: /0x00.*on Ethereum/i })).toBeTruthy();
+    expect(screen.queryByText(/wrong network/i)).toBeNull();
+    // The menu opens on any network, names it, and offers the switch.
+    fireEvent.click(screen.getByRole("button", { name: /0x00/i }));
+    expect(await screen.findByText("Ethereum")).toBeTruthy();
+    expect(screen.getByRole("img", { name: `Not ${robinhoodTestnet.name}` })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Switch to Robinhood Chain testnet/i }));
     await waitFor(() =>
       expect(wagmiConfig.state.connections.get(wagmiConfig.state.current!)?.chainId).toBe(
         robinhoodTestnet.id,
       ),
     );
+    await waitFor(() =>
+      expect(screen.queryByRole("img", { name: `Not ${robinhoodTestnet.name}` })).toBeNull(),
+    );
+  });
+
+  it("still connects when the wallet can't add the testnet, and says so when asked to switch", async () => {
+    provider.request.mockImplementation(async ({ method }: { method: string }) => {
+      if (method === "eth_chainId") return "0x1";
+      if (method === "eth_accounts") return [address];
+      if (method === "wallet_requestPermissions") return [{ caveats: [{ value: [address] }] }];
+      if (method === "wallet_switchEthereumChain" || method === "wallet_addEthereumChain")
+        throw Object.assign(new Error("Unrecognized chain ID"), { code: 4902 });
+      throw new Error(`Unexpected wallet request: ${method}`);
+    });
+    renderWallet();
+    await selectPhantom();
+    await waitFor(() => expect(wagmiConfig.state.status).toBe("connected"));
+    await expect(ensureTestnet()).rejects.toThrow(
+      /Phantom didn't switch to Robinhood Chain testnet/,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /0x00/i }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Switch to Robinhood Chain testnet/i }),
+    );
+    expect((await screen.findByRole("alert")).textContent).toMatch(/Try Rabby or MetaMask/);
   });
 });

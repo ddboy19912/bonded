@@ -1,20 +1,20 @@
 import { Link, useNavigate } from "react-router";
+import { TriangleAlert } from "lucide-react";
 import { useAccount } from "wagmi";
 import { useAgents } from "../lib/chain";
-import { bps, short } from "../lib/format";
+import { bps, day, short } from "../lib/format";
 import {
   AddressLink,
   Badge,
-  Card,
   EmptyState,
   ErrorText,
   LinkButton,
   Loading,
   Page,
-  ScoreRing,
   Table,
   Term,
   TierBadge,
+  Tooltip,
   linkClass,
 } from "../components/ui";
 import { paginate, useListParams } from "../lib/pages";
@@ -64,6 +64,7 @@ export function Agents() {
   return (
     <Page
       title="Agents"
+      eyebrow="Registry"
       intro="Every agent registered on Bonded. Open one to see its scores, attack report, vault and cover."
       actions={
         <>
@@ -74,9 +75,9 @@ export function Agents() {
         </>
       }
     >
-      <Card>
-        <div className="-mx-5 -mt-5 mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4 sm:-mx-6 sm:-mt-6 sm:px-6">
-          <div className="inline-flex rounded-full bg-white/[0.06] p-1 text-sm" role="tablist">
+      <div className="flex flex-col gap-8">
+        <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-5 border-b border-line">
+          <div className="-mb-px flex gap-7" role="tablist">
             {tabs.map(([key, label]) => (
               <button
                 key={key}
@@ -84,19 +85,21 @@ export function Agents() {
                 role="tab"
                 aria-selected={show === key}
                 onClick={() => setShow(key)}
-                className={`flex items-center gap-2 rounded-full px-4 py-1.5 font-semibold ${show === key ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}
+                className={`flex items-baseline gap-2 border-b-2 pb-3.5 text-[17px] font-medium tracking-[-0.02em] transition ${show === key ? "border-ink text-ink" : "border-transparent text-muted hover:text-ink"}`}
               >
                 {label}
-                <span className="font-mono text-[11px] opacity-70">{counts[key]}</span>
+                <span className="font-mono text-[12px] font-normal tracking-normal text-muted">
+                  {counts[key]}
+                </span>
               </button>
             ))}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 pb-3">
             {narrowed && (
               <button
                 type="button"
                 onClick={() => list.set({ tier: "all", vault: "any" })}
-                className="px-2 text-sm text-muted hover:text-ink"
+                className="px-2 font-mono text-xs text-muted hover:text-ink"
               >
                 Clear filters
               </button>
@@ -136,6 +139,7 @@ export function Agents() {
         <ErrorText error={agents.error} />
         {agents.data && rows.length === 0 && (
           <EmptyState
+            divider={false}
             title={
               narrowed
                 ? "No agents match these filters"
@@ -144,7 +148,7 @@ export function Agents() {
                   : "No agents here yet"
             }
             action={
-              <div className="flex flex-wrap justify-center gap-2">
+              <div className="flex flex-wrap gap-2.5">
                 <LinkButton to={TEST_AGENT} kind="secondary">
                   Test your agent first
                 </LinkButton>
@@ -160,14 +164,16 @@ export function Agents() {
           <Table>
             <thead>
               <tr>
-                <th>Security · Agent</th>
+                <th>Agent</th>
+                <th className="text-right">Security</th>
                 <th>
                   <span>Insurance tier</span>
                 </th>
+                <th className="hidden md:table-cell">Rated</th>
                 <th className="hidden md:table-cell">
                   <Term term="expectedLoss">Expected loss</Term>
                 </th>
-                <th>
+                <th className="hidden sm:table-cell">
                   <Term term="vault">Vault</Term>
                 </th>
                 <th className="hidden lg:table-cell">Owner</th>
@@ -177,48 +183,55 @@ export function Agents() {
               {page.items.map((a) => (
                 <tr
                   key={a.agentId.toString()}
-                  className="cursor-pointer"
+                  className="group cursor-pointer"
                   onClick={() => navigate(`/agents/${a.agentId}`)}
                 >
-                  <td>
-                    <span className="flex items-center gap-3">
-                      {a.score ? (
-                        <ScoreRing score={a.score.securityScore} size={40} />
-                      ) : (
-                        <span className="flex size-10 items-center justify-center rounded-full border border-dashed border-line-strong text-[10px] text-muted">
-                          —
-                        </span>
-                      )}
-                      <span>
-                        <Link
-                          to={`/agents/${a.agentId}`}
-                          className="font-semibold hover:text-accent"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          Agent {a.agentId.toString()}
-                        </Link>
-                        {isMine(a.owner) && (
-                          <span className="ml-2">
-                            <Badge tone="brand">yours</Badge>
-                          </span>
-                        )}
+                  <td className="!py-5">
+                    <Link
+                      to={`/agents/${a.agentId}`}
+                      className="text-[clamp(19px,1.8vw,24px)] leading-tight font-medium tracking-[-0.035em] transition group-hover:text-accent"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Agent {a.agentId.toString()}
+                    </Link>
+                    {a.score && a.score.expiresAt <= now && (
+                      <span className="ml-2.5 align-[-0.04em]" onClick={(e) => e.stopPropagation()}>
+                        <RerateDue issuedAt={a.score.issuedAt} expiresAt={a.score.expiresAt} />
                       </span>
-                    </span>
+                    )}
+                    {isMine(a.owner) && (
+                      <span className="ml-3 align-[0.2em]">
+                        <Badge tone="brand">yours</Badge>
+                      </span>
+                    )}
+                  </td>
+                  <td className="text-right">
+                    {a.score ? (
+                      <span className="text-[clamp(22px,2vw,30px)] leading-none font-medium tracking-[-0.045em] tabular-nums">
+                        {a.score.securityScore}
+                      </span>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
                   </td>
                   <td>
                     {a.score ? (
-                      <span className="flex items-center gap-2">
-                        <TierBadge score={a.score.score} />
-                        {a.score.expiresAt <= now && <Badge tone="warn">expired</Badge>}
-                      </span>
+                      <TierBadge score={a.score.score} />
                     ) : (
                       <span className="text-muted">Not rated</span>
                     )}
                   </td>
-                  <td className="hidden tabular-nums md:table-cell">
+                  <td className="hidden md:table-cell">
+                    {a.score ? (
+                      <span className="font-mono text-[13px] text-soft tabular-nums">
+                        {day(a.score.issuedAt)}
+                      </span>
+                    ) : null}
+                  </td>
+                  <td className="hidden font-mono text-[13px] tabular-nums md:table-cell">
                     {a.score ? bps(a.score.expectedLossBps) : <span className="text-muted">—</span>}
                   </td>
-                  <td>
+                  <td className="hidden sm:table-cell">
                     {a.vault ? (
                       <Link
                         to={`/vaults/${a.vault}`}
@@ -253,7 +266,34 @@ export function Agents() {
           onSize={(size) => list.set({ size })}
           noun="agents"
         />
-      </Card>
+      </div>
     </Page>
+  );
+}
+
+/**
+ * Beside an agent whose rating is past its 30 days: a warning sign that explains itself on hover
+ * or focus. The score still stands; only new cover waits for a fresh rating.
+ */
+function RerateDue({ issuedAt, expiresAt }: { issuedAt: bigint; expiresAt: bigint }) {
+  return (
+    <Tooltip
+      content={
+        <>
+          <span className="block font-medium text-ink">Re-rating due</span>
+          <span className="mt-1 block">
+            Rated {day(issuedAt)}. Ratings last 30 days, so this one ran out on {day(expiresAt)}.
+            Its score still stands; new cover waits for a fresh rating.
+          </span>
+        </>
+      }
+    >
+      <TriangleAlert
+        role="img"
+        aria-label="Re-rating due"
+        className="inline size-[18px] cursor-help text-warn"
+        strokeWidth={2}
+      />
+    </Tooltip>
   );
 }

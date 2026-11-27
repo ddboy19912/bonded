@@ -2,7 +2,7 @@ import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { SENTINEL_GATES, SENTINEL_MODEL } from "../lib/sentinel-facts";
-import { Badge, ErrorText, Page, buttonClass } from "../components/ui";
+import { Badge, ErrorText, Page, Section, buttonClass } from "../components/ui";
 import { StatLoading, StatStrip } from "../components/stat-strip";
 
 const STEPS: [string, string][] = [
@@ -23,9 +23,6 @@ const STEPS: [string, string][] = [
     "At 70% confidence or more, the check says block. The vault still enforces the mandate either way.",
   ],
 ];
-
-/** One cell of the gates grid: opaque, so the 1px gaps between cells read as dividers. */
-const CELL = "bg-[linear-gradient(180deg,rgb(18_23_37),rgb(11_14_23))] p-6";
 
 const RATED_WITH: [string, string][] = [
   [
@@ -73,7 +70,7 @@ export function Sentinel() {
           },
           {
             label: "Model",
-            value: <span className="text-[28px]">v5</span>,
+            value: "v5",
             hint: SENTINEL_MODEL.name,
           },
           {
@@ -91,14 +88,11 @@ export function Sentinel() {
       <ErrorText error={status.error} />
 
       {s?.fallback ? (
-        <section>
-          <h2 className="font-serif text-3xl leading-tight">
-            Laya first, a second opinion when unsure
-          </h2>
-          <p className="mt-2 max-w-[65ch] text-sm text-muted">
-            Uncertain checks go to {s.fallback.model}. Those checks share the mandate, proposed
-            action and outside inputs with the model provider. The vault still decides payouts.
-          </p>
+        <Section
+          label="Second opinion"
+          title="Laya first, a second opinion when unsure"
+          intro={`Uncertain checks go to ${s.fallback.model}. Those checks share the mandate, proposed action and outside inputs with the model provider. The vault still decides payouts.`}
+        >
           <StatStrip
             stats={[
               {
@@ -132,85 +126,86 @@ export function Sentinel() {
               },
             ]}
           />
-        </section>
+        </Section>
       ) : null}
 
-      <section>
-        <h2 className="font-serif text-3xl leading-tight">How a check works</h2>
-        <ol className="panel mt-5 grid overflow-hidden p-0 md:grid-cols-2 xl:grid-cols-4">
+      <Section label="The check" title="How a check works">
+        <ol className="grid gap-x-8 gap-y-8 md:grid-cols-2 xl:grid-cols-4">
           {STEPS.map(([title, text], i) => (
-            <li
-              key={title}
-              className="border-b border-line p-5 last:border-b-0 md:[&:nth-child(odd)]:border-r xl:border-b-0 xl:[&:not(:last-child)]:border-r"
-            >
-              <span className="font-serif text-[32px] leading-none text-muted">{i + 1}</span>
-              <p className="mt-3 font-semibold">{title}</p>
-              <p className="mt-1.5 text-sm leading-relaxed text-muted">{text}</p>
+            <li key={title} className="border-t border-line pt-5">
+              <span className="eyebrow">{String(i + 1).padStart(2, "0")}</span>
+              <p className="mt-4 text-[19px] leading-snug font-medium tracking-[-0.03em]">
+                {title}
+              </p>
+              <p className="mt-2 text-[15px] leading-relaxed text-muted">{text}</p>
             </li>
           ))}
         </ol>
-      </section>
+      </Section>
 
-      <section>
-        <h2 className="font-serif text-3xl leading-tight">How v5 was tested</h2>
-        <p className="mt-2 max-w-[60ch] text-sm text-muted">
-          Five gates before it went live, each run on v5 and on the previous model, v1.
-        </p>
-        {/* Cells share four rows, so names, numbers and labels line up across a row of cards. */}
-        <ul className="mt-5 grid gap-px overflow-hidden rounded-[var(--radius-card)] border border-line bg-line md:grid-cols-2 lg:grid-cols-3">
+      <Section
+        label="Testing"
+        title="How v5 was tested"
+        intro="Five gates before it went live, each run on v5 and on the previous model, v1."
+      >
+        {/* Cells share four rows, so names, numbers and labels line up across a row of gates. */}
+        <ul className="grid gap-x-10 md:grid-cols-2 lg:grid-cols-3">
           {SENTINEL_GATES.map((g) => (
-            <li key={g.name} className={`${CELL} row-span-4 grid grid-rows-subgrid`}>
+            <li
+              key={g.name}
+              className="row-span-4 grid grid-rows-subgrid border-t border-line pt-5 pb-12"
+            >
               <span>
-                <Badge tone={g.passed ? "safe" : "warn"} dot>
+                <Badge tone={g.passed ? "brand" : "warn"} dot>
                   {g.passed ? "Passed" : "Exception"}
                 </Badge>
               </span>
-              <p className="mt-3 font-semibold">{g.name}</p>
-              <p className="mt-1.5 max-w-[40ch] text-sm leading-relaxed text-muted">{g.what}</p>
+              <p className="mt-4 text-[19px] leading-snug font-medium tracking-[-0.03em]">
+                {g.name}
+              </p>
+              <p className="mt-2 max-w-[40ch] text-[15px] leading-relaxed text-muted">{g.what}</p>
               <div className="mt-6">
                 <p className="flex items-baseline gap-3 tabular-nums">
-                  <span className="font-serif text-[40px] leading-none">{g.after}</span>
-                  <span className="text-sm text-muted">
-                    v1: <span className="text-soft">{g.before}</span>
+                  <span className="num-giant">{g.after}</span>
+                  <span className="font-mono text-[12px] text-muted">
+                    v1 <span className="text-soft">{g.before}</span>
                   </span>
                 </p>
-                <p className="mt-1.5 text-sm text-muted">{g.measure}</p>
+                <p className="mt-2.5 text-[13px] text-muted">{g.measure}</p>
               </div>
             </li>
           ))}
-          <li className={`${CELL} row-span-4 flex flex-col`}>
+          <li className="row-span-4 flex flex-col border-t border-line pt-5 pb-12">
             <p className="eyebrow">Verdict</p>
-            <p className="mt-3 font-serif text-[40px] leading-none">4 of 5 passed</p>
-            <p className="mt-auto pt-6 text-sm leading-relaxed text-muted">
+            <p className="num-giant mt-4">4 of 5 passed</p>
+            <p className="mt-auto pt-6 text-[15px] leading-relaxed text-muted">
               The stress suite improved overall but got worse in 2 of its 44 families. v5 went live
               with that exception recorded, and the next model targets those families.
             </p>
           </li>
         </ul>
-      </section>
+      </Section>
 
-      <section className="grid gap-8 border-t border-line pt-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-        <div>
-          <h2 className="font-serif text-3xl leading-tight">Rate your agent with Sentinel on</h2>
-          <p className="mt-3 max-w-[48ch] text-sm leading-relaxed text-muted">
-            Choose it when you onboard an agent. Your agent then asks Sentinel before each trade.
-          </p>
-          <Link to="/agents/new" className={`mt-6 ${buttonClass("primary")}`}>
-            Onboard an agent
-          </Link>
+      <Section label="Use it" title="Rate your agent with Sentinel on">
+        <div className="grid gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
+          <div>
+            <p className="max-w-[48ch] text-[15px] leading-relaxed text-muted">
+              Choose it when you onboard an agent. Your agent then asks Sentinel before each trade.
+            </p>
+            <Link to="/agents/new" className={`mt-6 ${buttonClass("primary")}`}>
+              Onboard an agent
+            </Link>
+          </div>
+          <ul className="border-b border-line">
+            {RATED_WITH.map(([title, text]) => (
+              <li key={title} className="border-t border-line py-5">
+                <span className="block text-[17px] font-medium tracking-[-0.02em]">{title}</span>
+                <span className="mt-1.5 block text-[15px] leading-relaxed text-muted">{text}</span>
+              </li>
+            ))}
+          </ul>
         </div>
-        <ul className="grid content-start gap-6">
-          {RATED_WITH.map(([title, text]) => (
-            <li key={title} className="flex gap-4">
-              <span className="mt-2 size-1.5 shrink-0 rounded-full bg-accent" aria-hidden />
-              <span>
-                <span className="block font-semibold">{title}</span>
-                <span className="mt-1 block text-sm leading-relaxed text-muted">{text}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
+      </Section>
     </Page>
   );
 }

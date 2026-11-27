@@ -9,7 +9,7 @@ const agent = (id: number, score?: number, vault = false, owner = other): AgentR
   agentId: BigInt(id),
   owner,
   ...(score !== undefined
-    ? { score: { score, securityScore: score, expectedLossBps: 100, expiresAt: 9n } }
+    ? { score: { score, securityScore: score, expectedLossBps: 100, issuedAt: 1n, expiresAt: 9n } }
     : {}),
   ...(vault ? { vault: `0x${String(id).padStart(40, "0")}` as Address } : {}),
 });

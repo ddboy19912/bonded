@@ -20,16 +20,16 @@ import {
 import { InlineCode } from "./code-block";
 import { Collapsible } from "./collapsible";
 import { CopyButton } from "./copy";
-import { Badge, Loading } from "./ui";
+import { Badge, Loading, Table } from "./ui";
 
 /** One fix: what to change, and the line or setting to copy when it has one. */
 function Fix({ fix, showCount = true }: { fix: ReportFix; showCount?: boolean }) {
   const copy = fix.promptLine;
   return (
-    <div className="flex flex-col gap-1.5">
-      <p className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-col gap-2">
+      <p className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <span className="text-[15px] font-medium">{fix.title}</span>
         <Badge tone="brand">{FIX_KIND_LABELS[fix.kind] ?? fix.kind}</Badge>
-        <span className="font-semibold">{fix.title}</span>
         {showCount && (
           <span className="text-xs text-muted">
             would have stopped {fix.prevents} breach{fix.prevents === 1 ? "" : "es"}
@@ -43,11 +43,13 @@ function Fix({ fix, showCount = true }: { fix: ReportFix; showCount?: boolean })
         </p>
       )}
       {copy && (
-        <div className="flex min-w-0 items-start gap-2">
-          <code className="min-w-0 flex-1 rounded-lg bg-black/40 px-3 py-2 font-mono text-xs break-words whitespace-pre-wrap text-soft">
+        <div className="flex min-w-0 items-start gap-3 border-l-2 border-line-strong pl-4">
+          <code className="min-w-0 flex-1 py-0.5 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap text-ink">
             {copy}
           </code>
-          <CopyButton text={copy} />
+          <span data-print-hide>
+            <CopyButton text={copy} />
+          </span>
         </div>
       )}
     </div>
@@ -61,22 +63,25 @@ export function TopFixes({ report }: { report: Report | null | undefined }) {
   return (
     <section
       aria-labelledby="top-fixes"
-      className="flex flex-col gap-4 border-t border-line pt-5 text-sm"
+      className="flex flex-col gap-6 border-t border-line pt-6 text-sm"
     >
       <div>
-        <h3 id="top-fixes" className="font-semibold">
+        <h3 id="top-fixes" className="text-xl font-medium tracking-[-0.03em]">
           Fix these first
         </h3>
-        <p className="mt-0.5 text-xs text-muted">
+        <p className="mt-2 max-w-2xl text-muted">
           Counted from this rating's own breaches. The advice follows from each attack's class and
           the breach it caused; it isn't written by a model.
         </p>
       </div>
-      <ol className="flex flex-col gap-4">
+      <ol className="flex max-w-3xl flex-col gap-6">
         {fixes.map((f, i) => (
-          <li key={f.id} className="flex gap-3">
-            <span className="font-mono text-xs text-muted" aria-hidden>
-              {i + 1}.
+          <li key={f.id} className="flex gap-4">
+            <span
+              className="w-5 shrink-0 text-2xl leading-none font-medium tracking-[-0.04em] text-muted tabular-nums"
+              aria-hidden
+            >
+              {i + 1}
             </span>
             <div className="min-w-0 flex-1">
               <Fix fix={f} />
@@ -97,21 +102,23 @@ export function BreachEvidenceList({ report }: { report: Report | null | undefin
   if (!evidence.length) return null;
   return (
     <Collapsible
-      className="border-t border-line pt-4 text-sm"
-      contentClassName="pt-4"
+      className="border-t border-line pt-5 text-sm"
+      contentClassName="pt-5"
       summary={`What happened in each breach (${evidence.length})`}
     >
-      <ul className="flex flex-col gap-5">
+      <ul className="flex flex-col divide-y divide-line">
         {evidence.map((e, i) => {
           const fixes = fixesFor(e, report);
           return (
             <li
               key={e.episodeId ?? `${e.class}-${i}`}
-              className="flex flex-col gap-2 border-t border-white/[0.06] pt-4 first:border-0 first:pt-0"
+              className="flex flex-col gap-3 py-6 first:pt-0 last:pb-0"
             >
               <p className="flex flex-wrap items-center gap-2">
                 {e.class && <span className="font-mono text-xs text-muted">{e.class}</span>}
-                <span className="font-semibold">{e.className ?? e.class ?? "Breach"}</span>
+                <span className="text-[15px] font-medium">
+                  {e.className ?? e.class ?? "Breach"}
+                </span>
                 {surfaceLine(e.surface) && (
                   <span className="text-xs text-muted">{surfaceLine(e.surface)}</span>
                 )}
@@ -119,8 +126,8 @@ export function BreachEvidenceList({ report }: { report: Report | null | undefin
               </p>
               {e.plantedText ? (
                 <figure className="flex flex-col gap-1">
-                  <figcaption className="text-xs text-muted">What the agent read</figcaption>
-                  <blockquote className="max-h-48 overflow-auto rounded-xl border-l-2 border-breach/60 bg-black/30 px-3 py-2 font-mono text-xs break-words whitespace-pre-wrap text-soft">
+                  <figcaption className="eyebrow">What the agent read</figcaption>
+                  <blockquote className="mt-1 max-h-48 overflow-auto border-l-2 border-breach/60 py-1 pl-4 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap text-soft">
                     {e.plantedText}
                   </blockquote>
                 </figure>
@@ -131,7 +138,7 @@ export function BreachEvidenceList({ report }: { report: Report | null | undefin
                   The planted text is shown once the rating has finished.
                 </p>
               )}
-              <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-xs [&_dt]:text-muted">
+              <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-5 gap-y-1.5 text-xs [&_dt]:font-mono [&_dt]:text-muted">
                 <dt>What it did</dt>
                 <dd className="font-mono break-all">{actionLine(e.action)}</dd>
                 <dt>Breach</dt>
@@ -145,8 +152,8 @@ export function BreachEvidenceList({ report }: { report: Report | null | undefin
                 </dd>
               </dl>
               {fixes.length > 0 && (
-                <div className="flex flex-col gap-3 border-l border-line-strong pl-3">
-                  <p className="text-xs font-semibold text-soft">What would have stopped it</p>
+                <div className="mt-1 flex flex-col gap-4">
+                  <p className="eyebrow">What would have stopped it</p>
                   {fixes.map((f) => (
                     <Fix key={f.id} fix={f} showCount={false} />
                   ))}
@@ -189,15 +196,13 @@ export function RatingCompareView({
   const c = compare.data;
   const up = c.from.score !== null && c.to.score !== null ? c.to.score - c.from.score : 0;
   return (
-    <section aria-labelledby="before-after" className="flex flex-col gap-3 text-sm">
-      <h3 id="before-after" className="font-semibold">
+    <section aria-labelledby="before-after" className="flex flex-col gap-5 text-sm">
+      <h3 id="before-after" className="text-xl font-medium tracking-[-0.03em]">
         Before and after
       </h3>
-      <p className="flex flex-wrap items-baseline gap-3">
-        <span className="text-muted">Insurance score</span>
-        <span
-          className={`font-serif text-4xl leading-none ${up > 0 ? "text-safe" : up < 0 ? "text-breach" : ""}`}
-        >
+      <p className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
+        <span className="eyebrow">Insurance score</span>
+        <span className={`num-big ${up > 0 ? "text-safe" : up < 0 ? "text-breach" : ""}`}>
           {scoreChange(c)}
         </span>
         {c.from.expectedLossBps != null && c.to.expectedLossBps != null && (
@@ -207,37 +212,39 @@ export function RatingCompareView({
           </span>
         )}
       </p>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[26rem] text-xs">
-          <caption className="sr-only">Breaches by attack class, before and after</caption>
-          <thead className="text-left text-muted">
-            <tr>
-              <th className="pb-2 font-medium">Attack class</th>
-              <th className="pb-2 text-right font-medium">Before</th>
-              <th className="pb-2 text-right font-medium">After</th>
-              <th className="pb-2 text-right font-medium">Change</th>
-            </tr>
-          </thead>
-          <tbody>
-            {c.classes.map((d) => {
-              const change = classChange(d);
-              const cell = (x: typeof d.from) => (x ? `${x.breaches} of ${x.episodes}` : "not run");
-              return (
-                <tr key={d.class} className="border-t border-white/[0.06]">
-                  <td className="py-2">{d.name}</td>
-                  <td className="py-2 text-right font-mono">{cell(d.from)}</td>
-                  <td className="py-2 text-right font-mono">{cell(d.to)}</td>
-                  <td
-                    className={`py-2 text-right ${change.tone === "safe" ? "text-safe" : change.tone === "breach" ? "text-breach" : "text-muted"}`}
-                  >
-                    {change.text}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <Table>
+        <caption className="sr-only">Breaches by attack class, before and after</caption>
+        <thead>
+          <tr>
+            <th>Attack class</th>
+            <th className="text-right!">Before</th>
+            <th className="text-right!">After</th>
+            <th className="text-right!">Change</th>
+          </tr>
+        </thead>
+        <tbody>
+          {c.classes.map((d) => {
+            const change = classChange(d);
+            const cell = (x: typeof d.from) => (x ? `${x.breaches} of ${x.episodes}` : "not run");
+            return (
+              <tr key={d.class}>
+                <td className="py-3!">{d.name}</td>
+                <td className="py-3! text-right font-mono text-xs whitespace-nowrap">
+                  {cell(d.from)}
+                </td>
+                <td className="py-3! text-right font-mono text-xs whitespace-nowrap">
+                  {cell(d.to)}
+                </td>
+                <td
+                  className={`py-3! text-right text-xs whitespace-nowrap ${change.tone === "safe" ? "text-safe" : change.tone === "breach" ? "text-breach" : "text-muted"}`}
+                >
+                  {change.text}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </Table>
       <p className="text-xs text-muted">
         Each rating draws its own held-out attacks, so some change between two ratings is chance.
       </p>

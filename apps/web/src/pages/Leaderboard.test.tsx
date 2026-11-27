@@ -228,8 +228,8 @@ describe("task score", () => {
     const row = await renderBoard([{ ...entry("Template", 83, 33), task: task(11) }]);
     const security = within(row("Template")).getByText("33");
     const taskScore = within(row("Template")).getByLabelText(/^Task score 100\./);
-    expect(taskScore.className).toContain("text-3xl");
-    expect(security.className).toContain("text-3xl");
+    expect(taskScore.className).toContain("num-big");
+    expect(security.className).toContain("num-big");
   });
 
   it("lists the scripted reference agents after the ranking, without a rank", async () => {
@@ -240,7 +240,7 @@ describe("task score", () => {
     ]);
     const names = within(screen.getByRole("list", { name: "Security rankings" }))
       .getAllByRole("listitem")
-      .map((r) => r.querySelector("a, .font-semibold")?.textContent);
+      .map((r) => r.querySelector("a, [data-name]")?.textContent);
     expect(names).toEqual(["Template", "Other", "Hardened demo"]);
     expect(row("Template").firstElementChild?.textContent).toBe("01");
     expect(row("Hardened demo").firstElementChild?.textContent).toBe("—");
@@ -255,7 +255,7 @@ describe("task score", () => {
     ]);
     const names = within(screen.getByRole("list", { name: "Security rankings" }))
       .getAllByRole("listitem")
-      .map((r) => r.querySelector("a, .font-semibold")?.textContent);
+      .map((r) => r.querySelector("a, [data-name]")?.textContent);
     expect(names).toEqual(["Hardened", "Template"]);
   });
 });

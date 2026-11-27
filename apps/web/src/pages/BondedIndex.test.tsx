@@ -104,11 +104,12 @@ describe("Bonded Index", () => {
     expect(() => loadBondedIndex()).not.toThrow();
   });
 
-  it("labels every result row with its rail and links to the on-chain leaderboard", () => {
+  it("lists every model in the results, with no rail column, and links to the on-chain leaderboard", () => {
     view();
-    const rows = within(section("All results")).getAllByRole("row").slice(1);
+    const results = section("All results");
+    const rows = within(results).getAllByRole("row").slice(1);
     expect(rows).toHaveLength(index.entries.length);
-    for (const r of rows) expect(within(r).getByText("Off chain")).toBeTruthy();
+    expect(within(results).queryByText("Off chain")).toBeNull();
     expect(screen.getByRole("link", { name: "Leaderboard" }).getAttribute("href")).toBe(
       "/leaderboard",
     );
@@ -223,10 +224,9 @@ describe("Bonded Index", () => {
     expect(row.textContent).toContain("14");
     const results = section("All results");
     expect(within(results).getByRole("columnheader", { name: "Task" })).toBeTruthy();
-    expect(within(results).getByRole("row", { name: /Muse Spark 1.3/ }).textContent).toContain(
-      "joined runs",
-    );
-    expect(within(results).getByText(new RegExp(`Muse Spark 1.3: ${provenance}`))).toBeTruthy();
+    // No rail column, and where the runs come from is told on the model's own page, not here.
+    expect(within(results).queryByRole("columnheader", { name: "Rail" })).toBeNull();
+    expect(within(results).queryByText(new RegExp(provenance))).toBeNull();
     // An entry that joins a campaign keeps its sweep's cost, so the total counts the rows' runs.
     expect(screen.getByText("504 episodes in all")).toBeTruthy();
   });

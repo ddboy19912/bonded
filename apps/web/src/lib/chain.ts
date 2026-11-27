@@ -217,7 +217,13 @@ export interface AgentRow {
    * The registry score, if the agent has ever been rated. `securityScore` is the public headline
    * (the susceptibility grade); `score` is the loss-based insurance score that prices cover.
    */
-  score?: { score: number; securityScore: number; expectedLossBps: number; expiresAt: bigint };
+  score?: {
+    score: number;
+    securityScore: number;
+    expectedLossBps: number;
+    issuedAt: bigint;
+    expiresAt: bigint;
+  };
   /** The agent's newest vault, if it has one. */
   vault?: Address;
   /** The agent's newest protected smart account (module and account), if it has one. */
@@ -260,6 +266,7 @@ export function agentRows(
                 score: s.score,
                 securityScore: s.securityScore,
                 expectedLossBps: s.expectedLossBps,
+                issuedAt: s.issuedAt,
                 expiresAt: s.expiresAt,
               },
             }
@@ -324,6 +331,32 @@ export function useAgents() {
         vaults.map((v) => v.args),
         modules.map((m) => m.args),
       );
+    },
+  });
+}
+
+/**
+ * The transaction that posted an agent's current score: the newest ScorePosted log for it. The
+ * same transaction's ValidationResponse log carries the report hash, so the explorer shows it.
+ */
+export function useScoreTx(agentId: bigint | undefined, issuedAt: bigint | undefined) {
+  const client = usePublicClient();
+  return useQuery({
+    queryKey: ["score-tx", agentId?.toString(), issuedAt?.toString()],
+    enabled: Boolean(client && agentId !== undefined && issuedAt),
+    staleTime: Infinity,
+    queryFn: async (): Promise<Hex | null> => {
+      const logs = await allLogs(client!, (range) =>
+        client!.getLogs({
+          address: deployment.registry,
+          event: getAbiItem({ abi: bondedRegistryAbi, name: "ScorePosted" }),
+          args: { agentId },
+          ...range,
+          strict: true,
+        }),
+      );
+      const match = logs.filter((l) => l.args.issuedAt === issuedAt).at(-1) ?? logs.at(-1);
+      return match?.transactionHash ?? null;
     },
   });
 }

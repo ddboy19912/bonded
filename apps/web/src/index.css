@@ -157,6 +157,206 @@
   .btn-brand {
     background: var(--color-brand);
   }
+
+  /*
+   * Headlines, in the landing page's and the Overview's sizes: a page title, a section title (in
+   * a Card, or larger in a Section), and numbers set as the verdict.
+   */
+  .h-display {
+    font-weight: 500;
+    font-size: clamp(40px, 6vw, 84px);
+    line-height: 0.92;
+    letter-spacing: -0.058em;
+    animation: rise-in 0.9s cubic-bezier(0.19, 1, 0.22, 1) both;
+  }
+  .h-section {
+    font-weight: 500;
+    font-size: clamp(22px, 2.2vw, 30px);
+    line-height: 1.05;
+    letter-spacing: -0.04em;
+  }
+  .h-section-lg {
+    font-weight: 500;
+    font-size: clamp(30px, 3.8vw, 52px);
+    line-height: 0.96;
+    letter-spacing: -0.052em;
+  }
+  .num-giant {
+    font-weight: 500;
+    font-size: clamp(44px, 5vw, 76px);
+    line-height: 0.9;
+    letter-spacing: -0.06em;
+    font-variant-numeric: tabular-nums;
+  }
+  .num-big {
+    font-weight: 500;
+    font-size: clamp(26px, 2.4vw, 34px);
+    line-height: 1;
+    letter-spacing: -0.045em;
+    font-variant-numeric: tabular-nums;
+  }
+  .page-head > div:first-child > p,
+  .page-head > div:last-child {
+    animation: rise-in 0.9s cubic-bezier(0.19, 1, 0.22, 1) 0.08s both;
+  }
+
+  /* A page section with its label in a narrow column at the left, as on the Overview. */
+  .app-sec {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+    padding-top: clamp(32px, 4.4vw, 56px);
+    border-top: 1px solid var(--color-line);
+  }
+  @media (min-width: 1024px) {
+    .app-sec {
+      grid-template-columns: 9.5rem minmax(0, 1fr);
+      gap: 32px;
+    }
+    .app-sec-lab {
+      position: sticky;
+      top: 96px;
+      align-self: start;
+    }
+  }
+
+  /* An underlined link with an arrow that moves on hover. */
+  .more-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 3px;
+    border-bottom: 1px solid currentColor;
+    font-size: 15px;
+    transition: color 0.2s;
+  }
+  .more-link:hover {
+    color: var(--color-accent);
+  }
+  .more-link > span {
+    transition: transform 0.4s cubic-bezier(0.19, 1, 0.22, 1);
+  }
+  .more-link:hover > span {
+    transform: translateX(4px);
+  }
+
+  /*
+   * Buttons, as on the landing page: a pill, and on hover a fill that rises from below. Primary is
+   * the one blue; it turns white with black text under the pointer.
+   */
+  .btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 999px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    isolation: isolate;
+    transition:
+      color 0.3s,
+      box-shadow 0.3s,
+      opacity 0.2s;
+  }
+  .btn::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    transform: translateY(101%);
+    transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+  }
+  .btn:not(:disabled):hover::before,
+  .btn:not(:disabled):focus-visible::before {
+    transform: none;
+  }
+  .btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
+  }
+  .btn-primary {
+    background: var(--color-brand);
+    color: #fff;
+  }
+  .btn-primary::before {
+    background: var(--color-ink);
+  }
+  .btn-primary:not(:disabled):hover,
+  .btn-primary:not(:disabled):focus-visible {
+    color: #000;
+  }
+  .btn-light {
+    background: var(--color-ink);
+    color: #000;
+  }
+  .btn-light::before {
+    background: var(--color-brand-bright);
+  }
+  .btn-light:not(:disabled):hover,
+  .btn-light:not(:disabled):focus-visible {
+    color: #fff;
+  }
+  .btn-secondary {
+    color: var(--color-ink);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.2);
+  }
+  .btn-secondary::before {
+    background: rgb(255 255 255 / 0.1);
+  }
+  .btn-ghost {
+    color: var(--color-soft);
+  }
+  .btn-ghost::before {
+    background: rgb(255 255 255 / 0.07);
+  }
+  .btn-ghost:hover {
+    color: var(--color-ink);
+  }
+  .btn-danger {
+    color: var(--color-breach);
+    box-shadow: inset 0 0 0 1px rgb(255 122 69 / 0.45);
+  }
+  .btn-danger::before {
+    background: var(--color-breach-solid);
+  }
+  .btn-danger:not(:disabled):hover,
+  .btn-danger:not(:disabled):focus-visible {
+    color: #000;
+  }
+}
+
+/*
+ * Floating surfaces, in the landing page's style (its map tooltip): the page's own black, a thin
+ * white ring instead of a grey box, round corners, and a soft shadow only to lift it off what it
+ * covers. `.tip` for hover tips, `.pop` for menus and popovers people click in.
+ */
+@layer components {
+  .tip,
+  .pop {
+    background: var(--color-paper);
+    color: var(--color-soft);
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.2),
+      0 24px 56px -18px rgb(0 0 0 / 0.85);
+    animation: float-in 0.16s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .tip {
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .pop {
+    border-radius: 16px;
+  }
+}
+@keyframes float-in {
+  from {
+    opacity: 0;
+    scale: 0.97;
+  }
 }
 
 @keyframes blink {
@@ -173,6 +373,25 @@
   from {
     opacity: 0;
     transform: scale(0.96);
+  }
+}
+/* A bar that fills in once from the left: `[animation:grow-x_1.4s_cubic-bezier(0.19,1,0.22,1)_both] origin-left`. */
+@keyframes grow-x {
+  from {
+    transform: scaleX(0);
+  }
+}
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+}
+/* A step's tick as it is done: grows in from nothing with a small overshoot. */
+@keyframes tick-in {
+  from {
+    opacity: 0;
+    scale: 0.3;
   }
 }
 @keyframes rise {
@@ -194,37 +413,18 @@
 }
 
 /*
- * Print ("Save as PDF" on a report): only the element marked data-print-root prints, as dark text
- * on white with the brand's colours, and nothing that can be clicked. Pages without a print root
- * print as they are.
+ * Print ("Save as PDF" on a report): only the element marked data-print-root prints, in the app's
+ * own dark theme and type, edge to edge, with nothing that can be clicked. Pages without a print
+ * root print as they are.
  */
 @media print {
   @page {
-    margin: 14mm;
-  }
-  :root {
-    color-scheme: light;
-    --color-paper: #ffffff;
-    --color-surface: #ffffff;
-    --color-raised: #ffffff;
-    --color-sunken: #f5f6f8;
-    --color-ink: #0f1419;
-    --color-soft: #2b3445;
-    --color-muted: #5b6474;
-    --color-line: rgb(15 20 25 / 0.12);
-    --color-line-strong: rgb(15 20 25 / 0.22);
-    --color-accent: #1d4ed8;
-    --color-accent-soft: rgb(29 78 216 / 0.08);
-    --color-safe: #11774a;
-    --color-safe-soft: rgb(17 119 74 / 0.09);
-    --color-breach: #c2410c;
-    --color-breach-soft: rgb(194 65 12 / 0.08);
-    --color-warn: #9a5800;
-    --color-warn-soft: rgb(154 88 0 / 0.1);
+    size: A4;
+    margin: 0;
   }
   html,
   body {
-    background: #ffffff !important;
+    background: var(--color-paper) !important;
   }
   body {
     -webkit-print-color-adjust: exact;
@@ -235,9 +435,12 @@
     *:not(:has([data-print-root])):not([data-print-root]):not([data-print-root] *) {
     display: none !important;
   }
-  /* Actions go; a disclosure's own button stays, since it carries the section's title. */
+  /* Actions go (buttons, button-like links, "Open →" links); a disclosure's own button stays,
+     since it carries the section's title. */
   [data-print-root] [data-print-hide],
-  [data-print-root] button:not([aria-expanded]) {
+  [data-print-root] button:not([aria-expanded]),
+  [data-print-root] a.btn,
+  [data-print-root] .more-link {
     display: none !important;
   }
   /* Folded sections print open, and nothing scrolls on paper. */
@@ -251,8 +454,12 @@
     max-height: none !important;
     overflow: visible !important;
   }
-  /* The page shell around the report: no dark grounds, glows or offsets on paper. */
+  /* The page shell around the report: no layout of its own (a step's rail column, a grid or flex
+     row), so the report always gets the page's full width once everything beside it is hidden. */
   body:has([data-print-root]) *:has([data-print-root]) {
+    display: block !important;
+    width: auto !important;
+    max-width: none !important;
     background: transparent !important;
     box-shadow: none !important;
     margin: 0 !important;
@@ -264,24 +471,63 @@
   body:has([data-print-root]) *:has([data-print-root])::after {
     display: none !important;
   }
-  /* A little smaller than on screen, so a card fits on a page with what comes before it. */
+  /* The page's margins live inside the report, so the dark ground runs to the paper's edge. A
+     little smaller than on screen, so sections fit with what comes before them. */
+  /* The report's own padding is the page's margin, repeated on every page it runs onto (clone),
+     so the dark ground reaches the paper's edge and no page starts flush at the top. */
   [data-print-root] {
-    zoom: 0.82;
+    zoom: 0.74;
+    padding: 20mm 22mm !important;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
   }
-  .panel {
-    background: #ffffff;
-    box-shadow: none;
+  /* Nothing waits for an animation on paper. */
+  [data-print-root] *,
+  [data-print-root] *::before,
+  [data-print-root] *::after {
+    animation: none !important;
+    transition: none !important;
   }
   /* A card or row stays whole; a long table runs on; a heading stays with what follows it. */
   [data-print-root] article,
   [data-print-root] tr,
   [data-print-root] blockquote,
-  [data-print-root] dl {
+  [data-print-root] dl > div,
+  [data-print-root] li {
     break-inside: avoid;
   }
+  [data-print-root] h1,
   [data-print-root] h2,
   [data-print-root] h3,
   [data-print-root] h4 {
     break-after: avoid;
+  }
+  [data-print-root] .app-sec {
+    break-inside: auto;
+  }
+  /* Small blocks marked to stay whole (a Card with printKeep: Proof on chain, a vault) keep their
+     title with their rows. Long ones (a market-data table) just run on, so no page is left half
+     empty; their table header repeats on each page. */
+  [data-print-root] [data-print-keep] {
+    break-inside: avoid;
+  }
+  [data-print-root] thead {
+    display: table-header-group;
+  }
+  /* A list of rows prints as plain blocks, so the page can break between rows (not inside a flex
+     column, where print can't), and its header stays with the first row. */
+  [data-print-root] [data-print-list] {
+    display: block !important;
+  }
+  /* Chrome doesn't keep a block with the next one, so a header reserves the room of a row below it
+     (a box that is taller than it looks and won't split): with no room for that, it moves on. */
+  [data-print-root] [data-print-head] {
+    break-inside: avoid;
+  }
+  [data-print-root] [data-print-head]::after {
+    content: "";
+    display: block;
+    height: 64px;
+    margin-bottom: -64px;
   }
 }

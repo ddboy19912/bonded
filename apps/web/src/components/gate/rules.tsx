@@ -1,8 +1,6 @@
 import { useId, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckIcon } from "lucide-react";
-import { Badge } from "@/components/shadcn/badge";
-import { Button } from "@/components/shadcn/button";
 import {
   Field,
   FieldContent,
@@ -25,7 +23,18 @@ import { ago, txUrl } from "../../lib/format";
 import { gateApi, parseUsd, type AnchorPost, type GateAccount } from "../../lib/gate";
 import { ModalActions } from "../responsive-modal";
 import { ErrorText, Loading, Unavailable, linkClass } from "../ui";
-import { Facts, HashText, ModalButton, Submit, TextField, limit, useAction } from "./common";
+import {
+  Badge,
+  Button,
+  Facts,
+  HashText,
+  limit,
+  ModalButton,
+  Submit,
+  TextField,
+  useAction,
+  TABLE,
+} from "./common";
 
 const MODES: { mode: GateAccount["mode"]; title: string; words: string }[] = [
   {
@@ -157,7 +166,7 @@ function RulesForm({
     maxPaymentUsd !== null && maxDailyUsd !== null && hourOk && Object.keys(patch).length > 0;
   return (
     <form
-      className="flex flex-col gap-5"
+      className="flex flex-col gap-6"
       onSubmit={(e) => {
         e.preventDefault();
         if (!ready) return;
@@ -249,7 +258,7 @@ function Versions({ account, session }: { account: GateAccount; session: string 
     return <Unavailable error={versions.error} onRetry={() => void versions.refetch()} />;
   if (!versions.data) return <Loading what="the history" />;
   return (
-    <Table>
+    <Table className={TABLE}>
       <TableHeader>
         <TableRow className="hover:bg-transparent">
           <TableHead>Version</TableHead>
@@ -284,17 +293,21 @@ export function Rules({ account, session }: { account: GateAccount; session: str
   return (
     <div className="grid gap-x-16 gap-y-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <section aria-label="Rules">
-        <p className="text-sm text-muted">Every payment is checked against these.</p>
-        <ul className="mt-4 flex flex-col gap-3 text-[15px]">
+        <h2 className="h-section">Every payment is checked against these.</h2>
+        <ul className="mt-8 flex flex-col divide-y divide-line border-y border-line">
           {account.rules.map((r) => (
-            <li key={r} className="flex items-start gap-3">
+            <li
+              key={r}
+              className="flex items-start gap-4 py-4 text-[clamp(17px,1.5vw,20px)] leading-snug tracking-[-0.015em]"
+            >
               <CheckIcon className="mt-1 size-4 shrink-0 text-accent" aria-hidden />
               {r}
             </li>
           ))}
         </ul>
       </section>
-      <section aria-label="Setup" className="flex flex-col gap-3">
+      <section aria-label="Setup" className="flex flex-col gap-4">
+        <p className="eyebrow">Setup</p>
         <Facts
           items={[
             ["Mode", account.mode === "enforce" ? "Enforce" : "Monitor"],

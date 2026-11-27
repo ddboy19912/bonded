@@ -1,3 +1,4 @@
+import { Code2, FileText } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -203,20 +204,21 @@ export function ConnectHosted({
 
   return (
     <form
-      className="flex flex-col gap-5 text-sm"
+      className="flex flex-col gap-8 text-sm"
       onSubmit={(e) => {
         e.preventDefault();
         void saveAndCheck();
       }}
     >
-      <fieldset className="flex flex-col gap-2">
-        <legend className="mb-2 font-medium">What should Bonded run?</legend>
-        <div className="grid gap-2 sm:grid-cols-2">
+      <fieldset>
+        <legend className="mb-4 text-[15px] font-medium text-ink">What should Bonded run?</legend>
+        <div className="grid gap-3 sm:grid-cols-2">
           <Choice
             name="hosted-kind"
             checked={kind === "instructions"}
             onChange={() => setKind("instructions")}
             title="Its instructions"
+            icon={<FileText strokeWidth={1.75} />}
           >
             What your agent is told to do. Bonded runs them on the model you pick.
           </Choice>
@@ -225,6 +227,7 @@ export function ConnectHosted({
             checked={kind === "code"}
             onChange={() => setKind("code")}
             title="Its code"
+            icon={<Code2 strokeWidth={1.75} />}
           >
             One JavaScript or TypeScript file. Tests your own logic, not only the prompt.
           </Choice>
@@ -234,8 +237,8 @@ export function ConnectHosted({
       <ModelField value={model} onChange={setModel} />
 
       {kind === "instructions" ? (
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="hosted-instructions" className="font-medium text-soft">
+        <div className="flex flex-col gap-2">
+          <label htmlFor="hosted-instructions" className="eyebrow">
             Your agent's instructions
           </label>
           <textarea
@@ -245,7 +248,7 @@ export function ConnectHosted({
             rows={9}
             placeholder={INSTRUCTIONS_EXAMPLE}
             aria-invalid={touched && instructionsProblem ? true : undefined}
-            className={`w-full rounded-xl border bg-black/30 px-3.5 py-3 leading-relaxed text-ink placeholder:text-muted/60 focus:border-accent/60 focus:outline-none ${touched && instructionsProblem ? "border-breach" : "border-line-strong"}`}
+            className={`w-full rounded-xl border bg-white/[0.02] px-4 py-3.5 text-[15px] leading-relaxed text-ink transition placeholder:text-dim hover:border-white/30 focus:border-brand-bright focus:bg-transparent focus:outline-none ${touched && instructionsProblem ? "border-breach" : "border-line-strong"}`}
           />
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
             <span className={touched && instructionsProblem ? "text-breach" : "text-muted"}>
@@ -273,7 +276,7 @@ export function ConnectHosted({
       ) : (
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="font-medium text-soft">Your agent's file</span>
+            <span className="eyebrow">Your agent's file</span>
             <span className="flex flex-wrap items-center gap-3 text-xs">
               <label className="flex items-center gap-1.5 text-muted">
                 <input
@@ -312,7 +315,7 @@ export function ConnectHosted({
             </span>
           </div>
           <div
-            className={`rounded-xl border bg-black/30 ${touched && codeProblem ? "border-breach" : "border-line-strong"}`}
+            className={`rounded-xl border bg-white/[0.02] ${touched && codeProblem ? "border-breach" : "border-line-strong"}`}
           >
             <CodeEditor
               value={code}
@@ -354,21 +357,23 @@ export function ConnectHosted({
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Button type="submit" loading={Boolean(busy)}>
-          {busy === "check" ? "Starting the check…" : "Save and check"}
-        </Button>
-        {saved && (
-          <Button kind="ghost" onClick={() => setEditing(false)}>
-            Keep what's saved
+      <div className="flex flex-col gap-3 border-t border-line pt-6">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="submit" loading={Boolean(busy)}>
+            {busy === "check" ? "Starting the check…" : "Save and check"}
           </Button>
-        )}
+          {saved && (
+            <Button kind="ghost" onClick={() => setEditing(false)}>
+              Keep what's saved
+            </Button>
+          )}
+        </div>
+        {refusal ? <p className="text-sm text-breach">{refusal}</p> : <ErrorText error={error} />}
+        <p className="max-w-xl text-xs text-muted">
+          Bonded runs it on its own servers and pays for the model. Saving starts a connection check
+          at once: one test with nothing planted, to see your agent do the job.
+        </p>
       </div>
-      {refusal ? <p className="text-sm text-breach">{refusal}</p> : <ErrorText error={error} />}
-      <p className="text-xs text-muted">
-        Bonded runs it on its own servers and pays for the model. Saving starts a connection check
-        at once: one test with nothing planted, to see your agent do the job.
-      </p>
     </form>
   );
 }
@@ -378,9 +383,17 @@ function ModelField({ value, onChange }: { value: string; onChange: (model: stri
   const id = useId();
   return (
     <Field className="max-w-xs">
-      <FieldLabel htmlFor={id}>Model</FieldLabel>
+      <FieldLabel
+        htmlFor={id}
+        className="font-mono text-[12px] leading-[1.4] font-normal text-muted"
+      >
+        Model
+      </FieldLabel>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger id={id} className="w-full rounded-xl data-[size=default]:h-11">
+        <SelectTrigger
+          id={id}
+          className="w-full rounded-xl bg-white/[0.02] px-4 text-[15px] data-[size=default]:h-12"
+        >
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

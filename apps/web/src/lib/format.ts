@@ -49,6 +49,17 @@ export function when(seconds: number | bigint, locale?: string): string {
     : new Date(s * 1000).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" });
 }
 
+/** Unix seconds as a short day ("26 Oct"), with the year only when it isn't this year. */
+export function day(seconds: number | bigint, now = Date.now(), locale = "en-GB"): string {
+  const d = new Date(Number(seconds) * 1000);
+  const sameYear = d.getFullYear() === new Date(now).getFullYear();
+  return d.toLocaleDateString(locale, {
+    day: "numeric",
+    month: "short",
+    ...(sameYear ? {} : { year: "numeric" }),
+  });
+}
+
 /**
  * How long ago an ISO time was, short enough for a list row: "just now", "45s ago", "3m ago",
  * "2h ago", "4d ago"; older than a week, the date itself.

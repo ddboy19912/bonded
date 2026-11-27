@@ -7,7 +7,15 @@ const row = (id: number, score?: number, securityScore = score): AgentRow => ({
   owner: "0x0000000000000000000000000000000000000001",
   ...(score === undefined
     ? {}
-    : { score: { score, securityScore: securityScore!, expectedLossBps: 100, expiresAt: 0n } }),
+    : {
+        score: {
+          score,
+          securityScore: securityScore!,
+          expectedLossBps: 100,
+          issuedAt: 0n,
+          expiresAt: 0n,
+        },
+      }),
 });
 
 describe("showcaseAgents", () => {

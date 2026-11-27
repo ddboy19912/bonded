@@ -3,8 +3,6 @@ import { Link } from "react-router";
 import { usePublicClient } from "wagmi";
 import { gateAnchorAbi } from "@bondedhq/shared";
 import type { Hex } from "viem";
-import { Badge } from "@/components/shadcn/badge";
-import { Button } from "@/components/shadcn/button";
 import { Spinner } from "@/components/shadcn/spinner";
 import { deployment } from "../../config";
 import {
@@ -18,6 +16,7 @@ import {
 } from "../../lib/gate";
 import { CopyButton } from "../copy";
 import { linkClass } from "../ui";
+import { Badge, Button } from "./common";
 
 /**
  * Reads a day's root from the app's own GateAnchor (`gateAnchor` in the deployment file): the
@@ -78,9 +77,9 @@ export function VerifyPanel({
     ...(proof ? { proof } : {}),
   });
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       {result && <VerificationList result={result} />}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-3">
         <Button size="sm" disabled={running} onClick={() => void run()}>
           {running && <Spinner aria-hidden />}
           {result ? "Verify again" : "Verify"}
@@ -98,20 +97,20 @@ export function VerifyPanel({
 export function VerificationList({ result }: { result: Verification }) {
   const failed = STEPS.filter((s) => result[s.key].ok === false).length;
   return (
-    <div aria-label="Verification" className="flex flex-col gap-1">
-      <p className="text-sm font-semibold" role="status">
+    <div aria-label="Verification" className="flex flex-col gap-3">
+      <p className="text-[19px] font-medium tracking-[-0.02em]" role="status">
         {failed === 0
           ? "No check failed."
           : `${failed} ${failed === 1 ? "check" : "checks"} failed.`}
       </p>
-      <ul className="flex flex-col divide-y divide-line">
+      <ul className="flex flex-col divide-y divide-line border-y border-line">
         {STEPS.map((s) => (
-          <li key={s.key} className="flex flex-col gap-1 py-2.5 text-sm">
+          <li key={s.key} className="flex flex-col gap-1 py-3 text-sm">
             <span className="flex items-center justify-between gap-3">
               <span>{s.label}</span>
               <StepBadge step={result[s.key]} />
             </span>
-            <span className="text-xs text-muted">{result[s.key].detail}</span>
+            <span className="text-[13px] leading-relaxed text-muted">{result[s.key].detail}</span>
           </li>
         ))}
       </ul>

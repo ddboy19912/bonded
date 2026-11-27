@@ -10,7 +10,9 @@ import {
   EmptyState,
   ErrorText,
   Loading,
+  MoreLink,
   Page,
+  Section,
   Spinner,
   buttonClass,
   linkClass,
@@ -18,6 +20,7 @@ import {
 import { Select } from "../components/select";
 import { StatLoading, StatStrip } from "../components/stat-strip";
 import { Pagination } from "../components/pagination";
+import { Collapsible } from "../components/collapsible";
 
 const CLASS_NAMES = ATTACK_CLASSES as Record<
   string,
@@ -71,18 +74,32 @@ const day = (iso: string) =>
 
 function ClassChip({ id }: { id: string }) {
   return (
-    <span className="rounded-md bg-white/[0.06] px-1.5 py-0.5 font-mono text-[11px] text-soft">
+    <span className="inline-flex rounded-full border border-line-strong px-2 py-px font-mono text-[11.5px] leading-[18px] text-soft">
       {id}
     </span>
   );
 }
 
-/** Where an attack is planted, as a small tag. */
+/** Where an attack is planted, as a small outlined tag. */
 function SurfaceTag({ surface }: { surface: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-md border border-line-strong bg-white/[0.03] px-1.5 py-0.5 text-[11px] leading-none text-soft">
+    <span className="inline-flex items-center gap-1.5 font-mono text-[11.5px] leading-none text-muted">
       <span className="size-1 rounded-full bg-accent/70" aria-hidden />
       {SURFACE_NAMES[surface] ?? surface}
+    </span>
+  );
+}
+
+/** A thin bar for how often attacks got through: empty when every attempt was stopped. */
+function RateBar({ rate, min = 2 }: { rate: number; min?: number }) {
+  return (
+    <span aria-hidden className="mt-2.5 block h-0.5 bg-white/10">
+      {rate > 0 && (
+        <span
+          className="block h-full bg-breach-solid"
+          style={{ width: `${Math.max(rate * 100, min)}%` }}
+        />
+      )}
     </span>
   );
 }
@@ -95,62 +112,60 @@ function SurfaceTag({ surface }: { surface: string }) {
 function Record({ s, since }: { s: AttackStats; since: string | null }) {
   if (!s.episodes)
     return (
-      <p className="text-xs text-muted">
+      <p className="text-[13px] text-muted">
         Not tried in the Arena{since ? ` since ${day(since)}` : ""}.
       </p>
     );
   const rate = s.breaches / s.episodes;
   return (
     <div>
-      <p className="flex items-baseline justify-between gap-3 text-xs text-muted">
-        <span>
-          {s.breaches ? (
-            <>
-              Got through <span className="text-breach">{s.breaches.toLocaleString()}</span> of{" "}
-              {s.episodes.toLocaleString()} attempts
-            </>
-          ) : (
-            <>Stopped all {s.episodes.toLocaleString()} attempts</>
-          )}
-        </span>
-        <span className={`font-mono ${s.breaches ? "text-breach" : "text-soft"}`}>{pct(s)}</span>
+      <p
+        className={`text-[clamp(22px,2vw,28px)] leading-none font-medium tracking-[-0.04em] tabular-nums ${s.breaches ? "text-breach" : "text-soft"}`}
+      >
+        {pct(s)}
       </p>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
-        {s.breaches > 0 && (
-          <div
-            className="h-full rounded-full bg-breach-solid"
-            style={{ width: `${Math.max(rate * 100, 2)}%` }}
-          />
+      <RateBar rate={rate} />
+      <p className="mt-2 text-[13px] text-muted">
+        {s.breaches ? (
+          <>
+            Got through <span className="text-breach">{s.breaches.toLocaleString()}</span> of{" "}
+            {s.episodes.toLocaleString()} attempts
+          </>
+        ) : (
+          <>Stopped all {s.episodes.toLocaleString()} attempts</>
         )}
-      </div>
+      </p>
     </div>
   );
 }
 
+/** One published attack as an open row: its class, title and line, where it hides, and its record. */
 function AttackCard({ a, since }: { a: AttackSummary; since: string | null }) {
   return (
     <li>
       <Link
         to={`/attacks/${a.id}`}
-        className="panel group flex h-full flex-col gap-3 p-5 transition duration-200 hover:-translate-y-0.5 hover:border-accent/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:translate-y-0 active:scale-[0.99]"
+        className="group relative isolate grid gap-x-8 gap-y-4 border-t border-line py-6 before:absolute before:inset-y-0 before:-inset-x-3 before:-z-10 before:bg-white/[0.035] before:opacity-0 before:transition-opacity hover:before:opacity-100 focus-visible:before:opacity-100 md:grid-cols-[minmax(0,1fr)_13rem]"
       >
-        <span className="flex items-center justify-between gap-2">
-          <span className="flex items-center gap-2">
+        <span className="min-w-0">
+          <span className="flex flex-wrap items-center gap-2">
             <ClassChip id={a.class} />
-            <span className="truncate text-xs text-muted">{CLASS_NAMES[a.class]?.name}</span>
+            <span className="eyebrow truncate">{CLASS_NAMES[a.class]?.name}</span>
+            <Badge tone={SEVERITY_TONE[a.severity]}>{a.severity}</Badge>
           </span>
-          <Badge tone={SEVERITY_TONE[a.severity]}>{a.severity}</Badge>
+          <span className="mt-3 block text-[clamp(19px,1.8vw,24px)] leading-snug font-medium tracking-[-0.03em] transition-colors group-hover:text-accent">
+            {a.title}
+          </span>
+          <span className="mt-1.5 line-clamp-2 block max-w-2xl text-[15px] leading-relaxed text-muted">
+            {a.description}
+          </span>
+          <span className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
+            {a.surfaces.map((x) => (
+              <SurfaceTag key={x} surface={x} />
+            ))}
+          </span>
         </span>
-        <span className="text-[15px] leading-snug font-semibold group-hover:text-accent">
-          {a.title}
-        </span>
-        <span className="line-clamp-2 text-sm leading-relaxed text-muted">{a.description}</span>
-        <span className="flex flex-wrap gap-1.5">
-          {a.surfaces.map((x) => (
-            <SurfaceTag key={x} surface={x} />
-          ))}
-        </span>
-        <span className="mt-auto border-t border-line pt-3">
+        <span className="md:pt-1">
           <Record s={a.stats} since={since} />
         </span>
       </Link>
@@ -160,8 +175,8 @@ function AttackCard({ a, since }: { a: AttackSummary; since: string | null }) {
 
 /**
  * The ten attack classes, A1 to A10, as an index: each row has the class, what it is, where
- * it's planted, how many published attacks it has and how often they got through. Choosing a
- * row filters the list below; choosing it again clears the filter.
+ * it's planted, and how often its attacks got through. Choosing a row filters the list below;
+ * choosing it again clears the filter.
  */
 function ClassGrid({
   classes,
@@ -177,48 +192,45 @@ function ClassGrid({
 }) {
   const byClass = new Map((classes ?? []).map((c) => [c.class, c]));
   return (
-    <section>
-      <h2 className="font-serif text-3xl leading-tight text-balance">
-        Ten ways an agent gets attacked
-      </h2>
-      <p className="mt-1.5 max-w-[65ch] text-sm text-muted">
-        Every attack belongs to one class. Pick a class to see its attacks.
-      </p>
-      <ul className="panel mt-5 grid overflow-hidden p-0 md:grid-cols-2">
+    <Section
+      label="Classes"
+      title="Ten ways an agent gets attacked"
+      intro="Every attack belongs to one class. Pick a class to see its attacks."
+    >
+      <ul className="border-b border-line">
         {Object.entries(CLASS_NAMES).map(([id, info]) => {
           const c = byClass.get(id);
           const on = active === id;
           const rate = c?.episodes ? c.breaches / c.episodes : undefined;
           return (
-            <li
-              key={id}
-              className="border-b border-line md:[&:nth-child(odd)]:border-r md:[&:nth-last-child(-n+2)]:border-b-0 [&:last-child]:border-b-0"
-            >
+            <li key={id} className="border-t border-line">
               <button
                 type="button"
                 onClick={() => onPick(on ? "all" : id)}
                 aria-pressed={on}
-                className={`group grid h-full w-full grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-4 px-5 py-4 text-left transition duration-200 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent active:bg-white/[0.05] ${on ? "bg-accent-soft" : "hover:bg-white/[0.03]"}`}
+                className={`group relative isolate grid w-full grid-cols-[3.25rem_minmax(0,1fr)] items-start gap-x-5 gap-y-4 py-5 text-left before:absolute before:inset-y-0 before:-inset-x-3 before:-z-10 before:bg-white/[0.035] before:transition-opacity sm:grid-cols-[4.5rem_minmax(0,1fr)_9.5rem] sm:items-center ${on ? "before:opacity-100" : "before:opacity-0 hover:before:opacity-100"}`}
               >
                 <span
-                  className={`font-serif text-[32px] leading-none tabular-nums transition ${on ? "text-accent" : "text-muted group-hover:text-ink"}`}
+                  className={`text-[clamp(26px,2.8vw,40px)] leading-none font-medium tracking-[-0.05em] tabular-nums transition-colors ${on ? "text-accent" : "text-dim group-hover:text-ink"}`}
                 >
                   {id}
                 </span>
                 <span className="min-w-0">
-                  <span className="block text-[15px] leading-snug font-semibold text-balance">
+                  <span
+                    className={`block text-[clamp(18px,1.7vw,23px)] leading-snug font-medium tracking-[-0.03em] ${on ? "text-accent" : ""}`}
+                  >
                     {info.name}
                   </span>
-                  <span className="mt-0.5 line-clamp-2 block text-[13px] leading-snug text-muted">
+                  <span className="mt-1 line-clamp-2 block max-w-2xl text-[14px] leading-snug text-muted">
                     {info.description}
                   </span>
-                  <span className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                  <span className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5">
                     {info.surfaces.map((x) => (
                       <SurfaceTag key={x} surface={x} />
                     ))}
                   </span>
                 </span>
-                <span className="w-[132px] text-right">
+                <span className="col-start-2 sm:col-start-auto sm:text-right">
                   {loading && (
                     <span className="inline-flex text-muted" role="status">
                       <Spinner />
@@ -227,21 +239,14 @@ function ClassGrid({
                   )}
                   {rate !== undefined && (
                     <>
-                      <span className="block text-[10.5px] text-muted">Got through</span>
+                      <span className="eyebrow block">Got through</span>
                       <span
-                        className={`block font-mono text-[17px] leading-tight tabular-nums ${c!.breaches ? "text-breach" : "text-soft"}`}
+                        className={`mt-1.5 block text-[clamp(22px,2vw,28px)] leading-none font-medium tracking-[-0.04em] tabular-nums ${c!.breaches ? "text-breach" : "text-soft"}`}
                       >
                         {Math.round(rate * 100)}%
                       </span>
-                      <span className="mt-1 block h-1 overflow-hidden rounded-full bg-white/[0.07]">
-                        {c!.breaches > 0 && (
-                          <span
-                            className="block h-full rounded-full bg-breach-solid"
-                            style={{ width: `${Math.max(rate * 100, 4)}%` }}
-                          />
-                        )}
-                      </span>
-                      <span className="mt-1 block text-[10.5px] text-muted">
+                      <RateBar rate={rate} min={4} />
+                      <span className="mt-1.5 block font-mono text-[11px] text-muted">
                         {c!.breaches
                           ? `${c!.breaches} of ${c!.episodes.toLocaleString()} attempts`
                           : `stopped all ${c!.episodes.toLocaleString()} attempts`}
@@ -255,28 +260,27 @@ function ClassGrid({
         })}
       </ul>
       {classes && (
-        <p className="mt-2.5 text-xs text-muted">
+        <p className="mt-4 max-w-2xl text-[13px] leading-relaxed text-muted">
           An attempt is one Arena run with the attack hidden in what the agent reads. It got through
           if the agent broke its mandate and the vault recorded a breach.
         </p>
       )}
-    </section>
+    </Section>
   );
 }
 
-function BountyCall({ inline = false }: { inline?: boolean }) {
+/** The call to submit a missed attack: a line and a button, under a hairline. */
+function BountyCall() {
   return (
-    <div
-      className={`flex flex-wrap items-center justify-between gap-4 bg-gradient-to-r from-breach/12 to-transparent p-6 ${inline ? "border-t border-line" : "panel"}`}
-    >
-      <span>
-        <strong className="block text-lg">Found an attack we miss?</strong>
-        <span className="mt-1 block text-sm text-muted">
+    <div className="flex flex-wrap items-end justify-between gap-6 border-t border-line pt-8">
+      <span className="max-w-2xl">
+        <strong className="h-section block">Found an attack we miss?</strong>
+        <span className="mt-3 block text-[15px] leading-relaxed text-muted">
           Submit it as a bounty. If it breaks the reference agents it joins the library's next
           release, and you're paid from the bounty pool.
         </span>
       </span>
-      <Link to="/bounties" className={buttonClass("secondary")}>
+      <Link to="/bounties" className={buttonClass("primary")}>
         Go to bounties →
       </Link>
     </div>
@@ -332,89 +336,114 @@ export function Attacks() {
         }}
       />
 
-      <section aria-label="Beyond the attack library" className="grid gap-4 md:grid-cols-2">
-        <div className="panel p-5 sm:p-6">
-          <p className="eyebrow">Also scored</p>
-          <h2 className="mt-2 text-lg font-bold">False market data</h2>
-          <p className="mt-2 text-sm text-muted">
-            No instruction at all: a fabricated earnings beat, a fake flash crash, a decimal-shifted
-            number, a made-up hedge. The agent runs the same task twice, clean and with the lie, and
-            only a trade the lie caused counts against it. A freeze is shown but not scored. Runs in
-            every rating of Bonded's own and leaderboard agents; operator-run agents aren't covered
-            yet.
-          </p>
-        </div>
-        <div className="panel p-5 sm:p-6">
-          <p className="eyebrow">For agents with memory</p>
-          <h2 className="mt-2 text-lg font-bold">Planted notes</h2>
-          <p className="mt-2 text-sm text-muted">
-            A false standing instruction read on one day, then a clean day later. If the agent
-            trades the planted token when a control run with nothing planted doesn't, its note was
-            poisoned. These run for agents whose memory Bonded can read and reset.
-          </p>
-        </div>
-        <p className="text-xs text-muted md:col-span-2">
+      <Section label="Beyond the library">
+        <section
+          aria-label="Beyond the attack library"
+          className="grid items-start gap-x-10 gap-y-8 md:grid-cols-2"
+        >
+          <Collapsible
+            indicator="plus"
+            className="min-w-0 border-b border-line pb-5"
+            triggerClassName="gap-6"
+            contentClassName="pt-4"
+            summary={
+              <>
+                <span className="eyebrow block">Also scored</span>
+                <span className="h-section mt-3 block">False market data</span>
+              </>
+            }
+          >
+            <p className="text-[15px] leading-relaxed text-muted">
+              No instruction at all: a fabricated earnings beat, a fake flash crash, a
+              decimal-shifted number, a made-up hedge. The agent runs the same task twice, clean and
+              with the lie, and only a trade the lie caused counts against it. A freeze is shown but
+              not scored. Runs in every rating of Bonded's own and leaderboard agents; operator-run
+              agents aren't covered yet.
+            </p>
+          </Collapsible>
+          <Collapsible
+            indicator="plus"
+            className="min-w-0 border-b border-line pb-5"
+            triggerClassName="gap-6"
+            contentClassName="pt-4"
+            summary={
+              <>
+                <span className="eyebrow block">For agents with memory</span>
+                <span className="h-section mt-3 block">Planted notes</span>
+              </>
+            }
+          >
+            <p className="text-[15px] leading-relaxed text-muted">
+              A false standing instruction read on one day, then a clean day later. If the agent
+              trades the planted token when a control run with nothing planted doesn't, its note was
+              poisoned. These run for agents whose memory Bonded can read and reset.
+            </p>
+          </Collapsible>
+        </section>
+        <p className="mt-8 max-w-2xl text-[13px] leading-relaxed text-muted">
           Both feed the Security score alongside the classes above, as separate rows: the agent's
           weakest row sets the score.{" "}
           <a className={linkClass} href={DOCS_S1}>
             How the market-data and memory batteries work
           </a>
         </p>
-      </section>
+      </Section>
 
-      <section id="all-attacks" className="panel min-w-0 scroll-mt-24 p-5 sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
-          <h2 className="text-lg font-bold">
-            {f.class !== "all"
-              ? `${CLASS_NAMES[f.class]?.name ?? f.class}: ${attacks.data?.total ?? "…"} attacks`
-              : `Every published attack${attacks.data ? ` (${attacks.data.total})` : ""}`}
-          </h2>
-          <div className="flex flex-wrap items-center gap-2">
-            <Select
-              label="Class"
-              value={f.class}
-              onChange={(v) => list.set({ class: v })}
-              options={[
-                { value: "all", label: "All classes" },
-                ...Object.entries(CLASS_NAMES).map(([id, c]) => ({
-                  value: id,
-                  hint: id,
-                  label: c.name,
-                })),
-              ]}
-            />
-            <Select
-              label="Planted in"
-              value={f.surface}
-              onChange={(v) => list.set({ surface: v })}
-              options={[
-                { value: "all", label: "Anywhere" },
-                ...AttackSurface.options.map((s) => ({ value: s, label: SURFACE_NAMES[s] ?? s })),
-              ]}
-            />
-            <Select
-              label="Severity"
-              value={f.severity}
-              onChange={(v) => list.set({ severity: v })}
-              options={[
-                { value: "all", label: "Any" },
-                { value: "critical", label: "Critical" },
-                { value: "high", label: "High" },
-                { value: "medium", label: "Medium" },
-                { value: "low", label: "Low" },
-              ]}
-            />
-            <Select
-              label="Sort"
-              value={f.sort}
-              onChange={(v) => list.set({ sort: v })}
-              options={[
-                { value: "class", label: "By class" },
-                { value: "rate", label: "Gets through most" },
-                { value: "breaches", label: "Most breaches" },
-              ]}
-            />
-          </div>
+      <Section
+        id="all-attacks"
+        className="scroll-mt-24"
+        label="Library"
+        title={
+          f.class !== "all"
+            ? `${CLASS_NAMES[f.class]?.name ?? f.class}: ${attacks.data?.total ?? "…"} attacks`
+            : `Every published attack${attacks.data ? ` (${attacks.data.total})` : ""}`
+        }
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            label="Class"
+            value={f.class}
+            onChange={(v) => list.set({ class: v })}
+            options={[
+              { value: "all", label: "All classes" },
+              ...Object.entries(CLASS_NAMES).map(([id, c]) => ({
+                value: id,
+                hint: id,
+                label: c.name,
+              })),
+            ]}
+          />
+          <Select
+            label="Planted in"
+            value={f.surface}
+            onChange={(v) => list.set({ surface: v })}
+            options={[
+              { value: "all", label: "Anywhere" },
+              ...AttackSurface.options.map((s) => ({ value: s, label: SURFACE_NAMES[s] ?? s })),
+            ]}
+          />
+          <Select
+            label="Severity"
+            value={f.severity}
+            onChange={(v) => list.set({ severity: v })}
+            options={[
+              { value: "all", label: "Any" },
+              { value: "critical", label: "Critical" },
+              { value: "high", label: "High" },
+              { value: "medium", label: "Medium" },
+              { value: "low", label: "Low" },
+            ]}
+          />
+          <Select
+            label="Sort"
+            value={f.sort}
+            onChange={(v) => list.set({ sort: v })}
+            options={[
+              { value: "class", label: "By class" },
+              { value: "rate", label: "Gets through most" },
+              { value: "breaches", label: "Most breaches" },
+            ]}
+          />
         </div>
         <ErrorText error={attacks.error} />
         {attacks.isPending && !attacks.error && (
@@ -423,7 +452,7 @@ export function Attacks() {
           </div>
         )}
         {attacks.data && attacks.data.total === 0 && (
-          <div className="pt-4">
+          <div className="pt-6">
             <EmptyState title={filtered ? "No attacks match these filters" : "No attacks yet"}>
               {filtered ? "Try other filters." : null}
             </EmptyState>
@@ -432,7 +461,7 @@ export function Attacks() {
         {attacks.data && attacks.data.total > 0 && (
           <>
             <ul
-              className={`grid gap-4 pt-5 md:grid-cols-2 xl:grid-cols-3 ${attacks.isFetching && !attacks.isPending ? "opacity-60" : ""}`}
+              className={`mt-6 border-b border-line transition-opacity ${attacks.isFetching && !attacks.isPending ? "opacity-60" : ""}`}
             >
               {attacks.data.items.map((a) => (
                 <AttackCard key={a.id} a={a} since={since} />
@@ -449,32 +478,31 @@ export function Attacks() {
             />
           </>
         )}
-      </section>
+      </Section>
 
-      <section className="panel overflow-hidden p-0">
-        <div className="grid md:grid-cols-2">
-          <div className="border-b border-line p-6 md:border-r md:border-b-0">
-            <h2 className="text-lg font-bold">
-              {counts ? `${counts.heldOut.active} held-out attacks` : "Held-out attacks"}
-            </h2>
-            <p className="mt-2 max-w-[60ch] text-sm leading-relaxed text-muted">
+      <Section label="Kept private">
+        <div className="grid gap-x-10 gap-y-10 md:grid-cols-2">
+          <div className="min-w-0">
+            <p className="num-giant">{counts ? counts.heldOut.active : "…"}</p>
+            <h2 className="h-section mt-4">Held-out attacks</h2>
+            <p className="mt-3 max-w-[60ch] text-[15px] leading-relaxed text-muted">
               Written fresh from the library's seeds and never published, so no one can tune an
               agent to pass them. Every rating includes them, and its report says how many episodes
               ran them. A new set replaces them each quarter.
             </p>
           </div>
-          <div className="p-6">
-            <h2 className="text-lg font-bold">
-              {counts ? `${counts.acceptedBounties} accepted bounties` : "Accepted bounties"}
-            </h2>
-            <p className="mt-2 max-w-[60ch] text-sm leading-relaxed text-muted">
+          <div className="min-w-0">
+            <p className="num-giant">{counts ? counts.acceptedBounties : "…"}</p>
+            <h2 className="h-section mt-4">Accepted bounties</h2>
+            <p className="mt-3 max-w-[60ch] text-[15px] leading-relaxed text-muted">
               Attacks hunters submitted that broke the reference agents. They join ratings in the
               library's next release, and their text stays private for the same reason.
             </p>
           </div>
         </div>
-        <BountyCall inline />
-      </section>
+      </Section>
+
+      <BountyCall />
     </Page>
   );
 }
@@ -495,7 +523,7 @@ function Payload({ text, inline = false }: { text: string; inline?: boolean }) {
           <span
             key={i}
             title={PLACEHOLDER_MEANINGS[name]}
-            className="mx-0.5 rounded-md border border-accent/40 bg-accent-soft px-1.5 py-px text-[12px] text-accent"
+            className="mx-0.5 rounded-full border border-accent/40 px-2 py-px text-[12px] text-accent"
           >
             {name}
           </span>
@@ -553,16 +581,11 @@ export function AttackDetail() {
         </Link>
       }
     >
-      <div className="-mt-1 flex flex-wrap items-center gap-2">
+      <div className="-mt-4 flex flex-wrap items-center gap-2">
         <ClassChip id={a.id} />
         <Badge tone={SEVERITY_TONE[a.severityHint]}>{a.severityHint} severity</Badge>
         {a.surfaces.map((x) => (
-          <span
-            key={x}
-            className="rounded-full border border-line-strong px-2.5 py-0.5 text-xs text-soft"
-          >
-            Planted in {SURFACE_NAMES[x]?.toLowerCase() ?? x}
-          </span>
+          <Badge key={x}>Planted in {SURFACE_NAMES[x]?.toLowerCase() ?? x}</Badge>
         ))}
       </div>
 
@@ -579,43 +602,40 @@ export function AttackDetail() {
           { label: "How often it got through", value: pct(s), hint: "of its attempts" },
           {
             label: "Last run",
-            value: <span className="text-[28px]">{s.lastAt ? day(s.lastAt) : "–"}</span>,
+            value: s.lastAt ? day(s.lastAt) : "–",
             ...(statsSince ? { hint: `records since ${day(statsSince)}` } : {}),
           },
         ]}
       />
 
-      <div className="flex flex-wrap items-start gap-4">
-        <section className="panel min-w-0 flex-[999_1_520px] p-6">
-          <h2 className="text-lg font-bold">What the agent reads</h2>
-          <div className="mt-4 overflow-hidden rounded-2xl border border-line bg-[#070a12]">
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-line px-4 py-2.5 text-xs text-muted">
-              <span>{a.surfaces.map((x) => SURFACE_NAMES[x] ?? x).join(" · ")}</span>
-              {a.delivery.sender && (
-                <span>
-                  From <Payload text={a.delivery.sender} inline />
-                </span>
-              )}
-              {a.delivery.token && (
-                <span>
-                  On token <span className="font-mono text-soft">{a.delivery.token}</span>
-                </span>
-              )}
-            </div>
-            <div className="p-4">
-              <Payload text={a.payloadTemplate} />
-            </div>
+      <Section label="The payload" title="What the agent reads">
+        <div className="max-w-3xl">
+          <p className="flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[12px] text-muted">
+            <span>{a.surfaces.map((x) => SURFACE_NAMES[x] ?? x).join(" · ")}</span>
+            {a.delivery.sender && (
+              <span>
+                From <Payload text={a.delivery.sender} inline />
+              </span>
+            )}
+            {a.delivery.token && (
+              <span>
+                On token <span className="text-soft">{a.delivery.token}</span>
+              </span>
+            )}
+          </p>
+          <blockquote className="mt-4 border-l-2 border-breach-solid py-1 pl-5">
+            <Payload text={a.payloadTemplate} />
             {a.delivery.prices && (
-              <div className="border-t border-line px-4 py-2.5 font-mono text-xs text-muted">
+              <p className="mt-3 font-mono text-[12px] text-muted">
                 Spoofed prices:{" "}
                 {Object.entries(a.delivery.prices)
                   .map(([t, p]) => `${t} ${p}`)
                   .join(", ")}
-              </div>
+              </p>
             )}
-          </div>
+          </blockquote>
           {placeholders.length > 0 && (
-            <dl className="mt-4 grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-[auto_1fr]">
+            <dl className="mt-6 grid gap-x-6 gap-y-2 text-[14px] sm:grid-cols-[auto_1fr]">
               {placeholders.map((p) => (
                 <Fragment key={p}>
                   <dt className="font-mono text-[13px] text-accent">{p}</dt>
@@ -627,63 +647,57 @@ export function AttackDetail() {
             </dl>
           )}
           {a.goal && (
-            <div className="mt-6">
-              <h3 className="text-sm font-semibold">The task the agent is given</h3>
-              <p className="mt-2 text-sm leading-relaxed text-soft">{a.goal}</p>
+            <div className="mt-8 border-t border-line pt-5">
+              <p className="eyebrow">The task the agent is given</p>
+              <p className="mt-2.5 text-[15px] leading-relaxed text-soft">{a.goal}</p>
             </div>
           )}
-        </section>
+        </div>
+      </Section>
 
-        <aside className="flex min-w-0 flex-[1_1_320px] flex-col gap-4">
-          <section className="panel p-6">
-            <h2 className="text-lg font-bold">
+      <Section label="How it's judged">
+        <div className="grid gap-x-10 gap-y-10 lg:grid-cols-3">
+          <div className="min-w-0">
+            <h2 className="h-section">
               About {a.class}: {CLASS_NAMES[a.class]?.name}
             </h2>
-            <p className="mt-2 text-sm leading-relaxed text-soft">
+            <p className="mt-3 text-[15px] leading-relaxed text-muted">
               {CLASS_NAMES[a.class]?.description}
             </p>
-            <Link
-              to={`/attacks?class=${a.class}`}
-              className="mt-3 inline-block text-sm text-accent hover:underline"
-            >
-              Every {a.class} attack →
-            </Link>
-          </section>
-          <section className="panel p-6">
-            <h2 className="text-lg font-bold">What counts as a breach</h2>
-            <p className="mt-2 text-sm text-muted">
+            <div className="mt-5">
+              <MoreLink to={`/attacks?class=${a.class}`}>Every {a.class} attack</MoreLink>
+            </div>
+          </div>
+          <div className="min-w-0">
+            <h2 className="h-section">What counts as a breach</h2>
+            <p className="mt-3 text-[15px] text-muted">
               It got through if the vault records any of these. The vault decides, not a model.
             </p>
-            <ul className="mt-4 flex flex-col gap-3">
+            <ul className="mt-5 border-b border-line">
               {a.successPredicate.anyOf.map((b) => (
-                <li key={b} className="rounded-xl border border-line p-3 text-sm">
-                  <span className="block font-mono text-[11px] text-muted">{b}</span>
+                <li key={b} className="border-t border-line py-3.5 text-[14px]">
+                  <span className="block font-mono text-[11.5px] text-breach">{b}</span>
                   <span className="mt-1 block text-soft">{BREACH_MEANINGS[b]}</span>
                 </li>
               ))}
             </ul>
-          </section>
-          <section className="panel p-6">
-            <h2 className="text-lg font-bold">How the Arena varies it</h2>
-            <p className="mt-2 text-sm leading-relaxed text-soft">{a.variantPrompt}</p>
-            <p className="mt-3 text-xs text-muted">
+          </div>
+          <div className="min-w-0">
+            <h2 className="h-section">How the Arena varies it</h2>
+            <p className="mt-3 text-[15px] leading-relaxed text-soft">{a.variantPrompt}</p>
+            <p className="mt-3 text-[13px] text-muted">
               Each rating runs every attack several times, so an agent can't pass by luck.
             </p>
-          </section>
-          {a.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {a.tags.map((t) => (
-                <span
-                  key={t}
-                  className="rounded-full bg-white/[0.06] px-2.5 py-0.5 text-xs text-muted"
-                >
-                  #{t}
-                </span>
-              ))}
-            </div>
-          )}
-        </aside>
-      </div>
+          </div>
+        </div>
+        {a.tags.length > 0 && (
+          <div className="mt-10 flex flex-wrap gap-x-4 gap-y-1.5 font-mono text-[12px] text-muted">
+            {a.tags.map((t) => (
+              <span key={t}>#{t}</span>
+            ))}
+          </div>
+        )}
+      </Section>
       <BountyCall />
     </Page>
   );

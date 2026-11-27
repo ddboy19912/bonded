@@ -79,7 +79,7 @@ export function BrokerageFindingsReport({
 }) {
   const f = report?.findings;
   return (
-    <div className="flex flex-col gap-12 text-sm">
+    <div className="flex flex-col gap-16 text-sm">
       {run.status === "failed" && (
         <Note tone="breach" role="alert" title="The preview didn't finish.">
           {ratingFailure(run)}
@@ -96,11 +96,11 @@ export function BrokerageFindingsReport({
       {onRateAgain && (
         <div
           data-print-hide
-          className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-6"
+          className="flex flex-wrap items-center justify-between gap-4 border-t border-line pt-8"
         >
           <div>
-            <p className="font-semibold">Fixed something?</p>
-            <p className="text-muted">Run it again with the same choices.</p>
+            <p className="text-lg font-medium tracking-[-0.02em]">Fixed something?</p>
+            <p className="mt-1 text-muted">Run it again with the same choices.</p>
           </div>
           <Button kind="secondary" loading={rateAgainBusy} onClick={onRateAgain}>
             Run again
@@ -176,13 +176,13 @@ function FixFirst({ f }: { f: BrokerageFindings }) {
           <li key={fix.id} className="flex gap-4">
             <span
               aria-hidden
-              className="w-5 shrink-0 font-serif text-2xl leading-none text-muted tabular-nums"
+              className="w-5 shrink-0 text-2xl leading-none font-medium tracking-[-0.04em] text-muted tabular-nums"
             >
               {i + 1}
             </span>
             <div className="flex min-w-0 flex-1 flex-col gap-2">
               <div>
-                <p className="text-base font-semibold">{fix.title}</p>
+                <p className="text-base font-medium">{fix.title}</p>
                 <p className="mt-0.5 text-xs text-muted">
                   {WHERE[fix.where]} · covers {of(fix.covers, worked)}{" "}
                   {worked === 1 ? "attack" : "attacks"} that worked
@@ -220,16 +220,9 @@ function HowItWorks({ f }: { f: BrokerageFindings }) {
       onOpenChange={setOpen}
       indicator="end"
       className="border-t border-line pt-5"
-      triggerClassName="group items-center! py-1 [&>svg]:mt-0 [&>svg]:size-3.5"
+      triggerClassName="items-center! py-1 [&>svg]:mt-0"
       contentClassName="pt-4"
-      summary={
-        <span className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1">
-          <span className="text-lg font-bold">How this test works</span>
-          <span className="text-sm text-muted group-hover:text-ink print:hidden">
-            {open ? "Hide" : "Show"}
-          </span>
-        </span>
-      }
+      summary={<span className="text-xl font-medium tracking-[-0.03em]">How this test works</span>}
     >
       <ul className="flex max-w-3xl flex-col gap-2.5 text-soft">
         {lines.map((line) => (
@@ -255,12 +248,12 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <section aria-labelledby={id} className="flex flex-col gap-5">
+    <section aria-labelledby={id} className="flex flex-col gap-6 border-t border-line pt-6">
       <div className="max-w-3xl break-after-avoid">
-        <h3 id={id} className="text-xl font-bold">
+        <h3 id={id} className="h-section">
           {title}
         </h3>
-        <p className="mt-1.5 text-muted">{sub}</p>
+        <p className="mt-3 text-[15px] leading-relaxed text-muted">{sub}</p>
       </div>
       {children}
     </section>
@@ -274,13 +267,16 @@ function Summary({ f }: { f: BrokerageFindings }) {
   const untested = !fell && f.attacks.seedsRan === 0;
   const approved = f.attacks.approvedThenWorked;
   return (
-    <section aria-labelledby="findings-verdict" className="flex flex-col gap-8 pt-6 print:pt-0">
-      <div className="flex max-w-3xl flex-col gap-4">
-        <p className="text-xs font-semibold text-warn">
+    <section aria-labelledby="findings-verdict" className="flex flex-col gap-10 print:pt-0">
+      <div className="flex max-w-3xl flex-col gap-5">
+        <p className="eyebrow text-warn">
           Preview · {BROKERAGE_LABEL.toLowerCase()}
           {f.toolProfile === "alpaca" ? " · tested with Alpaca's tools" : ""}
         </p>
-        <h2 id="findings-verdict" className="font-serif text-5xl leading-[1.05] sm:text-6xl">
+        <h2
+          id="findings-verdict"
+          className="text-[clamp(40px,5.4vw,72px)] leading-[0.95] font-medium tracking-[-0.055em]"
+        >
           {fell ? (
             <>
               Fell for{" "}
@@ -305,7 +301,7 @@ function Summary({ f }: { f: BrokerageFindings }) {
           yet, so this gives findings, not a score.
         </p>
       </div>
-      <dl className="grid grid-cols-2 gap-x-8 gap-y-6 border-t border-line pt-6 sm:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-4">
         <Figure
           label="attacks that worked"
           value={of(f.attacks.seedsWorked, f.attacks.seedsRan)}
@@ -343,11 +339,9 @@ function Figure({
   tone?: keyof typeof TONE | undefined;
 }) {
   return (
-    <div className="flex flex-col-reverse justify-end gap-1">
+    <div className="flex min-w-0 flex-col-reverse justify-end gap-2 border-t border-line pt-4">
       <dt className="text-muted">{label}</dt>
-      <dd className={`text-3xl font-bold tracking-tight tabular-nums ${tone ? TONE[tone] : ""}`}>
-        {value}
-      </dd>
+      <dd className={`num-big ${tone ? TONE[tone] : ""}`}>{value}</dd>
     </div>
   );
 }
@@ -362,9 +356,9 @@ function WorkedAttack({ a }: { a: BrokerageAttackFinding }) {
     <article className="grid gap-x-12 gap-y-6 py-8 first:pt-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       <div className="flex flex-col gap-4">
         <div>
-          <p className="text-muted">{a.className}</p>
-          <h4 className="mt-1 text-lg font-semibold">{a.title}</h4>
-          <p className="mt-1 font-semibold text-breach">Traded {usd(a.steeredUsd)} on it</p>
+          <p className="eyebrow">{a.className}</p>
+          <h4 className="mt-1 text-lg font-medium tracking-[-0.02em]">{a.title}</h4>
+          <p className="mt-1 font-medium text-breach">Traded {usd(a.steeredUsd)} on it</p>
         </div>
         {ex && (ex.orders.length > 0 || ex.withdrawals.length > 0) && (
           <ul className="divide-y divide-line">
@@ -419,7 +413,7 @@ function WorkedAttack({ a }: { a: BrokerageAttackFinding }) {
 
       {ex && ex.approvals.length > 0 && (
         <div className="flex flex-col gap-3">
-          <p className="text-muted">What it told the account holder</p>
+          <p className="eyebrow">What it told the account holder</p>
           {ex.approvals.map((ap, i) => (
             <blockquote
               key={i}
@@ -440,7 +434,7 @@ function AttackTable({ f }: { f: BrokerageFindings }) {
     <table className="w-full text-sm">
       <caption className="sr-only">Results by attack</caption>
       <thead>
-        <tr className="text-left text-muted">
+        <tr className="text-left font-mono text-[12px] text-muted">
           <th className="py-2 pr-4 font-normal">Attack</th>
           <th className="py-2 pr-4 text-right font-normal">Result</th>
           <th className="hidden py-2 text-right font-normal sm:table-cell">Traded on it</th>

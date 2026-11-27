@@ -9,12 +9,15 @@ import {
   type SharedReceipt,
   type Verification,
 } from "../lib/gate";
-import { Badge, Button, Card, Page } from "../components/ui";
+import { Button, Page, Section } from "../components/ui";
 import { RESULT } from "../components/gate/activity";
 import { VerificationList, useChainRoot } from "../components/gate/verification";
 
 const AREA =
-  "min-h-40 w-full rounded-xl border border-line bg-white/[0.03] px-3.5 py-3 font-mono text-xs text-ink outline-none transition placeholder:text-muted/70 focus:border-accent focus:ring-3 focus:ring-accent/15";
+  "min-h-48 w-full rounded-xl border border-line-strong bg-transparent px-4 py-3.5 font-mono text-[13px] leading-relaxed text-ink outline-none transition placeholder:text-dim hover:border-white/30 focus:border-brand-bright";
+
+/** The colour of a result's word, set large as the verdict. */
+const VERDICT = { safe: "text-safe", breach: "text-breach", warn: "text-warn" } as const;
 
 /**
  * Check a payment gate receipt without signing in (/gate/verify): paste an agent's check answer or
@@ -58,16 +61,16 @@ export function GateVerify() {
       back={{ to: "/gate", label: "Payment gate" }}
       intro="Every payment gate decision comes with a signed receipt. Paste one to check it here, in your browser. No sign-in."
     >
-      <Card>
+      <Section title="Paste a receipt">
         <form
-          className="flex flex-col gap-3"
+          className="flex max-w-3xl flex-col gap-5"
           onSubmit={(e) => {
             e.preventDefault();
             void run();
           }}
         >
           <div className="flex flex-col gap-2 text-sm">
-            <label htmlFor="gate-receipt" className="font-medium text-ink">
+            <label htmlFor="gate-receipt" className="eyebrow">
               Receipt
             </label>
             <textarea
@@ -90,12 +93,12 @@ export function GateVerify() {
             </span>
           </div>
           <div>
-            <Button type="submit" loading={running} disabled={!text.trim()}>
+            <Button type="submit" size="lg" loading={running} disabled={!text.trim()}>
               Check
             </Button>
           </div>
         </form>
-      </Card>
+      </Section>
       {checked && <Checked shared={checked.shared} result={checked.result} />}
     </Page>
   );
@@ -106,33 +109,47 @@ function Checked({ shared, result }: { shared: SharedReceipt; result: Verificati
   const r = shared.receipt.receipt;
   const tone = RESULT[r.result];
   return (
-    <Card title="What the receipt says">
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-          <Badge tone={tone.tone}>{tone.label}</Badge>
-          <span className="font-semibold">
+    <Section label="Result">
+      <div className="grid gap-x-16 gap-y-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="flex min-w-0 flex-col gap-5">
+          <p className={`num-giant ${VERDICT[tone.tone]}`}>{tone.label}</p>
+          <p className="h-section">
             {r.kind === "bank_change"
               ? "Bank change"
               : decisionTitle({ kind: r.kind, amountUsd: r.amountCents / 100, vendorId: null })}
-          </span>
-          <span className="font-mono text-[0.92em] text-muted">{r.payee}</span>
-          {r.reference && <span className="text-muted">{r.reference}</span>}
-          <time
-            dateTime={new Date(r.checkedAt * 1000).toISOString()}
-            className="ml-auto text-xs text-muted"
-          >
-            {new Date(r.checkedAt * 1000).toUTCString()}
-          </time>
+          </p>
+          <dl className="flex flex-col divide-y divide-line border-y border-line text-sm">
+            <div className="flex items-baseline justify-between gap-6 py-3">
+              <dt className="eyebrow shrink-0">Payee</dt>
+              <dd className="min-w-0 text-right font-mono text-[0.92em] break-all">{r.payee}</dd>
+            </div>
+            {r.reference && (
+              <div className="flex items-baseline justify-between gap-6 py-3">
+                <dt className="eyebrow shrink-0">Reference</dt>
+                <dd className="min-w-0 text-right break-words">{r.reference}</dd>
+              </div>
+            )}
+            <div className="flex items-baseline justify-between gap-6 py-3">
+              <dt className="eyebrow shrink-0">Checked</dt>
+              <dd className="min-w-0 text-right">
+                <time dateTime={new Date(r.checkedAt * 1000).toISOString()}>
+                  {new Date(r.checkedAt * 1000).toUTCString()}
+                </time>
+              </dd>
+            </div>
+          </dl>
+          {r.rules.length > 0 && (
+            <ul className="flex list-disc flex-col gap-1.5 pl-5 text-[15px] text-soft">
+              {r.rules.map((rule) => (
+                <li key={rule}>{GATE_RULE_WORDS[rule as GateRule] ?? rule}</li>
+              ))}
+            </ul>
+          )}
         </div>
-        {r.rules.length > 0 && (
-          <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-soft">
-            {r.rules.map((rule) => (
-              <li key={rule}>{GATE_RULE_WORDS[rule as GateRule] ?? rule}</li>
-            ))}
-          </ul>
-        )}
-        <VerificationList result={result} />
+        <div className="min-w-0">
+          <VerificationList result={result} />
+        </div>
       </div>
-    </Card>
+    </Section>
   );
 }

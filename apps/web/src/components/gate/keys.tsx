@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlusIcon } from "lucide-react";
-import { Badge } from "@/components/shadcn/badge";
-import { Button } from "@/components/shadcn/button";
 import {
   Table,
   TableBody,
@@ -15,7 +13,17 @@ import { ago } from "../../lib/format";
 import { gateApi, type GateAccount } from "../../lib/gate";
 import { ModalActions, ResponsiveModal } from "../responsive-modal";
 import { ErrorText, Loading, Unavailable } from "../ui";
-import { ConfirmButton, KeyOnce, Submit, TabBar, TextField, useAction } from "./common";
+import {
+  Badge,
+  Button,
+  ConfirmButton,
+  KeyOnce,
+  Submit,
+  TabBar,
+  TextField,
+  useAction,
+  TABLE,
+} from "./common";
 
 /** Make a key, then show it once. The modal stays until the owner says they have it. */
 function NewKey({ account, session }: { account: GateAccount; session: string }) {
@@ -94,7 +102,7 @@ export function Keys({ account, session }: { account: GateAccount; session: stri
     retry: false,
   });
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-8">
       <TabBar action={<NewKey account={account} session={session} />}>
         Your agents check payments with these. Revoking one stops it at once.
       </TabBar>
@@ -103,7 +111,7 @@ export function Keys({ account, session }: { account: GateAccount; session: stri
       ) : !keys.data ? (
         <Loading what="API keys" />
       ) : (
-        <Table>
+        <Table className={TABLE}>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead>Key</TableHead>

@@ -15,40 +15,20 @@ import {
   YAxis,
 } from "recharts";
 import { modelPath } from "../lib/bonded-index";
-import { PROVIDER_LOGOS } from "../lib/provider-logos";
+import { PROVIDER_LOGOS, providerColor } from "../lib/provider-logos";
 import { DataTable, VIZ } from "./charts";
+import { buttonClass } from "./ui";
 
 /** Each provider's mark, shown under its models' bars and as their points on a scatter. */
 const LOGOS = PROVIDER_LOGOS;
 
-const INK = "#f4f6fb";
-const MUTED = "#8d96ab";
-const AXIS = { fill: MUTED, fontSize: 11 };
-
-/**
- * One color per provider, as Artificial Analysis does: each brand's own shade, read from its logo
- * (assets/providers/). Meta and DeepSeek are both blue in their branding, and Z.ai's mark is
- * black, so the logo and name under every bar carry which model it is; colour alone doesn't.
- * A provider not listed here takes the neutral.
- */
-export const PROVIDER_COLORS: Record<string, string> = {
-  Meta: "#0082FB",
-  DeepSeek: "#4D6BFE",
-  Qwen: "#6336E7",
-  "Z.ai": "#000000",
-  Anthropic: "#D97757",
-};
-
-/** A bar too dark to see on the card (Z.ai's black) gets a thin light outline. */
-export const outlineOf = (fill: string | undefined) => {
-  const hex = fill?.match(/^#([0-9a-f]{6})$/i)?.[1];
-  if (!hex) return undefined;
-  const [r, g, b] = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16));
-  return 0.2126 * r! + 0.7152 * g! + 0.0722 * b! < 40 ? "rgb(244 246 251 / 0.45)" : undefined;
-};
-
-export const colorOf = (e: Pick<BondedIndexEntry, "provider">) =>
-  PROVIDER_COLORS[e.provider] ?? VIZ.other;
+const INK = "#f1f2f4";
+const SOFT = "#c9ccd3";
+const MUTED = "#8a8f9a";
+const MONO = "JetBrains Mono Variable, JetBrains Mono, ui-monospace, monospace";
+const AXIS = { fill: MUTED, fontSize: 11, fontFamily: MONO };
+/** The page's ground, for the thin gaps between stacked parts. */
+const GROUND = "#07080a";
 
 export function ProviderLogo({ provider, size = 18 }: { provider: string; size?: number }) {
   const src = LOGOS[provider];
@@ -95,13 +75,17 @@ function Direction({ text }: { text: string }) {
   if (!m) return text;
   return (
     <>
-      <b className="font-semibold text-soft">{m[1]}</b>
+      <b className="font-medium text-ink">{m[1]}</b>
       {m[2]}
     </>
   );
 }
 
-/** A chart's card: title, one line of subtitle, optional tabs, and a table view of its data. */
+/**
+ * A chart in the open: its title in large tight type, one line of subtitle, optional tabs as a row
+ * of underlined words, and a table view of its data. No box around it: the page's section gives it
+ * a hairline and a label.
+ */
 export function ChartCard({
   title,
   subtitle,
@@ -127,18 +111,14 @@ export function ChartCard({
   const [showTable, setShowTable] = useState(false);
   const id = useId();
   return (
-    <section
-      aria-labelledby={id}
-      className="min-w-0 rounded-2xl border border-line bg-surface/70 p-4 sm:p-6"
-    >
-      <div className="flex items-start justify-between gap-3">
+    <section aria-labelledby={id} className="min-w-0">
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
         <div className="min-w-0">
-          <h2 id={id} className="flex items-center gap-2 text-lg font-semibold text-ink">
-            <span aria-hidden className="size-2.5 rounded-[2px] bg-[#3987e5]" />
+          <h2 id={id} className="h-section-lg">
             {title}
           </h2>
           {subtitle && (
-            <p className="mt-1 text-xs text-muted">
+            <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-muted">
               {typeof subtitle === "string" ? <Direction text={subtitle} /> : subtitle}
             </p>
           )}
@@ -148,15 +128,19 @@ export function ChartCard({
             type="button"
             aria-pressed={showTable}
             onClick={() => setShowTable((v) => !v)}
-            className="shrink-0 rounded-full border border-line px-3 py-1 text-xs text-soft hover:border-line-strong hover:text-ink"
+            className={buttonClass("secondary", "sm")}
           >
             {showTable ? "Chart" : "Table"}
           </button>
         )}
       </div>
-      {intro && <div className="mt-4">{intro}</div>}
+      {intro && <div className="mt-8">{intro}</div>}
       {tabs && (
-        <div role="tablist" aria-label={title} className="mt-4 flex gap-1 overflow-x-auto">
+        <div
+          role="tablist"
+          aria-label={title}
+          className="mt-8 flex gap-6 overflow-x-auto border-b border-line [scrollbar-width:none]"
+        >
           {tabs.map((t) => (
             <button
               key={t.id}
@@ -164,10 +148,10 @@ export function ChartCard({
               role="tab"
               aria-selected={t.id === tab}
               onClick={() => onTab?.(t.id)}
-              className={`shrink-0 rounded-full px-3 py-1.5 text-xs transition-colors ${
+              className={`-mb-px shrink-0 border-b-2 pb-3 text-[14px] whitespace-nowrap transition-colors ${
                 t.id === tab
-                  ? "bg-ink font-medium text-paper"
-                  : "text-muted hover:bg-raised hover:text-ink"
+                  ? "border-brand-bright text-ink"
+                  : "border-transparent text-muted hover:text-ink"
               }`}
             >
               {t.label}
@@ -175,8 +159,8 @@ export function ChartCard({
           ))}
         </div>
       )}
-      {aside && !showTable && <div className="mt-4">{aside}</div>}
-      <div className="mt-3">
+      {aside && !showTable && <div className="mt-5">{aside}</div>}
+      <div className="mt-6">
         {showTable && table ? <div className="overflow-x-auto">{table}</div> : children}
       </div>
     </section>
@@ -185,10 +169,10 @@ export function ChartCard({
 
 export function Legend({ items }: { items: readonly { color: string; label: string }[] }) {
   return (
-    <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-soft">
+    <ul className="flex flex-wrap gap-x-5 gap-y-1.5 font-mono text-[12px] text-muted">
       {items.map((i) => (
-        <li key={i.label} className="flex items-center gap-1.5">
-          <span aria-hidden className="size-2.5 rounded-[2px]" style={{ background: i.color }} />
+        <li key={i.label} className="flex items-center gap-2">
+          <span aria-hidden className="size-2 rounded-full" style={{ background: i.color }} />
           {i.label}
         </li>
       ))}
@@ -197,11 +181,7 @@ export function Legend({ items }: { items: readonly { color: string; label: stri
 }
 
 function TipCard({ children }: { children: ReactNode }) {
-  return (
-    <div className="max-w-64 rounded-lg border border-line-strong bg-raised px-3 py-2 text-xs text-soft shadow-xl">
-      {children}
-    </div>
-  );
+  return <div className="tip max-w-72">{children}</div>;
 }
 
 /** Round axis ticks from 0 past `max`, at most about `count` steps (1, 2, 2.5 or 5 × 10ⁿ). */
@@ -226,7 +206,7 @@ export interface ModelBar {
 /**
  * Vertical bars, one per model in the order given, each named by its provider's logo and its
  * label under the axis (Artificial Analysis's layout). `series` names the stacked values and
- * their colors; a single series takes each model's provider color.
+ * their colors; a single series takes each model's provider colour.
  */
 export function ModelBars({
   bars,
@@ -279,7 +259,7 @@ export function ModelBars({
         barCategoryGap={narrow ? "18%" : "26%"}
         accessibilityLayer
       >
-        <CartesianGrid vertical={false} stroke={VIZ.grid} strokeDasharray="3 4" />
+        <CartesianGrid vertical={false} stroke={VIZ.grid} />
         <YAxis
           domain={domain}
           ticks={ticks}
@@ -321,8 +301,8 @@ export function ModelBars({
             stackId={grouped ? undefined : "a"}
             // A zero still gets a hairline on the axis, so its label ("$0", "0%") shows.
             minPointSize={(value: number | null | undefined) => (value === 0 ? 1 : 0)}
-            maxBarSize={narrow ? (grouped ? 14 : 26) : grouped ? 22 : 44}
-            radius={grouped || s.key === last ? [4, 4, 0, 0] : 0}
+            maxBarSize={narrow ? (grouped ? 12 : 22) : grouped ? 18 : 34}
+            radius={grouped || s.key === last ? [2, 2, 0, 0] : 0}
             // A stack's lower segment rounds only when it's the top one with a value.
             shape={
               grouped || single
@@ -338,12 +318,12 @@ export function ModelBars({
                     const top = props.index !== undefined && topSeries[props.index] === i;
                     const { x = 0, y = 0, width: w = 0, height: h = 0 } = props;
                     if (h <= 0) return <g />;
-                    const r = top ? Math.min(4, w / 2, h) : 0;
+                    const r = top ? Math.min(2, w / 2, h) : 0;
                     return (
                       <path
                         d={`M${x},${y + h} V${y + r} Q${x},${y} ${x + r},${y} H${x + w - r} Q${x + w},${y} ${x + w},${y + r} V${y + h} Z`}
                         fill={props.fill}
-                        stroke="#0d0e11"
+                        stroke={GROUND}
                         strokeWidth={1.5}
                       />
                     );
@@ -351,14 +331,17 @@ export function ModelBars({
             }
             isAnimationActive={false}
             // A thin gap between stacked parts, in the card's color.
-            stroke={series.length > 1 && !grouped ? "#0d0e11" : undefined}
+            stroke={series.length > 1 && !grouped ? GROUND : undefined}
             strokeWidth={series.length > 1 && !grouped ? 1.5 : 0}
           >
             {single &&
-              data.map((d) => {
-                const fill = s.color ?? colorOf(byModel.get(d.model)!.entry);
-                return <Cell key={d.model} fill={fill} stroke={outlineOf(fill)} strokeWidth={1} />;
-              })}
+              data.map((d) => (
+                // One measure: each bar in its provider's colour, with the logo and name under it.
+                <Cell
+                  key={d.model}
+                  fill={s.color ?? providerColor(byModel.get(d.model)!.entry.provider)}
+                />
+              ))}
             {!single && data.map((d) => <Cell key={d.model} fill={s.color} />)}
             {grouped && (
               <LabelList
@@ -367,6 +350,7 @@ export function ModelBars({
                 offset={4}
                 fill={INK}
                 fontSize={narrow ? 9 : 10}
+                fontFamily={MONO}
                 formatter={(v: unknown) => format(Number(v))}
               />
             )}
@@ -389,7 +373,7 @@ export function ModelBars({
                       textAnchor="middle"
                       fill={INK}
                       fontSize={narrow ? 10 : 11}
-                      fontWeight={600}
+                      fontFamily={MONO}
                     >
                       {String(props.value ?? "")}
                     </text>
@@ -507,7 +491,7 @@ function ModelTick({
         transform={`translate(${dx},${size + gap}) rotate(${-angle})`}
         textAnchor="end"
         fontSize={font}
-        fill="#c7d2ee"
+        fill={SOFT}
       >
         {lines.map((line, i) => (
           <tspan key={line} x={0} dy={i === 0 ? 0 : font + 2}>
@@ -697,17 +681,17 @@ export function ModelScatter({
   return (
     <div ref={ref} className="w-full min-w-0 overflow-hidden">
       <ScatterChart width={width} height={height} margin={SCATTER_MARGIN} accessibilityLayer>
-        <CartesianGrid stroke={VIZ.grid} strokeDasharray="3 4" />
+        <CartesianGrid stroke={VIZ.grid} />
         {zone && (
           <ReferenceArea
             x1={zone.x[0]}
             x2={zone.x[1]}
             y1={zone.y[0]}
             y2={zone.y[1]}
-            fill="#7ee2b0"
+            fill={VIZ.accent}
             fillOpacity={0.07}
-            stroke="#7ee2b0"
-            strokeOpacity={0.25}
+            stroke={VIZ.accent}
+            strokeOpacity={0.35}
             strokeDasharray="3 3"
             // On a phone the shading alone marks the corner; the card's subtitle names it.
             label={
@@ -716,8 +700,9 @@ export function ModelScatter({
                 : {
                     value: zone.label,
                     position: "insideBottomLeft",
-                    fill: "#7ee2b0",
+                    fill: VIZ.accentSoft,
                     fontSize: font,
+                    fontFamily: MONO,
                   }
             }
             ifOverflow="hidden"
@@ -740,6 +725,7 @@ export function ModelScatter({
             offset: -18,
             fill: MUTED,
             fontSize: 11,
+            fontFamily: MONO,
           }}
         />
         <YAxis
@@ -759,6 +745,7 @@ export function ModelScatter({
             offset: 10,
             fill: MUTED,
             fontSize: 11,
+            fontFamily: MONO,
           }}
         />
         <Tooltip
@@ -791,7 +778,7 @@ export function ModelScatter({
   );
 }
 
-/** A model on the scatter: its logo in a ring of its provider color, and its placed name. */
+/** A model on the scatter: its logo in a ring of its provider colour, and its placed name. */
 function LogoPoint({
   cx,
   cy,
@@ -814,12 +801,12 @@ function LogoPoint({
         cy={cy}
         r={11}
         fill="#ffffff"
-        stroke={colorOf(point.entry)}
-        strokeWidth={2.5}
+        stroke={providerColor(point.entry.provider)}
+        strokeWidth={2}
       />
       {src && <image href={src} x={cx - 7} y={cy - 7} width={14} height={14} />}
       {label && (
-        <text x={label.x} y={label.y} textAnchor={label.anchor} fontSize={font} fill="#c7d2ee">
+        <text x={label.x} y={label.y} textAnchor={label.anchor} fontSize={font} fill={SOFT}>
           {label.lines.map((line, i) => (
             <tspan key={line} x={label.x} dy={i === 0 ? 0 : font + 2}>
               {line}
@@ -838,7 +825,7 @@ function LogoPoint({
 export const fallFill = (rate: number) =>
   rate === 0
     ? "rgb(255 255 255 / 0.035)"
-    : `color-mix(in oklab, ${VIZ.lost} ${Math.round(30 + rate * 70)}%, #0d0e11)`;
+    : `color-mix(in oklab, ${VIZ.lost} ${Math.round(30 + rate * 70)}%, ${GROUND})`;
 
 /** A model's name with its logo, for tables and lists, linked to the model's own page. */
 export function ModelName({ entry, note }: { entry: BondedIndexEntry; note?: ReactNode }) {

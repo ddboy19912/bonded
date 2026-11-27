@@ -60,24 +60,36 @@ export function Vaults() {
   return (
     <Page
       title="Vaults"
+      eyebrow="On-chain"
       intro="Each vault holds an agent's funds and enforces its mandate on chain. Its breach log is the record that pays claims."
       actions={<LinkButton to="/agents/new">Onboard an agent</LinkButton>}
     >
       {list.length > 0 && (
-        <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {[
-            ["Vaults", String(list.length), ""],
-            ["Held for depositors", reads.data ? `$${usd(held, 0)}` : "…", ""],
-            ["Covered", reads.data ? String(covered) : "…", "text-accent"],
-            ["Agent frozen", reads.data ? String(frozen) : "…", frozen ? "text-breach" : ""],
-          ].map(([label, value, tone]) => (
-            <div key={label} className="panel p-5">
-              <p className="eyebrow">{label}</p>
-              <p className={`mt-2 font-serif text-[40px] leading-none tabular-nums ${tone}`}>
-                {value}
-              </p>
-            </div>
-          ))}
+        <section
+          aria-label="All vaults"
+          className="grid gap-x-12 gap-y-8 border-t border-line pt-8 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]"
+        >
+          <div className="min-w-0">
+            <p className="eyebrow">Held for depositors</p>
+            <p className="mt-4 text-[clamp(56px,7.4vw,112px)] leading-[0.86] font-medium tracking-[-0.065em] tabular-nums">
+              {reads.data ? `$${usd(held, 0)}` : <span className="text-dim">…</span>}
+            </p>
+            <p className="mt-4 max-w-sm text-[15px] text-muted">
+              In test tokens, across every vault.
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-x-6 self-end">
+            {[
+              ["Vaults", String(list.length), ""],
+              ["Covered", reads.data ? String(covered) : "…", "text-accent"],
+              ["Agent frozen", reads.data ? String(frozen) : "…", frozen ? "text-breach" : ""],
+            ].map(([label, value, tone]) => (
+              <div key={label} className="min-w-0 border-t border-line pt-4">
+                <p className="eyebrow">{label}</p>
+                <p className={`num-big mt-2.5 ${tone}`}>{value}</p>
+              </div>
+            ))}
+          </div>
         </section>
       )}
       <Card
@@ -160,7 +172,7 @@ export function Vaults() {
                         <span className="flex items-center gap-2">
                           <Link
                             to={`/agents/${v.agentId}`}
-                            className="font-semibold hover:text-accent"
+                            className="text-[17px] font-medium tracking-[-0.02em] whitespace-nowrap hover:text-accent"
                             onClick={(e) => e.stopPropagation()}
                           >
                             Agent {v.agentId.toString()}
@@ -168,7 +180,7 @@ export function Vaults() {
                           {score !== undefined && <TierBadge score={score} />}
                         </span>
                       </td>
-                      <td className="pr-10 text-right font-mono tabular-nums">
+                      <td className="pr-10 text-right text-[clamp(19px,1.6vw,22px)] font-medium tracking-[-0.035em] tabular-nums">
                         {assets !== undefined ? `$${usd(assets, 0)}` : "…"}
                       </td>
                       <td>

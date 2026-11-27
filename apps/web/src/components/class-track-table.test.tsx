@@ -16,7 +16,7 @@ const entry = (over: Partial<LeaderboardRecord>) =>
   }) as LeaderboardRecord;
 
 describe("attack report from a leaderboard rating", () => {
-  it("names weak classes by track and shows one column per track that ran", () => {
+  it("leads with how many classes tricked it and a figure per track, then one column per track", () => {
     render(
       <ClassTrackTable
         results={classResults(
@@ -43,14 +43,18 @@ describe("attack report from a leaderboard rating", () => {
         )}
       />,
     );
-    expect(screen.getByText("One weak class: A8")).toBeTruthy();
-    expect(screen.getByText(/Market data: A8 8 of 12\. Every other graded class/)).toBeTruthy();
+    expect(screen.getByText("Tricked in 1 of 3 attack classes")).toBeTruthy();
+    // Market data: 8 of the 12 graded pairs worked (the ungraded A5 row doesn't count).
+    expect(screen.getByText("67%")).toBeTruthy();
+    expect(screen.getByText("of attempts worked · 8 of 12")).toBeTruthy();
+    // Main library: held every one of its 75 episodes.
+    expect(screen.getByText("held all 75")).toBeTruthy();
     const table = screen.getByRole("table");
     expect(
       within(table)
         .getAllByRole("columnheader")
         .map((h) => h.textContent),
-    ).toEqual(["Class", "Main library", "Market data"]);
+    ).toEqual(["Attack class", "Main library", "Market data"]);
     const row = (cls: string) =>
       within(table)
         .getAllByRole("row")
@@ -59,13 +63,13 @@ describe("attack report from a leaderboard rating", () => {
     expect(within(row("A8")).getByText("held 35")).toBeTruthy();
     // An ungraded track is marked, not counted as a weakness.
     expect(within(row("A5")).getByText("1 of 4*").className).not.toContain("text-breach");
-    expect(within(row("A2")).getByText("—")).toBeTruthy();
+    expect(within(row("A2")).getByText("not run")).toBeTruthy();
     expect(screen.getByText(/Too few results to enter the grade/)).toBeTruthy();
   });
 
   it("says so when nothing graded moved the agent", () => {
     render(<ClassTrackTable results={classResults(entry({}))} />);
-    expect(screen.getByText("Never manipulated on any graded class or track.")).toBeTruthy();
-    expect(screen.queryByText(/weak class/)).toBeNull();
+    expect(screen.getByText("Held against every attack it faced")).toBeTruthy();
+    expect(screen.queryByText(/Tricked in/)).toBeNull();
   });
 });

@@ -21,7 +21,7 @@ function AlertsForm({ settings, session }: { settings: GateAlertSettings; sessio
   const ready = (hook || address) && !webhookError(webhook) && !emailError(email);
   return (
     <form
-      className="flex flex-col gap-4"
+      className="flex max-w-xl flex-col gap-5"
       onSubmit={(e) => {
         e.preventDefault();
         if (!ready) return;
@@ -88,8 +88,8 @@ export function Alerts({ session }: { session: string }) {
   const canSave = s.webhookAvailable || s.emailAvailable;
   return (
     <div className="grid gap-x-16 gap-y-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
-      <section aria-label="Add alerts" className="flex flex-col gap-4">
-        <p className="text-sm text-muted">
+      <section aria-label="Add alerts" className="flex flex-col gap-6">
+        <p className="max-w-xl text-[15px] leading-relaxed text-soft">
           Every breach shows in your{" "}
           <Link className={linkClass} to="/inbox">
             inbox
@@ -99,7 +99,8 @@ export function Alerts({ session }: { session: string }) {
         {canSave && <AlertsForm settings={s} session={session} />}
         {!s.emailAvailable && <p className="text-xs text-muted">Email alerts aren't on yet.</p>}
       </section>
-      <section aria-label="Where alerts go" className="flex flex-col gap-3">
+      <section aria-label="Where alerts go" className="flex flex-col gap-4">
+        <p className="eyebrow">Where alerts go</p>
         <Facts
           items={[
             ["Inbox", "On"],
@@ -110,7 +111,7 @@ export function Alerts({ session }: { session: string }) {
             ["Email", s.email ?? "Not set"],
           ]}
         />
-        <p className="text-xs text-muted">These apply to all your accounts and agents.</p>
+        <p className="text-[13px] text-muted">These apply to all your accounts and agents.</p>
         {(s.webhook || s.email) && (
           <div>
             <ConfirmButton

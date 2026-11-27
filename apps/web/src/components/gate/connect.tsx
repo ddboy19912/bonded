@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
-import { Badge } from "@/components/shadcn/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
 import { Table, TableBody, TableCell, TableRow } from "@/components/shadcn/table";
 import { apiUrl } from "../../config";
@@ -9,7 +8,7 @@ import { gateApi, type GateAccount } from "../../lib/gate";
 import { CodeBlock } from "../code-block";
 import { Loading, Unavailable, linkClass } from "../ui";
 import { CARD_PROVIDERS } from "./cards";
-import { ChainLogo, ModalButton } from "./common";
+import { Badge, ChainLogo, ModalButton, TABLE } from "./common";
 
 const SDK = `import { guardPayments, paymentGate } from "@bondedhq/sdk";
 
@@ -83,7 +82,7 @@ function Connection({ row }: { row: Row }) {
 
 function ConnectionList({ rows }: { rows: Row[] }) {
   return (
-    <Table className="table-fixed">
+    <Table className={`table-fixed ${TABLE}`}>
       <TableBody>
         {rows.map((r) => (
           <Connection key={r.id} row={r} />
@@ -149,8 +148,8 @@ function Connections({ account, session }: { account: GateAccount; session: stri
       : []),
   ].sort((a, b) => rank(a) - rank(b));
   return (
-    <section aria-label="Connections" className="flex flex-col gap-3">
-      <h2 className="text-sm font-semibold">Connections</h2>
+    <section aria-label="Connections" className="flex flex-col gap-4 border-t border-line pt-6">
+      <h2 className="h-section">Connections</h2>
       <ConnectionList rows={rows.slice(0, SHOWN)} />
       {rows.length > SHOWN && (
         <div>
@@ -175,11 +174,11 @@ function Connections({ account, session }: { account: GateAccount; session: stri
 export function Connect({ account, session }: { account: GateAccount; session: string }) {
   return (
     <div className="grid gap-x-16 gap-y-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
-      <div className="flex min-w-0 flex-col gap-8">
-        <section aria-label="Ask first" className="flex flex-col gap-3">
+      <div className="flex min-w-0 flex-col gap-12">
+        <section aria-label="Ask first" className="flex flex-col gap-4 border-t border-line pt-6">
           <div>
-            <h2 className="text-sm font-semibold">Ask first</h2>
-            <p className="mt-1 text-sm text-muted">
+            <h2 className="h-section">Ask first</h2>
+            <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted">
               Your code asks Bonded before each payment. This is the only way to stop one.
             </p>
           </div>
@@ -207,15 +206,15 @@ export function Connect({ account, session }: { account: GateAccount; session: s
             tab. Keep it on your server, and keep your own pay function away from the agent.
           </p>
         </section>
-        <section aria-label="Cards" className="flex flex-col gap-3">
+        <section aria-label="Cards" className="flex flex-col gap-4 border-t border-line pt-6">
           <div>
-            <h2 className="text-sm font-semibold">Cards</h2>
-            <p className="mt-1 text-sm text-muted">
+            <h2 className="h-section">Cards</h2>
+            <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted">
               Your card provider asks Bonded before each charge, and a charge that breaks a rule is
               declined. Bonded holds no key.
             </p>
           </div>
-          <p className="text-sm">
+          <p className="text-[15px]">
             Connect Stripe Issuing, Lithic or Marqeta on the{" "}
             <Link className={linkClass} to="?tab=cards">
               Cards
@@ -223,14 +222,14 @@ export function Connect({ account, session }: { account: GateAccount; session: s
             tab.
           </p>
         </section>
-        <section aria-label="Watch" className="flex flex-col gap-3">
+        <section aria-label="Watch" className="flex flex-col gap-4 border-t border-line pt-6">
           <div>
-            <h2 className="text-sm font-semibold">Watch</h2>
-            <p className="mt-1 text-sm text-muted">
+            <h2 className="h-section">Watch</h2>
+            <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted">
               Bonded reads payments after they're made, and alerts you. It can't stop them.
             </p>
           </div>
-          <p className="text-sm">
+          <p className="text-[15px]">
             Add a public wallet on the{" "}
             <Link className={linkClass} to="?tab=watch">
               Watch

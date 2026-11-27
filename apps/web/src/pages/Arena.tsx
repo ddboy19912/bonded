@@ -7,7 +7,7 @@ import { weakestText } from "../lib/security";
 import type { EpisodeCard } from "../lib/events";
 import { rulingView } from "../lib/ruling";
 import { ago, at } from "../lib/format";
-import { RulingBadge, RulingDot, VerdictCard } from "../components/ruling";
+import { RulingDot, RulingWord, VerdictCard } from "../components/ruling";
 import { isPrivate, newestEpisode, useEpisodeSnapshot, type EpisodeFilters } from "../lib/episodes";
 import { useListParams } from "../lib/pages";
 import { useAgents } from "../lib/chain";
@@ -17,6 +17,7 @@ import {
   EmptyState,
   ErrorText,
   Input,
+  MoreLink,
   Page,
   Term,
   TierBadge,
@@ -120,7 +121,7 @@ export function Arena() {
       title="Arena"
       intro="Every episode hides an attack in what an agent reads, then lets the vault rule on what it does. Pick an episode to see how it went."
     >
-      <div className="-mt-1 flex flex-wrap items-center gap-3">
+      <div className="-mt-2 flex flex-wrap items-center gap-3">
         <InfoPanel
           title="How the Arena works"
           description="Every rating is a few hundred short episodes against real contracts on a private fork."
@@ -143,7 +144,7 @@ export function Arena() {
           .
         </span>
       </div>
-      <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <section className="grid grid-cols-2 gap-x-6 gap-y-8 lg:grid-cols-4">
         <Tile
           label={
             Object.keys(filters).some((k) => k !== "runId" && k !== "outcome")
@@ -157,37 +158,35 @@ export function Arena() {
         <Tile
           label={<Term term="held">Held</Term>}
           value={counts ? counts.held.toLocaleString() : "…"}
-          tone="text-held"
+          tone="text-accent"
         />
         <Tile
           label={<Term term="breach">Breached</Term>}
           value={counts ? counts.breach.toLocaleString() : "…"}
-          tone={counts?.breach ? "text-breach" : ""}
+          tone={counts?.breach ? "text-breach-solid" : ""}
         />
-        <div className="panel min-w-0 p-5">
+        <div className="min-w-0 border-t border-line pt-4">
           <div className="flex items-baseline justify-between gap-2">
             <p className="eyebrow">{runId ? "This run" : "Latest run"}</p>
             {runId && (
               <button
                 type="button"
                 onClick={() => setRunId(undefined)}
-                className="text-xs text-accent hover:underline"
+                className="text-[13px] text-accent hover:underline"
               >
                 Show all runs
               </button>
             )}
           </div>
           {run.data?.report ? (
-            <div className="mt-2 flex items-end gap-6">
+            <div className="mt-3 flex items-end gap-6">
               <div title={weakestText(run.data.report.susceptibility ?? {}) ?? undefined}>
-                <p className="text-xs text-muted">Security</p>
-                <p className="mt-1 font-serif text-[32px] leading-none tabular-nums">
-                  {run.data.report.susceptibility?.grade ?? "n/a"}
-                </p>
+                <p className="text-[13px] text-muted">Security</p>
+                <p className="num-big mt-1.5">{run.data.report.susceptibility?.grade ?? "n/a"}</p>
               </div>
               <div>
-                <p className="text-xs text-muted">Insurance</p>
-                <p className="mt-1 flex items-center gap-2 font-serif text-[32px] leading-none tabular-nums">
+                <p className="text-[13px] text-muted">Insurance</p>
+                <p className="num-big mt-1.5 flex items-center gap-2">
                   {run.data.report.scoring.score}
                   <TierBadge score={run.data.report.scoring.score} />
                 </p>
@@ -195,7 +194,7 @@ export function Arena() {
             </div>
           ) : run.data ? (
             <p
-              className={`mt-3.5 text-[15px] capitalize ${run.data.status === "failed" ? "text-breach" : "text-soft"}`}
+              className={`mt-3.5 text-[17px] capitalize ${run.data.status === "failed" ? "text-breach" : "text-soft"}`}
             >
               {run.data.status}
             </p>
@@ -205,31 +204,31 @@ export function Arena() {
               onClick={() => setRunId(latest.runId)}
               className="group mt-3 block text-left"
             >
-              <span className="block font-mono text-[15px] group-hover:text-accent">
+              <span className="block font-mono text-[17px] group-hover:text-accent">
                 Run {latest.runId.slice(0, 8)}
               </span>
-              <span className="mt-1 block text-xs text-muted">
+              <span className="mt-1.5 block text-[13px] text-muted">
                 Episode {latest.index + 1} of {latest.total} · view this run
               </span>
             </button>
           ) : (
-            <p className="mt-3.5 text-sm text-muted">
+            <p className="mt-3.5 text-[15px] text-muted">
               {newestAlone.isFetching ? "…" : "Waiting for episodes"}
             </p>
           )}
         </div>
       </section>
 
-      <div className="flex flex-wrap items-start gap-4">
-        <section className="panel min-w-0 flex-[999_1_520px] p-4.5">
-          <div className="flex flex-col gap-3 border-b border-line px-1.5 pb-3.5">
-            <div className="flex flex-wrap items-center gap-2">
+      <div className="grid items-start gap-x-10 gap-y-12 xl:grid-cols-[minmax(0,1fr)_minmax(0,25rem)]">
+        <section aria-label="Episodes" className="min-w-0">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-end gap-x-6 gap-y-2 border-b border-line">
               {(
                 [
                   ["all", "All", "", feed.data?.counts.total],
-                  ["held", "Held", "bg-held", feed.data?.counts.held],
+                  ["held", "Held", "bg-brand-bright", feed.data?.counts.held],
                   ["breach", "Breached", "bg-breach-solid", feed.data?.counts.breach],
-                  ["control", "Controls", "bg-[#5b6478]", feed.data?.counts.control],
+                  ["control", "Controls", "bg-[#4a4f59]", feed.data?.counts.control],
                 ] as const
               ).map(([key, label, dot, n]) => (
                 <button
@@ -237,12 +236,12 @@ export function Arena() {
                   type="button"
                   aria-pressed={f.outcome === key}
                   onClick={() => list.set({ outcome: key })}
-                  className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3.5 text-[13px] ${f.outcome === key ? "border-ink bg-ink text-paper" : "border-line-strong text-soft hover:text-ink"}`}
+                  className={`-mb-px inline-flex items-center gap-2 border-b-2 pb-3 text-[14px] transition-colors ${f.outcome === key ? "border-brand-bright text-ink" : "border-transparent text-muted hover:text-ink"}`}
                 >
                   {dot && <span className={`size-[7px] rounded-full ${dot}`} />}
                   {label}
                   {n !== undefined && (
-                    <span className="font-mono text-[11px] opacity-60">{n.toLocaleString()}</span>
+                    <span className="font-mono text-[11px] text-muted">{n.toLocaleString()}</span>
                   )}
                 </button>
               ))}
@@ -250,7 +249,7 @@ export function Arena() {
                 <button
                   type="button"
                   onClick={clear}
-                  className="ml-auto text-[13px] text-accent hover:underline"
+                  className="ml-auto pb-3 text-[13px] text-accent hover:underline"
                 >
                   Clear filters
                 </button>
@@ -303,7 +302,7 @@ export function Arena() {
                 ]}
               />
               {f.attack && (
-                <span className="inline-flex h-9 items-center gap-2 rounded-full border border-accent/40 bg-accent-soft pr-1.5 pl-3.5 text-[13px]">
+                <span className="inline-flex h-9 items-center gap-2 rounded-full border border-accent/40 pr-1.5 pl-3.5 text-[13px]">
                   <span className="text-muted">Attack</span>
                   <Link to={`/attacks/${f.attack}`} className="font-mono hover:text-accent">
                     {f.attack}
@@ -319,7 +318,7 @@ export function Arena() {
                 </span>
               )}
               {runId && (
-                <span className="inline-flex h-9 items-center gap-2 rounded-full border border-accent/40 bg-accent-soft pr-1.5 pl-3.5 text-[13px]">
+                <span className="inline-flex h-9 items-center gap-2 rounded-full border border-accent/40 pr-1.5 pl-3.5 text-[13px]">
                   <span className="text-muted">Run</span>
                   <span className="font-mono">{runId.slice(0, 8)}</span>
                   <button
@@ -341,7 +340,7 @@ export function Arena() {
                 feed.refresh();
                 list.set({ page: 1 });
               }}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-accent/30 bg-accent-soft px-4 py-2.5 text-[13px] text-ink transition hover:border-accent/60"
+              className="mt-5 flex w-full items-center justify-center gap-2 border-y border-line py-3 text-[13px] text-soft transition hover:text-ink"
             >
               <span className="size-[7px] rounded-full bg-breach-solid [animation:blink_1.4s_infinite]" />
               {feed.fresh >= 500 ? "500+" : feed.fresh.toLocaleString()} new{" "}
@@ -351,13 +350,16 @@ export function Arena() {
           )}
           <ErrorText error={feed.error} />
           {feed.isPending ? (
-            <div className="flex flex-col gap-2 p-2">
+            <div className="mt-5 flex flex-col">
               {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="h-[66px] animate-pulse rounded-2xl bg-white/[0.03]" />
+                <div
+                  key={i}
+                  className="h-[72px] animate-pulse border-t border-line bg-white/[0.02]"
+                />
               ))}
             </div>
           ) : shown.length === 0 ? (
-            <div className="p-4">
+            <div className="mt-6">
               <EmptyState
                 title={
                   filtered && counts?.total ? "No episodes match these filters" : "No episodes yet"
@@ -370,26 +372,26 @@ export function Arena() {
             </div>
           ) : (
             <ul
-              className={`mt-2 flex flex-col gap-0.5 transition-opacity ${feed.isFetching && !feed.isPending ? "opacity-60" : ""}`}
+              className={`mt-5 border-b border-line transition-opacity ${feed.isFetching && !feed.isPending ? "opacity-60" : ""}`}
             >
               {shown.map((c) => {
                 const r = rulingView(c);
                 const isSel = selected?.eventId === c.eventId;
                 return (
-                  <li key={c.eventId}>
+                  <li key={c.eventId} className="border-t border-line">
                     <button
                       type="button"
                       onClick={() => setPicked(c.eventId)}
                       aria-pressed={isSel}
-                      className={`grid w-full grid-cols-[10px_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border px-3 py-3.5 sm:grid-cols-[10px_52px_minmax(0,1fr)_auto] sm:gap-4 sm:px-4 text-left transition ${isSel ? "border-accent/40 bg-accent-soft" : "border-transparent hover:bg-white/[0.035]"}`}
+                      className={`relative isolate grid w-full grid-cols-[8px_minmax(0,1fr)_auto] items-center gap-4 py-4 text-left before:absolute before:inset-y-0 before:-inset-x-3 before:-z-10 before:bg-white/[0.04] before:transition-opacity sm:grid-cols-[8px_3rem_minmax(0,1fr)_auto] sm:gap-5 ${isSel ? "before:opacity-100" : "before:opacity-0 hover:before:opacity-60"}`}
                     >
                       <RulingDot r={r} />
-                      <span className="hidden w-fit rounded-md bg-white/[0.06] px-1.5 py-0.5 text-center font-mono text-[11px] text-soft sm:block">
-                        {c.attackClass ?? "CTRL"}
-                      </span>
+                      <span className="eyebrow hidden sm:block">{c.attackClass ?? "CTRL"}</span>
                       <span className="min-w-0">
                         <span className="flex items-center gap-2">
-                          <span className="truncate text-[15px] font-semibold">
+                          <span
+                            className={`truncate text-[17px] leading-snug font-medium tracking-[-0.02em] ${isSel ? "text-ink" : "text-soft"}`}
+                          >
                             {c.attackClass
                               ? (CLASS_NAMES[c.attackClass]?.name ?? c.attackClass)
                               : "Control: no attack"}
@@ -400,18 +402,18 @@ export function Arena() {
                             </span>
                           )}
                         </span>
-                        <span className="mt-0.5 block truncate font-mono text-[11px] text-muted">
+                        <span className="mt-1 block truncate font-mono text-[11.5px] text-muted">
                           {c.attackId ?? "a plain task"}
                           {c.at && (
-                            <time dateTime={c.at} title={at(c.at)} className="font-sans">
+                            <time dateTime={c.at} title={at(c.at)}>
                               {" · "}
                               {ago(c.at, now)}
                             </time>
                           )}
                         </span>
                       </span>
-                      <span className="text-right sm:w-[118px]">
-                        <RulingBadge r={r} />
+                      <span className="text-right">
+                        <RulingWord r={r} />
                       </span>
                     </button>
                   </li>
@@ -431,31 +433,34 @@ export function Arena() {
             />
           )}
           {feed.failedRuns.length > 0 && (
-            <p className="px-3 pt-3 text-xs text-muted">{feed.failedRuns.length} run(s) failed.</p>
+            <p className="pt-3 text-[13px] text-muted">{feed.failedRuns.length} run(s) failed.</p>
           )}
         </section>
 
-        <aside className="panel min-w-0 flex-[1_1_360px] border-accent/25 p-7 xl:sticky xl:top-24">
+        <aside
+          aria-label="Selected episode"
+          className={`min-w-0 border-t border-line pt-6 xl:sticky xl:top-24 xl:border-t-0 xl:border-l xl:pt-0 xl:pl-10 ${selected ? "" : "max-xl:hidden"}`}
+        >
           {selected ? (
             <EpisodeDetail
               c={selected}
               onlyRun={runId ? undefined : () => setRunId(selected.runId)}
             />
           ) : (
-            <p className="text-sm text-muted">Pick an episode to see how it went.</p>
+            <p className="text-[15px] text-muted">Pick an episode to see how it went.</p>
           )}
         </aside>
       </div>
 
-      <div className="panel flex flex-wrap items-center justify-between gap-4 bg-gradient-to-r from-breach/12 to-transparent p-6">
-        <span>
-          <strong className="block text-lg">Found an attack we miss?</strong>
-          <span className="mt-1 block text-sm text-muted">
+      <div className="flex flex-wrap items-end justify-between gap-6 border-t border-line pt-8">
+        <span className="max-w-2xl">
+          <strong className="h-section block">Found an attack we miss?</strong>
+          <span className="mt-3 block text-[15px] leading-relaxed text-muted">
             Submit it with your wallet. If it beats the defended agent, you're paid from the bounty
             pool.
           </span>
         </span>
-        <Link to="/bounties" className={buttonClass("secondary")}>
+        <Link to="/bounties" className={buttonClass("primary")}>
           Go to bounties →
         </Link>
       </div>
@@ -465,11 +470,12 @@ export function Arena() {
   );
 }
 
+/** A count as a giant number under a hairline, as on the Overview. */
 function Tile({ label, value, tone = "" }: { label: ReactNode; value: string; tone?: string }) {
   return (
-    <div className="panel min-w-0 p-5">
+    <div className="min-w-0 border-t border-line pt-4">
       <p className="eyebrow">{label}</p>
-      <p className={`mt-2 font-serif text-[44px] leading-none tabular-nums ${tone}`}>{value}</p>
+      <p className={`num-giant mt-3 truncate ${tone}`}>{value}</p>
     </div>
   );
 }
@@ -492,9 +498,17 @@ function StartRating({ onStarted }: { onStarted: (runId: string) => void }) {
     }
   }
   return (
-    <details className="panel p-5 sm:p-6">
-      <summary className="cursor-pointer font-semibold">Operator: start a rating</summary>
-      <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_8rem_auto] sm:items-end">
+    <details className="group border-t border-line pt-6">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-6 [&::-webkit-details-marker]:hidden">
+        <span className="h-section">Operator: start a rating</span>
+        <span
+          aria-hidden
+          className="text-2xl leading-none font-light text-muted transition group-open:rotate-45"
+        >
+          +
+        </span>
+      </summary>
+      <div className="mt-6 grid gap-3 sm:grid-cols-[1fr_8rem_auto] sm:items-end">
         <OperatorTokenField />
         <Input
           label="Agent ID"
@@ -523,7 +537,7 @@ function StartRating({ onStarted }: { onStarted: (runId: string) => void }) {
 function HeldOutTag() {
   return (
     <Tooltip content="A held-out attack: it's never published, so no one can tune an agent to it. Its text stays private.">
-      <span className="inline-flex items-center gap-1 rounded-full border border-line-strong px-2 py-px text-[10.5px] text-muted">
+      <span className="inline-flex items-center gap-1 rounded-full border border-line-strong px-2 py-px font-mono text-[11px] leading-[18px] text-muted">
         <svg
           viewBox="0 0 24 24"
           className="size-3"
@@ -555,66 +569,57 @@ function EpisodeDetail({ c, onlyRun }: { c: EpisodeCard; onlyRun?: () => void })
     ? (CLASS_NAMES[c.attackClass]?.name ?? c.attackClass)
     : "Control episode";
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       <div>
         <div className="flex items-center justify-between">
           <p className="eyebrow">Episode</p>
-          <span className="font-mono text-[11px] text-muted">
+          <span className="eyebrow">
             {c.index + 1} of {c.total}
           </span>
         </div>
-        <h2 className="mt-3 font-serif text-[34px] leading-tight">{name}</h2>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          {c.attackClass && (
-            <span className="rounded-md bg-white/[0.06] px-1.5 py-0.5 font-mono text-[11px] text-soft">
-              {c.attackClass}
-            </span>
-          )}
+        <h2 className="h-section mt-4">{name}</h2>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {c.attackClass && <Badge>{c.attackClass}</Badge>}
           {c.attackClass && (isPrivate(c) ? <HeldOutTag /> : <Badge>Library attack</Badge>)}
           {c.attackId && !isPrivate(c) ? (
             <Link
               to={`/attacks/${encodeURIComponent(c.attackId)}`}
-              className="truncate font-mono text-[11px] text-accent hover:underline"
+              className="truncate font-mono text-[11.5px] text-accent hover:underline"
               title="This attack in the red team's library"
             >
               {c.attackId}
             </Link>
           ) : (
-            <span className="truncate font-mono text-[11px] text-muted">{c.attackId ?? ""}</span>
+            <span className="truncate font-mono text-[11.5px] text-muted">{c.attackId ?? ""}</span>
           )}
         </div>
       </div>
 
       <section>
-        <p className="eyebrow mb-2.5 !text-breach">What was planted</p>
-        <p className="rounded-2xl border border-line bg-white/[0.03] p-4 text-sm leading-relaxed text-soft">
+        <p className="eyebrow mb-3 !text-breach">What was planted</p>
+        <p className="border-l-2 border-breach-solid/60 pl-4 text-[15px] leading-relaxed text-soft">
           {!c.attackClass
             ? "Nothing. A control is a plain task with no attack, to check the agent behaves normally."
             : isPrivate(c)
               ? "A held-out attack from this class. Its text is never shown, so no one can study it."
               : `An attack from the public library, hidden in what the agent read: ${name.toLowerCase()}.`}
         </p>
+        {task && (
+          <p className="mt-4 text-[15px] text-soft">
+            <span className="text-muted">Task:</span> {task}
+          </p>
+        )}
       </section>
-
-      {task && (
-        <p className="-mt-2 text-sm text-soft">
-          <span className="text-muted">Task:</span> {task}
-        </p>
-      )}
 
       <section>
-        <p className="eyebrow mb-2.5 !text-accent">How the vault ruled</p>
+        <p className="eyebrow mb-4">How the vault ruled</p>
         <VerdictCard r={r} />
+        <div className="mt-6">
+          <MoreLink to={`/arena/episodes/${c.eventId}`}>See the full episode</MoreLink>
+        </div>
       </section>
 
-      <Link
-        to={`/arena/episodes/${c.eventId}`}
-        className="-mt-2 text-sm text-accent hover:underline"
-      >
-        See the full episode →
-      </Link>
-
-      <section className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5 text-sm">
+      <section className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5 text-[13px]">
         <span className="text-muted">
           {c.at && (
             <>
@@ -668,29 +673,29 @@ function ArenaExplainer() {
   ];
   return (
     <div className="flex flex-col gap-6 text-sm leading-relaxed">
-      <ol className="flex flex-col gap-4">
+      <ol className="border-b border-line">
         {steps.map(([title, text], i) => (
-          <li key={title} className="grid grid-cols-[32px_1fr] gap-3">
-            <span className="btn-brand flex size-8 items-center justify-center rounded-full font-mono text-xs text-on-brand">
-              {i + 1}
-            </span>
+          <li key={title} className="grid grid-cols-[2.5rem_1fr] gap-3 border-t border-line py-4">
+            <span className="eyebrow pt-0.5">{String(i + 1).padStart(2, "0")}</span>
             <span>
-              <strong className="block text-ink">{title}</strong>
-              <span className="text-muted">{text}</span>
+              <strong className="block text-[17px] font-medium tracking-[-0.02em] text-ink">
+                {title}
+              </strong>
+              <span className="mt-1 block text-muted">{text}</span>
             </span>
           </li>
         ))}
       </ol>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-2xl border border-line p-4">
-          <p className="font-semibold">Controls</p>
-          <p className="mt-1 text-muted">
+      <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
+        <div>
+          <p className="eyebrow">Controls</p>
+          <p className="mt-2 text-muted">
             Episodes with no attack, to check the agent behaves on a plain job.
           </p>
         </div>
-        <div className="rounded-2xl border border-line p-4">
-          <p className="font-semibold">Held-out attacks</p>
-          <p className="mt-1 text-muted">
+        <div>
+          <p className="eyebrow">Held-out attacks</p>
+          <p className="mt-2 text-muted">
             Never published, so no one can tune an agent to them. Their text stays private.
           </p>
         </div>

@@ -57,12 +57,12 @@ describe("the app sidebar", () => {
     expect(link("Vaults")).toBeTruthy();
   });
 
-  it("opens the on-chain group on an on-chain page, and shows Testnet only there", () => {
+  it("opens the on-chain group on an on-chain page, with no Testnet badge in the sidebar", () => {
     show("/vaults");
     expect(screen.getByRole("button", { name: /On-chain/ }).getAttribute("aria-expanded")).toBe(
       "true",
     );
-    expect(screen.getByText("Testnet")).toBeTruthy();
+    expect(screen.queryByText("Testnet")).toBeNull();
     cleanup();
     for (const path of ["/overview", "/agents/test", "/gate", "/index"]) {
       show(path);

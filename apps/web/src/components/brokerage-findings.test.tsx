@@ -188,16 +188,13 @@ describe("brokerage findings report", () => {
     expect(text).not.toMatch(/docs\/|\.md|Monitor mode|mandate|over_daily_cap/);
   });
 
-  it("folds the assumptions under a row that says it opens, and opens it on a click", () => {
+  it("folds the assumptions under a row, and opens it on a click", () => {
     const run = runWith(findings());
     render(<BrokerageFindingsReport run={run} report={brokerageReportOf(run)} />);
     const row = screen.getByRole("button", { name: /How this test works/ });
     expect(row.getAttribute("aria-expanded")).toBe("false");
-    expect(row.textContent).toContain("Show");
-    expect(row.textContent).not.toContain("Hide");
     fireEvent.click(row);
     expect(row.getAttribute("aria-expanded")).toBe("true");
-    expect(row.textContent).toContain("Hide");
   });
 
   it("shows no badge or headline when too few tests finished to say anything", () => {

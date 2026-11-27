@@ -24,6 +24,7 @@ import {
 import { DOCS_BYOA } from "../lib/routes";
 import { apiUrl, robinhoodTestnet, rpcUrl } from "../config";
 import { Card, Choice, linkClass } from "./ui";
+import { Globe, Laptop } from "lucide-react";
 import { InlineCode } from "./code-block";
 import { Collapsible } from "./collapsible";
 import { CopyBlock, Tabs } from "./copy";
@@ -53,6 +54,21 @@ export function FrameworkLogo({
 }
 
 /** What differs between the two layouts: classes, and how one framework option is drawn. */
+/** Each place an agent can run, as a mark on its tile. */
+const HOSTING_ICON: Record<"bonded" | "machine" | "online", ReactNode> = {
+  bonded: (
+    <span
+      className="inline-block size-5 bg-current"
+      style={{
+        mask: "url(/brand/bonded-symbol-white.svg) center / contain no-repeat",
+        WebkitMask: "url(/brand/bonded-symbol-white.svg) center / contain no-repeat",
+      }}
+    />
+  ),
+  machine: <Laptop strokeWidth={1.75} />,
+  online: <Globe strokeWidth={1.75} />,
+};
+
 const LAYOUT = {
   /** Chips for the framework and a plain list for where it runs, with no box per option. */
   flat: {
@@ -60,12 +76,12 @@ const LAYOUT = {
     fieldset: "",
     frameworkLegend: "mb-3",
     frameworks: "flex flex-wrap gap-2",
-    hostingHint: "mt-1 text-muted",
-    hostings: "mt-1 divide-y divide-line",
-    hostingsThree: "mt-1 divide-y divide-line",
+    hostingHint: "mt-1 mb-4 text-muted",
+    hostings: "grid gap-3 sm:grid-cols-2",
+    hostingsThree: "grid gap-3 sm:grid-cols-3",
     advanced: "border-t border-line pt-4",
   },
-  /** A bordered card for each option. */
+  /** A tile for each option; Advanced under a hairline, as in the flat layout. */
   boxed: {
     root: "gap-5",
     fieldset: "flex flex-col gap-2",
@@ -74,7 +90,7 @@ const LAYOUT = {
     hostingHint: "mb-2 text-xs text-muted",
     hostings: "grid gap-2 sm:grid-cols-2",
     hostingsThree: "grid gap-2 sm:grid-cols-3",
-    advanced: "rounded-2xl border border-line-strong p-4",
+    advanced: "border-t border-line pt-4",
   },
 } as const;
 
@@ -123,7 +139,7 @@ export function FrameworkQuestions({
   const askFramework = hosting !== "bonded";
   const hostingQuestion = (
     <fieldset className={L.fieldset}>
-      <legend className="font-medium">Where do you run it?</legend>
+      <legend className="text-[15px] font-medium text-ink">Where do you run it?</legend>
       <p className={L.hostingHint}>
         {hostings.includes("bonded") ? HOSTING_HINT_HOSTED : HOSTING_HINT}
       </p>
@@ -131,11 +147,11 @@ export function FrameworkQuestions({
         {hostings.map((h) => (
           <Choice
             key={h}
-            flat={flat}
             name={`${name}-hosting`}
             checked={hosting === h}
             onChange={() => onHosting(h)}
             title={HOSTING_TEXT[h].title}
+            icon={HOSTING_ICON[h]}
           >
             {HOSTING_TEXT[h].line}
           </Choice>
@@ -148,7 +164,7 @@ export function FrameworkQuestions({
       {hostings.includes("bonded") && hostingQuestion}
       {askFramework && (
         <fieldset className={L.fieldset}>
-          <legend className={`${L.frameworkLegend} font-medium`}>
+          <legend className={`${L.frameworkLegend} text-[15px] font-medium text-ink`}>
             Which framework is your agent built on?
           </legend>
           <div className={L.frameworks}>
@@ -324,7 +340,9 @@ export function UseYourVault({ vault }: { vault?: string | null }) {
     >
       <div className="flex flex-col gap-4 text-sm">
         <fieldset>
-          <legend className="mb-2 font-medium">Which framework is your agent built on?</legend>
+          <legend className="mb-3 text-[15px] font-medium text-ink">
+            Which framework is your agent built on?
+          </legend>
           <div className="flex flex-wrap gap-2">
             {FRAMEWORKS.map((f) => (
               <label

@@ -46,11 +46,13 @@ export function InfoPanel({
       <Dialog.Root {...control}>
         {trigger && <Dialog.Trigger asChild>{trigger}</Dialog.Trigger>}
         <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm [animation:fade_.2s_ease_both]" />
-          <Dialog.Content className="panel fixed top-1/2 left-1/2 z-50 flex max-h-[85vh] w-[min(640px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col bg-raised shadow-(--shadow-raised) outline-none [animation:pop_.2s_ease_both]">
-            <div className="flex items-start justify-between gap-4 border-b border-line p-6">
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md [animation:fade_.25s_ease_both]" />
+          <Dialog.Content className="fixed top-1/2 left-1/2 z-50 flex max-h-[85vh] w-[min(640px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col rounded-[20px] border border-line-strong bg-surface shadow-(--shadow-raised) outline-none [animation:pop_.3s_cubic-bezier(0.19,1,0.22,1)_both]">
+            <div className="flex items-start justify-between gap-4 p-7 pb-5">
               <div>
-                <Dialog.Title className="font-serif text-3xl leading-tight">{title}</Dialog.Title>
+                <Dialog.Title className="text-[28px] leading-[1.02] font-medium tracking-[-0.045em]">
+                  {title}
+                </Dialog.Title>
                 {description ? (
                   <Dialog.Description className="mt-1.5 text-sm text-muted">
                     {description}
@@ -60,7 +62,7 @@ export function InfoPanel({
                 )}
               </div>
               <Dialog.Close
-                className="flex size-9 shrink-0 items-center justify-center rounded-full border border-line-strong text-muted hover:text-ink"
+                className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted shadow-[inset_0_0_0_1px_rgb(255_255_255/0.18)] transition hover:rotate-90 hover:bg-ink hover:text-paper hover:shadow-none"
                 aria-label="Close"
               >
                 <svg
@@ -76,7 +78,7 @@ export function InfoPanel({
                 </svg>
               </Dialog.Close>
             </div>
-            <div className="overflow-y-auto p-6">{children}</div>
+            <div className="overflow-y-auto px-7 pb-7">{children}</div>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
@@ -86,10 +88,12 @@ export function InfoPanel({
       {trigger && <Drawer.Trigger asChild>{trigger}</Drawer.Trigger>}
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 z-50 bg-black/70" />
-        <Drawer.Content className="fixed inset-x-0 bottom-0 z-50 flex max-h-[90vh] flex-col rounded-t-[26px] border-t border-line-strong bg-raised outline-none">
+        <Drawer.Content className="fixed inset-x-0 bottom-0 z-50 flex max-h-[90vh] flex-col rounded-t-[26px] border-t border-line-strong bg-surface outline-none">
           <div className="mx-auto mt-3 h-1.5 w-12 shrink-0 rounded-full bg-white/20" aria-hidden />
           <div className="px-5 pt-4 pb-3">
-            <Drawer.Title className="font-serif text-3xl leading-tight">{title}</Drawer.Title>
+            <Drawer.Title className="text-[28px] leading-[1.02] font-medium tracking-[-0.045em]">
+              {title}
+            </Drawer.Title>
             {description ? (
               <Drawer.Description className="mt-1.5 text-sm text-muted">
                 {description}

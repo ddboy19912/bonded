@@ -53,7 +53,10 @@ export const MODE_TEXT: Record<RemoteMode, { title: string; line: string }> = {
   },
 };
 
-/** How the agent runs (URL or runner) and how it acts (tools or chain). */
+/** A question's own line over its options: plain type, a little larger than the options. */
+const LEGEND = "text-[15px] font-medium text-ink";
+
+/** How the agent runs (URL or runner) and how it acts (tools or chain), each a plain list. */
 export function ConnectionChoice({
   connection,
   mode,
@@ -69,14 +72,15 @@ export function ConnectionChoice({
   name?: string;
 }) {
   return (
-    <div className="flex flex-col gap-5 text-sm">
-      <fieldset className="flex flex-col gap-2">
-        <legend className="font-medium">Where do you run it?</legend>
-        <p className="mb-2 text-xs text-muted">{HOSTING_HINT}</p>
-        <div className="grid gap-2 sm:grid-cols-2">
+    <div className="flex flex-col gap-7 text-sm">
+      <fieldset>
+        <legend className={LEGEND}>Where do you run it?</legend>
+        <p className="mt-1 text-muted">{HOSTING_HINT}</p>
+        <div className="mt-1 divide-y divide-line">
           {(["runner", "url"] as const).map((c) => (
             <Choice
               key={c}
+              flat
               name={`${name}-connection`}
               checked={connection === c}
               onChange={() => onConnection(c)}
@@ -88,12 +92,13 @@ export function ConnectionChoice({
         </div>
       </fieldset>
       {onMode && (
-        <fieldset className="flex flex-col gap-2">
-          <legend className="mb-2 font-medium">How it acts</legend>
-          <div className="grid gap-2 sm:grid-cols-2">
+        <fieldset>
+          <legend className={LEGEND}>How it acts</legend>
+          <div className="mt-1 divide-y divide-line">
             {(["tools", "chain"] as const).map((m) => (
               <Choice
                 key={m}
+                flat
                 name={`${name}-mode`}
                 checked={mode === m}
                 onChange={() => onMode(m)}
@@ -157,9 +162,9 @@ export const TOOL_NAMES_TEXT = {
 } as const;
 
 /** A logo file drawn in the surrounding text colour (its shape is used as a mask), like the icons. */
-function MaskLogo({ src }: { src: string }) {
+export function MaskLogo({ src }: { src: string }) {
   const mask = `url(${src}) center / contain no-repeat`;
-  return <span className="inline-block size-7 bg-current" style={{ mask, WebkitMask: mask }} />;
+  return <span className="inline-block size-5 bg-current" style={{ mask, WebkitMask: mask }} />;
 }
 
 const TOOL_NAMES_ICON: Record<keyof typeof TOOL_NAMES_TEXT, ReactNode> = {
@@ -179,7 +184,7 @@ export function ToolNamesChoice({
 }) {
   return (
     <fieldset className="flex flex-col gap-2">
-      <legend className="mb-2 font-medium">How does your agent place trades?</legend>
+      <legend className={`mb-3 ${LEGEND}`}>How does your agent place trades?</legend>
       <div className="grid gap-2 sm:grid-cols-2">
         {(["alpaca", "bonded"] as const).map((t) => (
           <Choice
@@ -210,7 +215,7 @@ export function WorldChoice({
 }) {
   return (
     <fieldset className="flex flex-col gap-2">
-      <legend className="mb-2 font-medium">What it trades</legend>
+      <legend className={`mb-3 ${LEGEND}`}>What it trades</legend>
       <div className="grid gap-2 sm:grid-cols-2">
         {(["vault", "brokerage"] as const).map((w) => (
           <Choice
@@ -229,7 +234,7 @@ export function WorldChoice({
   );
 }
 
-/** Tools or chain mode: most agents use tools, so it waits under Advanced. */
+/** Tools or chain mode, as a plain list: most agents use tools, so it waits under Advanced. */
 export function ModeChoice({
   mode,
   onMode,
@@ -240,12 +245,13 @@ export function ModeChoice({
   name?: string;
 }) {
   return (
-    <fieldset className="flex flex-col gap-2">
-      <legend className="mb-2 font-medium">How it acts</legend>
-      <div className="grid gap-2 sm:grid-cols-2">
+    <fieldset>
+      <legend className={LEGEND}>How it acts</legend>
+      <div className="mt-1 divide-y divide-line">
         {(["tools", "chain"] as const).map((m) => (
           <Choice
             key={m}
+            flat
             name={name}
             checked={mode === m}
             onChange={() => onMode(m)}

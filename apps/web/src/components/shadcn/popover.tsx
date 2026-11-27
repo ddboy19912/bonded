@@ -22,10 +22,7 @@ function PopoverContent({
         data-slot="popover-content"
         align={align}
         sideOffset={sideOffset}
-        className={cn(
-          "z-50 w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-line bg-popover p-4 text-popover-foreground shadow-md outline-none",
-          className,
-        )}
+        className={cn("pop z-50 w-72 max-w-[calc(100vw-2rem)] p-4 outline-none", className)}
         {...props}
       />
     </PopoverPrimitive.Portal>

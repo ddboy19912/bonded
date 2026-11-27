@@ -29,7 +29,7 @@ const agent = (id: number, securityScore?: number, score = 50): AgentRow => ({
   owner: OWNER,
   ...(securityScore === undefined
     ? {}
-    : { score: { score, securityScore, expectedLossBps: 100, expiresAt: 0n } }),
+    : { score: { score, securityScore, expectedLossBps: 100, issuedAt: 0n, expiresAt: 0n } }),
 });
 
 /** The leaderboard entry for an on-chain agent: only the fields the ranking reads. */
