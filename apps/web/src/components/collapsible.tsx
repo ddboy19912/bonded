@@ -28,8 +28,8 @@ export function Collapsible({
   className?: string;
   triggerClassName?: string;
   contentClassName?: string;
-  /** Which side of the summary the chevron sits on. */
-  indicator?: "start" | "end";
+  /** A chevron at the start or end of the summary, or a plus at the end that turns into a minus. */
+  indicator?: "start" | "end" | "plus";
 }) {
   const [own, setOwn] = useState(defaultOpen);
   const open = controlled ?? own;
@@ -54,6 +54,24 @@ export function Collapsible({
     if (controlled === undefined) setOwn(!open);
     onOpenChange?.(!open);
   };
+  const plus = (
+    <svg
+      viewBox="0 0 16 16"
+      className="mt-[0.35em] size-4 shrink-0 text-muted transition-colors group-hover:text-ink"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      aria-hidden
+    >
+      <path d="M2.5 8h11" />
+      <path
+        d="M8 2.5v11"
+        className={`origin-center transition-transform duration-300 ease-out motion-reduce:transition-none ${open ? "rotate-90 scale-y-0" : ""}`}
+        style={{ transformBox: "fill-box" }}
+      />
+    </svg>
+  );
   const chevron = (
     <svg
       viewBox="0 0 12 12"
@@ -75,11 +93,12 @@ export function Collapsible({
         aria-expanded={open}
         aria-controls={id}
         onClick={toggle}
-        className={`flex w-full cursor-pointer items-start gap-2 rounded text-left focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none ${triggerClassName}`}
+        className={`group flex w-full cursor-pointer items-start gap-2 rounded text-left focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none ${triggerClassName}`}
       >
         {indicator === "start" && chevron}
         <span className="min-w-0 flex-1">{summary}</span>
         {indicator === "end" && chevron}
+        {indicator === "plus" && plus}
       </button>
       <div
         id={id}

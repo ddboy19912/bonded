@@ -13,6 +13,7 @@ import {
   Table,
   Term,
   TierBadge,
+  Tooltip,
   linkClass,
 } from "../components/ui";
 import { paginate, useListParams } from "../lib/pages";
@@ -137,6 +138,7 @@ export function Agents() {
         <ErrorText error={agents.error} />
         {agents.data && rows.length === 0 && (
           <EmptyState
+            divider={false}
             title={
               narrowed
                 ? "No agents match these filters"
@@ -208,8 +210,17 @@ export function Agents() {
                   <td>
                     {a.score ? (
                       <span className="flex items-center gap-2">
-                        <TierBadge score={a.score.score} />
-                        {a.score.expiresAt <= now && <Badge tone="warn">expired</Badge>}
+                        {/* A fixed slot, so "expired" starts in the same place on every row. */}
+                        <span className="inline-flex w-12 shrink-0">
+                          <TierBadge score={a.score.score} />
+                        </span>
+                        {a.score.expiresAt <= now && (
+                          <Tooltip
+                            content={`This rating ran out on ${new Date(Number(a.score.expiresAt) * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}. Ratings last 30 days; a new rating renews it.`}
+                          >
+                            <Badge tone="warn">expired</Badge>
+                          </Tooltip>
+                        )}
                       </span>
                     ) : (
                       <span className="text-muted">Not rated</span>

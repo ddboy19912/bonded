@@ -527,13 +527,18 @@ export function EmptyState({
   title,
   children,
   action,
+  divider = true,
 }: {
   title: ReactNode;
   children?: ReactNode;
   action?: ReactNode;
+  /** The hairline above it. Off when a line already sits right above (a tab bar). */
+  divider?: boolean;
 }) {
   return (
-    <div className="flex flex-col items-start gap-2 border-t border-line py-10">
+    <div
+      className={`flex flex-col items-start gap-2 py-10 ${divider ? "border-t border-line" : ""}`}
+    >
       <p className="text-[clamp(22px,2.2vw,30px)] leading-tight font-medium tracking-[-0.04em] text-soft">
         {title}
       </p>
@@ -658,7 +663,7 @@ export function Term({ term, children }: { term: GlossaryTerm; children: ReactNo
 export function Table({ children }: { children: ReactNode }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm [&_tbody_tr]:border-t [&_tbody_tr]:border-line [&_tbody_tr]:transition-colors [&_tbody_tr:hover]:bg-white/[0.025] [&_td]:px-3 [&_td]:py-4 [&_td:first-child]:pl-0 [&_td:last-child]:pr-0 [&_th]:px-3 [&_th]:pb-3 [&_th]:text-left [&_th]:font-mono [&_th]:text-[12px] [&_th]:font-normal [&_th]:text-muted [&_th:first-child]:pl-0 [&_th:last-child]:pr-0 [&_thead]:border-b [&_thead]:border-line">
+      <table className="w-full text-sm [&_tbody_tr]:border-t [&_tbody_tr]:border-line [&_tbody_tr]:transition-colors [&_tbody_tr:hover]:bg-white/[0.025] [&_td]:px-3 [&_td]:py-4 [&_td:first-child]:pl-0 [&_td:last-child]:pr-0 [&_th]:px-3 [&_th]:pb-3 [&_th:not(.text-right)]:text-left [&_th]:font-mono [&_th]:text-[12px] [&_th]:font-normal [&_th]:text-muted [&_th:first-child]:pl-0 [&_th:last-child]:pr-0 [&_thead]:border-b [&_thead]:border-line">
         {children}
       </table>
     </div>
@@ -678,7 +683,8 @@ export function Section({
   children,
   className = "",
 }: {
-  label: ReactNode;
+  /** The mono label at the left. Left out, the column stays empty so the content still lines up. */
+  label?: ReactNode;
   title?: ReactNode;
   intro?: ReactNode;
   actions?: ReactNode;
@@ -693,7 +699,11 @@ export function Section({
       className={`app-sec ${className}`}
       aria-labelledby={title ? headingId : undefined}
     >
-      <p className="eyebrow app-sec-lab">{label}</p>
+      {label ? (
+        <p className="eyebrow app-sec-lab">{label}</p>
+      ) : (
+        <span aria-hidden className="max-lg:hidden" />
+      )}
       <div className="min-w-0">
         {(title || intro || actions) && (
           <div className="mb-8 flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
@@ -755,7 +765,8 @@ export function Page({
               {back.label}
             </Link>
           )}
-          {eyebrow && <p className="eyebrow mb-5">{eyebrow}</p>}
+          {/* The back link already names where the page sits; the same words again would stutter. */}
+          {eyebrow && eyebrow !== back?.label && <p className="eyebrow mb-5">{eyebrow}</p>}
           <h1 className="h-display">{title}</h1>
           {intro && <p className="mt-6 max-w-2xl text-base leading-relaxed text-muted">{intro}</p>}
         </div>

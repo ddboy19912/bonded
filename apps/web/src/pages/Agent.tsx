@@ -248,7 +248,7 @@ export function Agent() {
         )}
       </div>
 
-      <Section label="Rating">
+      <Section>
         {rated && a ? (
           <>
             <div className="grid gap-x-14 gap-y-12 md:grid-cols-2">

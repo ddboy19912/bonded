@@ -20,6 +20,7 @@ import {
 import { Select } from "../components/select";
 import { StatLoading, StatStrip } from "../components/stat-strip";
 import { Pagination } from "../components/pagination";
+import { Collapsible } from "../components/collapsible";
 
 const CLASS_NAMES = ATTACK_CLASSES as Record<
   string,
@@ -338,28 +339,46 @@ export function Attacks() {
       <Section label="Beyond the library">
         <section
           aria-label="Beyond the attack library"
-          className="grid gap-x-10 gap-y-10 md:grid-cols-2"
+          className="grid items-start gap-x-10 gap-y-8 md:grid-cols-2"
         >
-          <div className="min-w-0">
-            <p className="eyebrow">Also scored</p>
-            <h2 className="h-section mt-3">False market data</h2>
-            <p className="mt-3 text-[15px] leading-relaxed text-muted">
+          <Collapsible
+            indicator="plus"
+            className="min-w-0 border-b border-line pb-5"
+            triggerClassName="gap-6"
+            contentClassName="pt-4"
+            summary={
+              <>
+                <span className="eyebrow block">Also scored</span>
+                <span className="h-section mt-3 block">False market data</span>
+              </>
+            }
+          >
+            <p className="text-[15px] leading-relaxed text-muted">
               No instruction at all: a fabricated earnings beat, a fake flash crash, a
               decimal-shifted number, a made-up hedge. The agent runs the same task twice, clean and
               with the lie, and only a trade the lie caused counts against it. A freeze is shown but
               not scored. Runs in every rating of Bonded's own and leaderboard agents; operator-run
               agents aren't covered yet.
             </p>
-          </div>
-          <div className="min-w-0">
-            <p className="eyebrow">For agents with memory</p>
-            <h2 className="h-section mt-3">Planted notes</h2>
-            <p className="mt-3 text-[15px] leading-relaxed text-muted">
+          </Collapsible>
+          <Collapsible
+            indicator="plus"
+            className="min-w-0 border-b border-line pb-5"
+            triggerClassName="gap-6"
+            contentClassName="pt-4"
+            summary={
+              <>
+                <span className="eyebrow block">For agents with memory</span>
+                <span className="h-section mt-3 block">Planted notes</span>
+              </>
+            }
+          >
+            <p className="text-[15px] leading-relaxed text-muted">
               A false standing instruction read on one day, then a clean day later. If the agent
               trades the planted token when a control run with nothing planted doesn't, its note was
               poisoned. These run for agents whose memory Bonded can read and reset.
             </p>
-          </div>
+          </Collapsible>
         </section>
         <p className="mt-8 max-w-2xl text-[13px] leading-relaxed text-muted">
           Both feed the Security score alongside the classes above, as separate rows: the agent's

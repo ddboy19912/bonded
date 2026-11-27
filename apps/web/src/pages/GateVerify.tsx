@@ -61,7 +61,7 @@ export function GateVerify() {
       back={{ to: "/gate", label: "Payment gate" }}
       intro="Every payment gate decision comes with a signed receipt. Paste one to check it here, in your browser. No sign-in."
     >
-      <Section label="No sign-in" title="Paste a receipt">
+      <Section title="Paste a receipt">
         <form
           className="flex max-w-3xl flex-col gap-5"
           onSubmit={(e) => {
