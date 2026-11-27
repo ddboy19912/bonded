@@ -565,8 +565,11 @@ export function Agent() {
                   />
                   <ProofRow
                     label="Report hash"
-                    note={`A fingerprint of the full attack report. The posting transaction logs it, so the report can't be changed afterwards.${score.data ? " Download the report below: its hash must match." : ""}`}
+                    note={`A fingerprint of the full attack report, written into the posting transaction's log (as responseHash), so the report can't be changed afterwards.${score.data ? " The downloaded report must hash to it." : ""}`}
                     value={a.reportHash}
+                    // Blockscout opens a transaction on its log tab with ?tab=logs.
+                    href={postedTx && explorerUrl ? `${txUrl(postedTx)}?tab=logs` : undefined}
+                    linkTitle="See it in the transaction's log"
                   />
                   <ProofRow
                     label="Mandate hash"
@@ -931,12 +934,15 @@ function ProofRow({
   note,
   value,
   href,
+  linkTitle,
   pending = false,
 }: {
   label: string;
   note: string;
   value: string | undefined;
   href?: string | undefined;
+  /** What the link opens, on hover; the value itself otherwise. */
+  linkTitle?: string;
   pending?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
@@ -954,7 +960,7 @@ function ProofRow({
                 href={href}
                 target="_blank"
                 rel="noreferrer"
-                title={value}
+                title={linkTitle ?? value}
                 className="font-mono text-[13px] text-accent transition hover:text-ink"
               >
                 {short(value, 6)} <span aria-hidden>↗</span>
