@@ -102,6 +102,8 @@ import {
 } from "../lib/bond-cover";
 import { NewAgentConnection } from "../components/connect-agent";
 import { Collapsible } from "../components/collapsible";
+import { NetworkNote } from "../components/wallet";
+import { ensureTestnet } from "../lib/network";
 import { InfoPanel } from "../components/overlay";
 import { prefillFrom, type OfficialPrefill } from "../components/preview-report";
 import {
@@ -452,6 +454,7 @@ export function NewAgent() {
     );
   async function send(step: OnboardingStep, call: ContractCall): Promise<Log[]> {
     mark(step, "active");
+    await ensureTestnet();
     const hash = await writeContractAsync({ ...call, chainId: robinhoodTestnet.id } as never);
     const receipt = await waitForTransactionReceipt(wagmiConfig, { hash });
     if (receipt.status !== "success")
@@ -475,6 +478,7 @@ export function NewAgent() {
   ) {
     if (batched && kinds.length > 1) {
       for (const k of kinds) mark(CALL_STEP[k], "active");
+      await ensureTestnet();
       let id: string | undefined;
       // Where to look for the batch's effects, should the wallet forget it.
       const fromBlock = await getPublicClient(wagmiConfig, { chainId: robinhoodTestnet.id })
@@ -1412,6 +1416,11 @@ export function NewAgent() {
               {busy ? "Working…" : "Onboard the agent"}
             </Button>
             <p className="mt-3 text-[13px] text-muted">{confirmationsLine}</p>
+            {!busy && (
+              <div className="mt-3">
+                <NetworkNote />
+              </div>
+            )}
             {steps.length > 0 && (
               <ol className="mt-6 flex flex-col text-sm">
                 {steps.map((s, i) => (

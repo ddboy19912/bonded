@@ -7,6 +7,7 @@ import { connect } from "wagmi/actions";
 import { wagmiConfig } from "../wagmi";
 import { robinhoodTestnet } from "../config";
 import { ConnectButton } from "./wallet";
+import { ensureTestnet } from "../lib/network";
 
 const { provider, genericRequest, emit } = vi.hoisted(() => {
   // Browser-wallet coverage must not depend on a developer's local Reown credentials.
@@ -153,7 +154,7 @@ describe("RainbowKit wallet integration", () => {
     expect(wagmiConfig.state.status).toBe("disconnected");
   });
 
-  it("switches an unsupported network through RainbowKit's chain menu", async () => {
+  it("shows the address on another network, and switches only when a transaction asks", async () => {
     let chainId = "0x1";
     provider.request.mockImplementation(
       async ({ method, params }: { method: string; params?: { chainId: string }[] }) => {
@@ -172,12 +173,34 @@ describe("RainbowKit wallet integration", () => {
     await act(async () => {
       await connect(wagmiConfig, { connector: phantom() });
     });
-    fireEvent.click(await screen.findByRole("button", { name: "Chain Selector" }));
-    fireEvent.click(await screen.findByRole("button", { name: new RegExp(robinhoodTestnet.name) }));
-    await waitFor(() =>
-      expect(wagmiConfig.state.connections.get(wagmiConfig.state.current!)?.chainId).toBe(
-        robinhoodTestnet.id,
-      ),
+    // On Ethereum, the header still shows the wallet, never a "Wrong network" alarm.
+    expect(await screen.findByRole("button", { name: /0x00/i })).toBeTruthy();
+    expect(screen.queryByText(/wrong network/i)).toBeNull();
+    expect(
+      provider.request.mock.calls.some(([a]) => a.method === "wallet_switchEthereumChain"),
+    ).toBe(false);
+    // A transaction moves the wallet to the testnet first.
+    await act(async () => {
+      await ensureTestnet();
+    });
+    expect(wagmiConfig.state.connections.get(wagmiConfig.state.current!)?.chainId).toBe(
+      robinhoodTestnet.id,
     );
+  });
+
+  it("says plainly when Phantom can't reach the testnet", async () => {
+    provider.request.mockImplementation(async ({ method }: { method: string }) => {
+      if (method === "eth_chainId") return "0x1";
+      if (method === "eth_accounts") return [address];
+      if (method === "wallet_requestPermissions") return [{ caveats: [{ value: [address] }] }];
+      if (method === "wallet_switchEthereumChain" || method === "wallet_addEthereumChain")
+        throw Object.assign(new Error("Unrecognized chain ID"), { code: 4902 });
+      throw new Error(`Unexpected wallet request: ${method}`);
+    });
+    renderWallet();
+    await act(async () => {
+      await connect(wagmiConfig, { connector: phantom() });
+    });
+    await expect(ensureTestnet()).rejects.toThrow(/Phantom can't use Robinhood Chain testnet/);
   });
 });

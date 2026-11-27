@@ -57,6 +57,9 @@ vi.mock("wagmi", () => ({
   useBalance: () => ({ data: undefined }),
 }));
 vi.mock("wagmi/actions", () => ({
+  // The wallet here is already on the testnet: lib/network.ts has nothing to switch.
+  getAccount: () => ({ isConnected: false }),
+  switchChain: async () => {},
   getCapabilities: async () => chain.capabilities,
   getGasPrice: async () => 1n,
   sendCalls: async (_: unknown, args: unknown) => {
