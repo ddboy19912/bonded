@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useAccount, useReadContract, useReadContracts } from "wagmi";
@@ -130,6 +130,15 @@ export function Agent() {
   // The transaction that posted the score: the API's record, else the registry's own log.
   const scoreTx = useScoreTx(rated && a ? agentId : undefined, a?.issuedAt);
   const postedTx = score.data?.tx_hash ?? scoreTx.data ?? null;
+  // The rules its vault (or account module) enforces now, read from the chain: the rated mandate
+  // hash should be the same.
+  const enforcer = vault ?? guarded?.module;
+  const liveMandate = useReadContract({
+    address: enforcer,
+    abi: mandateVaultAbi,
+    functionName: "mandateHash",
+    query: { enabled: Boolean(enforcer) },
+  });
 
   if (!valid)
     return (
@@ -573,8 +582,22 @@ export function Agent() {
                   />
                   <ProofRow
                     label="Mandate hash"
-                    note="A fingerprint of the vault rules the agent was tested under."
+                    note="A fingerprint of the rules the agent was tested under: which tokens and contracts it may use, where funds may go, and its limits."
                     value={a.mandateHash}
+                    status={
+                      liveMandate.data ===
+                      undefined ? undefined : liveMandate.data.toLowerCase() ===
+                        a.mandateHash.toLowerCase() ? (
+                        <span className="text-brand-bright">
+                          ✓ Same rules its {vault ? "vault" : "account module"} enforces on chain
+                        </span>
+                      ) : (
+                        <span className="text-warn">
+                          Its {vault ? "vault" : "account module"} now enforces different rules than
+                          the ones it was rated under
+                        </span>
+                      )
+                    }
                   />
                 </>
               )}
@@ -935,6 +958,7 @@ function ProofRow({
   value,
   href,
   linkTitle,
+  status,
   pending = false,
 }: {
   label: string;
@@ -943,6 +967,8 @@ function ProofRow({
   href?: string | undefined;
   /** What the link opens, on hover; the value itself otherwise. */
   linkTitle?: string;
+  /** A live check on the value, under the note. */
+  status?: ReactNode;
   pending?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
@@ -951,6 +977,7 @@ function ProofRow({
       <div className="min-w-0">
         <p className="text-[14px] text-ink">{label}</p>
         <p className="mt-1 max-w-md text-[13px] leading-relaxed text-muted">{note}</p>
+        {status && <p className="mt-2 text-[13px]">{status}</p>}
       </div>
       <div className="flex items-center gap-3 sm:justify-end">
         {value ? (
