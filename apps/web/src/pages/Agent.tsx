@@ -38,7 +38,7 @@ import { ModuleCover } from "../components/module-cover";
 import { BindingLine } from "../components/connect-agent";
 import { classCells, coverageRows, livenessLine, untestedClasses, untestedLine } from "../lib/byoa";
 import { Token } from "../components/token";
-import { bps, short, usd, when } from "../lib/format";
+import { bps, day, short, usd, when } from "../lib/format";
 import {
   AddressLink,
   Badge,
@@ -229,9 +229,7 @@ export function Agent() {
               </span>
             </Badge>
           ) : (
-            <Badge tone="warn" dot>
-              Score expired
-            </Badge>
+            <Badge>{a ? `Rated ${day(a.issuedAt)} · re-rating due` : "Re-rating due"}</Badge>
           ))}
         {report && <Badge>{report.mandateMode} mode</Badge>}
         {score.data?.superseded && (

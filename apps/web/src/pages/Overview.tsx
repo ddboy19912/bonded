@@ -221,8 +221,8 @@ function Yours({ address }: { address: Address }) {
             {expired.map((a) => (
               <Alert
                 key={`e${a.agentId}`}
-                title={`Agent ${a.agentId}'s score has expired`}
-                text="New cover can't be priced until it's rated again."
+                title={`Agent ${a.agentId} is due for a re-rating`}
+                text="Ratings last 30 days. Its score still shows, but new cover waits for a fresh one."
                 to={`/agents/${a.agentId}`}
                 cta="Rate it again"
               />

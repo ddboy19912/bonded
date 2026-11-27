@@ -217,7 +217,13 @@ export interface AgentRow {
    * The registry score, if the agent has ever been rated. `securityScore` is the public headline
    * (the susceptibility grade); `score` is the loss-based insurance score that prices cover.
    */
-  score?: { score: number; securityScore: number; expectedLossBps: number; expiresAt: bigint };
+  score?: {
+    score: number;
+    securityScore: number;
+    expectedLossBps: number;
+    issuedAt: bigint;
+    expiresAt: bigint;
+  };
   /** The agent's newest vault, if it has one. */
   vault?: Address;
   /** The agent's newest protected smart account (module and account), if it has one. */
@@ -260,6 +266,7 @@ export function agentRows(
                 score: s.score,
                 securityScore: s.securityScore,
                 expectedLossBps: s.expectedLossBps,
+                issuedAt: s.issuedAt,
                 expiresAt: s.expiresAt,
               },
             }

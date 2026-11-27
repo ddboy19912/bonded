@@ -1,7 +1,7 @@
 import { Link, useNavigate } from "react-router";
 import { useAccount } from "wagmi";
 import { useAgents } from "../lib/chain";
-import { bps, short } from "../lib/format";
+import { bps, day, short } from "../lib/format";
 import {
   AddressLink,
   Badge,
@@ -168,6 +168,7 @@ export function Agents() {
                 <th>
                   <span>Insurance tier</span>
                 </th>
+                <th className="hidden md:table-cell">Rated</th>
                 <th className="hidden md:table-cell">
                   <Term term="expectedLoss">Expected loss</Term>
                 </th>
@@ -209,22 +210,19 @@ export function Agents() {
                   </td>
                   <td>
                     {a.score ? (
-                      <span className="flex items-center gap-2">
-                        {/* A fixed slot, so "expired" starts in the same place on every row. */}
-                        <span className="inline-flex w-12 shrink-0">
-                          <TierBadge score={a.score.score} />
-                        </span>
-                        {a.score.expiresAt <= now && (
-                          <Tooltip
-                            content={`This rating ran out on ${new Date(Number(a.score.expiresAt) * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}. Ratings last 30 days; a new rating renews it.`}
-                          >
-                            <Badge tone="warn">expired</Badge>
-                          </Tooltip>
-                        )}
-                      </span>
+                      <TierBadge score={a.score.score} />
                     ) : (
                       <span className="text-muted">Not rated</span>
                     )}
+                  </td>
+                  <td className="hidden md:table-cell">
+                    {a.score ? (
+                      <RatedOn
+                        issuedAt={a.score.issuedAt}
+                        expiresAt={a.score.expiresAt}
+                        now={now}
+                      />
+                    ) : null}
                   </td>
                   <td className="hidden font-mono text-[13px] tabular-nums md:table-cell">
                     {a.score ? bps(a.score.expectedLossBps) : <span className="text-muted">—</span>}
@@ -266,5 +264,36 @@ export function Agents() {
         />
       </div>
     </Page>
+  );
+}
+
+/**
+ * When the agent was last rated. A rating lasts 30 days; after that a small amber dot says a
+ * re-rating is due (new cover waits for one), and the date stays: the score still describes it.
+ */
+function RatedOn({
+  issuedAt,
+  expiresAt,
+  now,
+}: {
+  issuedAt: bigint;
+  expiresAt: bigint;
+  now: bigint;
+}) {
+  const due = expiresAt <= now;
+  const date = (
+    <span className="font-mono text-[13px] text-soft tabular-nums">{day(issuedAt)}</span>
+  );
+  if (!due) return date;
+  return (
+    <Tooltip
+      content={`Re-rating due since ${day(expiresAt)}. Ratings last 30 days; new cover waits for a fresh one.`}
+    >
+      <span className="inline-flex items-center gap-2">
+        {date}
+        <span aria-hidden className="size-1.5 rounded-full bg-warn" />
+        <span className="sr-only">, re-rating due</span>
+      </span>
+    </Tooltip>
   );
 }
