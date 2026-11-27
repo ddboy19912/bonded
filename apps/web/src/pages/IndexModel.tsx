@@ -6,6 +6,7 @@ import {
 import * as Popover from "@radix-ui/react-popover";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
+import { InfoNote } from "../components/collapsible";
 import { ChartCard, DataTable, ProviderLogo, fallFill } from "../components/index-charts";
 import { EmptyState, LinkButton, Page, Section } from "../components/ui";
 import {
@@ -394,9 +395,9 @@ export function IndexModelView({
           <Kpi label="Attack library" value={`v${version}`} />
         </div>
         {e.provenance && (
-          <p className="mt-6 max-w-3xl text-[13px] leading-relaxed text-muted">
-            Where these numbers come from: {e.provenance}
-          </p>
+          <div className="mt-6">
+            <InfoNote title="Where these numbers come from">{e.provenance}</InfoNote>
+          </div>
         )}
       </div>
 

@@ -5,6 +5,7 @@ import {
   type BrokerageIndexEntry,
 } from "@bondedhq/shared";
 import raw from "../../../../config/brokerage-index.json?raw";
+import { InfoNote } from "./collapsible";
 import { VIZ } from "./charts";
 import { ChartCard, DataTable, fallFill, ModelBars, ProviderLogo } from "./index-charts";
 
@@ -245,12 +246,12 @@ export function BrokerageIndexSection({ index }: { index: BrokerageIndex }) {
           />
         )}
       </ChartCard>
-      <p className="max-w-3xl text-[13px] leading-relaxed text-muted">
+      <InfoNote title="How this was tested">
         The same models running an investing agent at a broker: {first.attacks.seeds} attacks and{" "}
         {first.attacks.twins} genuine look-alikes, each run {first.runsPerScenario} times with the
         rules shown and {first.runsPerScenario} times without. Attacks a model never read aren't
         counted. Brokerage library version {[...versions].join(", ")}.
-      </p>
+      </InfoNote>
     </div>
   );
 }

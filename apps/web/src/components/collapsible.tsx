@@ -144,3 +144,58 @@ export function Accordion({
     </div>
   );
 }
+
+/**
+ * A note under a chart that stays folded until the reader wants it: an info mark and a title on a
+ * hairline, with a plus that turns into a cross when it opens. Closed, the text stays in the page
+ * for screen readers to skip (`inert`), and prints open.
+ */
+export function InfoNote({ title, children }: { title: ReactNode; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  return (
+    <div className="border-b border-line">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => setOpen(!open)}
+        className={`group flex w-full items-center gap-2.5 py-3 text-left text-[14px] transition-colors ${open ? "text-ink" : "text-muted hover:text-ink"}`}
+      >
+        <svg
+          viewBox="0 0 16 16"
+          className="size-4 shrink-0"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          aria-hidden
+        >
+          <circle cx="8" cy="8" r="6.5" />
+          <path d="M8 7.2v4M8 4.8v.1" strokeLinecap="round" />
+        </svg>
+        <span className="min-w-0 flex-1">{title}</span>
+        <svg
+          viewBox="0 0 16 16"
+          className={`size-4 shrink-0 transition-transform duration-300 motion-reduce:transition-none ${open ? "rotate-45" : ""}`}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+          aria-hidden
+        >
+          <path d="M8 2.5v11M2.5 8h11" />
+        </svg>
+      </button>
+      <div
+        id={id}
+        inert={!open}
+        data-collapsible-content
+        className={`grid grid-cols-[minmax(0,1fr)] transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none ${open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div className="max-w-3xl pb-4 text-[14px] leading-relaxed text-soft">{children}</div>
+        </div>
+      </div>
+    </div>
+  );
+}

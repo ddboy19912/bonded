@@ -25,7 +25,6 @@ import {
   fallFill,
   niceTicks,
 } from "../components/index-charts";
-import { RailTag } from "../components/rail-tag";
 import { PROVIDER_LOGOS } from "../lib/provider-logos";
 import { EmptyState, Page, Section, linkClass } from "../components/ui";
 import {
@@ -54,9 +53,6 @@ import {
 } from "../lib/bonded-index";
 
 const DOCS_INDEX = docsUrl("/concepts/bonded-index/");
-
-/** Under a model's name in the results: joined runs, when they apply. */
-const resultNote = (e: BondedIndexEntry) => (e.provenance ? "joined runs †" : undefined);
 
 /** How far a score has been tested: attacks measured, and the fall rate ruled out at 95%. */
 const tested = (e: BondedIndexEntry) =>
@@ -799,7 +795,6 @@ function Results({ entries }: { entries: BondedIndexEntry[] }) {
             <tr>
               {[
                 "Model",
-                "Rail",
                 "Security",
                 "Task",
                 "Fell, rules shown",
@@ -826,10 +821,7 @@ function Results({ entries }: { entries: BondedIndexEntry[] }) {
                 className="border-b border-line align-top transition-colors hover:bg-white/[0.025]"
               >
                 <td className="py-4 pr-3">
-                  <ModelName entry={e} note={resultNote(e)} />
-                </td>
-                <td className="px-3 py-4">
-                  <RailTag rail={e.rail} />
+                  <ModelName entry={e} />
                 </td>
                 <td className="px-3 py-4 whitespace-nowrap tabular-nums">
                   <span className="text-[19px] leading-none font-medium tracking-[-0.03em] text-ink">
@@ -868,13 +860,6 @@ function Results({ entries }: { entries: BondedIndexEntry[] }) {
           </tbody>
         </table>
       </div>
-      {entries
-        .filter((e) => e.provenance)
-        .map((e) => (
-          <p key={e.model} className="max-w-3xl text-[13px] text-muted">
-            † {e.label}: {e.provenance}
-          </p>
-        ))}
       <InfoPanel
         open={rerun !== null}
         onOpenChange={(o) => !o && setRerun(null)}
