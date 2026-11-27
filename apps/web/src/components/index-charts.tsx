@@ -15,7 +15,7 @@ import {
   YAxis,
 } from "recharts";
 import { modelPath } from "../lib/bonded-index";
-import { PROVIDER_LOGOS } from "../lib/provider-logos";
+import { PROVIDER_LOGOS, providerColor } from "../lib/provider-logos";
 import { DataTable, VIZ } from "./charts";
 import { buttonClass } from "./ui";
 
@@ -210,7 +210,7 @@ export interface ModelBar {
 /**
  * Vertical bars, one per model in the order given, each named by its provider's logo and its
  * label under the axis (Artificial Analysis's layout). `series` names the stacked values and
- * their colors; a single series is drawn in the one blue.
+ * their colors; a single series takes each model's provider colour.
  */
 export function ModelBars({
   bars,
@@ -340,9 +340,11 @@ export function ModelBars({
           >
             {single &&
               data.map((d) => (
-                // One measure is drawn in the one blue, whoever the model: the logo and name
-                // under every bar say which model it is, so colour never has to.
-                <Cell key={d.model} fill={s.color ?? VIZ.accent} />
+                // One measure: each bar in its provider's colour, with the logo and name under it.
+                <Cell
+                  key={d.model}
+                  fill={s.color ?? providerColor(byModel.get(d.model)!.entry.provider)}
+                />
               ))}
             {!single && data.map((d) => <Cell key={d.model} fill={s.color} />)}
             {grouped && (
@@ -780,7 +782,7 @@ export function ModelScatter({
   );
 }
 
-/** A model on the scatter: its logo in a thin blue ring, and its placed name. */
+/** A model on the scatter: its logo in a ring of its provider colour, and its placed name. */
 function LogoPoint({
   cx,
   cy,
@@ -798,7 +800,14 @@ function LogoPoint({
   return (
     <g>
       <title>{point.entry.label}</title>
-      <circle cx={cx} cy={cy} r={11} fill="#ffffff" stroke={VIZ.accent} strokeWidth={2} />
+      <circle
+        cx={cx}
+        cy={cy}
+        r={11}
+        fill="#ffffff"
+        stroke={providerColor(point.entry.provider)}
+        strokeWidth={2}
+      />
       {src && <image href={src} x={cx - 7} y={cy - 7} width={14} height={14} />}
       {label && (
         <text x={label.x} y={label.y} textAnchor={label.anchor} fontSize={font} fill={SOFT}>

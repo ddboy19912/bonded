@@ -9,7 +9,8 @@ import { addressUrl, short } from "../lib/format";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import { copyText } from "./copy-button";
 import { wagmiConfig } from "../wagmi";
-import { ensureTestnet, networkDetails, networkNote, useChainName } from "../lib/network";
+import { TriangleAlert } from "lucide-react";
+import { ensureTestnet, networkNote, useChainName } from "../lib/network";
 import { NetworkLogo, WalletAvatar, useWalletIcon } from "./wallet-identity";
 import { ErrorText, Input, TxLink, buttonClass } from "./ui";
 
@@ -39,7 +40,6 @@ function WalletMenu({ address }: { address: `0x${string}` }) {
   const [copied, setCopied] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  const [byHand, setByHand] = useState(false);
   const onTestnet = chainId === robinhoodTestnet.id;
   const network = useChainName(chainId);
   const walletIcon = useWalletIcon(connector);
@@ -55,21 +55,13 @@ function WalletMenu({ address }: { address: `0x${string}` }) {
     try {
       await ensureTestnet();
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      // The details are right below here, so the menu says so instead of pointing to itself.
-      const cantAdd = /by hand/.test(message);
-      setProblem(
-        cantAdd
-          ? `${message.split(". ")[0]}. Add it by hand with the details below, or use Rabby or MetaMask.`
-          : message,
-      );
-      setByHand(cantAdd);
+      setProblem(e instanceof Error ? e.message : String(e));
     } finally {
       setSwitching(false);
     }
   }
   return (
-    <Popover open={open} onOpenChange={(o) => (setOpen(o), setProblem(null), setByHand(false))}>
+    <Popover open={open} onOpenChange={(o) => (setOpen(o), setProblem(null))}>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -78,11 +70,15 @@ function WalletMenu({ address }: { address: `0x${string}` }) {
         >
           <WalletAvatar address={address} size={28} />
           <span className="font-mono text-[13px] tracking-tight">{short(address)}</span>
-          <span
-            title={network}
-            className={`rounded-full ${onTestnet ? "" : "ring-1 ring-warn ring-offset-1 ring-offset-paper"}`}
-          >
+          <span title={network} className="relative inline-flex">
             <NetworkLogo chainId={chainId} name={network} size={16} />
+            {!onTestnet && (
+              <TriangleAlert
+                aria-hidden
+                className="absolute -top-1.5 -right-1.5 size-2.5 fill-paper text-warn"
+                strokeWidth={3}
+              />
+            )}
           </span>
         </button>
       </PopoverTrigger>
@@ -111,15 +107,18 @@ function WalletMenu({ address }: { address: `0x${string}` }) {
           </button>
         </div>
         <div className="border-t border-line px-5 py-4">
-          <div className="flex items-baseline justify-between">
-            <p className="eyebrow">Network</p>
-            <p className={`text-[12px] ${onTestnet ? "text-brand-bright" : "text-warn"}`}>
-              {onTestnet ? "Ready for transactions" : "Not used here"}
-            </p>
-          </div>
+          <p className="eyebrow">Network</p>
           <p className="mt-3 flex items-center gap-2.5 text-[15px] text-ink">
             <NetworkLogo chainId={chainId} name={network} size={22} />
             {network ?? "Unknown network"}
+            {!onTestnet && (
+              <TriangleAlert
+                role="img"
+                aria-label={`Not ${robinhoodTestnet.name}`}
+                className="size-4 shrink-0 text-warn"
+                strokeWidth={2.25}
+              />
+            )}
           </p>
           {!onTestnet && (
             <>
@@ -141,21 +140,6 @@ function WalletMenu({ address }: { address: `0x${string}` }) {
                   {problem}
                 </p>
               )}
-              <button
-                type="button"
-                aria-expanded={byHand}
-                onClick={() => setByHand((v) => !v)}
-                className="mt-3 flex w-full items-center justify-between text-[12.5px] text-muted transition hover:text-ink"
-              >
-                Add the network by hand
-                <span
-                  aria-hidden
-                  className={`inline-block font-mono text-[15px] leading-none transition-transform ${byHand ? "rotate-45" : ""}`}
-                >
-                  +
-                </span>
-              </button>
-              {byHand && <NetworkDetails />}
             </>
           )}
         </div>
@@ -175,44 +159,13 @@ function WalletMenu({ address }: { address: `0x${string}` }) {
           <button
             type="button"
             onClick={() => (setOpen(false), disconnect())}
-            className="text-[13px] text-muted transition hover:text-breach"
+            className="text-[13px] text-breach transition hover:text-breach/75"
           >
             Disconnect
           </button>
         </div>
       </PopoverContent>
     </Popover>
-  );
-}
-
-/** Robinhood Chain testnet's details, each with its own copy button, for adding it by hand. */
-function NetworkDetails() {
-  const [copied, setCopied] = useState<string>();
-  async function copy(label: string, value: string) {
-    if (await copyText(value)) {
-      setCopied(label);
-      setTimeout(() => setCopied((c) => (c === label ? undefined : c)), 1600);
-    }
-  }
-  return (
-    <dl className="mt-2 divide-y divide-line border-y border-line">
-      {networkDetails().map(({ label, value }) => (
-        <div key={label} className="flex items-center gap-3 py-2">
-          <dt className="w-24 shrink-0 text-[12px] text-muted">{label}</dt>
-          <dd className="min-w-0 flex-1 truncate font-mono text-[12px] text-soft" title={value}>
-            {value}
-          </dd>
-          <button
-            type="button"
-            onClick={() => copy(label, value)}
-            aria-label={`Copy ${label}`}
-            className="shrink-0 font-mono text-[11px] text-muted transition hover:text-ink"
-          >
-            {copied === label ? "Copied" : "Copy"}
-          </button>
-        </div>
-      ))}
-    </dl>
   );
 }
 

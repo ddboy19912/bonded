@@ -18,16 +18,6 @@ export class NetworkError extends Error {
   override name = "NetworkError";
 }
 
-/** What a wallet needs to add Robinhood Chain testnet by hand. */
-export const networkDetails = (): { label: string; value: string }[] =>
-  [
-    { label: "Network name", value: robinhoodTestnet.name },
-    { label: "RPC URL", value: robinhoodTestnet.rpcUrls.default.http[0] ?? "" },
-    { label: "Chain ID", value: String(robinhoodTestnet.id) },
-    { label: "Currency", value: robinhoodTestnet.nativeCurrency.symbol },
-    { label: "Explorer", value: robinhoodTestnet.blockExplorers?.default.url ?? "" },
-  ].filter((d) => d.value);
-
 /**
  * The line beside an on-chain action when the wallet is on another network, or null when it is on
  * the right one (or no wallet is connected).
@@ -49,7 +39,7 @@ const declined = (e: unknown) => {
   return root?.code === 4001 || /reject|denied|cancel/i.test(String(root?.message ?? ""));
 };
 
-const BY_HAND = `Add ${networkName} by hand (the details are in the wallet menu, top right), or use Rabby or MetaMask.`;
+const OTHER_WALLET = "Try Rabby or MetaMask.";
 
 /**
  * Before a transaction: moves the connected wallet to Robinhood Chain testnet if it is elsewhere.
@@ -63,12 +53,12 @@ export async function ensureTestnet(): Promise<void> {
   } catch (e) {
     // Phantom first: wagmi reports its failed "add network" as a refusal.
     if (isPhantom(connector))
-      throw new NetworkError(`Phantom didn't switch to ${networkName}. ${BY_HAND}`);
+      throw new NetworkError(`Phantom didn't switch to ${networkName}. ${OTHER_WALLET}`);
     if (declined(e))
       throw new NetworkError(
         `Your wallet needs to be on ${networkName} for this. The switch was declined, so nothing was sent.`,
       );
-    throw new NetworkError(`Your wallet couldn't switch to ${networkName}. ${BY_HAND}`);
+    throw new NetworkError(`Your wallet couldn't switch to ${networkName}. ${OTHER_WALLET}`);
   }
 }
 

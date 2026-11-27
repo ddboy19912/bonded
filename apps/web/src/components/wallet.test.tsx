@@ -180,17 +180,19 @@ describe("RainbowKit wallet integration", () => {
     // The menu opens on any network, names it, and offers the switch.
     fireEvent.click(screen.getByRole("button", { name: /0x00/i }));
     expect(await screen.findByText("Ethereum")).toBeTruthy();
-    expect(screen.getByText("Not used here")).toBeTruthy();
+    expect(screen.getByRole("img", { name: `Not ${robinhoodTestnet.name}` })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Switch to Robinhood Chain testnet/i }));
     await waitFor(() =>
       expect(wagmiConfig.state.connections.get(wagmiConfig.state.current!)?.chainId).toBe(
         robinhoodTestnet.id,
       ),
     );
-    expect(await screen.findByText("Ready for transactions")).toBeTruthy();
+    await waitFor(() =>
+      expect(screen.queryByRole("img", { name: `Not ${robinhoodTestnet.name}` })).toBeNull(),
+    );
   });
 
-  it("still connects when the wallet can't add the testnet, and gives the details to add it by hand", async () => {
+  it("still connects when the wallet can't add the testnet, and says so when asked to switch", async () => {
     provider.request.mockImplementation(async ({ method }: { method: string }) => {
       if (method === "eth_chainId") return "0x1";
       if (method === "eth_accounts") return [address];
@@ -209,9 +211,6 @@ describe("RainbowKit wallet integration", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: /Switch to Robinhood Chain testnet/i }),
     );
-    expect(await screen.findByRole("alert")).toBeTruthy();
-    expect(screen.getByText(String(robinhoodTestnet.id))).toBeTruthy();
-    expect(screen.getByText(robinhoodTestnet.rpcUrls.default.http[0]!)).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Copy RPC URL" })).toBeTruthy();
+    expect((await screen.findByRole("alert")).textContent).toMatch(/Try Rabby or MetaMask/);
   });
 });

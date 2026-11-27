@@ -38,12 +38,12 @@ describe("switching before a transaction", () => {
     await expect(ensureTestnet()).rejects.toThrow(/The switch was declined, so nothing was sent/);
   });
 
-  it("points to adding the network by hand when the wallet couldn't add it", async () => {
+  it("says the wallet couldn't switch, not that it was declined, when it couldn't add the network", async () => {
     switchChain.mockRejectedValue(
       wrapped(Object.assign(new Error("Internal error"), { code: -32603 })),
     );
     await expect(ensureTestnet()).rejects.toThrow(
-      /couldn't switch to Robinhood Chain testnet\. Add Robinhood Chain testnet by hand/,
+      /couldn't switch to Robinhood Chain testnet\. Try Rabby or MetaMask/,
     );
   });
 });

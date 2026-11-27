@@ -2,7 +2,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { robinhoodTestnet } from "../config";
 import { chainLogo } from "./chain-logos";
-import { isPhantom, networkDetails, networkNote, useChainName } from "./network";
+import { isPhantom, networkNote, useChainName } from "./network";
 
 describe("the network note beside an on-chain action", () => {
   it("says nothing on the testnet or with no wallet", () => {
@@ -17,16 +17,6 @@ describe("the network note beside an on-chain action", () => {
   it("recognises Phantom, whose failed switches read as refusals", () => {
     expect(isPhantom({ id: "app.phantom", name: "Phantom" })).toBe(true);
     expect(isPhantom({ id: "io.rabby", name: "Rabby Wallet" })).toBe(false);
-  });
-});
-
-describe("the details for adding the testnet by hand", () => {
-  it("lists the name, RPC URL, chain id and currency", () => {
-    const details = Object.fromEntries(networkDetails().map((d) => [d.label, d.value]));
-    expect(details["Network name"]).toBe(robinhoodTestnet.name);
-    expect(details["RPC URL"]).toBe(robinhoodTestnet.rpcUrls.default.http[0]);
-    expect(details["Chain ID"]).toBe(String(robinhoodTestnet.id));
-    expect(details["Currency"]).toBe("ETH");
   });
 });
 
