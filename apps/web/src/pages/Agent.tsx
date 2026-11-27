@@ -14,21 +14,21 @@ import {
   tierForScore,
 } from "@bondedhq/shared";
 import type { Address } from "viem";
-import { deployment } from "../config";
+import { deployment, explorerUrl } from "../config";
 import { downloadReportJson, downloadReportPdf, type ReportContext } from "../lib/report";
 import { ApiError, api, type SelfAgentRecord } from "../lib/api";
 import { liveCheckView, teeView } from "../lib/tee";
 import { RAIL_HINT, RAIL_LABEL } from "../lib/rails";
 import { isRpcUnavailable } from "../lib/errors";
 import { apiLookups, isRegistered } from "../lib/agent";
-import { moduleCoverNote, useAgents } from "../lib/chain";
+import { moduleCoverNote, useAgents, useScoreTx } from "../lib/chain";
 import { OwnerTools } from "../components/owner-tools";
 import { CoverWithoutTradesWarning, HealthPanel, VaultTrading } from "../components/health-panel";
 import { UseYourVault } from "../components/framework-questions";
 import { byoaApi } from "../lib/byoa-api";
 import { BreachEvidenceList, TopFixes } from "../components/report-actions";
 import { BatteryTables } from "../components/battery-tables";
-import { ClassTrackTable } from "../components/class-track-table";
+import { ClassSummary, ClassTrackTable } from "../components/class-track-table";
 import { classResults, gradeResults, weakestSentence } from "../lib/class-tracks";
 import { Square } from "../components/class-squares";
 import { batteryName, gradeBand, gradeStroke, gradeTone, manipulatedOf } from "../lib/security";
@@ -38,7 +38,8 @@ import { ModuleCover } from "../components/module-cover";
 import { BindingLine } from "../components/connect-agent";
 import { classCells, coverageRows, livenessLine, untestedClasses, untestedLine } from "../lib/byoa";
 import { Token } from "../components/token";
-import { bps, day, short, usd, when } from "../lib/format";
+import { copyText } from "../components/copy-button";
+import { addressUrl, bps, day, short, txUrl, usd, when } from "../lib/format";
 import {
   AddressLink,
   Badge,
@@ -54,7 +55,6 @@ import {
   Section,
   Stat,
   Term,
-  TxLink,
   Unavailable,
   buttonClass,
   linkClass,
@@ -127,6 +127,10 @@ export function Agent() {
   const ownRecord = self.data?.registered ? self.data : undefined;
 
   const back = { to: "/agents", label: "All agents" };
+  // The transaction that posted the score: the API's record, else the registry's own log.
+  const scoreTx = useScoreTx(rated && a ? agentId : undefined, a?.issuedAt);
+  const postedTx = score.data?.tx_hash ?? scoreTx.data ?? null;
+
   if (!valid)
     return (
       <Page title="Agent" back={back}>
@@ -394,16 +398,24 @@ export function Agent() {
             </span>
           }
         >
-          {weakLines.length > 0 && (
-            <div className="mb-8 border-l-2 border-breach-solid pl-4">
-              <strong className="block text-[17px] font-medium tracking-[-0.02em] text-breach">
-                {weakClasses.length === 1 ? "One weak class" : `${weakClasses.length} weak classes`}
-                : {weakClasses.join(", ")}
-              </strong>
-              <span className="mt-1 block text-sm text-soft">
-                {weakLines.join(". ")}. Every other graded class and track held.
-              </span>
+          {results ? (
+            <div className="mb-12">
+              <ClassSummary results={results} />
             </div>
+          ) : (
+            weakLines.length > 0 && (
+              <div className="mb-8 border-l-2 border-breach-solid pl-4">
+                <strong className="block text-[17px] font-medium tracking-[-0.02em] text-breach">
+                  {weakClasses.length === 1
+                    ? "One weak class"
+                    : `${weakClasses.length} weak classes`}
+                  : {weakClasses.join(", ")}
+                </strong>
+                <span className="mt-1 block text-sm text-soft">
+                  {weakLines.join(". ")}. Every other graded class and track held.
+                </span>
+              </div>
+            )
           )}
           {(topFixes(report).length > 0 || evidenceOf(report).length > 0) && (
             <div className="mb-10 flex flex-col gap-6">
@@ -531,29 +543,47 @@ export function Agent() {
           {guarded && <ModuleCover agentId={agentId} module={guarded.module} />}
           <SentinelChecks agentId={id} ratedWith={Boolean(report?.sentinel)} />
           <Card title="Proof on chain">
-            <dl className={ROWS}>
-              <dt>Owner</dt>
-              <dd>{owner?.result ? <AddressLink address={owner.result} /> : "…"}</dd>
+            <p className="-mt-2 mb-6 max-w-xl text-[14px] leading-relaxed text-muted">
+              What anyone can check without trusting Bonded: who owns the agent, the transaction
+              that wrote its score, and fingerprints of what it was tested on.
+            </p>
+            <div className="flex flex-col">
+              <ProofRow
+                label="Owner"
+                note="The wallet that registered the agent."
+                value={owner?.result}
+                href={owner?.result && explorerUrl ? addressUrl(owner.result) : undefined}
+              />
               {rated && a && (
                 <>
-                  <dt>
-                    <Term term="reportHash">Report hash</Term>
-                  </dt>
-                  <dd className="truncate font-mono text-xs">{a.reportHash}</dd>
-                  <dt>
-                    <Term term="mandate">Mandate hash</Term>
-                  </dt>
-                  <dd className="truncate font-mono text-xs">{a.mandateHash}</dd>
+                  <ProofRow
+                    label="Score posted in"
+                    note="The transaction that wrote this score to BondedRegistry."
+                    value={postedTx ?? undefined}
+                    href={postedTx && explorerUrl ? txUrl(postedTx) : undefined}
+                    pending={!postedTx && scoreTx.isPending}
+                  />
+                  <ProofRow
+                    label="Report hash"
+                    note={`A fingerprint of the full attack report. The posting transaction logs it, so the report can't be changed afterwards.${score.data ? " Download the report below: its hash must match." : ""}`}
+                    value={a.reportHash}
+                  />
+                  <ProofRow
+                    label="Mandate hash"
+                    note="A fingerprint of the vault rules the agent was tested under."
+                    value={a.mandateHash}
+                  />
                 </>
               )}
               {tee.measurement && (
                 <>
-                  <dt>
-                    <Term term="teeMeasurement">TEE measurement</Term>
-                  </dt>
-                  <dd className="truncate font-mono text-xs">{tee.measurement}</dd>
-                  <dt>TEE live check</dt>
-                  <dd>
+                  <ProofRow
+                    label="TEE measurement"
+                    note="A fingerprint of the exact code running in sealed hardware."
+                    value={tee.measurement}
+                  />
+                  <div className="flex items-center justify-between gap-6 border-t border-line py-4">
+                    <span className="text-[14px] text-ink">TEE live check</span>
                     <Badge
                       tone={
                         liveCheckView(liveCheck.data?.status, liveCheck.data?.blockingStatus).tone
@@ -561,18 +591,10 @@ export function Agent() {
                     >
                       {liveCheckView(liveCheck.data?.status, liveCheck.data?.blockingStatus).label}
                     </Badge>
-                  </dd>
+                  </div>
                 </>
               )}
-              {score.data && (
-                <>
-                  <dt>Posted in</dt>
-                  <dd>
-                    <TxLink hash={score.data.tx_hash} />
-                  </dd>
-                </>
-              )}
-            </dl>
+            </div>
             {score.data && (
               <ReportDownloads
                 ctx={{
@@ -897,5 +919,69 @@ function SentinelChecks({ agentId, ratedWith }: { agentId: string; ratedWith: bo
         </>
       )}
     </Card>
+  );
+}
+
+/**
+ * One thing anyone can check on chain: what it is in plain words, its value shortened in the
+ * middle, and a copy button; a link to the explorer when the value is something it can open.
+ */
+function ProofRow({
+  label,
+  note,
+  value,
+  href,
+  pending = false,
+}: {
+  label: string;
+  note: string;
+  value: string | undefined;
+  href?: string | undefined;
+  pending?: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="grid gap-x-8 gap-y-2 border-t border-line py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+      <div className="min-w-0">
+        <p className="text-[14px] text-ink">{label}</p>
+        <p className="mt-1 max-w-md text-[13px] leading-relaxed text-muted">{note}</p>
+      </div>
+      <div className="flex items-center gap-3 sm:justify-end">
+        {value ? (
+          <>
+            {href ? (
+              <a
+                href={href}
+                target="_blank"
+                rel="noreferrer"
+                title={value}
+                className="font-mono text-[13px] text-accent transition hover:text-ink"
+              >
+                {short(value, 6)} <span aria-hidden>↗</span>
+              </a>
+            ) : (
+              <span title={value} className="font-mono text-[13px] text-soft">
+                {short(value, 6)}
+              </span>
+            )}
+            <button
+              type="button"
+              aria-label={`Copy ${label.toLowerCase()}`}
+              onClick={async () => {
+                if (await copyText(value)) {
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
+                }
+              }}
+              className="rounded-full px-2.5 py-0.5 font-mono text-[11px] text-muted shadow-[inset_0_0_0_1px_rgb(255_255_255/0.14)] transition hover:text-ink hover:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.3)]"
+            >
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </>
+        ) : (
+          <span className="font-mono text-[13px] text-muted">{pending ? "Looking…" : "—"}</span>
+        )}
+      </div>
+    </div>
   );
 }

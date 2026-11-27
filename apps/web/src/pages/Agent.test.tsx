@@ -37,6 +37,7 @@ vi.mock("wagmi", () => ({
 vi.mock("../lib/chain", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../lib/chain")>()),
   useAgents: () => ({ data: [] }),
+  useScoreTx: () => ({ data: null, isPending: false }),
 }));
 vi.mock("../components/owner-tools", () => ({ OwnerTools: () => null }));
 vi.mock("../components/wallet", () => ({
@@ -120,7 +121,7 @@ describe("agent page without a hosted report", () => {
     show([entry("0x" + "00".repeat(32)), entry(REPORT_HASH.toUpperCase().replace("0X", "0x"))]);
     const card = await reportCard();
     expect(await within(card).findByText("From the published leaderboard rating")).toBeTruthy();
-    expect(within(card).getByText("One weak class: A8")).toBeTruthy();
+    expect(within(card).getByText(/^Tricked in 1 of \d+ attack classes$/)).toBeTruthy();
     expect(within(card).getByRole("table")).toBeTruthy();
     // The score panel names what set the score.
     expect(
