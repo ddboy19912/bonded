@@ -1,7 +1,6 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router";
 import { useAccount } from "wagmi";
-import { useQuery } from "@tanstack/react-query";
 import { isAddress } from "viem";
 import { AppLink } from "./components/app-link";
 import { HeaderSignIn } from "./components/sign-in";
@@ -13,9 +12,7 @@ import { explorerUrl, networkName } from "./config";
 import { useAgents, useClaims } from "./lib/chain";
 import { searchTarget } from "./lib/search";
 import { isNavActive, isOnChainPath } from "./lib/nav";
-import { useOwnerSession } from "./lib/owner-session";
-import { byoaApi } from "./lib/byoa-api";
-import { gateApi } from "./lib/gate";
+import { useOwnCounts } from "./lib/own-counts";
 import {
   APP_HOME,
   BLOG_HOME,
@@ -149,31 +146,6 @@ function OnChainGroup({ children }: { children: ReactNode }) {
       </div>
     </div>
   );
-}
-
-/**
- * How many tests and gate accounts the signed-in owner has (email, passkey or wallet session), for
- * the counts beside Test your agent and Payment gate. Nothing is asked until someone is signed in.
- */
-function useOwnCounts() {
-  const { session } = useOwnerSession();
-  const token = session?.session;
-  const tests = useQuery({
-    queryKey: ["previews-total", token],
-    queryFn: () => byoaApi.listPreviews(token!, { limit: 1 }),
-    enabled: Boolean(token),
-    retry: false,
-  });
-  const accounts = useQuery({
-    queryKey: ["gate-accounts", token],
-    queryFn: () => gateApi.accounts(token!),
-    enabled: Boolean(token),
-    retry: false,
-  });
-  return {
-    tests: tests.data?.total ?? tests.data?.items.length,
-    accounts: accounts.data?.items.length,
-  };
 }
 
 /** A wallet's on-chain roles. Signed in by email or passkey, there is nothing here to show. */

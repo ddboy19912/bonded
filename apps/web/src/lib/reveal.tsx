@@ -154,13 +154,16 @@ export const BEAT_GAP_MS = 80;
 
 /**
  * The pieces of a section, in reading order: the label, the headline, the line under it, the
- * buttons, then each block of the body. A heading's plain wrapper is opened up so its pieces come
- * in one by one; anything that already rises by itself (`.l-rv`) is left alone.
+ * buttons, then each block of the body. A heading's plain wrapper (or any child marked
+ * `data-beats`) is opened up so its pieces come in one by one; anything that already rises by itself (`.l-rv`) is left alone.
  */
 function beatsOf(section: Element): HTMLElement[] {
   const out: HTMLElement[] = [];
   for (const child of section.children) {
-    const head = child.classList.contains("l-head") || child.classList.contains("l-how-h");
+    const head =
+      child.classList.contains("l-head") ||
+      child.classList.contains("l-how-h") ||
+      child.hasAttribute("data-beats");
     if (!head) {
       out.push(child as HTMLElement);
       continue;
@@ -179,15 +182,15 @@ function beatsOf(section: Element): HTMLElement[] {
  * as they come on screen, a beat apart, so the eye lands on the headline before the detail. It
  * does nothing without an observer (old browsers, tests) or for readers who ask for less motion, so
  * the page never hides anything it cannot bring back. Put the ref on the page; it marks the
- * sections (`.l-sec`) inside it once, when the page mounts.
+ * sections (`.l-sec`, or what `sections` picks) inside it once, when the page mounts.
  */
-export function useSectionStory<T extends HTMLElement>() {
+export function useSectionStory<T extends HTMLElement>(sections = ".l-sec") {
   const ref = useRef<T>(null);
   useEffect(() => {
     const page = ref.current;
     if (!page || typeof IntersectionObserver === "undefined") return;
     if (prefersReducedMotion()) return;
-    const beats = [...page.querySelectorAll(".l-sec")].flatMap(beatsOf);
+    const beats = [...page.querySelectorAll(sections)].flatMap(beatsOf);
     const observer = new IntersectionObserver(
       (entries) => {
         // Pieces that arrive together come in one after another, in the order they are read.
@@ -219,6 +222,6 @@ export function useSectionStory<T extends HTMLElement>() {
         delete el.dataset.in;
       }
     };
-  }, []);
+  }, [sections]);
   return ref;
 }
