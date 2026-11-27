@@ -2,6 +2,7 @@ import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
 import mermaid from "astro-mermaid";
 import { FOLDERS, PAGES, SIDEBAR_GROUPS } from "./scripts/pages.mjs";
+import rehypeTables from "./scripts/rehype-tables.mjs";
 
 const pages = (prefix) =>
   PAGES.filter((p) => p.slug.startsWith(`${prefix}/`) && p.slug.split("/").length === 2).map(
@@ -24,61 +25,42 @@ const grouped = (prefix) => {
   ];
 };
 
-/** Wraps every table in a div so a wide table scrolls inside its own box. */
-function rehypeWrapTables() {
-  const wrap = (node) => {
-    if (!node.children) return;
-    node.children = node.children.map((child) => {
-      if (child.type === "element" && child.tagName === "table") {
-        return {
-          type: "element",
-          tagName: "div",
-          properties: { className: ["table-wrap"] },
-          children: [child],
-        };
-      }
-      wrap(child);
-      return child;
-    });
-  };
-  return wrap;
-}
-
 // Served at the root of docs.bondedhq.xyz, as its own Vercel project (apps/docs/vercel.json).
 export default defineConfig({
   site: "https://docs.bondedhq.xyz",
   trailingSlash: "always",
-  markdown: { rehypePlugins: [rehypeWrapTables] },
+  // Tables become rows or cards where that reads better (scripts/rehype-tables.mjs).
+  markdown: { rehypePlugins: [rehypeTables] },
   integrations: [
     mermaid({
       theme: "base",
       autoTheme: false,
       mermaidConfig: {
         theme: "base",
-        fontFamily: "Manrope Variable, Manrope, sans-serif",
+        fontFamily: "Geist Variable, Geist, sans-serif",
         // Natural size, scrolling sideways in the page, instead of shrinking wide diagrams.
         flowchart: { useMaxWidth: false, htmlLabels: true, curve: "basis" },
         sequence: { useMaxWidth: false },
         themeVariables: {
           darkMode: true,
-          background: "#05070d",
-          primaryColor: "#151b2b",
-          primaryTextColor: "#f4f6fb",
+          background: "#07080a",
+          primaryColor: "#111317",
+          primaryTextColor: "#f1f2f4",
           primaryBorderColor: "#3c6bff",
-          secondaryColor: "#0e1320",
-          tertiaryColor: "#0a0e17",
-          lineColor: "#8d96ab",
-          textColor: "#c7d2ee",
-          clusterBkg: "#0a0e17",
+          secondaryColor: "#0c0d10",
+          tertiaryColor: "#0a0b0d",
+          lineColor: "#8a8f9a",
+          textColor: "#c9ccd2",
+          clusterBkg: "#0a0b0d",
           clusterBorder: "rgba(255,255,255,0.16)",
-          edgeLabelBackground: "#0e1320",
-          noteBkgColor: "#151b2b",
-          noteTextColor: "#c7d2ee",
-          actorBkg: "#151b2b",
+          edgeLabelBackground: "#0c0d10",
+          noteBkgColor: "#111317",
+          noteTextColor: "#c9ccd2",
+          actorBkg: "#111317",
           actorBorder: "#3c6bff",
-          actorTextColor: "#f4f6fb",
-          signalColor: "#8d96ab",
-          signalTextColor: "#c7d2ee",
+          actorTextColor: "#f1f2f4",
+          signalColor: "#8a8f9a",
+          signalTextColor: "#c9ccd2",
         },
       },
     }),
@@ -90,13 +72,14 @@ export default defineConfig({
       favicon: "/brand/favicon.svg",
       head: [
         { tag: "link", attrs: { rel: "icon", href: "/brand/favicon.ico", sizes: "any" } },
-        { tag: "meta", attrs: { name: "theme-color", content: "#05070d" } },
+        { tag: "meta", attrs: { name: "theme-color", content: "#07080a" } },
         {
           // Click a diagram or an image in a page to open it full screen; click again or press
           // Escape to close. Images can also be opened from the keyboard (Tab, then Enter).
           tag: "script",
           content: `
-            const IMG = ".sl-markdown-content img";
+            // Every image in a page but the home page's illustration.
+            const IMG = ".sl-markdown-content img:not(.bn-hero img)";
             let opener = null;
             const close = () => {
               const overlay = document.querySelector(".diagram-overlay");
@@ -164,15 +147,19 @@ export default defineConfig({
         { icon: "email", label: "Contact", href: "mailto:hello@bondedhq.xyz" },
       ],
       customCss: [
-        "@fontsource-variable/manrope/index.css",
-        "@fontsource/instrument-serif/400.css",
-        "@fontsource/instrument-serif/400-italic.css",
+        "@fontsource-variable/geist/index.css",
         "@fontsource-variable/jetbrains-mono/index.css",
         "./src/styles/bonded.css",
       ],
       components: {
         ThemeProvider: "./src/components/ThemeProvider.astro",
         ThemeSelect: "./src/components/ThemeSelect.astro",
+        // Laid out as docs.busha.io: a header with section tabs, a sidebar for the tab you are on,
+        // and a title with its group above it and a button to copy the page.
+        Header: "./src/components/Header.astro",
+        Sidebar: "./src/components/Sidebar.astro",
+        PageTitle: "./src/components/PageTitle.astro",
+        TableOfContents: "./src/components/TableOfContents.astro",
       },
       lastUpdated: false,
       sidebar: [
@@ -195,7 +182,6 @@ export default defineConfig({
           ],
         },
         { label: "Reference", items: pages("reference") },
-        { label: "Internals", items: pages("internals") },
         ...FOLDERS.map((f) => ({
           label: f.index.title,
           collapsed: true,

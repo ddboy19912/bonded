@@ -1,0 +1,42 @@
+---
+import type { Post } from "../lib/sanity";
+import PostRow from "./PostRow.astro";
+
+// The posts as one large typographic index. Hovering a row brings up its cover beside the pointer
+// and dims the others; the script below only moves the cover, the rest is CSS.
+interface Props {
+  posts: Post[];
+  /** The number of the first row, so numbering runs on across pages. */
+  start?: number;
+  label?: string;
+}
+const { posts, start = 1, label = "All posts" } = Astro.props;
+---
+
+{
+  posts.length > 0 && (
+    <section class="index" data-index>
+      <p class="index-head">
+        <span class="lab">{label}</span>
+        <span class="lab">{posts.length} {posts.length === 1 ? "post" : "posts"}</span>
+      </p>
+      <ol>
+        {posts.map((post, i) => (
+          <PostRow post={post} number={start + i} />
+        ))}
+      </ol>
+    </section>
+  )
+}
+
+<script>
+  // The floating cover follows the pointer across the index (wide screens with a mouse only).
+  const fine = matchMedia("(hover: hover) and (pointer: fine) and (min-width: 761px)");
+  for (const list of document.querySelectorAll<HTMLElement>("[data-index]")) {
+    list.addEventListener("pointermove", (e) => {
+      if (!fine.matches) return;
+      list.style.setProperty("--px", `${e.clientX}px`);
+      list.style.setProperty("--py", `${e.clientY}px`);
+    });
+  }
+</script>

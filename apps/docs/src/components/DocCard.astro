@@ -1,0 +1,33 @@
+---
+// One link card: a small icon in a bordered box, a short title, a line of description and, if
+// given, a call to action with an arrow. The whole card is the link.
+import { Icon } from "@astrojs/starlight/components";
+import type { ComponentProps } from "astro/types";
+
+interface Props {
+  title: string;
+  href: string;
+  icon?: ComponentProps<typeof Icon>["name"];
+  cta?: string;
+}
+const { title, href, icon, cta } = Astro.props;
+---
+
+<a class="bn-card" href={href}>
+  {
+    icon && (
+      <span class="bn-card-icon">
+        <Icon name={icon} size="1rem" />
+      </span>
+    )
+  }
+  <span class="bn-card-title">{title}</span>
+  <span class="bn-card-body"><slot /></span>
+  {
+    cta && (
+      <span class="bn-card-cta">
+        {cta} <span aria-hidden="true">›</span>
+      </span>
+    )
+  }
+</a>

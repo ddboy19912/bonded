@@ -1,7 +1,7 @@
 ---
 import Body from "../components/Body.astro";
 import Cover from "../components/Cover.astro";
-import PostCard from "../components/PostCard.astro";
+import PostIndex from "../components/PostIndex.astro";
 import Base from "../layouts/Base.astro";
 import { formatDate, ogImageUrl, publishedPosts, readingTime, type Post } from "../lib/sanity";
 
@@ -13,7 +13,9 @@ export async function getStaticPaths() {
 const { post } = Astro.props as { post: Post };
 const base = import.meta.env.BASE_URL;
 const ogImage = ogImageUrl(post.cover);
-const more = (await publishedPosts()).filter((p) => p.slug !== post.slug).slice(0, 2);
+const url = new URL(`${base}${post.slug}/`, Astro.site).href;
+const share = `https://x.com/intent/post?text=${encodeURIComponent(post.title)}&url=${encodeURIComponent(url)}`;
+const more = (await publishedPosts()).filter((p) => p.slug !== post.slug).slice(0, 4);
 ---
 
 <Base
@@ -24,44 +26,105 @@ const more = (await publishedPosts()).filter((p) => p.slug !== post.slug).slice(
   ogImage={ogImage}
   ogImageAlt={post.cover.alt}
 >
+  <!-- How far through the post you are: a thin blue line under the header. -->
+  <div class="progress" aria-hidden="true"><i></i></div>
+
   <article class="post">
     <header class="post-header">
-      <a class="back" href={base}><span aria-hidden="true">←</span> All posts</a>
-      <div class="tags">{post.tags.map((t) => <span class="tag">{t}</span>)}</div>
+      <p class="byline">
+        <span class="tags">{post.tags.map((t) => <span class="tag">{t}</span>)}</span>
+        <span class="meta-sep" aria-hidden="true"></span>
+        <span>{formatDate(post.publishedAt)} · {readingTime(post)} min read</span>
+      </p>
       <h1>{post.title}</h1>
       <p class="lede">{post.description}</p>
-      <p class="byline">
-        {formatDate(post.publishedAt)} · {readingTime(post)} min read
-      </p>
     </header>
 
     <figure class="cover">
-      <Cover image={post.cover} widths={[800, 1200, 1600]} sizes="(max-width: 1000px) 100vw, 960px" eager />
+      <Cover image={post.cover} widths={[800, 1200, 1600, 2400]} sizes="100vw" eager />
     </figure>
+
+    <!-- Beside the text on a wide screen: where you are, and ways to pass the post on. -->
+    <aside class="post-side">
+      <div class="post-side-inner">
+        <a class="back" href={base}><span aria-hidden="true">←</span> All posts</a>
+        <dl>
+          <div>
+            <dt>Published</dt>
+            <dd>{formatDate(post.publishedAt)}</dd>
+          </div>
+          <div>
+            <dt>Reading time</dt>
+            <dd>{readingTime(post)} minutes</dd>
+          </div>
+          {
+            post.tags.length > 0 && (
+              <div>
+                <dt>Filed under</dt>
+                <dd>{post.tags.join(", ")}</dd>
+              </div>
+            )
+          }
+        </dl>
+        <div class="post-share">
+          <button type="button" class="copy-link" data-url={url}>Copy link</button>
+          <a href={share} target="_blank" rel="noopener">Share on X</a>
+        </div>
+      </div>
+    </aside>
 
     <div class="prose">
       <Body value={post.body} />
     </div>
 
     <aside class="cta">
-      <div>
-        <h2>Is your agent ready?</h2>
-        <p>Test it free against the red team. Any framework, with only a wallet sign-in.</p>
-      </div>
-      <a class="btn btn-brand" href="/agents/test">Test your agent <span aria-hidden="true">→</span></a>
+      <p class="lab">Try it on your agent</p>
+      <h2>Is your agent <span class="dim">ready?</span></h2>
+      <p>Test it free against the red team. Any framework, with only a wallet sign-in.</p>
+      <a class="btn btn-brand" href="/agents/test">Test your agent, free <span aria-hidden="true">→</span></a>
     </aside>
   </article>
 
   {
     more.length > 0 && (
-      <section class="more">
-        <h2>More from the blog</h2>
-        <div class="grid">
-          {more.map((p) => (
-            <PostCard post={p} />
-          ))}
-        </div>
-      </section>
+      <div class="more">
+        <PostIndex posts={more} label="Keep reading" />
+      </div>
     )
   }
 </Base>
+
+<script>
+  // The reading line: how far the article has scrolled past.
+  const bar = document.querySelector<HTMLElement>(".progress i");
+  const article = document.querySelector<HTMLElement>(".prose");
+  if (bar && article) {
+    let queued = false;
+    const update = () => {
+      queued = false;
+      const r = article.getBoundingClientRect();
+      const done = (innerHeight * 0.4 - r.top) / r.height;
+      bar.style.transform = `scaleX(${Math.min(1, Math.max(0, done))})`;
+    };
+    addEventListener(
+      "scroll",
+      () => {
+        if (!queued) requestAnimationFrame(update);
+        queued = true;
+      },
+      { passive: true },
+    );
+    update();
+  }
+  for (const button of document.querySelectorAll<HTMLButtonElement>(".copy-link")) {
+    button.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(button.dataset.url ?? location.href);
+        button.textContent = "Link copied";
+      } catch {
+        button.textContent = "Copy failed";
+      }
+      setTimeout(() => (button.textContent = "Copy link"), 1600);
+    });
+  }
+</script>

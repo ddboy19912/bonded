@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { describe, humanDates, resolveHref, transform } from "./transform.mjs";
+import { datedHash, describe, humanDates, resolveHref, transform } from "./transform.mjs";
 
 const REPO = "https://github.com/ddboy19912/bonded";
 const files = new Set([
@@ -99,6 +99,15 @@ test("a mention of an unpublished doc is dropped with its parenthetical", () => 
   assert.match(out, /Designed later as built\./);
 });
 
+test("a pointer to a section of the unpublished specification is dropped", () => {
+  const out = transform(
+    "# T\n\nThe rates are illustrative priors (specification Section 9.2). More.",
+    "docs/AGENTS.md",
+    ctx,
+  );
+  assert.match(out, /The rates are illustrative priors\. More\./);
+});
+
 test("description is the first paragraph without markup", () => {
   assert.equal(
     describe(["", "# T", "", "A **bold** [link](x) claim.", "", "More."]),
@@ -118,4 +127,13 @@ test("dates in prose read as dates, and code and links keep theirs", () => {
   );
   assert.match(out, /On October 4, 2026 \(`2026-10-04`, \[x\]\(https:\/\/e\.com\/2026-07-10-a\)\)/);
   assert.match(out, /```\n2026-10-04\n```/);
+});
+
+test("an anchor with a date in it matches the heading, which shows the date in words", () => {
+  assert.equal(datedHash("#rated-on-2026-10-19"), "#rated-on-october-19-2026");
+  assert.equal(datedHash("#no-date"), "#no-date");
+});
+
+test("a link to a dated heading on the same page is rewritten too", () => {
+  assert.equal(resolveHref("#rated-2026-10-19", "docs/AGENTS.md", ctx), "#rated-october-19-2026");
 });

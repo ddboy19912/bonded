@@ -1,0 +1,99 @@
+---
+// The page title, as on docs.busha.io and docs.hyperfx.finance: the group the page sits in above
+// it, and beside it "Copy page" (the whole page as Markdown) and an "Open" menu that shows the
+// Markdown or hands the page to ChatGPT, Claude or Perplexity.
+import { trail, type NavEntry } from "../lib/nav";
+
+const route = Astro.locals.starlightRoute;
+const eyebrow = trail(route.sidebar as NavEntry[]).at(-1);
+const id = (route.entry as { id: string }).id;
+const markdownPath = `/${id === "index" ? "index" : id}.md`;
+const markdownUrl = new URL(markdownPath, Astro.site).href;
+const ask = encodeURIComponent(
+  `Read ${markdownUrl} so I can ask questions about it. It is a page of the Bonded docs.`,
+);
+const open = [
+  { label: "View as Markdown", hint: "This page as plain text", href: markdownPath, icon: "md" },
+  { label: "Open in ChatGPT", hint: "Ask questions about this page", href: `https://chatgpt.com/?hints=search&q=${ask}`, icon: "gpt" },
+  { label: "Open in Claude", hint: "Ask questions about this page", href: `https://claude.ai/new?q=${ask}`, icon: "claude" },
+  { label: "Open in Perplexity", hint: "Ask questions about this page", href: `https://www.perplexity.ai/search/new?q=${ask}`, icon: "pplx" },
+];
+const ICONS: Record<string, string> = {
+  md: "M4 6h16v12H4zM7 15V9l2.5 3L12 9v6M16 9v6M14 13l2 2 2-2",
+  gpt: "M12 3a4 4 0 0 1 4 4v1.5l2.2 1.3a4 4 0 0 1-2 7.4M12 21a4 4 0 0 1-4-4v-1.5l-2.2-1.3a4 4 0 0 1 2-7.4M8 7.2 12 9.5l4-2.3M8 16.8l4-2.3 4 2.3",
+  claude: "M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4",
+  pplx: "M12 3v18M5 7h14v10H5zM5 7l7 5 7-5M5 17l7-5 7 5",
+};
+---
+
+<div class="bn-titlebar">
+  {eyebrow && <p class="bn-eyebrow">{eyebrow}</p>}
+  <div class="bn-titlerow">
+    <h1 id="_top">{route.entry.data.title}</h1>
+    <div class="bn-page-actions print:hidden">
+      <button class="bn-action bn-copy" type="button" data-src={markdownPath}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9h10v12H9zM5 15H4V3h11v1" /></svg>
+        <span>Copy page</span>
+      </button>
+      <details class="bn-open">
+        <summary class="bn-action">
+          Open
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5" /></svg>
+        </summary>
+        <ul class="bn-menu" role="list">
+          {
+            open.map((o) => (
+              <li>
+                <a href={o.href} target={o.icon === "md" ? undefined : "_blank"} rel="noopener">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d={ICONS[o.icon]} />
+                  </svg>
+                  <span>
+                    <b>{o.label}</b>
+                    <small>{o.hint}</small>
+                  </span>
+                  <span class="bn-menu-out" aria-hidden="true">↗</span>
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </details>
+    </div>
+  </div>
+</div>
+
+<script>
+  for (const button of document.querySelectorAll<HTMLButtonElement>(".bn-copy")) {
+    button.addEventListener("click", async () => {
+      const label = button.querySelector("span")!;
+      const text = fetch(button.dataset.src!).then((r) => {
+        if (!r.ok) throw new Error(`${r.status}`);
+        return r.text();
+      });
+      try {
+        // Safari only lets a click write to the clipboard if the write starts during the click,
+        // so the page is handed over as a promise rather than awaited first.
+        if (typeof ClipboardItem !== "undefined" && navigator.clipboard.write) {
+          const blob = text.then((t) => new Blob([t], { type: "text/plain" }));
+          await navigator.clipboard.write([new ClipboardItem({ "text/plain": blob })]);
+        } else {
+          await navigator.clipboard.writeText(await text);
+        }
+        label.textContent = "Copied";
+      } catch {
+        label.textContent = "Copy failed";
+      }
+      setTimeout(() => (label.textContent = "Copy page"), 1600);
+    });
+  }
+  // The Open menu closes on a click elsewhere or Escape.
+  for (const menu of document.querySelectorAll<HTMLDetailsElement>(".bn-open")) {
+    document.addEventListener("click", (e) => {
+      if (!menu.contains(e.target as Node)) menu.open = false;
+    });
+    menu.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") menu.open = false;
+    });
+  }
+</script>

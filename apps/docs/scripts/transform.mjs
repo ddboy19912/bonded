@@ -63,10 +63,10 @@ export function resolveHref(href, srcPath, ctx) {
   if (!loc) return null;
   if (loc.external) return loc.external;
   const { repoPath, hash } = loc;
-  if (href.startsWith("#")) return hash;
+  if (href.startsWith("#")) return datedHash(hash);
 
   const hit = ctx.targets.get(repoPath);
-  if (hit) return hit + hash;
+  if (hit) return hit + datedHash(hash);
   for (const { from, to } of ctx.evidence) {
     if (repoPath.startsWith(`${from}/`) && ctx.exists(repoPath)) {
       return `${BASE}/${to}/${repoPath.slice(from.length + 1)}`;
@@ -74,6 +74,17 @@ export function resolveHref(href, srcPath, ctx) {
   }
   if (isUnpublishedDoc(repoPath)) return null;
   return githubUrl(repoPath, ctx) ? githubUrl(repoPath, ctx) + hash : null;
+}
+
+/**
+ * Headings on the site show dates in words (humanDates), so their anchors do too: a link to
+ * `#rated-2026-10-19` has to point at `#rated-october-19-2026`.
+ */
+export function datedHash(hash) {
+  return hash.replace(
+    /\b(20\d{2})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])\b/g,
+    (all, y, m, d) => `${MONTHS[Number(m) - 1].toLowerCase()}-${Number(d)}-${y}`,
+  );
 }
 
 /** A page of the repo's `docs/` folder that the site doesn't carry: nothing to link to. */
@@ -185,8 +196,9 @@ function transformLine(line, srcPath, ctx) {
 }
 
 /**
- * Drop mentions of docs the site doesn't carry: a parenthetical that names such a file, and
- * decision record numbers (the decision records are not published).
+ * Drop mentions of docs the site doesn't carry: a parenthetical that names such a file, a
+ * pointer to a section of the product specification, and decision record numbers (neither the
+ * specification nor the decision records are published).
  */
 export function scrubReferences(line, ctx) {
   const filler = String.raw`(?:(?:see|in|code|e\.g\.|the code is|such as|for example)[: ]\s*)?`;
@@ -194,6 +206,11 @@ export function scrubReferences(line, ctx) {
   let out = line
     .replace(new RegExp(String.raw`\s*\(\s*${mark}\s*\)`, "g"), "")
     .replace(/\s*\((?:see |and )?\[?(?:ADR-\d+|decision records?)[^)]*\)/gi, "")
+    // The product specification is not published either: "(specification Section 9.2)" goes.
+    .replace(
+      /\s*\((?:see )?(?:the )?(?:product )?specification,? Sections? [\d.]+(?:\s*[–-]\s*[\d.]+)?\)/gi,
+      "",
+    )
     .replace(/[;,]? ?\b(?:see )?ADR-\d+(?:,? decision \d+)?(?= *[.;,)|])/gi, "");
   if (out.includes(REPO_MARK)) {
     ctx.leftovers?.push(line.replaceAll(REPO_MARK, "⟦path⟧").trim());

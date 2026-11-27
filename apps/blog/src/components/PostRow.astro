@@ -1,0 +1,35 @@
+---
+import { formatDate, readingTime, srcset, urlFor, type Post } from "../lib/sanity";
+
+// One post in the index: its number, its title set large, its tag and date. On a wide screen its
+// cover floats beside the pointer while the row is hovered; on a phone the cover sits above.
+interface Props {
+  post: Post;
+  number: number;
+}
+const { post, number } = Astro.props;
+const href = `${import.meta.env.BASE_URL}${post.slug}/`;
+---
+
+<li class="row">
+  <a href={href}>
+    <span class="row-n">{String(number).padStart(2, "0")}</span>
+    <span class="row-thumb" aria-hidden="true">
+      <img
+        src={urlFor(post.cover).width(640).height(336).fit("crop").url()}
+        srcset={srcset(post.cover, [480, 720])}
+        sizes="(max-width: 760px) 100vw, 360px"
+        alt=""
+        width="1600"
+        height="840"
+        loading="lazy"
+        decoding="async"
+      />
+    </span>
+    <span class="row-title">{post.title}</span>
+    <span class="row-meta">
+      {post.tags[0] && <span class="tag">{post.tags[0]}</span>}
+      <span>{formatDate(post.publishedAt)} · {readingTime(post)} min</span>
+    </span>
+  </a>
+</li>

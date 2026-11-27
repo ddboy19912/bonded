@@ -1,157 +1,702 @@
 /*
- * Aurora tokens from the web app (apps/web/src/index.css): a deep navy ground, Bonded blue for
- * the brand, Manrope for text, Instrument Serif for headings, JetBrains Mono for code. Dark only.
+ * The docs, laid out and sized as docs.busha.io and docs.hyperfx.finance: a two-row header (logo,
+ * search and the way into the app; then one tab per section), a sidebar holding only the current
+ * tab's section, the page in the middle with its title actions, and "On this page" on the right.
+ * Filled, bordered cards; a soft filled strip for the current page; a line with a marker for the
+ * heading you are reading. In Bonded's colours: a near-black ground, Geist, one blue. Dark only.
  */
 :root {
-  --bonded-paper: #05070d;
-  --bonded-surface: #0e1320;
-  --bonded-raised: #151b2b;
-  --bonded-line: rgb(255 255 255 / 0.08);
-  --bonded-line-strong: rgb(255 255 255 / 0.16);
-  --bonded-brand: #1d4ed8;
-  --bonded-brand-bright: #3c6bff;
-  --bonded-accent: #afc4ff;
-  --bonded-serif: "Instrument Serif", Georgia, serif;
+  --bn-bg: #0a0b0d;
+  --bn-card: #14161a;
+  --bn-raised: #1b1d22;
+  --bn-border: #25282e;
+  --bn-border-strong: #33363d;
+  --bn-text: #9aa1ad;
+  --bn-ink: #f0f1f3;
+  --bn-blue: #3c6bff;
+  --bn-soft: #9db5ff;
 
-  --sl-font: "Manrope Variable", "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --sl-font: "Geist Variable", "Geist", ui-sans-serif, system-ui, sans-serif;
   --sl-font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
 
-  --sl-color-white: #f4f6fb;
-  --sl-color-gray-1: #c7d2ee;
-  --sl-color-gray-2: #aab4cc;
-  --sl-color-gray-3: #8d96ab;
-  --sl-color-gray-4: #5b657c;
-  --sl-color-gray-5: #232a3d;
-  --sl-color-gray-6: #151b2b;
-  --sl-color-gray-7: #0e1320;
-  --sl-color-black: #05070d;
+  --sl-color-white: var(--bn-ink);
+  --sl-color-gray-1: #d2d5db;
+  --sl-color-gray-2: #aab0bb;
+  --sl-color-gray-3: var(--bn-text);
+  --sl-color-gray-4: #5d626b;
+  --sl-color-gray-5: var(--bn-border);
+  --sl-color-gray-6: var(--bn-raised);
+  --sl-color-gray-7: var(--bn-card);
+  --sl-color-black: var(--bn-bg);
 
-  --sl-color-accent-low: rgb(29 78 216 / 0.28);
-  --sl-color-accent: #3c6bff;
-  --sl-color-accent-high: #afc4ff;
+  --sl-color-accent-low: rgb(60 107 255 / 0.14);
+  --sl-color-accent: var(--bn-blue);
+  --sl-color-accent-high: var(--bn-soft);
 
-  --sl-color-bg: var(--bonded-paper);
-  --sl-color-bg-nav: rgb(5 7 13 / 0.78);
-  --sl-color-bg-sidebar: var(--bonded-paper);
-  --sl-color-bg-inline-code: rgb(127 160 255 / 0.12);
-  --sl-color-hairline-light: var(--bonded-line);
-  --sl-color-hairline: var(--bonded-line);
-  --sl-color-hairline-shade: var(--bonded-line);
-  --sl-color-text: #c7d2ee;
-  --sl-color-text-accent: #afc4ff;
+  --sl-color-bg: var(--bn-bg);
+  --sl-color-bg-nav: rgb(10 11 13 / 0.88);
+  --sl-color-bg-sidebar: var(--bn-bg);
+  --sl-color-bg-inline-code: var(--bn-raised);
+  --sl-color-hairline-light: var(--bn-border);
+  --sl-color-hairline: var(--bn-border);
+  --sl-color-hairline-shade: var(--bn-border);
+  --sl-color-text: var(--bn-text);
+  --sl-color-text-accent: var(--bn-soft);
 
+  --sl-text-h1: 1.875rem;
+  --sl-text-h2: 1.5rem;
+  --sl-text-h3: 1.2rem;
   --sl-content-width: 46rem;
-  --sl-nav-height: 4rem;
+  --sl-sidebar-width: 17.5rem;
+  /* Two rows: 64px for the logo, search and app link, 44px for the tabs. */
+  --bn-row: 4rem;
+  --bn-tabs: 2.75rem;
+  --sl-nav-height: calc(var(--bn-row) + var(--bn-tabs));
 
-  --ec-codeBg: #0a0e17;
-  --ec-frm-edBg: #0a0e17;
-  --ec-frm-trmBg: #0a0e17;
-  --ec-brdCol: var(--bonded-line);
-  --ec-brdRad: 0.9rem;
+  --ec-codeBg: var(--bn-card);
+  --ec-frm-edBg: var(--bn-card);
+  --ec-frm-trmBg: var(--bn-card);
+  --ec-brdCol: var(--bn-border);
+  --ec-brdRad: 12px;
 
   color-scheme: dark;
 }
 
 body {
-  background:
-    radial-gradient(60rem 28rem at 78% -8rem, rgb(60 107 255 / 0.16), transparent 70%),
-    radial-gradient(44rem 24rem at 6% -6rem, rgb(29 78 216 / 0.12), transparent 70%),
-    var(--bonded-paper);
-  background-repeat: no-repeat;
+  background: var(--bn-bg);
   -webkit-font-smoothing: antialiased;
 }
-
 ::selection {
   background: rgb(60 107 255 / 0.4);
 }
 
-/* Header: frosted, with a hairline. */
-header.header {
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border-bottom: 1px solid var(--bonded-line);
+/* ===================== Header ===================== */
+.page > header.header {
+  padding: 0 1.25rem;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.bn-header {
+  display: grid;
+  grid-template-rows: var(--bn-row) var(--bn-tabs);
+  height: 100%;
+}
+.bn-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 32rem) minmax(0, 1fr);
+  align-items: center;
+  gap: 1rem;
+}
+.bn-title {
+  min-width: 0;
 }
 .site-title img {
-  height: 1.9rem;
+  height: 24px;
   width: auto;
 }
+.bn-search {
+  display: flex;
+  justify-content: center;
+}
+.bn-search site-search {
+  width: 100%;
+}
+site-search button[data-open-modal] {
+  width: 100%;
+  max-width: none;
+  height: 2.25rem;
+  padding-inline: 0.75rem 0.4rem;
+  border: 1px solid var(--bn-border);
+  border-radius: 10px;
+  background: var(--bn-card);
+  color: var(--bn-text);
+  font-size: 0.875rem;
+}
+site-search button[data-open-modal]:hover {
+  border-color: var(--bn-border-strong);
+  color: var(--bn-ink);
+}
+site-search button[data-open-modal] kbd {
+  display: flex;
+  gap: 0.25rem;
+  background: transparent;
+  font-size: 0.75rem;
+}
+.bn-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1.25rem;
+}
+.bn-link {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--bn-text);
+  text-decoration: none;
+}
+.bn-link:hover {
+  color: var(--bn-ink);
+}
+/* The way into the app: white, as the landing page's Launch app. */
+.bn-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 2.25rem;
+  padding: 0 1rem;
+  border-radius: 999px;
+  background: var(--bn-ink);
+  color: #000;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+.bn-btn:hover {
+  background: #fff;
+}
+/* The tabs: one per section; the one you are on white, underlined in blue. */
+.bn-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 1.5rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.bn-tabs::-webkit-scrollbar {
+  display: none;
+}
+.bn-tabs a {
+  position: relative;
+  display: flex;
+  align-items: center;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--bn-text);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.2s;
+}
+.bn-tabs a:hover,
+.bn-tabs a[aria-current] {
+  color: var(--bn-ink);
+}
+.bn-tabs a[aria-current]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--bn-blue);
+}
+/* The phone menu button sits in the first row, not between the two. */
+.sl-menu-button {
+  top: calc((var(--bn-row) - var(--sl-menu-button-size)) / 2) !important;
+}
 
-/* Headings: serif display, like the app. */
-.sl-markdown-content h2,
-h1#_top {
-  font-family: var(--bonded-serif);
-  font-weight: 400;
-  letter-spacing: -0.01em;
+/* ===================== Sidebar ===================== */
+@media (min-width: 50rem) {
+  .sidebar-pane {
+    border-inline-end: 0 !important;
+  }
+}
+.sidebar-content {
+  padding: 1.5rem 1rem 2rem !important;
+  gap: 0 !important;
+}
+.bn-shortcuts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  list-style: none;
+}
+.bn-shortcuts a {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--bn-text);
+  text-decoration: none;
+  transition:
+    color 0.15s,
+    background 0.15s;
+}
+.bn-shortcuts a:hover {
+  background: rgb(255 255 255 / 0.04);
+  color: var(--bn-ink);
+}
+.bn-shortcut-icon {
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border: 1px solid var(--bn-border);
+  border-radius: 7px;
+  background: var(--bn-card);
+  color: var(--sl-color-gray-1);
+}
+.bn-mobile-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1.5rem;
+}
+.bn-mobile-tabs a {
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--bn-border);
+  border-radius: 999px;
+  background: var(--bn-card);
+  font-size: 0.8rem;
+  color: var(--bn-text);
+  text-decoration: none;
+}
+.bn-mobile-tabs a[aria-current] {
+  border-color: var(--bn-blue);
+  color: var(--bn-ink);
+}
+@media (min-width: 50rem) {
+  .bn-mobile-tabs {
+    display: none;
+  }
+}
+.bn-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bn-list > li + li {
+  margin-top: 1px;
+}
+.bn-list > li + .bn-group {
+  margin-top: 1.75rem;
+}
+/* A section's title: white and bold over its grey pages, so the two never read alike. */
+.bn-group-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.35rem;
+  padding: 0 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--bn-ink);
+}
+.bn-group-label::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--bn-border);
+}
+.bn-item {
+  display: block;
+  padding: 0.45rem 0.5rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  color: var(--bn-text);
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    background 0.15s;
+}
+.bn-item:hover {
+  background: rgb(255 255 255 / 0.04);
+  color: var(--bn-ink);
+}
+/* The page you are on: a soft filled strip, white text, as docs.hyperfx.finance. */
+.bn-item[aria-current="page"] {
+  background: rgb(255 255 255 / 0.08);
+  color: var(--bn-ink);
+  font-weight: 500;
+}
+.bn-list-nested .bn-list-nested {
+  margin: 1px 0 0 0.75rem;
+  padding-left: 0.5rem;
+  border-left: 1px solid var(--bn-border);
+}
+.bn-fold > summary {
+  list-style: none;
+}
+.bn-fold > summary::-webkit-details-marker {
+  display: none;
+}
+.bn-fold > summary::after {
+  content: "›";
+  float: right;
+  color: var(--sl-color-gray-4);
+  transition: transform 0.2s;
+}
+.bn-fold[open] > summary::after {
+  transform: rotate(90deg);
+}
+
+/* ===================== Page title and its actions ===================== */
+.bn-titlebar {
+  margin-top: 0.5rem;
+}
+.bn-eyebrow {
+  margin: 0 0 0.4rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--bn-soft);
+}
+.bn-titlerow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
 }
 h1#_top {
-  font-size: clamp(2.4rem, 5vw, 3.2rem);
-  line-height: 1.05;
+  margin: 0;
+  font-family: var(--sl-font);
+  font-size: var(--sl-text-h1);
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+  color: var(--bn-ink);
+  text-wrap: balance;
+}
+.bn-page-actions {
+  flex: none;
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+}
+.bn-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 1.9rem;
+  padding: 0 0.6rem;
+  border: 1px solid var(--bn-border);
+  border-radius: 7px;
+  background: var(--bn-raised);
+  color: var(--bn-ink);
+  font: 500 0.75rem/1 var(--sl-font);
+  cursor: pointer;
+  list-style: none;
+  transition: border-color 0.15s;
+}
+.bn-action::-webkit-details-marker {
+  display: none;
+}
+.bn-action:hover {
+  border-color: var(--bn-border-strong);
+}
+.bn-action svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.bn-open {
+  position: relative;
+}
+.bn-open[open] > .bn-action svg {
+  transform: rotate(180deg);
+}
+.bn-menu {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  width: 17rem;
+  margin: 0;
+  padding: 0.35rem;
+  list-style: none;
+  border: 1px solid var(--bn-border);
+  border-radius: 12px;
+  background: var(--bn-card);
+  box-shadow: 0 18px 50px rgb(0 0 0 / 0.55);
+}
+.bn-menu li {
+  margin: 0;
+}
+.bn-menu a {
+  display: grid;
+  grid-template-columns: 1.9rem 1fr auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem;
+  border-radius: 8px;
+  color: var(--bn-ink);
+  text-decoration: none;
+}
+.bn-menu a:hover {
+  background: rgb(255 255 255 / 0.05);
+}
+.bn-menu a > svg {
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0.4rem;
+  border: 1px solid var(--bn-border);
+  border-radius: 7px;
+  background: var(--bn-raised);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.bn-menu b {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 500;
+  line-height: 1.3;
+}
+.bn-menu small {
+  display: block;
+  font-size: 0.72rem;
+  line-height: 1.3;
+  color: var(--bn-text);
+}
+.bn-menu-out {
+  font-size: 0.8rem;
+  color: var(--bn-text);
+}
+/* The title's panel and the page under it read as one: no rule, little space between. */
+.content-panel:has(.bn-titlebar) {
+  padding-bottom: 0;
+}
+.content-panel + .content-panel {
+  border-top: 0;
+  padding-top: 0.6rem;
+}
+
+/* ===================== Content ===================== */
+.sl-markdown-content {
+  font-size: 1rem;
+  line-height: 1.75;
+}
+/* The first paragraph is the page's subtitle. */
+.sl-markdown-content > p:first-child {
+  margin-bottom: 1.6rem;
+  font-size: 1.125rem;
+  line-height: 1.6;
+  color: var(--bn-text);
+}
+.sl-markdown-content :is(h2, h3, h4) {
+  font-family: var(--sl-font);
+  font-weight: 500;
+  color: var(--bn-ink);
+  letter-spacing: -0.01em;
   text-wrap: balance;
 }
 .sl-markdown-content h2 {
-  font-size: 2rem;
+  margin-top: 2.75rem;
 }
-.sl-markdown-content h3 {
-  font-weight: 650;
-  letter-spacing: -0.005em;
+.sl-markdown-content strong {
+  color: var(--bn-ink);
+  font-weight: 600;
 }
 .sl-markdown-content p {
   text-wrap: pretty;
 }
-.sl-markdown-content a:not(.sl-link-button):not([class*="card"]) {
-  text-decoration-color: rgb(175 196 255 / 0.4);
+.sl-markdown-content a:not(.sl-link-button):not(.bn-card) {
+  color: var(--bn-ink);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: var(--bn-blue);
+  text-decoration-thickness: 1px;
   text-underline-offset: 3px;
 }
-.sl-markdown-content a:hover {
-  text-decoration-color: currentColor;
-}
-
-/* Sidebar */
-.sidebar-content a {
-  border-radius: 0.6rem;
-}
-.sidebar-content a[aria-current="page"] {
-  background: var(--sl-color-accent-low);
-  color: var(--bonded-accent);
-}
-
-/* Code */
-.expressive-code .frame {
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04);
+.sl-markdown-content a:not(.sl-link-button):not(.bn-card):hover {
+  text-decoration-thickness: 2px;
 }
 .sl-markdown-content :not(pre) > code {
-  border: 1px solid var(--bonded-line);
-  border-radius: 0.4rem;
-  font-size: 0.86em;
-  color: #dbe5ff;
+  border: 1px solid var(--bn-border);
+  border-radius: 6px;
+  padding: 0.1em 0.35em;
+  font-size: 0.85em;
+  color: var(--bn-ink);
 }
 
-/* Tables: the app's glass panel look. Each sits in a box that scrolls sideways if it must. */
+/* The home page's illustration: a rounded, bordered frame. */
+.bn-hero {
+  margin: 0 0 1.75rem;
+  overflow: hidden;
+  border: 1px solid var(--bn-border);
+  border-radius: 16px;
+  background: var(--bn-card);
+}
+.bn-hero img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 0;
+}
+
+/* Link cards: filled, bordered and rounded; an icon in a small box above a short title. */
+.bn-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+.sl-markdown-content .bn-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 1rem 1.1rem 1.1rem;
+  border: 1px solid var(--bn-border);
+  border-radius: 12px;
+  background: var(--bn-card);
+  color: var(--bn-ink);
+  text-decoration: none;
+  transition:
+    border-color 0.2s,
+    background 0.2s;
+}
+.sl-markdown-content .bn-card:hover {
+  border-color: var(--bn-border-strong);
+  background: var(--bn-raised);
+}
+.bn-card-icon {
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  margin-bottom: 0.6rem;
+  border: 1px solid var(--bn-border);
+  border-radius: 8px;
+  background: var(--bn-raised);
+  color: var(--bn-text);
+}
+.bn-card:hover .bn-card-icon {
+  color: var(--bn-soft);
+}
+.bn-card-title {
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.bn-card-body {
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--bn-text);
+}
+.bn-card-cta {
+  margin-top: 1rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--bn-ink);
+}
+/* Starlight's own cards, where pages still use them, in the same look. */
+.card,
+.sl-link-card {
+  border: 1px solid var(--bn-border);
+  border-radius: 12px;
+  background: var(--bn-card);
+  box-shadow: none;
+}
+.card .title,
+.sl-link-card .title {
+  font-weight: 500;
+}
+.card .icon {
+  border: 1px solid var(--bn-border);
+  border-radius: 8px;
+  background: var(--bn-raised);
+  color: var(--bn-text);
+}
+.sl-link-card:hover {
+  border-color: var(--bn-border-strong);
+  background: var(--bn-raised);
+}
+
+/* Numbered steps: a filled circle and a line down to the next. */
+.sl-steps > li::before {
+  background: var(--bn-raised) !important;
+  border: 1px solid var(--bn-border);
+  color: var(--bn-ink) !important;
+  font-weight: 500;
+}
+.sl-steps > li::after {
+  background: var(--bn-border) !important;
+}
+
+/* Tables. scripts/rehype-tables.mjs turns a table with sentences in it into a numbered list
+   (.bn-olist) and leaves short data as a table (.table-wrap). */
+
+/* A table with sentences in it: a numbered list, "1. Name: text". */
+.sl-markdown-content .bn-olist {
+  margin: 1.5rem 0;
+  padding-inline-start: 1.5rem;
+}
+.sl-markdown-content .bn-olist > li {
+  padding-inline-start: 0.25rem;
+  line-height: 1.7;
+}
+.sl-markdown-content .bn-olist > li + li {
+  margin-top: 0.75rem;
+}
+.sl-markdown-content .bn-olist > li::marker {
+  color: var(--sl-color-gray-3);
+  font-variant-numeric: tabular-nums;
+}
+.sl-markdown-content .bn-olist > li > strong {
+  color: var(--bn-ink);
+  font-weight: 600;
+}
+
+/* Short data: a real table. Quiet column names on a hairline, a hairline under each row, the
+   first column in white, numbers lined up. A wide one scrolls inside its own frame. */
 .table-wrap {
   overflow-x: auto;
-  margin: 1.5rem 0;
-  border: 1px solid var(--bonded-line);
-  border-radius: 1rem;
-  background: var(--bonded-surface);
+  margin: 1.75rem 0;
+  border: 1px solid var(--bn-border);
+  border-radius: 12px;
+  background: var(--bn-card);
 }
 .sl-markdown-content .table-wrap table {
   display: table;
   width: 100%;
   margin: 0;
   border: 0;
-  font-size: 0.9rem;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
 }
 .sl-markdown-content .table-wrap :is(th, td) {
-  border-color: var(--bonded-line);
-  padding: 0.6rem 0.9rem;
+  border: 0;
+  border-bottom: 1px solid var(--bn-border);
+  padding: 0.7rem 1rem;
   vertical-align: top;
+  background: transparent;
+  line-height: 1.5;
 }
-.sl-markdown-content .table-wrap thead {
-  background: var(--bonded-raised);
+.sl-markdown-content .table-wrap :is(td:first-child, td code) {
+  white-space: nowrap;
 }
 .sl-markdown-content .table-wrap th {
-  color: var(--sl-color-gray-1);
-  font-weight: 650;
+  padding-block: 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--sl-color-gray-3);
+  background: rgb(255 255 255 / 0.02);
+}
+.sl-markdown-content .table-wrap td {
+  color: var(--sl-color-gray-2);
+}
+.sl-markdown-content .table-wrap td:first-child {
+  color: var(--bn-ink);
+  font-weight: 500;
 }
 .sl-markdown-content .table-wrap tr:nth-child(2n) {
   background: transparent;
@@ -159,13 +704,15 @@ h1#_top {
 .sl-markdown-content .table-wrap tbody tr:last-child td {
   border-bottom: 0;
 }
+.sl-markdown-content .table-wrap tbody tr:hover td {
+  background: rgb(255 255 255 / 0.02);
+}
 
-/* Quotes */
+/* Quotes and asides */
 .sl-markdown-content blockquote {
-  border-inline-start: 3px solid var(--bonded-brand-bright);
-  background: rgb(127 160 255 / 0.06);
-  border-radius: 0 0.9rem 0.9rem 0;
-  padding: 0.7rem 1.1rem;
+  border-inline-start: 2px solid var(--bn-blue);
+  background: transparent;
+  padding: 0.2rem 0 0.2rem 1.1rem;
   color: var(--sl-color-gray-1);
 }
 .sl-markdown-content blockquote > :first-child {
@@ -174,13 +721,18 @@ h1#_top {
 .sl-markdown-content blockquote > :last-child {
   margin-bottom: 0;
 }
+.starlight-aside {
+  border: 1px solid var(--bn-border);
+  border-radius: 12px;
+  background: var(--bn-card);
+}
 
 /* Diagrams */
 pre.mermaid {
   position: relative;
-  background: var(--bonded-surface);
-  border: 1px solid var(--bonded-line);
-  border-radius: 1rem;
+  background: var(--bn-card);
+  border: 1px solid var(--bn-border);
+  border-radius: 12px;
   padding: 1.2rem;
   overflow-x: auto;
   text-align: center;
@@ -194,8 +746,8 @@ pre.mermaid::after {
   position: absolute;
   right: 0.8rem;
   bottom: 0.5rem;
-  font-size: 0.7rem;
-  color: var(--sl-color-gray-3);
+  font-size: 0.72rem;
+  color: var(--bn-text);
 }
 /* A diagram opened full screen, at its natural size. */
 .diagram-overlay {
@@ -204,7 +756,7 @@ pre.mermaid::after {
   z-index: 10000;
   overflow: auto;
   padding: 2rem;
-  background: rgb(5 7 13 / 0.97);
+  background: rgb(10 11 13 / 0.97);
   cursor: zoom-out;
 }
 .diagram-overlay svg {
@@ -214,12 +766,14 @@ pre.mermaid::after {
 
 /* Images in a page: click (or Tab, then Enter) to open them full screen. */
 .sl-markdown-content img {
-  border-radius: 0.75rem;
+  border-radius: 12px;
+}
+.sl-markdown-content img[role="button"] {
   cursor: zoom-in;
   transition: box-shadow 0.15s;
 }
-.sl-markdown-content img:hover,
-.sl-markdown-content img:focus-visible {
+.sl-markdown-content img[role="button"]:hover,
+.sl-markdown-content img[role="button"]:focus-visible {
   box-shadow: 0 0 0 1px rgb(60 107 255 / 0.55);
   outline: none;
 }
@@ -233,51 +787,148 @@ pre.mermaid::after {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
-  border-radius: 0.75rem;
+  border-radius: 12px;
   cursor: zoom-out;
 }
 
-/* Cards and buttons */
-.sl-link-button.primary {
-  background: var(--bonded-brand);
-  border-color: var(--bonded-brand-bright);
-  color: #fff;
-  font-weight: 650;
+/* Buttons */
+.sl-link-button {
+  border-radius: 999px;
+  font-weight: 500;
+  font-size: 0.875rem;
 }
-.sl-link-button.primary:hover {
-  background: var(--bonded-brand-bright);
+.sl-link-button.primary {
+  background: var(--bn-ink);
+  border-color: var(--bn-ink);
+  color: #000;
 }
 .sl-link-button.secondary {
-  border-color: var(--bonded-line-strong);
-  color: var(--sl-color-white);
-}
-.card,
-.sl-link-card {
-  background: var(--bonded-surface);
-  border-color: var(--bonded-line);
-  border-radius: 1.2rem;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04);
-  transition: border-color 0.15s;
-}
-.sl-link-card:hover {
-  border-color: rgb(60 107 255 / 0.55);
+  border-color: var(--bn-border-strong);
+  color: var(--bn-ink);
 }
 
-/* Landing hero */
-.hero h1 {
-  font-family: var(--bonded-serif);
-  font-weight: 400;
-  letter-spacing: -0.015em;
-  line-height: 1.02;
-  font-size: clamp(2.8rem, 8vw, 5rem);
+/* ===================== On this page ===================== */
+.right-sidebar {
+  border-inline-start: 0 !important;
 }
-.hero .tagline {
-  color: var(--sl-color-gray-2);
+starlight-toc nav {
+  padding-top: 0.5rem;
+}
+starlight-toc h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--bn-text);
+}
+starlight-toc h2::before {
+  content: "";
+  width: 0.9rem;
+  height: 0.9rem;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M4 6h16M4 12h10M4 18h13'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M4 6h16M4 12h10M4 18h13'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+/* The rail down the left of "On this page" (TableOfContents.astro, after Fumadocs' clerk
+   style): one path drawn twice, a quiet track and a blue copy clipped to the headings on
+   screen. The clip slides as you scroll. */
+:root {
+  --bn-toc-lit: #5b85ff;
+}
+starlight-toc nav > ul.bn-railed {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+starlight-toc ul.bn-railed li,
+starlight-toc ul.bn-railed ul {
+  position: static;
+}
+.bn-rail {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.bn-rail path {
+  fill: none;
+  stroke-width: 1;
+}
+.bn-rail-track path {
+  stroke: rgb(255 255 255 / 0.1);
+}
+.bn-rail-lit {
+  clip-path: polygon(0 0, 100% 0, 100% 0, 0 0);
+  transition: clip-path 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.bn-rail-lit path {
+  stroke: var(--bn-toc-lit);
+}
+starlight-toc a {
+  display: block;
+  padding: 0.375rem 0 0.375rem 20px;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--bn-text);
+  overflow-wrap: anywhere;
+  transition: color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+starlight-toc a:hover {
+  color: var(--bn-ink);
+}
+starlight-toc a[data-active] {
+  color: var(--bn-toc-lit);
 }
 
-/* Search */
-site-search button[data-open-modal] {
-  border-radius: 0.8rem;
-  border-color: var(--bonded-line-strong);
-  background: var(--bonded-surface);
+/* Previous and next page: cards. */
+.pagination-links a {
+  border: 1px solid var(--bn-border);
+  border-radius: 12px;
+  background: var(--bn-card);
+  box-shadow: none;
+}
+.pagination-links a:hover {
+  border-color: var(--bn-border-strong);
+  background: var(--bn-raised);
+}
+
+/* ===================== Phones ===================== */
+@media (max-width: 50rem) {
+  :root {
+    --bn-row: 3.6rem;
+    --bn-tabs: 2.75rem;
+  }
+  .bn-row {
+    grid-template-columns: auto minmax(0, 1fr);
+    padding-right: calc(var(--sl-menu-button-size) + 0.75rem);
+  }
+  .bn-right {
+    display: none;
+  }
+  .bn-search {
+    justify-content: flex-end;
+  }
+  .bn-cards {
+    grid-template-columns: 1fr;
+  }
+  .bn-titlerow {
+    flex-direction: column;
+  }
+  /* The menu hangs from the left of the button row, and never wider than the screen. */
+  .bn-page-actions {
+    position: relative;
+  }
+  .bn-open {
+    position: static;
+  }
+  .bn-menu {
+    right: auto;
+    left: 0;
+    width: min(17rem, calc(100vw - 2.5rem));
+  }
 }
