@@ -182,7 +182,8 @@ describe("RainbowKit wallet integration", () => {
     // The wallet's menu opens on any network. This wallet is Phantom, which can't add the
     // testnet, so the menu says so instead of offering a switch that can't work.
     fireEvent.click(screen.getByRole("button", { name: /0x00/i }));
-    expect(await screen.findByText("Another network")).toBeTruthy();
+    // It names the wallet's network, even one the app doesn't use.
+    expect(await screen.findByText("Ethereum")).toBeTruthy();
     expect(screen.getByText(/Phantom can't use Robinhood Chain testnet/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Switch to Robinhood Chain testnet" })).toBeNull();
     // A transaction still asks the wallet to switch first.

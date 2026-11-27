@@ -9,7 +9,7 @@ import { addressUrl, short } from "../lib/format";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import { copyText } from "./copy-button";
 import { wagmiConfig } from "../wagmi";
-import { ensureTestnet, isPhantom, networkNote } from "../lib/network";
+import { ensureTestnet, isPhantom, networkNote, useChainName } from "../lib/network";
 import { ErrorText, Input, TxLink, buttonClass } from "./ui";
 
 /**
@@ -39,6 +39,7 @@ function WalletMenu({ address }: { address: `0x${string}` }) {
   const [switching, setSwitching] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const onTestnet = chainId === robinhoodTestnet.id;
+  const network = useChainName(chainId);
   const phantom = isPhantom(connector);
   async function copy() {
     if (await copyText(address)) {
@@ -62,7 +63,7 @@ function WalletMenu({ address }: { address: `0x${string}` }) {
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label={`Wallet ${short(address)}${onTestnet ? "" : ", on another network"}`}
+          aria-label={`Wallet ${short(address)}, on ${network ?? "an unknown network"}`}
           className={`group inline-flex h-9 items-center gap-2.5 rounded-full pr-3 pl-1 text-ink shadow-[inset_0_0_0_1px_rgb(255_255_255/0.16)] transition hover:bg-white/[0.06] hover:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.3)] ${open ? "bg-white/[0.06]" : ""}`}
         >
           <WalletMark address={address} />
@@ -99,7 +100,7 @@ function WalletMenu({ address }: { address: `0x${string}` }) {
               aria-hidden
               className={`size-1.5 rounded-full ${onTestnet ? "bg-brand-bright" : "bg-warn"}`}
             />
-            {onTestnet ? robinhoodTestnet.name : "Another network"}
+            {network ?? "Unknown network"}
           </p>
           {!onTestnet && (
             <>

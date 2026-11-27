@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { getAccount, switchChain } from "wagmi/actions";
 import { networkName, robinhoodTestnet } from "../config";
 import { wagmiConfig } from "../wagmi";
@@ -57,4 +58,37 @@ export async function ensureTestnet(): Promise<void> {
       `Your wallet couldn't switch to ${networkName}. Add it in your wallet (chain id ${robinhoodTestnet.id}) or use Rabby or MetaMask, then try again.`,
     );
   }
+}
+
+/** Chain names by id, from viem's chain list. Loaded once, and only when a wallet is off the testnet. */
+let names: Promise<Map<number, string>> | undefined;
+const loadNames = () =>
+  (names ??= import("viem/chains").then(
+    (all) =>
+      new Map(
+        (Object.values(all) as unknown[])
+          .filter(
+            (c): c is { id: number; name: string } =>
+              typeof c === "object" && c !== null && "id" in c && "name" in c,
+          )
+          .map((c) => [c.id, c.name] as const),
+      ),
+  ));
+
+/** The name of the network the wallet is on: "Ethereum", "Base"… or "Chain 1234" if it isn't a known one. */
+export function useChainName(chainId: number | undefined): string | undefined {
+  const known = chainId === robinhoodTestnet.id ? robinhoodTestnet.name : undefined;
+  const [found, setFound] = useState<{ id: number; name: string }>();
+  useEffect(() => {
+    if (chainId === undefined || known) return;
+    let live = true;
+    void loadNames().then(
+      (m) => live && setFound({ id: chainId, name: m.get(chainId) ?? `Chain ${chainId}` }),
+    );
+    return () => {
+      live = false;
+    };
+  }, [chainId, known]);
+  if (chainId === undefined) return undefined;
+  return known ?? (found?.id === chainId ? found.name : `Chain ${chainId}`);
 }
