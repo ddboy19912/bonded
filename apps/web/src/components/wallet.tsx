@@ -9,12 +9,13 @@ import { addressUrl, short } from "../lib/format";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import { copyText } from "./copy-button";
 import { wagmiConfig } from "../wagmi";
-import { ensureTestnet, isPhantom, networkNote, useChainName } from "../lib/network";
+import { ensureTestnet, networkDetails, networkNote, useChainName } from "../lib/network";
+import { NetworkLogo, WalletAvatar, useWalletIcon } from "./wallet-identity";
 import { ErrorText, Input, TxLink, buttonClass } from "./ui";
 
 /**
- * The wallet in the header: "Connect wallet", or the connected wallet as a pill (a network dot and
- * the short address) that opens our own account menu. RainbowKit's account modal refuses to open
+ * The wallet in the header: "Connect wallet", or the connected wallet as a pill (its avatar, the
+ * short address and the network's logo) that opens our own account menu. RainbowKit's account modal refuses to open
  * while the wallet is on a network the app doesn't use, so the menu is ours: it works on any
  * network, and offers the switch from there. Transactions ask for the network themselves
  * (lib/network.ts), so a wallet used only to sign in is never flagged.
@@ -38,9 +39,10 @@ function WalletMenu({ address }: { address: `0x${string}` }) {
   const [copied, setCopied] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const [byHand, setByHand] = useState(false);
   const onTestnet = chainId === robinhoodTestnet.id;
   const network = useChainName(chainId);
-  const phantom = isPhantom(connector);
+  const walletIcon = useWalletIcon(connector);
   async function copy() {
     if (await copyText(address)) {
       setCopied(true);
@@ -53,34 +55,49 @@ function WalletMenu({ address }: { address: `0x${string}` }) {
     try {
       await ensureTestnet();
     } catch (e) {
-      setProblem(e instanceof Error ? e.message : String(e));
+      const message = e instanceof Error ? e.message : String(e);
+      // The details are right below here, so the menu says so instead of pointing to itself.
+      const cantAdd = /by hand/.test(message);
+      setProblem(
+        cantAdd
+          ? `${message.split(". ")[0]}. Add it by hand with the details below, or use Rabby or MetaMask.`
+          : message,
+      );
+      setByHand(cantAdd);
     } finally {
       setSwitching(false);
     }
   }
   return (
-    <Popover open={open} onOpenChange={(o) => (setOpen(o), setProblem(null))}>
+    <Popover open={open} onOpenChange={(o) => (setOpen(o), setProblem(null), setByHand(false))}>
       <PopoverTrigger asChild>
         <button
           type="button"
           aria-label={`Wallet ${short(address)}, on ${network ?? "an unknown network"}`}
-          className={`group inline-flex h-9 items-center gap-2.5 rounded-full pr-3 pl-1 text-ink shadow-[inset_0_0_0_1px_rgb(255_255_255/0.16)] transition hover:bg-white/[0.06] hover:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.3)] ${open ? "bg-white/[0.06]" : ""}`}
+          className={`group inline-flex h-9 items-center gap-2.5 rounded-full pr-2.5 pl-1 text-ink shadow-[inset_0_0_0_1px_rgb(255_255_255/0.16)] transition hover:bg-white/[0.06] hover:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.3)] ${open ? "bg-white/[0.06]" : ""}`}
         >
-          <WalletMark address={address} />
+          <WalletAvatar address={address} size={28} />
           <span className="font-mono text-[13px] tracking-tight">{short(address)}</span>
           <span
-            aria-hidden
-            className={`size-1.5 rounded-full ${onTestnet ? "bg-brand-bright" : "bg-warn"}`}
-          />
+            title={network}
+            className={`rounded-full ${onTestnet ? "" : "ring-1 ring-warn ring-offset-1 ring-offset-paper"}`}
+          >
+            <NetworkLogo chainId={chainId} name={network} size={16} />
+          </span>
         </button>
       </PopoverTrigger>
       <PopoverContent
         align="end"
         sideOffset={10}
-        className="w-80 rounded-2xl border-line-strong bg-surface p-0 shadow-(--shadow-raised)"
+        className="w-[21.5rem] rounded-2xl border-line-strong bg-surface p-0 shadow-(--shadow-raised)"
       >
-        <div className="flex items-center gap-3 p-5 pb-4">
-          <WalletMark address={address} large />
+        <div className="flex items-center gap-3.5 p-5 pb-4">
+          <WalletAvatar
+            address={address}
+            size={44}
+            walletIcon={walletIcon}
+            walletName={connector?.name}
+          />
           <div className="min-w-0 flex-1">
             <p className="eyebrow">{connector?.name ?? "Wallet"}</p>
             <p className="mt-1 font-mono text-[15px] text-ink">{short(address, 6)}</p>
@@ -94,36 +111,51 @@ function WalletMenu({ address }: { address: `0x${string}` }) {
           </button>
         </div>
         <div className="border-t border-line px-5 py-4">
-          <p className="eyebrow">Network</p>
-          <p className="mt-2 flex items-center gap-2 text-[14px]">
-            <span
-              aria-hidden
-              className={`size-1.5 rounded-full ${onTestnet ? "bg-brand-bright" : "bg-warn"}`}
-            />
+          <div className="flex items-baseline justify-between">
+            <p className="eyebrow">Network</p>
+            <p className={`text-[12px] ${onTestnet ? "text-brand-bright" : "text-warn"}`}>
+              {onTestnet ? "Ready for transactions" : "Not used here"}
+            </p>
+          </div>
+          <p className="mt-3 flex items-center gap-2.5 text-[15px] text-ink">
+            <NetworkLogo chainId={chainId} name={network} size={22} />
             {network ?? "Unknown network"}
           </p>
           {!onTestnet && (
             <>
-              <p className="mt-2 text-[13px] leading-relaxed text-muted">
-                {phantom
-                  ? "Phantom can't use Robinhood Chain testnet. Signing in works; for vaults and cover, connect Rabby or MetaMask."
-                  : "Signing in works on any network. Vaults, cover and bonds need Robinhood Chain testnet."}
+              <p className="mt-3 text-[13px] leading-relaxed text-muted">
+                Signing in works on any network. Vaults, cover and bonds need{" "}
+                {robinhoodTestnet.name}.
               </p>
-              {!phantom && (
-                <button
-                  type="button"
-                  onClick={moveToTestnet}
-                  disabled={switching}
-                  className={`${buttonClass("primary", "sm")} mt-3 w-full`}
-                >
-                  {switching ? "Check your wallet…" : "Switch to Robinhood Chain testnet"}
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={moveToTestnet}
+                disabled={switching}
+                className={`${buttonClass("primary", "sm")} mt-3.5 w-full gap-2`}
+              >
+                <NetworkLogo chainId={robinhoodTestnet.id} size={16} />
+                {switching ? "Check your wallet…" : `Switch to ${robinhoodTestnet.name}`}
+              </button>
               {problem && (
-                <p role="alert" className="mt-2 text-[13px] text-breach">
+                <p role="alert" className="mt-3 text-[13px] leading-relaxed text-breach">
                   {problem}
                 </p>
               )}
+              <button
+                type="button"
+                aria-expanded={byHand}
+                onClick={() => setByHand((v) => !v)}
+                className="mt-3 flex w-full items-center justify-between text-[12.5px] text-muted transition hover:text-ink"
+              >
+                Add the network by hand
+                <span
+                  aria-hidden
+                  className={`inline-block font-mono text-[15px] leading-none transition-transform ${byHand ? "rotate-45" : ""}`}
+                >
+                  +
+                </span>
+              </button>
+              {byHand && <NetworkDetails />}
             </>
           )}
         </div>
@@ -153,39 +185,41 @@ function WalletMenu({ address }: { address: `0x${string}` }) {
   );
 }
 
-/** A small mark drawn from the address, so two wallets look different at a glance. */
-function WalletMark({ address, large = false }: { address: string; large?: boolean }) {
-  const n = parseInt(address.slice(2, 10), 16);
-  const hues = ["#3c6bff", "#9db5ff", "#ff7a45", "#ffb347", "#c9ccd3"];
-  const a = hues[n % hues.length]!;
-  const b = hues[(n >> 3) % hues.length]!;
-  const turn = (n >> 6) % 4;
+/** Robinhood Chain testnet's details, each with its own copy button, for adding it by hand. */
+function NetworkDetails() {
+  const [copied, setCopied] = useState<string>();
+  async function copy(label: string, value: string) {
+    if (await copyText(value)) {
+      setCopied(label);
+      setTimeout(() => setCopied((c) => (c === label ? undefined : c)), 1600);
+    }
+  }
   return (
-    <span
-      aria-hidden
-      className={`relative inline-block shrink-0 overflow-hidden rounded-full ${large ? "size-10" : "size-7"}`}
-      style={{ background: a }}
-    >
-      <span
-        className="absolute inset-0"
-        style={{
-          background: b,
-          clipPath: [
-            "inset(0 50% 0 0)",
-            "inset(50% 0 0 0)",
-            "inset(0 0 0 50%)",
-            "inset(0 0 50% 0)",
-          ][turn],
-        }}
-      />
-    </span>
+    <dl className="mt-2 divide-y divide-line border-y border-line">
+      {networkDetails().map(({ label, value }) => (
+        <div key={label} className="flex items-center gap-3 py-2">
+          <dt className="w-24 shrink-0 text-[12px] text-muted">{label}</dt>
+          <dd className="min-w-0 flex-1 truncate font-mono text-[12px] text-soft" title={value}>
+            {value}
+          </dd>
+          <button
+            type="button"
+            onClick={() => copy(label, value)}
+            aria-label={`Copy ${label}`}
+            className="shrink-0 font-mono text-[11px] text-muted transition hover:text-ink"
+          >
+            {copied === label ? "Copied" : "Copy"}
+          </button>
+        </div>
+      ))}
+    </dl>
   );
 }
 
 /** Beside an on-chain action: a line when the wallet is on another network, else nothing. */
 export function NetworkNote() {
-  const { chainId, connector } = useAccount();
-  const note = networkNote(chainId, connector);
+  const { chainId } = useAccount();
+  const note = networkNote(chainId);
   return note ? (
     <p role="status" className="border-l-2 border-warn/60 pl-3 text-[13px] text-soft">
       {note}

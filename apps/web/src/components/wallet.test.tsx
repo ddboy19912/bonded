@@ -3,7 +3,6 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RainbowKitProvider } from "@rainbow-me/rainbowkit";
 import { WagmiProvider } from "wagmi";
-import { connect } from "wagmi/actions";
 import { wagmiConfig } from "../wagmi";
 import { robinhoodTestnet } from "../config";
 import { ConnectButton } from "./wallet";
@@ -44,7 +43,6 @@ const { provider, genericRequest, emit } = vi.hoisted(() => {
 });
 
 const address = "0x0000000000000000000000000000000000000001";
-const phantom = () => wagmiConfig.connectors.find((connector) => connector.name === "Phantom")!;
 let client: QueryClient;
 
 function renderWallet() {
@@ -154,7 +152,7 @@ describe("RainbowKit wallet integration", () => {
     expect(wagmiConfig.state.status).toBe("disconnected");
   });
 
-  it("shows the address on another network, and switches only when a transaction asks", async () => {
+  it("connects on any network without asking to switch, and names the network", async () => {
     let chainId = "0x1";
     provider.request.mockImplementation(
       async ({ method, params }: { method: string; params?: { chainId: string }[] }) => {
@@ -170,32 +168,29 @@ describe("RainbowKit wallet integration", () => {
       },
     );
     renderWallet();
-    await act(async () => {
-      await connect(wagmiConfig, { connector: phantom() });
-    });
-    // On Ethereum, the header still shows the wallet, never a "Wrong network" alarm.
-    expect(await screen.findByRole("button", { name: /0x00/i })).toBeTruthy();
-    expect(screen.queryByText(/wrong network/i)).toBeNull();
+    // Through RainbowKit's own picker, which asks for the testnet at connect.
+    await selectPhantom();
+    await waitFor(() => expect(wagmiConfig.state.status).toBe("connected"));
     expect(
       provider.request.mock.calls.some(([a]) => a.method === "wallet_switchEthereumChain"),
     ).toBe(false);
-    // The wallet's menu opens on any network. This wallet is Phantom, which can't add the
-    // testnet, so the menu says so instead of offering a switch that can't work.
+    // On Ethereum, the header still shows the wallet, never a "Wrong network" alarm.
+    expect(await screen.findByRole("button", { name: /0x00.*on Ethereum/i })).toBeTruthy();
+    expect(screen.queryByText(/wrong network/i)).toBeNull();
+    // The menu opens on any network, names it, and offers the switch.
     fireEvent.click(screen.getByRole("button", { name: /0x00/i }));
-    // It names the wallet's network, even one the app doesn't use.
     expect(await screen.findByText("Ethereum")).toBeTruthy();
-    expect(screen.getByText(/Phantom can't use Robinhood Chain testnet/)).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Switch to Robinhood Chain testnet" })).toBeNull();
-    // A transaction still asks the wallet to switch first.
-    await act(async () => {
-      await ensureTestnet();
-    });
-    expect(wagmiConfig.state.connections.get(wagmiConfig.state.current!)?.chainId).toBe(
-      robinhoodTestnet.id,
+    expect(screen.getByText("Not used here")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Switch to Robinhood Chain testnet/i }));
+    await waitFor(() =>
+      expect(wagmiConfig.state.connections.get(wagmiConfig.state.current!)?.chainId).toBe(
+        robinhoodTestnet.id,
+      ),
     );
+    expect(await screen.findByText("Ready for transactions")).toBeTruthy();
   });
 
-  it("says plainly when Phantom can't reach the testnet", async () => {
+  it("still connects when the wallet can't add the testnet, and gives the details to add it by hand", async () => {
     provider.request.mockImplementation(async ({ method }: { method: string }) => {
       if (method === "eth_chainId") return "0x1";
       if (method === "eth_accounts") return [address];
@@ -205,9 +200,18 @@ describe("RainbowKit wallet integration", () => {
       throw new Error(`Unexpected wallet request: ${method}`);
     });
     renderWallet();
-    await act(async () => {
-      await connect(wagmiConfig, { connector: phantom() });
-    });
-    await expect(ensureTestnet()).rejects.toThrow(/Phantom can't use Robinhood Chain testnet/);
+    await selectPhantom();
+    await waitFor(() => expect(wagmiConfig.state.status).toBe("connected"));
+    await expect(ensureTestnet()).rejects.toThrow(
+      /Phantom didn't switch to Robinhood Chain testnet/,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /0x00/i }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Switch to Robinhood Chain testnet/i }),
+    );
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(screen.getByText(String(robinhoodTestnet.id))).toBeTruthy();
+    expect(screen.getByText(robinhoodTestnet.rpcUrls.default.http[0]!)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Copy RPC URL" })).toBeTruthy();
   });
 });

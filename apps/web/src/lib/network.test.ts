@@ -1,25 +1,42 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { robinhoodTestnet } from "../config";
-import { isPhantom, networkNote, useChainName } from "./network";
+import { chainLogo } from "./chain-logos";
+import { isPhantom, networkDetails, networkNote, useChainName } from "./network";
 
 describe("the network note beside an on-chain action", () => {
   it("says nothing on the testnet or with no wallet", () => {
-    expect(networkNote(robinhoodTestnet.id, { name: "Rabby Wallet" })).toBeNull();
-    expect(networkNote(undefined, null)).toBeNull();
+    expect(networkNote(robinhoodTestnet.id)).toBeNull();
+    expect(networkNote(undefined)).toBeNull();
   });
 
   it("says the wallet will be asked to switch when it is on another network", () => {
-    expect(networkNote(1, { id: "io.rabby", name: "Rabby Wallet" })).toMatch(
-      /ask to switch to Robinhood Chain testnet/,
-    );
+    expect(networkNote(1)).toMatch(/ask to switch to Robinhood Chain testnet/);
   });
 
-  it("tells a Phantom user to use another wallet, since Phantom can't add the testnet", () => {
+  it("recognises Phantom, whose failed switches read as refusals", () => {
     expect(isPhantom({ id: "app.phantom", name: "Phantom" })).toBe(true);
-    expect(networkNote(1, { id: "app.phantom", name: "Phantom" })).toMatch(
-      /Phantom can't use Robinhood Chain testnet\. Connect Rabby or MetaMask/,
-    );
+    expect(isPhantom({ id: "io.rabby", name: "Rabby Wallet" })).toBe(false);
+  });
+});
+
+describe("the details for adding the testnet by hand", () => {
+  it("lists the name, RPC URL, chain id and currency", () => {
+    const details = Object.fromEntries(networkDetails().map((d) => [d.label, d.value]));
+    expect(details["Network name"]).toBe(robinhoodTestnet.name);
+    expect(details["RPC URL"]).toBe(robinhoodTestnet.rpcUrls.default.http[0]);
+    expect(details["Chain ID"]).toBe(String(robinhoodTestnet.id));
+    expect(details["Currency"]).toBe("ETH");
+  });
+});
+
+describe("network logos", () => {
+  it("has a logo for the testnet and common networks, none for unknown ones", () => {
+    expect(chainLogo(robinhoodTestnet.id)).toMatch(/robinhood\.svg$/);
+    expect(chainLogo(1)).toMatch(/ethereum\.svg$/);
+    expect(chainLogo(8453)).toMatch(/base\.svg$/);
+    expect(chainLogo(987654321)).toBeUndefined();
+    expect(chainLogo(undefined)).toBeUndefined();
   });
 });
 
