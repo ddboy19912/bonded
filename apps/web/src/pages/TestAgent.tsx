@@ -7,7 +7,8 @@ import {
   type InfiniteData,
 } from "@tanstack/react-query";
 import { useAccount, useSignMessage } from "wagmi";
-import { Check, Info } from "lucide-react";
+import { Check, Cpu, Gift, Lock, Scale } from "lucide-react";
+import { ResponsiveModal } from "../components/responsive-modal";
 import type { RemoteMode } from "@bondedhq/shared";
 import { deployment } from "../config";
 import { ApiError } from "../lib/api";
@@ -76,7 +77,6 @@ import {
   MoreLink,
   Note,
   Page,
-  Tooltip,
   Unavailable,
   linkClass,
 } from "../components/ui";
@@ -166,6 +166,7 @@ export function TestAgent() {
   const [toolNames, setToolNames] = useState<PreviewToolNames>("bonded");
   const [framework, setFramework] = useFramework();
   const [changing, setChanging] = useState(false);
+  const [about, setAbout] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<unknown>(null);
   const [starting, setStarting] = useState(false);
@@ -434,8 +435,17 @@ export function TestAgent() {
       intro={
         <>
           See how your agent holds up against Bonded&apos;s red team. It&apos;s free: sign in with
-          your email.
-          <PreviewFacts
+          your email.{" "}
+          <button
+            type="button"
+            onClick={() => setAbout(true)}
+            className="text-soft underline decoration-muted/60 underline-offset-4 transition hover:text-ink hover:decoration-ink"
+          >
+            What&apos;s a preview?
+          </button>
+          <PreviewInfo
+            open={about}
+            onOpenChange={setAbout}
             hosted={(changing ? connection : (p?.connection ?? connection)) === "hosted"}
             plan={plan}
           />
@@ -871,47 +881,76 @@ export function TestAgent() {
 }
 
 /**
- * What a preview is, in one quiet line under the intro: private, free, and who pays for the model,
- * with the detail (how much of an official rating it runs) on hover of the last item.
+ * What a preview is, opened from "What's a preview?" under the intro: a few short lines, each with
+ * a mark, then the way to the official rating.
  */
-function PreviewFacts({
+function PreviewInfo({
+  open,
+  onOpenChange,
   hosted,
   plan,
 }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   hosted: boolean;
   plan: { episodes: number; budgetSeconds: number } | null | undefined;
 }) {
-  const facts = [
-    "Private: only you see it",
-    "Free, a few a day",
-    hosted ? "Bonded pays for the model" : "Your model, your bill",
+  const items = [
+    {
+      icon: Lock,
+      title: "Private",
+      line: "Only you see it, unless you make a link to share it. It's never published or put on chain.",
+    },
+    {
+      icon: Scale,
+      title: "Scored like an official rating",
+      line: `The same attacks and the same judge, only shorter${plan ? `: up to ${plan.episodes} episodes, ${duration(plan.budgetSeconds)} at most` : ""}.`,
+    },
+    {
+      icon: Gift,
+      title: "Free, a few a day",
+      line: "Previews run one at a time, after official ratings.",
+    },
+    {
+      icon: Cpu,
+      title: hosted ? "Bonded pays for the model" : "Your model, your bill",
+      line: hosted
+        ? "Bonded runs your agent on its own servers, on the model you pick."
+        : "Bonded runs the attacks; your agent's own model calls are yours.",
+    },
   ];
   return (
-    <span className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[12.5px] text-muted">
-      {facts.map((f) => (
-        <span key={f} className="inline-flex items-center gap-2">
-          <span aria-hidden className="size-1 rounded-full bg-brand-bright" />
-          {f}
-        </span>
-      ))}
-      <Tooltip
-        content={
-          <>
-            A preview is a shorter official rating, scored the same way by the same judge
-            {plan
-              ? `: up to ${plan.episodes} episodes, ${duration(plan.budgetSeconds)} at most`
-              : ""}
-            . It isn&apos;t published or put on chain. Previews run one at a time, after official
-            ratings.
-          </>
-        }
-      >
-        <span className="inline-flex cursor-help items-center gap-1.5 text-soft underline decoration-muted/50 decoration-dotted underline-offset-4">
-          What&apos;s a preview
-          <Info aria-hidden className="size-3.5" strokeWidth={2} />
-        </span>
-      </Tooltip>
-    </span>
+    <ResponsiveModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title="What's a preview?"
+      description="A free, private test of your agent against Bonded's red team."
+    >
+      <div className="flex flex-col gap-8">
+        <ul className="flex flex-col gap-5">
+          {items.map(({ icon: Icon, title, line }) => (
+            <li key={title} className="flex gap-4">
+              <span
+                aria-hidden
+                className="grid size-9 shrink-0 place-items-center rounded-xl bg-white/[0.05] text-soft"
+              >
+                <Icon className="size-[18px]" strokeWidth={1.75} />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[15px] font-medium text-ink">{title}</span>
+                <span className="mt-0.5 block text-[14px] leading-relaxed text-muted">{line}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+        <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line pt-5">
+          <MoreLink to="/agents/new">Make it official instead</MoreLink>
+          <Button size="sm" onClick={() => onOpenChange(false)}>
+            Got it
+          </Button>
+        </div>
+      </div>
+    </ResponsiveModal>
   );
 }
 
@@ -998,7 +1037,7 @@ function FlowStep({
     >
       <span aria-hidden className="relative flex justify-center">
         <span
-          className={`relative z-[1] grid size-9 place-items-center rounded-full font-mono text-[12px] tabular-nums transition-all duration-500 ${done ? "bg-brand-bright text-white" : current ? "bg-brand-bright/12 text-ink shadow-[inset_0_0_0_1.5px_var(--color-brand-bright),0_0_0_6px_rgb(60_107_255/0.1)]" : "text-dim shadow-[inset_0_0_0_1px_rgb(255_255_255/0.14)]"}`}
+          className={`relative z-[1] grid size-9 place-items-center rounded-full font-mono text-[12px] tabular-nums transition-all duration-500 ${done ? "bg-safe text-paper" : current ? "bg-brand-bright/12 text-ink shadow-[inset_0_0_0_1.5px_var(--color-brand-bright),0_0_0_6px_rgb(60_107_255/0.1)]" : "text-dim shadow-[inset_0_0_0_1px_rgb(255_255_255/0.14)]"}`}
         >
           {done ? (
             <Check
@@ -1011,7 +1050,7 @@ function FlowStep({
         </span>
         {!last && (
           <span
-            className={`absolute top-11 bottom-2 w-px transition-colors duration-700 ${done ? "bg-brand-bright/55" : "bg-line"}`}
+            className={`absolute top-11 bottom-2 w-px transition-colors duration-700 ${done ? "bg-safe/45" : "bg-line"}`}
           />
         )}
       </span>

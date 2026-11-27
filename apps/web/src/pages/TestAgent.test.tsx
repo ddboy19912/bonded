@@ -109,7 +109,7 @@ afterEach(() => {
 });
 
 describe("Test your agent", () => {
-  it("starts with one Sign in button, and shows the whole path", () => {
+  it("starts with one Sign in button, and shows the whole path", async () => {
     wallet.address = undefined;
     show();
     expect(within(current()).getByText(/your email, a passkey or a crypto wallet/)).toBeTruthy();
@@ -126,26 +126,25 @@ describe("Test your agent", () => {
       "Your preview report",
     ])
       expect(screen.getByRole("heading", { name: new RegExp(title) })).toBeTruthy();
-    // What a preview is, in one line under the intro, with the detail on hover.
-    expect(screen.getByText("Private: only you see it")).toBeTruthy();
-    expect(screen.getByText("Free, a few a day")).toBeTruthy();
-    fireEvent.mouseEnter(screen.getByText(/What's a preview/));
-    expect(screen.getByRole("tooltip").textContent).toMatch(/isn't published or put on chain/);
+    // What a preview is opens in a modal from the intro.
+    fireEvent.click(screen.getByRole("button", { name: "What's a preview?" }));
+    const about = await screen.findByRole("dialog", { name: "What's a preview?" });
+    expect(within(about).getByText("Private")).toBeTruthy();
+    expect(within(about).getByText(/never published or put on chain/)).toBeTruthy();
   });
 
   it("says how big a preview is from the API's plan, and nothing when it has none", async () => {
     show();
     await waitFor(() => expect(byoaApi.previewAllowance).toHaveBeenCalled());
-    await waitFor(() => {
-      fireEvent.mouseEnter(screen.getByText(/What's a preview/));
-      expect(screen.getByRole("tooltip").textContent).toMatch(/up to 56 episodes, 37 min at most/);
-    });
+    fireEvent.click(screen.getByRole("button", { name: "What's a preview?" }));
+    expect(await screen.findByText(/up to 56 episodes, 37 min at most/)).toBeTruthy();
     cleanup();
     vi.mocked(byoaApi.previewAllowance).mockResolvedValue({ allowed: true, queued: 0, plan: null });
     show();
     await waitFor(() => expect(byoaApi.previewAllowance).toHaveBeenCalledTimes(2));
-    fireEvent.mouseEnter(screen.getByText(/What's a preview/));
-    expect(screen.getByRole("tooltip").textContent).not.toMatch(/episodes|min at most/);
+    fireEvent.click(screen.getByRole("button", { name: "What's a preview?" }));
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+    expect(screen.queryByText(/episodes, .* at most/)).toBeNull();
   });
 
   it("signs in with an email code, with no wallet at all, as the account", async () => {
@@ -367,8 +366,9 @@ describe("Test your agent", () => {
     await waitFor(() =>
       expect(check).toHaveBeenCalledWith({ kind: "preview", id: "ph" }, { session: "sess" }),
     );
-    // Bonded pays for its model, and the page says so.
-    expect(screen.getByText("Bonded pays for the model")).toBeTruthy();
+    // Bonded pays for its model, and "What's a preview?" says so.
+    fireEvent.click(screen.getByRole("button", { name: "What's a preview?" }));
+    expect(await screen.findByText("Bonded pays for the model")).toBeTruthy();
   });
 
   it("asks for the daily preview of the world being chosen", async () => {
@@ -548,10 +548,11 @@ describe("Test your agent", () => {
       expect(within(current()).getByText("Start the preview rating")).toBeTruthy(),
     );
     expect(await screen.findByText(/About 19 min for 56 episodes/)).toBeTruthy();
-    // How big a preview is comes from the API's plan, on hover of "What's a preview".
-    fireEvent.mouseEnter(screen.getByText(/What's a preview/));
-    expect(screen.getByRole("tooltip").textContent).toMatch(/up to 56 episodes, 37 min at most/);
-    fireEvent.mouseLeave(screen.getByText(/What's a preview/));
+    // How big a preview is comes from the API's plan, in "What's a preview?".
+    fireEvent.click(screen.getByRole("button", { name: "What's a preview?" }));
+    expect(await screen.findByText(/up to 56 episodes, 37 min at most/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Got it" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     // The check's advice stays reachable after it passed, folded away until asked for.
     fireEvent.click(screen.getByText("1 thing worth fixing before you start"));
     expect(screen.getByText(/It read 2 of 9 surfaces/)).toBeTruthy();
