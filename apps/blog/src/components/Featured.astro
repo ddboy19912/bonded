@@ -1,0 +1,35 @@
+---
+import { formatDate, readingTime, type Post } from "../lib/sanity";
+import Cover from "./Cover.astro";
+
+// The lead post: its cover across the page (whole, never cropped: the covers carry their own
+// lettering), then its title set large under it, beside a narrow column with its date.
+interface Props {
+  post: Post;
+}
+const { post } = Astro.props;
+const href = `${import.meta.env.BASE_URL}${post.slug}/`;
+---
+
+<a class="featured" href={href}>
+  <div class="featured-image">
+    <Cover
+      image={post.cover}
+      widths={[800, 1200, 1600, 2400]}
+      sizes="(max-width: 1400px) 100vw, 1360px"
+      eager
+    />
+  </div>
+  <div class="featured-body">
+    <p class="featured-meta">
+      <span class="lab featured-latest">Latest</span>
+      {post.tags[0] && <span class="tag">{post.tags[0]}</span>}
+      <span class="lab">{formatDate(post.publishedAt)} · {readingTime(post)} min read</span>
+    </p>
+    <div>
+      <h2>{post.title}</h2>
+      <p class="featured-desc">{post.description}</p>
+      <span class="read-more">Read the post <span aria-hidden="true">→</span></span>
+    </div>
+  </div>
+</a>

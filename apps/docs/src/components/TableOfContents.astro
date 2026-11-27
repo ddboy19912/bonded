@@ -1,0 +1,163 @@
+---
+/**
+ * "On this page", as Starlight draws it, with the rail used by docs.hyperfx.finance (Fumadocs'
+ * "clerk" table of contents, MIT): a thin line that steps in on a slant where headings nest and
+ * back out where they end. The headings on screen light up in blue, and the lit stretch of the
+ * rail slides to follow them as you scroll. Ported to plain script so it runs on Starlight's own
+ * markup; the geometry and the "which headings are active" rule match Fumadocs.
+ */
+import Default from "@astrojs/starlight/components/TableOfContents.astro";
+---
+
+<Default />
+
+<script>
+  const NS = "http://www.w3.org/2000/svg";
+  /** A heading counts as on screen when this much of it is visible (as in Fumadocs). */
+  const VISIBLE_RATIO = 0.9;
+  /** Where the line runs, and where the text starts, for each level of nesting. */
+  const lineOffset = (depth: number) => [8, 20, 32][Math.min(depth, 2)];
+  const itemOffset = (depth: number) => [20, 32, 44][Math.min(depth, 2)];
+
+  function depthOf(link: Element, list: Element): number {
+    let depth = 0;
+    for (let ul = link.closest("ul"); ul && ul !== list; ul = ul.parentElement!.closest("ul"))
+      depth++;
+    return depth;
+  }
+
+  function rail(toc: HTMLElement) {
+    const list = toc.querySelector<HTMLElement>("nav > ul");
+    if (!list) return;
+    const links = [...list.querySelectorAll<HTMLAnchorElement>("a")];
+    if (!links.length) return;
+    const depths = links.map((a) => depthOf(a, list));
+    const ids = links.map((a) => decodeURIComponent(a.hash.slice(1)));
+
+    links.forEach((a, i) => {
+      a.style.paddingInlineStart = `${itemOffset(depths[i])}px`;
+      if (i === 0) a.style.paddingTop = "0";
+      if (i === links.length - 1) a.style.paddingBottom = "0";
+    });
+
+    // Two copies of one path: the quiet track, and the lit copy clipped to the active headings.
+    const svg = (cls: string) => {
+      const s = document.createElementNS(NS, "svg");
+      s.classList.add("bn-rail", cls);
+      s.setAttribute("aria-hidden", "true");
+      const p = document.createElementNS(NS, "path");
+      s.append(p);
+      list.prepend(s);
+      return { svg: s, path: p };
+    };
+    const lit = svg("bn-rail-lit");
+    const track = svg("bn-rail-track");
+    list.classList.add("bn-railed");
+
+    let positions: { top: number; bottom: number }[] = [];
+
+    const draw = () => {
+      if (list.clientHeight === 0) return;
+      let d = "";
+      let width = 0;
+      let height = 0;
+      let last: { x: number; bottom: number } | null = null;
+      positions = links.map((a, i) => {
+        const styles = getComputedStyle(a);
+        const x = lineOffset(depths[i]) + 0.5;
+        const top = a.offsetTop + parseFloat(styles.paddingTop);
+        const bottom = a.offsetTop + a.clientHeight - parseFloat(styles.paddingBottom);
+        d += last ? ` L ${last.x} ${last.bottom} ${x} ${top}` : `M${x} ${top}`;
+        d += ` L${x} ${bottom}`;
+        last = { x, bottom };
+        width = Math.max(width, x + 8);
+        height = Math.max(height, bottom);
+        return { top, bottom };
+      });
+      for (const { svg: s, path } of [track, lit]) {
+        path.setAttribute("d", d);
+        s.setAttribute("width", String(width));
+        s.setAttribute("height", String(height));
+      }
+      update();
+    };
+
+    // Which headings are active: every one on screen; with none on screen, the last one above
+    // the middle of the window.
+    const visible = new Set<string>();
+    let fallback: string | undefined;
+
+    const findAbove = () => {
+      const middle = window.innerHeight / 2;
+      let id: string | undefined;
+      for (const h of ids) {
+        const rect = document.getElementById(h)?.getBoundingClientRect();
+        if (!rect || rect.height === 0) continue;
+        if (rect.top >= middle) break;
+        id = h;
+      }
+      return id;
+    };
+
+    // A long list scrolls inside the sidebar: keep the lit part in sight.
+    const scroller = toc.closest<HTMLElement>(".right-sidebar");
+    const keepInView = (top: number, bottom: number) => {
+      if (!scroller || top < 0 || scroller.scrollHeight <= scroller.clientHeight) return;
+      // Where the lit part sits within the sidebar's visible area; leave the reader's scroll
+      // alone unless it has gone out of sight.
+      const offset = list.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+      if (offset + top >= 0 && offset + bottom <= scroller.clientHeight) return;
+      const middle = offset + (top + bottom) / 2 + scroller.scrollTop;
+      scroller.scrollTo({ top: middle - scroller.clientHeight / 2, behavior: "smooth" });
+    };
+
+    const update = () => {
+      if (!visible.size) fallback = findAbove() ?? fallback;
+      let top = -1;
+      let bottom = -1;
+      links.forEach((a, i) => {
+        const on = visible.size ? visible.has(ids[i]) : ids[i] === fallback;
+        a.toggleAttribute("data-active", on);
+        if (!on || !positions[i]) return;
+        if (top === -1) top = positions[i].top;
+        bottom = positions[i].bottom;
+      });
+      if (top !== -1)
+        lit.svg.style.clipPath = `polygon(0 ${top}px, 100% ${top}px, 100% ${bottom}px, 0 ${bottom}px)`;
+      keepInView(top, bottom);
+    };
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.intersectionRatio >= VISIBLE_RATIO) visible.add(e.target.id);
+          else visible.delete(e.target.id);
+        }
+        update();
+      },
+      { threshold: VISIBLE_RATIO },
+    );
+    for (const id of ids) {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    }
+    // With no heading on screen, the fallback needs a fresh look as the page moves.
+    let queued = false;
+    window.addEventListener(
+      "scroll",
+      () => {
+        if (visible.size || queued) return;
+        queued = true;
+        requestAnimationFrame(() => {
+          queued = false;
+          update();
+        });
+      },
+      { passive: true },
+    );
+
+    new ResizeObserver(draw).observe(list);
+  }
+
+  for (const toc of document.querySelectorAll<HTMLElement>("starlight-toc")) rail(toc);
+</script>

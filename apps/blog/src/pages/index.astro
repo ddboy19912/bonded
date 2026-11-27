@@ -3,16 +3,20 @@ import Hero from "../components/Hero.astro";
 import PostList from "../components/PostList.astro";
 import Base from "../layouts/Base.astro";
 import { paginate } from "../lib/paginate.mjs";
-import { indexPosts } from "../lib/sanity";
+import { formatDate, indexPosts } from "../lib/sanity";
 
-const [page] = paginate(await indexPosts());
+const posts = await indexPosts();
+const [page] = paginate(posts);
+// The newest post's date (the lead post is the featured one, not always the newest).
+const newest = posts.map((p) => p.publishedAt).sort().at(-1);
+const latest = newest && formatDate(newest);
 ---
 
 <Base
   title="Blog | Bonded"
   description="Notes from Bonded on red-teaming AI agents, safety scores, and paying people back when an agent breaks its rules."
 >
-  <Hero />
+  <Hero count={posts.length} latest={latest} />
 
   <PostList page={page} />
 </Base>

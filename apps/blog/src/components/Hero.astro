@@ -1,5 +1,21 @@
-<section class="hero">
-  <p class="badge"><span class="dot" aria-hidden="true"></span>The Bonded blog</p>
-  <h1>Notes from the <em>red team.</em></h1>
+---
+// The blog's masthead: a mono line above, the title set as large as the landing page's headline.
+interface Props {
+  count: number;
+  latest?: string;
+}
+const { count, latest } = Astro.props;
+const rss = `${import.meta.env.BASE_URL}rss.xml`;
+---
+
+<section class="masthead">
+  <p class="masthead-top">
+    <span class="lab">Bonded · Blog</span>
+    <span class="lab">
+      {count} {count === 1 ? "post" : "posts"}
+      {latest && <> · Updated {latest}</>} · <a href={rss}>RSS</a>
+    </span>
+  </p>
+  <h1>Notes from <span class="dim">the red team.</span></h1>
   <p class="lede">How AI agents get fooled, how we measure it, and who pays when one breaks its rules.</p>
 </section>

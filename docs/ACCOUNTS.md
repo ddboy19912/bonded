@@ -1,29 +1,27 @@
 # Signing in without a wallet
 
-Most teams testing a trading or payments agent don't use crypto. They can sign in to Bonded with an email address, and then with a passkey (Touch ID, Face ID, Windows Hello or a phone). A wallet still works as before, and is still what on-chain actions need.
+You can sign in to Bonded with an email address, then add a passkey (Touch ID, Face ID, Windows Hello or a phone). A wallet still works, and on-chain actions still need one.
 
 ## How it works
 
-1. **Email.** Enter an address and Bonded emails a 6-digit code. Entering the code signs you in. The first time, that makes your account: there is no password and no separate sign-up.
-2. **Passkey.** Once signed in, you can add a passkey. From then on, "Sign in with a passkey" is one tap, with no code to wait for and nothing to phish. You can add several (a laptop and a phone) and remove any of them.
-3. **The same session.** Either way you get the same kind of session a wallet gets, for 12 hours. Everything you can do with a wallet session you can do with it: previews, connection checks, Bonded running your agent, Agent URLs, the payment gate and notifications.
-
-The sign-in screen on the website comes with the next web update. Until then, each step works through the API (see "For developers" below).
+1. **Email.** Enter your address and Bonded emails you a 6-digit code. Enter the code to sign in. The first time, this creates your account. There is no password and no separate sign-up.
+2. **Passkey.** Once signed in, you can add a passkey. After that, "Sign in with a passkey" is one tap, with no code to wait for. You can add several (a laptop and a phone) and remove any of them.
+3. **Your session.** Either way, you get the same 12-hour session a wallet gets. It covers everything a wallet session does: previews, connection checks, Bonded running your agent, Agent URLs, the payment gate and notifications.
 
 ## Your account id
 
-Each account has an id in a wallet's format: `0x` and 40 hex characters, derived from the account and the same every time. It is what Bonded records as the owner of your previews, and what Bonded's signed calls to your Agent URL name as the owner (`BONDED_AGENT_OWNER` in the examples).
+Each account has an id in a wallet's format: `0x` and 40 hex characters. It never changes. Bonded records it as the owner of your previews, and Bonded's signed calls to your Agent URL name it as the owner (`BONDED_AGENT_OWNER` in the examples).
 
-It is **not a wallet**. Nobody holds a key for it, so nothing on chain can be done with it. Official ratings, Mandate Vaults, cover and claims need a wallet.
+It is **not a wallet**. Nobody holds a key for it, so nothing can be done with it on chain. Official ratings, Mandate Vaults, cover and claims need a wallet.
 
 ## Limits and safety
 
-- **A code** works once, for 10 minutes, and stops after 5 wrong tries. Asking for a new code makes older ones stop working. An address can ask for 5 codes an hour. Only a hash of each code is kept.
-- **The code request** answers the same whether or not the address has an account, so it can't be used to find out who uses Bonded.
-- **A passkey** is bound to bondedhq.xyz: a lookalike site can't use it. Bonded keeps only its public key and checks every sign-in on its servers, with a fresh challenge that works once, for 5 minutes.
-- **Sign-in requests** share the API's per-address limits.
+- **A code** works once, for 10 minutes, and stops working after 5 wrong tries. Asking for a new code cancels older ones. An address can ask for 5 codes an hour. Bonded keeps only a hash of each code.
+- **The code request** gives the same answer whether or not the address has an account, so it can't be used to find out who uses Bonded.
+- **A passkey** is bound to bondedhq.xyz, so a lookalike site can't use it. Bonded keeps only its public key, and checks every sign-in against a fresh challenge that works once, for 5 minutes.
+- **Sign-in requests** share the API's per-address rate limits.
 
-## For developers
+## API
 
 | Endpoint | What it does |
 |---|---|
@@ -34,10 +32,4 @@ It is **not a wallet**. Nobody holds a key for it, so nothing on chain can be do
 | `POST /account/passkeys` | Signed in: `{ response, name? }`, the browser's answer; adds the passkey (201) |
 | `DELETE /account/passkeys/:id` | Signed in: removes a passkey |
 | `POST /account/passkey/options` | Options to sign in with a passkey |
-| `POST /account/passkey/session` | `{ response }`: the browser's answer for a session (201) |
-
-**Settings:**
-- Email uses the same sender as notifications: `RESEND_API_KEY` and `EMAIL_FROM` on the api service. Without them, email sign-in answers 503.
-- Passkeys use `WEBAUTHN_RP_ID` (default `bondedhq.xyz`) and `WEBAUTHN_ORIGINS` (default `https://www.bondedhq.xyz,https://bondedhq.xyz`). Passkeys don't work on Vercel preview addresses, which are other sites, so the web app offers a passkey only on `bondedhq.xyz` and its subdomains (`VITE_PASSKEY_RP_ID` to change it, kept equal to `WEBAUTHN_RP_ID`).
-
-**Where it lives:** `apps/api/src/accounts.ts`, migration 0039 (`accounts`, `email_codes`, `passkeys`, `passkey_challenges`), and `apps/api/test/accounts.test.ts`, which tests passkeys with a software authenticator.
+| `POST /account/passkey/session` | `{ response }`: the browser's answer, for a session (201) |

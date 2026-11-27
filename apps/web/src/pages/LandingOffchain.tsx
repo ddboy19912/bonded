@@ -1,616 +1,499 @@
-import type { BondedIndex, BondedIndexEntry } from "@bondedhq/shared";
+import type { BondedIndex } from "@bondedhq/shared";
 import { AppLink } from "../components/app-link";
-import { useEffect, useRef, useState } from "react";
-import { ProviderLogo } from "../components/index-charts";
-import { buttonClass } from "../components/ui";
+import { useEffect, useState, type CSSProperties } from "react";
 import { byScore, loadBondedIndex, taskScore } from "../lib/bonded-index";
+import { Reveal, useOnScreen, useReducedMotion } from "../lib/reveal";
 import { DOCS_GATE } from "../lib/routes";
-import { useReducedMotion } from "./LandingSentinel";
-
-const SECTION =
-  "mx-auto max-w-[1180px] scroll-mt-24 px-4 sm:px-6 py-24 sm:min-h-svh sm:justify-center sm:py-28 sm:flex sm:flex-col";
-
-/** A score's place across the plot, in percent, with room at both edges for a marker. */
-const at = (v: number) => 4 + v * 0.92;
-
-/** What each corner of the map means. Split at 50 on both scores. */
-export const corner = (security: number, task: number) =>
-  security >= 50
-    ? task >= 50
-      ? "Hard to trick, and does the job"
-      : "Safe because it refuses"
-    : task >= 50
-      ? "Does the job, easy to trick"
-      : "Easy to trick, little done";
-
-/** The same, short enough for a phone's plot. */
-const cornerShort = (security: number, task: number) =>
-  security >= 50
-    ? task >= 50
-      ? "Safe and useful"
-      : "Refuses"
-    : task >= 50
-      ? "Tricked"
-      : "Neither";
-
-const QUADRANTS: { s: number; t: number; goal?: boolean }[] = [
-  { s: 75, t: 75, goal: true },
-  { s: 25, t: 75 },
-  { s: 75, t: 25 },
-  { s: 25, t: 25 },
-];
-
-interface Point {
-  entry: BondedIndexEntry;
-  security: number;
-  task: number;
-}
-
-type Box = { left: number; top: number; width: number; height: number };
-const overlaps = (a: Box, b: Box) =>
-  a.left < b.left + b.width &&
-  b.left < a.left + a.width &&
-  a.top < b.top + b.height &&
-  b.top < a.top + a.height;
+import { Dots } from "./LandingDemo";
+import { IndexMap, ProviderMark, mapPoints } from "./LandingIndexMap";
 
 /**
- * Where each model's name goes: beside, above or below its marker, the first spot that stays in the
- * plot and clears every marker and the names already placed. On a narrow plot a name with no free
- * spot is left off (its marker still names it on tap); on a wide one it goes to the right anyway.
+ * The Index's models, from config/bonded-index.json: first as one ledger, hardest to trick first,
+ * each with its provider's logo and its two scores side by side; then on one map, Security across
+ * and Task up. Pointing at a row lights its marker and pointing at a marker lights its row. A
+ * model whose Task score was not measured is listed with a dash, and left off the map.
  */
-export function placeLabels(
-  points: Point[],
-  width: number,
-  height: number,
-): Map<string, { left: number; top: number } | null> {
-  const narrow = width < 520;
-  const font = narrow ? 11 : 13;
-  const marker = narrow ? 24 : 30;
-  const gap = marker / 2 + 6;
-  const xy = (p: Point) => ({
-    x: (at(p.security) / 100) * width,
-    y: height - (at(p.task) / 100) * height,
-  });
-  const markers: Box[] = points.map((p) => {
-    const { x, y } = xy(p);
-    return { left: x - marker / 2, top: y - marker / 2, width: marker, height: marker };
-  });
-  // The corner names are fixed: a model's name keeps clear of them.
-  const cornerFont = narrow ? 10 : 11;
-  const placed: Box[] = QUADRANTS.map((q) => {
-    const text = narrow ? cornerShort(q.s, q.t) : corner(q.s, q.t);
-    const w = Math.min(text.length * cornerFont * 0.78, width * 0.4);
-    const h = cornerFont * (text.length * cornerFont * 0.78 > width * 0.4 ? 2.6 : 1.4);
-    const cx = (at(q.s) / 100) * width;
-    const cy = height - (at(q.t) / 100) * height;
-    return { left: cx - w / 2, top: cy - h / 2, width: w, height: h };
-  });
-  const out = new Map<string, { left: number; top: number } | null>();
-  points.forEach((p, i) => {
-    const { x, y } = xy(p);
-    const w = p.entry.label.length * font * 0.56 + 6;
-    const h = font + 6;
-    const candidates: Box[] = [
-      { left: x + gap, top: y - h / 2, width: w, height: h },
-      { left: x - gap - w, top: y - h / 2, width: w, height: h },
-      { left: x - w / 2, top: y - gap - h, width: w, height: h },
-      { left: x - w / 2, top: y + gap, width: w, height: h },
-      { left: x + marker / 2 - w, top: y - gap - h, width: w, height: h },
-      { left: x + marker / 2 - w, top: y + gap, width: w, height: h },
-      { left: x - marker / 2, top: y - gap - h, width: w, height: h },
-      { left: x - marker / 2, top: y + gap, width: w, height: h },
-    ];
-    const free = candidates.find(
-      (c) =>
-        c.left >= 0 &&
-        c.top >= 0 &&
-        c.left + c.width <= width &&
-        c.top + c.height <= height &&
-        !placed.some((b) => overlaps(b, c)) &&
-        !markers.some((m, j) => j !== i && overlaps(m, c)),
-    );
-    const chosen = free ?? (narrow ? null : candidates[x > width * 0.8 ? 1 : 0]!);
-    if (chosen) placed.push(chosen);
-    out.set(p.entry.model, chosen ? { left: chosen.left, top: chosen.top } : null);
-  });
-  return out;
-}
-
-/** Security across, Task up: every model on one map, with the corner you want lit. */
-function TradeoffMap({ entries }: { entries: BondedIndexEntry[] }) {
-  const reduced = useReducedMotion();
-  const plot = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ width: 0, height: 0 });
-  const [inView, setInView] = useState(false);
-  const [active, setActive] = useState<string | null>(null);
-  const shown = inView || reduced;
-
-  useEffect(() => {
-    const el = plot.current;
-    if (!el) return;
-    const measure = () => setSize({ width: el.clientWidth, height: el.clientHeight });
-    measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  useEffect(() => {
-    const el = plot.current;
-    if (!el || typeof IntersectionObserver === "undefined") {
-      setInView(true);
-      return;
-    }
-    const io = new IntersectionObserver(
-      ([e]) => {
-        if (e?.isIntersecting) {
-          setInView(true);
-          io.disconnect();
-        }
-      },
-      { threshold: 0.35 },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
-
-  // A model with no measured Task score has no place on the map; the full Index still lists it.
-  const points: Point[] = entries.flatMap((entry) => {
-    const task = taskScore(entry);
-    return task === null ? [] : [{ entry, security: entry.score, task }];
-  });
-  const labels = size.width ? placeLabels(points, size.width, size.height) : new Map();
-  const focus = points.find((p) => p.entry.model === active);
-
-  return (
-    <div className="panel p-5 pb-4 sm:p-8 sm:pb-6">
-      <div className="relative ml-8 sm:ml-11">
-        <p className="absolute top-1/2 -left-8 origin-center -translate-x-1/2 -translate-y-1/2 -rotate-90 text-sm whitespace-nowrap text-soft sm:-left-11 sm:text-base">
-          <span className="font-semibold text-ink">Task</span>: still pays the real bills{" "}
-          <span aria-hidden>→</span>
-        </p>
-        <div
-          ref={plot}
-          className="relative h-[400px] border-b border-l border-line-strong sm:h-[460px]"
-          onMouseLeave={() => setActive(null)}
-        >
-          {/* The corner where a model is both hard to trick and still does the job. */}
-          <div
-            aria-hidden
-            className="absolute top-0 right-0 rounded-tr-xl bg-[radial-gradient(ellipse_at_80%_20%,rgb(126_226_176/.22),transparent_70%)]"
-            style={{ left: `${at(50)}%`, bottom: `${at(50)}%` }}
-          />
-          <span
-            aria-hidden
-            className="absolute top-0 bottom-0 border-l border-dashed border-line"
-            style={{ left: `${at(50)}%` }}
-          />
-          <span
-            aria-hidden
-            className="absolute right-0 left-0 border-t border-dashed border-line"
-            style={{ bottom: `${at(50)}%` }}
-          />
-          {QUADRANTS.map((q) => (
-            <span
-              key={`${q.s}-${q.t}`}
-              aria-hidden
-              className={`absolute max-w-[40%] -translate-x-1/2 translate-y-1/2 text-center text-[10px] font-semibold tracking-[0.14em] uppercase sm:text-[11px] ${q.goal ? "text-safe" : "text-muted/70"}`}
-              style={{ left: `${at(q.s)}%`, bottom: `${at(q.t)}%` }}
-            >
-              {size.width && size.width < 520 ? cornerShort(q.s, q.t) : corner(q.s, q.t)}
-            </span>
-          ))}
-
-          {points.map((p, i) => {
-            const label = labels.get(p.entry.model);
-            const dim = active !== null && active !== p.entry.model;
-            const goal = p.security >= 50 && p.task >= 50;
-            return (
-              <div key={p.entry.model}>
-                <button
-                  type="button"
-                  aria-label={`${p.entry.label}: Security ${p.security}, Task ${p.task}`}
-                  onMouseEnter={() => setActive(p.entry.model)}
-                  onFocus={() => setActive(p.entry.model)}
-                  onBlur={() => setActive(null)}
-                  onClick={() => setActive(p.entry.model)}
-                  className={`absolute z-10 grid size-6 -translate-x-1/2 translate-y-1/2 place-items-center rounded-full bg-surface ring-2 sm:size-[30px] motion-safe:transition-[left,bottom,opacity] motion-safe:duration-[1100ms] motion-safe:ease-[cubic-bezier(.2,.75,.2,1)] ${goal ? "ring-safe" : "ring-line-strong"} ${dim ? "opacity-35" : ""}`}
-                  style={{
-                    left: `${at(shown ? p.security : 0)}%`,
-                    bottom: `${at(shown ? p.task : 0)}%`,
-                    opacity: shown ? undefined : 0,
-                    transitionDelay: reduced ? undefined : `${i * 70}ms`,
-                  }}
-                >
-                  <ProviderLogo provider={p.entry.provider} size={size.width < 520 ? 14 : 18} />
-                </button>
-                {label && (
-                  <span
-                    aria-hidden
-                    className={`pointer-events-none absolute text-[11px] whitespace-nowrap transition-opacity duration-500 sm:text-[13px] ${goal ? "text-ink" : "text-soft"} ${shown && !dim ? "opacity-100" : "opacity-0"}`}
-                    style={{
-                      left: label.left,
-                      top: label.top,
-                      transitionDelay: shown && !reduced && !active ? `${900 + i * 70}ms` : "0ms",
-                    }}
-                  >
-                    {p.entry.label}
-                  </span>
-                )}
-              </div>
-            );
-          })}
-
-          {focus && (
-            <div
-              role="status"
-              className="pointer-events-none absolute z-20 w-[210px] -translate-x-1/2 rounded-xl border border-line-strong bg-surface/95 px-4 py-3.5 text-sm shadow-xl backdrop-blur"
-              style={{
-                left: `clamp(105px, ${at(focus.security)}%, calc(100% - 105px))`,
-                bottom: `calc(${at(focus.task)}% + 26px)`,
-              }}
-            >
-              <p className="font-semibold text-ink">{focus.entry.label}</p>
-              <dl className="mt-3 grid grid-cols-2 gap-3">
-                {(
-                  [
-                    ["Security", focus.security],
-                    ["Task", focus.task],
-                  ] as const
-                ).map(([name, value]) => (
-                  <div key={name}>
-                    <dt className="text-xs text-muted">{name}</dt>
-                    <dd className="mt-1 font-serif text-4xl leading-none text-ink tabular-nums">
-                      {value}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-          )}
-        </div>
-        <div className="mt-2 flex justify-between font-mono text-xs text-soft" aria-hidden>
-          <span>0</span>
-          <span>50</span>
-          <span>100</span>
-        </div>
-        <p className="mt-1.5 text-center text-sm text-soft sm:text-base">
-          <span className="font-semibold text-ink">Security</span>: harder to trick{" "}
-          <span aria-hidden>→</span>
-        </p>
-      </div>
-
-      <table className="sr-only">
-        <caption>AI models by Security score, with their Task score</caption>
-        <thead>
-          <tr>
-            <th scope="col">Model</th>
-            <th scope="col">Security</th>
-            <th scope="col">Task</th>
-          </tr>
-        </thead>
-        <tbody>
-          {points.map((p) => (
-            <tr key={p.entry.model}>
-              <th scope="row">{p.entry.label}</th>
-              <td>{p.security}</td>
-              <td>{p.task}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-/** The Index's models on one map, Security against Task, from config/bonded-index.json. */
 export function LandingIndex({ index = loadBondedIndex() }: { index?: BondedIndex }) {
+  const [active, setActive] = useState<string | null>(null);
   if (index.entries.length === 0) return null;
+  const points = mapPoints(index.entries);
+  const unplotted = index.entries.length - points.length;
   return (
-    <section id="index" className={SECTION}>
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+    <section id="index" className="l-sec">
+      <div className="l-head">
+        <p className="l-lab">Bonded Index · AI models</p>
         <div>
-          <p className="eyebrow !text-accent">Bonded Index · AI models</p>
-          <h2 className="mt-3 max-w-3xl font-serif text-5xl leading-none">
-            Which AI model is hardest to trick into paying?
-          </h2>
-          <p className="mt-5 max-w-[62ch] text-lg leading-relaxed text-muted">
+          <Reveal as="h2" className="l-h2">
+            Which AI model is hardest <span className="dim">to trick into paying?</span>
+          </Reveal>
+          <p className="l-lede">
             Every model runs the same agent that pays invoices, and meets the same attacks: fake
             bank changes, forged invoices, fake bosses. Security is how hard it is to trick. Task is
             whether it still pays the real bills.
           </p>
         </div>
-        <AppLink to="/index" className={buttonClass("secondary", "lg")}>
+      </div>
+      <div className="l-tablewrap l-body" onMouseLeave={() => setActive(null)}>
+        <table className="l-ledger-table">
+          <caption className="sr-only">AI models by Security score, with their Task score</caption>
+          <thead>
+            <tr>
+              <th scope="col">No.</th>
+              <th scope="col">Model</th>
+              <th scope="col">
+                Security<span className="l-th-sub">: harder to trick</span>
+              </th>
+              <th scope="col">
+                Task<span className="l-th-sub">: still pays the real bills</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {byScore(index.entries).map((entry, i) => {
+              const task = taskScore(entry);
+              return (
+                <tr
+                  key={entry.model}
+                  data-active={active === entry.model}
+                  onMouseEnter={() => setActive(task === null ? null : entry.model)}
+                >
+                  <td className="n">{String(i + 1).padStart(2, "0")}</td>
+                  <th scope="row">
+                    <ProviderMark provider={entry.provider} className="l-plogo" />
+                    {entry.label}
+                  </th>
+                  <td>{entry.score}</td>
+                  <td>
+                    {task ?? (
+                      <>
+                        <span aria-hidden>–</span>
+                        <span className="sr-only">Not measured</span>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="l-mapwrap">
+        <IndexMap points={points} active={active} onActive={setActive} />
+        {unplotted > 0 && (
+          <p className="l-lab mt-4">
+            {unplotted === 1 ? "One model has" : `${unplotted} models have`} no Task score yet, so{" "}
+            {unplotted === 1 ? "it is" : "they are"} in the list above but not on the map.
+          </p>
+        )}
+      </div>
+      <div className="l-actions">
+        <AppLink to="/index" className="l-link">
           See the full Index <span aria-hidden>→</span>
         </AppLink>
-      </div>
-      <div className="mt-10">
-        <TradeoffMap entries={byScore(index.entries)} />
       </div>
     </section>
   );
 }
 
-type Mark = "pass" | "fail";
+/**
+ * The owner's rules, a few words each. They are the gate's real kinds of rule (a vendor list,
+ * matching bank details, a payment limit, blocked kinds of spending); the $2,000 is an example of a
+ * limit the owner sets.
+ */
+export const RULES = [
+  { id: "vendor", text: "On your vendor list" },
+  { id: "bank", text: "Bank details match" },
+  { id: "limit", text: "Under your $2,000 limit" },
+  { id: "kind", text: "Not gambling" },
+] as const;
+
+type RuleId = (typeof RULES)[number]["id"];
 type Tone = "safe" | "breach" | "warn";
+type Kind = "invoice" | "bank" | "card" | "wallet";
+type Place = "vendor" | "bank" | "casino" | "unknown";
 
 interface Stop {
-  id: string;
+  id: Kind;
   tab: string;
-  source: string;
-  via: string;
   amount: string;
+  /** Where the money is headed: the picture, and its name. */
+  place: Place;
   payee: string;
-  detail: string;
-  checks: [string, Mark, string?][];
+  /** Which of the three ways brought it to the gate. */
+  via: string;
+  /** The rules this payment breaks. None means it is allowed. */
+  breaks: RuleId[];
   verdict: string;
   tone: Tone;
-  /** The receipt's short hash, or null when the payment was only seen after it was made. */
-  receipt: string | null;
+  /** Whether the gate decided before the money moved, and so signed a receipt. */
+  receipt: boolean;
 }
 
-/** Four payments at the gate. Made up for the illustration; the checks are the gate's real rules. */
+/** Four payments an agent tries to make. Made up for the illustration. */
 export const STOPS: Stop[] = [
   {
     id: "invoice",
     tab: "Invoice",
-    source: "Agent · API",
-    via: "Asks first",
     amount: "$612.40",
+    place: "vendor",
     payee: "Nimbus Print",
-    detail: "Invoice NIM-88412",
-    checks: [
-      ["Vendor on your list", "pass"],
-      ["Bank details match the vendor's", "pass"],
-      ["Matches an approved invoice", "pass"],
-      ["Under the $2,000 payment limit", "pass"],
-    ],
+    via: "Ask first",
+    breaks: [],
     verdict: "Allowed",
     tone: "safe",
-    receipt: "0x7a3c…e91f",
+    receipt: true,
   },
   {
-    id: "bank-change",
+    id: "bank",
     tab: "Bank change",
-    source: "Agent · API",
-    via: "Asks first",
     amount: "$1,240.00",
-    payee: "Nimbus Print",
-    detail: "To a new account, LT77 3250 …",
-    checks: [
-      ["Vendor on your list", "pass"],
-      ["Bank details match the vendor's", "fail", "Changed, with no finance ticket"],
-      ["Matches an approved invoice", "pass"],
-      ["Under the $2,000 payment limit", "pass"],
-    ],
+    place: "bank",
+    payee: "A new bank account",
+    via: "Ask first",
+    breaks: ["bank"],
     verdict: "Blocked",
     tone: "breach",
-    receipt: "0x19be…04c2",
+    receipt: true,
   },
   {
     id: "card",
     tab: "Card",
-    source: "Card · Lithic",
-    via: "Card hook",
     amount: "$450.00",
-    payee: "Lucky Spins",
-    detail: "Merchant category 7995, gambling",
-    checks: [
-      ["Merchant is one of your vendors", "fail"],
-      ["Not cash, money orders or gambling", "fail"],
-      ["Under the $2,000 payment limit", "pass"],
-    ],
+    place: "casino",
+    payee: "Lucky Spins casino",
+    via: "Card hooks",
+    breaks: ["vendor", "kind"],
     verdict: "Declined",
     tone: "breach",
-    receipt: "0x5d02…a7b3",
+    receipt: true,
   },
   {
     id: "wallet",
     tab: "Wallet",
-    source: "Wallet · Base USDC",
-    via: "Watch",
     amount: "$5,000.00",
-    payee: "0x9f3a…e1c",
-    detail: "Seen after it was paid",
-    checks: [
-      ["Payee on your vendor list", "fail"],
-      ["Under the $2,000 payment limit", "fail"],
-      ["Checked before it was paid", "fail"],
-    ],
+    place: "unknown",
+    payee: "An unknown wallet",
+    via: "Watch",
+    breaks: ["vendor", "limit"],
     verdict: "Breach",
     tone: "warn",
-    receipt: null,
+    receipt: false,
   },
 ];
 
-const TONE_TEXT: Record<Tone, string> = {
-  safe: "text-safe border-safe",
-  breach: "text-breach border-breach",
-  warn: "text-warn border-warn",
+/** White when a payment simply goes through, blue when the gate stopped one, orange when one got away. */
+const TONE_COLOUR: Record<Tone, string> = {
+  safe: "var(--l-ink)",
+  breach: "var(--l-blue)",
+  warn: "var(--l-orange)",
 };
 
-const STEP_MS = 650;
-const HOLD_MS = 2800;
+/**
+ * How each of the three ways to connect (Ask first, Card hooks, Watch) reached the gate, said
+ * plainly under the payment. Watch is the one that only sees a payment after it has left.
+ */
+export const HOW: Record<string, string> = {
+  "Ask first": "Your agent asks first",
+  "Card hooks": "Your card asks first",
+  Watch: "Seen after it pays",
+};
+
+/** One run: 0 the payment is on its way to the gate, 1 the rules are checked, 2 the answer. */
+const DECIDED = 2;
+export const GATE_STEP_MS = [900, 1500];
+/** The rules are ticked one after another, this far apart, before the answer lands. */
+const RULE_GAP_MS = 250;
+
+const MARK = [
+  "M7 0H130C159 0 182 23 182 51C182 75 170 90 149 101L112 121Q101 127 101 114V75Q101 49 73 61L7 90Q0 94 0 86V7Q0 0 7 0Z",
+  "M0 130Q0 122 8 118L58 92Q77 82 77 101V137Q77 159 97 149L169 113Q175 110 180 117C193 129 200 143 200 158C200 190 172 212 136 212H6Q0 212 0 206Z",
+];
+
+/** Small line icons for the four payments, on a 24-unit grid. */
+const TAB_ICON: Record<Kind, string> = {
+  invoice: "M7 3h7l4 4v14H7zM14 3v4h4M10 12h5M10 16h5",
+  bank: "M3 10l9-5 9 5M5 10v8M10 10v8M14 10v8M19 10v8M3 20h18",
+  card: "M3 6h18v12H3zM3 10h18M6 15h4",
+  wallet: "M3 7h15a3 3 0 0 1 3 3v8H3zM3 7V6a2 2 0 0 1 2-2h11M16 13h2",
+};
+
+/** The payment itself, drawn: a sheet for an invoice or a bank change, a card, a wallet. */
+function PaymentAsset({ kind, amount }: { kind: Kind; amount: string }) {
+  return (
+    <svg viewBox="0 0 280 180" aria-hidden>
+      {(kind === "invoice" || kind === "bank") && (
+        <>
+          <path d="M52 2h126l50 50v126H52z" />
+          <path d="M178 2v50h50" />
+          <path d="M76 44h62" />
+          {kind === "invoice" ? (
+            <path d="M76 78h128M76 100h96" className="soft" />
+          ) : (
+            <>
+              <path d="M76 78h128" className="soft" />
+              <path d="M76 100h70" className="soft" />
+              <path d="M70 100h82" className="hot" />
+              <path d="M162 100h42" className="hot" />
+            </>
+          )}
+          <text x="76" y="152" className="amt">
+            {amount}
+          </text>
+        </>
+      )}
+      {kind === "card" && (
+        <>
+          <rect x="2" y="2" width="276" height="176" rx="20" />
+          <rect x="28" y="40" width="46" height="34" rx="7" />
+          <path d="M28 57h46M43 40v34M58 40v34" className="soft" />
+          <path d="M214 38a14 14 0 0 1 0 28M226 30a24 24 0 0 1 0 44M238 22a34 34 0 0 1 0 60" />
+          <text x="28" y="118" className="sm">
+            •••• 4821
+          </text>
+          <text x="28" y="152" className="amt">
+            {amount}
+          </text>
+        </>
+      )}
+      {kind === "wallet" && (
+        <>
+          <path d="M22 44V34a16 16 0 0 1 16-16h170a14 14 0 0 1 14 14v12" />
+          <rect x="22" y="44" width="236" height="132" rx="18" />
+          <path d="M258 92h-44a18 18 0 0 0 0 36h44" />
+          <circle cx="216" cy="110" r="5" className="dot" />
+          <text x="44" y="152" className="amt">
+            {amount}
+          </text>
+        </>
+      )}
+    </svg>
+  );
+}
+
+/** Where the money is headed, as one small line drawing. */
+function PlaceGlyph({ place }: { place: Place }) {
+  return (
+    <svg viewBox="0 0 48 48" aria-hidden>
+      {place === "vendor" && (
+        <path d="M8 20l4-10h24l4 10M10 21v17h28V21M8 20a4 4 0 0 0 8 0a4 4 0 0 0 8 0a4 4 0 0 0 8 0a4 4 0 0 0 8 0M20 38V28h8v10" />
+      )}
+      {place === "bank" && (
+        <path d="M6 20l18-11 18 11M10 20v15M18 20v15M30 20v15M38 20v15M6 39h36M8 35h32" />
+      )}
+      {place === "casino" && (
+        <>
+          <rect x="9" y="9" width="30" height="30" rx="7" />
+          {[
+            [17, 17],
+            [31, 17],
+            [24, 24],
+            [17, 31],
+            [31, 31],
+          ].map(([cx, cy]) => (
+            <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="1.9" className="dot" />
+          ))}
+        </>
+      )}
+      {place === "unknown" && (
+        <>
+          <circle cx="24" cy="24" r="17" />
+          <path d="M19 19.5a5 5 0 1 1 7.2 4.5c-1.6.9-2.2 1.9-2.2 3.6M24 32.5v.6" />
+        </>
+      )}
+    </svg>
+  );
+}
 
 /**
- * The gate as a checkpoint: a payment arrives, each rule is checked in turn, the decision is stamped
- * on it, and a signed receipt comes out (or, for a payment only seen after, an alert). It cycles
- * through four payments; reduced-motion readers get each finished and switch with the tabs.
+ * The gate as a picture, with as few words as it needs: the payment on the left, drawn; the gate
+ * in the middle; where the money is headed on the right. Pick a payment and it travels to the gate,
+ * the owner's four rules are ticked or crossed, and one word says what happened. An allowed payment
+ * carries on to its payee; a blocked one stops at the gate. The wallet payment arrives by Watch,
+ * which only sees it after it has left, so it gets through and the gate raises a breach. The rules
+ * sit above the picture so they are read first. The payment is drawn from the start, and until the
+ * answer lands a line in its place says the rules are being checked. It plays while the picture is
+ * well up the screen and pauses when it is not; a picked payment arrives at the gate afresh. Nothing
+ * loops. Reduced-motion readers get each one finished.
  */
-function Checkpoint() {
+function GateDemo() {
   const reduced = useReducedMotion();
-  const [index, setIndex] = useState(0);
+  // Not on first sight: only while the picture is a quarter of the way up the screen, so the
+  // reader has the rules and the payment in view before anything happens.
+  const [ref, onScreen] = useOnScreen<HTMLDivElement>("0px 0px -25% 0px");
+  // It opens on the bank change: a payment the gate stops, for one rule. The payment is drawn from
+  // the start; until the answer lands, its place says the rules are being checked.
+  const [index, setIndex] = useState(1);
   const [step, setStep] = useState(0);
+  // Counts the picks, so a picked payment is drawn afresh and arrives at the gate.
+  const [run, setRun] = useState(0);
   const s = STOPS[index]!;
-  const last = s.checks.length + 2;
-  const shown = reduced ? last : step;
+  const phase = reduced ? DECIDED : step;
 
+  // A reader who asks for less motion part-way through gets the answer, and keeps it after.
   useEffect(() => {
-    if (reduced) return;
-    const t = setTimeout(
-      () => {
-        if (step < last) setStep(step + 1);
-        else {
-          setIndex((i) => (i + 1) % STOPS.length);
-          setStep(0);
-        }
-      },
-      step < last ? STEP_MS : HOLD_MS,
-    );
-    return () => clearTimeout(t);
-  }, [step, last, reduced]);
+    if (reduced) setStep(DECIDED);
+  }, [reduced]);
 
-  const stamped = shown >= s.checks.length + 1;
-  const done = shown >= last;
+  // A new pick restarts the clock, so a timer left from the payment before never moves it on early.
+  useEffect(() => {
+    if (reduced || !onScreen || step >= DECIDED) return;
+    const t = setTimeout(() => setStep(step + 1), GATE_STEP_MS[step]);
+    return () => clearTimeout(t);
+  }, [step, reduced, onScreen, index]);
+
+  const decided = phase >= DECIDED;
+  const allowed = s.breaks.length === 0;
+  // Watch sees a payment only after it has left: it is through before the gate can answer.
+  const after = s.via === "Watch";
+  const through = after ? phase >= 1 : decided && allowed;
+  const broken = s.breaks.map((id) => RULES.find((r) => r.id === id)!.text);
 
   return (
-    <div className="panel p-5 sm:p-7">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-0.5 rounded-full border border-line p-1 sm:gap-1" role="group">
-          {STOPS.map((st, i) => (
+    <div>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="l-seg" role="group" aria-label="Pick a payment">
+          {STOPS.map((stop, i) => (
             <button
-              key={st.id}
+              key={stop.id}
               type="button"
               aria-pressed={i === index}
               onClick={() => {
                 setIndex(i);
-                setStep(0);
+                setStep(reduced ? DECIDED : 0);
+                setRun((r) => r + 1);
               }}
-              className={`rounded-full px-2.5 py-1.5 text-xs transition sm:px-3 sm:text-sm ${i === index ? "bg-white/[0.08] font-semibold text-ink" : "text-muted hover:text-soft"}`}
             >
-              {st.tab}
+              <svg viewBox="0 0 24 24" aria-hidden>
+                <path d={TAB_ICON[stop.id]} />
+              </svg>
+              {stop.tab}
             </button>
           ))}
         </div>
-        <span className="text-xs text-muted">Illustration</span>
       </div>
 
-      <div
-        key={s.id}
-        className="relative mt-6 overflow-hidden rounded-2xl border border-line bg-white/[0.02]"
-      >
-        <div className="flex flex-col-reverse gap-3 px-5 pt-5 pb-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4 sm:px-6">
-          <div className="min-w-0">
-            <p className="font-mono text-[28px] leading-tight tabular-nums sm:text-4xl">
-              {s.amount}
-            </p>
-            <p className="mt-1.5 truncate text-soft">
-              {s.via === "Card hook" ? "at" : "to"}{" "}
-              <span className="font-mono text-ink">{s.payee}</span>
-            </p>
-            <p className="mt-1 text-sm text-muted">{s.detail}</p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2 sm:block sm:text-right">
-            <span className="inline-block rounded-full bg-white/[0.06] px-2.5 py-1 font-mono text-[11px] text-soft">
-              {s.source}
-            </span>
-            <p className="text-xs text-muted sm:mt-1.5">{s.via}</p>
-          </div>
-        </div>
-
-        {/* A ticket's tear line. */}
-        <div className="mx-5 border-t border-dashed border-line-strong sm:mx-6" aria-hidden />
-
-        <ul className="flex min-h-[236px] flex-col sm:min-h-[190px] gap-3 px-5 py-5 sm:px-6">
-          {s.checks.map(([label, mark, note], i) => {
-            const on = shown >= i + 1;
+      <div className="l-rulebar">
+        <p className="l-lab">Your rules</p>
+        <ul>
+          {RULES.map((rule, i) => {
+            const ok = !s.breaks.includes(rule.id);
             return (
               <li
-                key={label}
-                className={`flex items-start gap-3 transition-opacity duration-300 ${on ? "opacity-100" : "opacity-25"}`}
+                key={rule.id}
+                data-on={phase >= 1}
+                data-ok={ok}
+                // Ticked one after another; cleared all at once when a new payment starts.
+                style={phase >= 1 ? { transitionDelay: `${i * RULE_GAP_MS}ms` } : undefined}
               >
-                <span
-                  className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-full text-[11px] font-bold transition-transform duration-300 ${on ? "scale-100" : "scale-50"} ${on ? (mark === "pass" ? "bg-safe/15 text-safe" : "bg-breach/15 text-breach") : "bg-white/[0.06] text-transparent"}`}
-                  aria-hidden
-                >
-                  {mark === "pass" ? "✓" : "✕"}
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-sm text-ink">
-                    {label}
-                    <span className="sr-only">
-                      {on ? (mark === "pass" ? ": yes" : ": no") : ""}
-                    </span>
-                  </span>
-                  {note && on && <span className="block text-xs text-breach">{note}</span>}
-                </span>
+                <span aria-hidden>{ok ? "✓" : "✕"}</span>
+                {rule.text}
               </li>
             );
           })}
         </ul>
-
-        <div
-          className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-line bg-white/[0.02] px-5 py-3.5 text-xs transition-opacity duration-500 sm:px-6 ${done ? "opacity-100" : "opacity-0"}`}
-        >
-          {s.receipt ? (
-            <>
-              <span className="text-soft">
-                Receipt signed by Bonded <span className="font-mono text-muted">{s.receipt}</span>
-              </span>
-              <span className="text-muted">Anyone can check it</span>
-            </>
-          ) : (
-            <>
-              <span className="text-soft">Seen after it was paid: no receipt</span>
-              <span className="text-warn">Alert sent to Slack</span>
-            </>
-          )}
-        </div>
-
-        {stamped && (
-          <span
-            className={`gate-stamp pointer-events-none absolute right-4 bottom-[56px] sm:top-[48%] sm:bottom-auto rounded-lg border-[3px] bg-sunken/70 px-3 py-0.5 font-mono text-lg font-bold sm:px-3.5 sm:py-1 tracking-[0.18em] uppercase backdrop-blur-[1px] sm:right-7 sm:text-2xl ${TONE_TEXT[s.tone]}`}
-          >
-            {s.verdict}
-          </span>
-        )}
       </div>
+
+      <div ref={ref}>
+        <div
+          key={`${s.id}-${run}`}
+          className="l-flow"
+          data-ready={reduced || onScreen}
+          data-arrive={run > 0}
+          data-phase={phase}
+          data-through={through}
+          style={{ "--tone": TONE_COLOUR[s.tone] } as CSSProperties}
+        >
+          <div className="l-asset">
+            <PaymentAsset kind={s.id} amount={s.amount} />
+          </div>
+          <span className="l-wire" aria-hidden>
+            <i />
+          </span>
+          <div className="l-gnode">
+            <svg viewBox="0 0 224 224" aria-hidden>
+              <g transform="translate(12 6)">
+                {MARK.map((d) => (
+                  <path key={d} d={d} />
+                ))}
+              </g>
+            </svg>
+          </div>
+          <span className="l-wire l-wire-out" aria-hidden>
+            <i />
+          </span>
+          <div className="l-place">
+            <PlaceGlyph place={s.place} />
+          </div>
+
+          <p className="l-cap l-cap-pay">
+            {s.tab}
+            <span className="sr-only">, {s.amount}</span>
+            <span className="l-cap-how">{HOW[s.via]}</span>
+          </p>
+          <div className="l-gout">
+            {/* Until the answer lands, its place says what the gate is doing. */}
+            <div className="l-gstack">
+              <p className="l-gwait" data-on={!decided} aria-hidden>
+                {phase === 0 ? "On its way to the gate" : "Checking your rules"}
+                <Dots />
+              </p>
+              <p className="l-gverdict" data-on={decided} aria-hidden={!decided}>
+                {s.verdict}
+              </p>
+            </div>
+            {/* On a narrow screen the rules are a screen above: say which one broke. */}
+            {!allowed && (
+              <p className="l-greason" data-on={decided} aria-hidden>
+                {broken.map((rule) => (
+                  <span key={rule}>✕ {rule}</span>
+                ))}
+              </p>
+            )}
+            <p className="l-lab l-gnote" data-on={decided} aria-hidden={!decided}>
+              {s.receipt ? "Receipt signed by Bonded" : "Alert sent to Slack"}
+            </p>
+          </div>
+          <p className="l-cap l-cap-place">{s.payee}</p>
+        </div>
+      </div>
+      {/* Outside the picture, which is drawn again for each payment, so every answer is read out. */}
+      <p className="sr-only" aria-live="polite">
+        {decided &&
+          (allowed
+            ? `${s.tab}, ${s.amount}: ${s.verdict}. It keeps every rule.`
+            : `${s.tab}, ${s.amount}: ${s.verdict}. It breaks ${broken.join(" and ")}.`)}
+      </p>
     </div>
   );
 }
 
-const WAYS: [string, string][] = [
-  [
-    "Ask first",
-    "One API, SDK or MCP call before each payment. In Enforce mode a breach is blocked.",
-  ],
-  ["Card hooks", "Stripe Issuing, Lithic or Marqeta asks Bonded before each card charge."],
-  ["Watch", "Bonded reads a wallet or your payment log after the fact, and alerts on a breach."],
-];
-
-/** The payment gate: what it does, the three ways to connect, and a payment going through it. */
+/** The payment gate: one line on what it does, and a payment going through it. */
 export function LandingGate() {
   return (
-    <section id="gate" className={SECTION}>
-      <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
+    <section id="gate" className="l-sec">
+      <div className="l-head">
+        <p className="l-lab">Payment gate · for agents that pay</p>
         <div>
-          <p className="eyebrow !text-accent">Payment gate · for agents that pay</p>
-          <h2 className="mt-3 font-serif text-5xl leading-none sm:text-6xl">
-            Check every payment before it leaves.
-          </h2>
-          <p className="mt-6 max-w-lg text-lg leading-relaxed text-muted">
-            The gate checks your agent's payments against your rules, by bank, card or wallet, and
-            signs a receipt anyone can check. Bonded never holds a key that can move your money.
+          <Reveal as="h2" className="l-h2">
+            Check every payment <span className="dim">before it leaves.</span>
+          </Reveal>
+          <p className="l-lede">
+            Your agent or your card asks first, so a payment that breaks your rules never leaves. A
+            wallet payment is checked once it is sent, and flagged straight away. Bonded never holds
+            a key that can move your money.
           </p>
-          <ul className="mt-8 flex max-w-lg flex-col gap-5">
-            {WAYS.map(([title, line]) => (
-              <li key={title} className="border-l border-line-strong pl-4">
-                <span className="block font-semibold">{title}</span>
-                <span className="mt-0.5 block text-muted">{line}</span>
-              </li>
-            ))}
-          </ul>
-          <div className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-3">
-            <AppLink to="/gate" className={buttonClass("primary", "lg")}>
+          <div className="l-actions">
+            <AppLink to="/gate" className="l-btn l-btn-p">
               Open the payment gate
             </AppLink>
-            <a href={DOCS_GATE} className="text-accent hover:underline">
+            <a href={DOCS_GATE} className="l-link">
               Read the guide <span aria-hidden>→</span>
             </a>
           </div>
         </div>
-        <Checkpoint />
+      </div>
+      <div className="l-body">
+        <GateDemo />
       </div>
     </section>
   );
