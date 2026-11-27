@@ -909,7 +909,7 @@ function PreviewInfo({
     {
       icon: Gift,
       title: "Free, a few a day",
-      line: "Previews run one at a time, after official ratings.",
+      line: "On the house. We cap it daily so our red team gets some sleep.",
     },
     {
       icon: Cpu,
