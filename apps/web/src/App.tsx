@@ -319,16 +319,19 @@ export function SiteLayout() {
             className="mx-auto hidden items-center gap-7 font-mono text-[13px] text-muted md:flex"
             aria-label="Site"
           >
-            <a href="#how" className="hover:text-ink">
+            <a href="/#try" className="hover:text-ink">
+              Try it
+            </a>
+            <a href="/#how" className="hover:text-ink">
               How it works
             </a>
-            <a href="#index" className="hover:text-ink">
+            <a href="/#index" className="hover:text-ink">
               Index
             </a>
-            <a href="#sentinel" className="hover:text-ink">
+            <a href="/#sentinel" className="hover:text-ink">
               Sentinel
             </a>
-            <a href="#gate" className="hover:text-ink">
+            <a href="/#gate" className="hover:text-ink">
               Payment gate
             </a>
           </nav>

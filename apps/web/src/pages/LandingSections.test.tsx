@@ -13,7 +13,6 @@ import {
   LatestPosts,
   LiveAgents,
   Roles,
-  ScoreScale,
   WorksWith,
   claimSources,
 } from "./LandingSections";
@@ -114,6 +113,9 @@ describe("the payment gate section", () => {
       within(section).getByRole("heading", { name: "Check every payment before it leaves." }),
     ).toBeTruthy();
     expect(within(section).getByText(/never holds a key that can move your money/)).toBeTruthy();
+    // It does not promise every payment is stopped first: a wallet payment is flagged after.
+    expect(within(section).getByText(/a payment that breaks your rules never leaves/)).toBeTruthy();
+    expect(within(section).getByText(/wallet payment is checked once it is sent/)).toBeTruthy();
     expect(
       within(section).getByRole("link", { name: "Open the payment gate" }).getAttribute("href"),
     ).toBe("/gate");
@@ -122,8 +124,8 @@ describe("the payment gate section", () => {
         .getByRole("link", { name: /Read the guide/ })
         .getAttribute("href"),
     ).toBe(docsUrl("/guides/payment-gate/"));
-    // The payments going through it are examples, and say so.
-    expect(within(section).getByText("Illustration")).toBeTruthy();
+    // No caption tags over the picture.
+    expect(within(section).queryByText("Illustration")).toBeNull();
   });
 
   it("keeps its words few: four short rules, said to be the owner's, and one word for the answer", () => {
@@ -147,7 +149,12 @@ describe("the payment gate section", () => {
       "true",
     );
     expect(document.querySelector(".l-asset svg text.amt")?.textContent).toBe("$1,240.00");
-    expect(screen.getByText("Blocked")).toBeTruthy();
+    // The amount is drawn, and also said in words for a screen reader.
+    expect(document.querySelector(".l-cap-pay")!.textContent).toContain("$1,240.00");
+    // The answer is shown, not just present: reduced motion lands on it straight away.
+    const answer = screen.getByText("Blocked");
+    expect(answer.getAttribute("data-on")).toBe("true");
+    expect(answer.getAttribute("aria-hidden")).toBe("false");
     expect(flow().getAttribute("data-through")).toBe("false");
     expect(
       rules()
@@ -214,6 +221,32 @@ describe("the payment gate section", () => {
     for (const stop of STOPS) expect(HOW[stop.via], stop.id).toBeTruthy();
   });
 
+  it("reads each answer out from one place that stays put as the picture is redrawn", () => {
+    motion(true);
+    show(<LandingGate />);
+    const live = () => document.querySelectorAll('[aria-live="polite"]');
+    expect(live()).toHaveLength(1);
+    const region = live()[0]!;
+    expect(region.closest(".l-flow")).toBeNull();
+    expect(region.textContent).toBe(
+      "Bank change, $1,240.00: Blocked. It breaks Bank details match.",
+    );
+    pick("Invoice");
+    expect(live()[0]).toBe(region);
+    expect(region.textContent).toBe("Invoice, $612.40: Allowed. It keeps every rule.");
+  });
+
+  it("names the broken rule under the answer, for narrow screens where the rules are far above", () => {
+    motion(true);
+    show(<LandingGate />);
+    pick("Card");
+    expect(document.querySelector(".l-greason")!.textContent).toBe(
+      "✕ On your vendor list✕ Not gambling",
+    );
+    pick("Invoice");
+    expect(document.querySelector(".l-greason")).toBeNull();
+  });
+
   it("puts the rules before the picture, so they are read first", () => {
     motion(true);
     show(<LandingGate />);
@@ -221,38 +254,137 @@ describe("the payment gate section", () => {
     expect(bar.compareDocumentPosition(flow()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("waits to play until the picture is on screen", () => {
-    motion(false);
-    let fire: (() => void) | undefined;
+  /** A stand-in observer: `fire(on)` tells every observer the picture came on or went off screen. */
+  const stubObserver = () => {
+    const made: { cb: IntersectionObserverCallback; els: Element[] }[] = [];
     vi.stubGlobal(
       "IntersectionObserver",
       class {
+        els: Element[] = [];
         constructor(cb: IntersectionObserverCallback) {
-          fire = () => {
-            const target = document.querySelector(".l-flow")!.parentElement!;
-            cb(
-              [{ isIntersecting: true, target } as unknown as IntersectionObserverEntry],
-              this as unknown as IntersectionObserver,
-            );
-          };
+          made.push({ cb, els: this.els });
         }
-        observe() {}
+        observe(el: Element) {
+          this.els.push(el);
+        }
         unobserve() {}
         disconnect() {}
       },
     );
+    return (on: boolean) => {
+      const target = flow().parentElement!;
+      for (const { cb, els } of made)
+        if (els.includes(target))
+          cb(
+            [{ isIntersecting: on, target } as unknown as IntersectionObserverEntry],
+            null as never,
+          );
+    };
+  };
+
+  it("waits to play until the picture is on screen", () => {
+    motion(false);
+    const fire = stubObserver();
     vi.useFakeTimers();
     try {
       show(<LandingGate />);
       act(() => void vi.advanceTimersByTime(10_000));
+      // Not watched yet: the payment is drawn and the line where the answer will land says what is
+      // happening, so a reader scrolling past never sees it empty.
       expect(flow().getAttribute("data-phase")).toBe("0");
       expect(flow().getAttribute("data-ready")).toBe("false");
-      act(() => fire!());
+      expect(flow().getAttribute("data-arrive")).toBe("false");
+      expect(document.querySelector(".l-gwait")!.textContent).toBe("On its way to the gate");
+      act(() => fire(true));
       expect(flow().getAttribute("data-ready")).toBe("true");
       act(() => void vi.advanceTimersByTime(GATE_STEP_MS[0]!));
       expect(flow().getAttribute("data-phase")).toBe("1");
       act(() => void vi.advanceTimersByTime(GATE_STEP_MS[1]!));
       expect(flow().getAttribute("data-phase")).toBe("2");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("pauses when scrolled away mid-run, and carries on when it is back", () => {
+    motion(false);
+    const fire = stubObserver();
+    vi.useFakeTimers();
+    try {
+      show(<LandingGate />);
+      act(() => fire(true));
+      act(() => void vi.advanceTimersByTime(GATE_STEP_MS[0]!));
+      expect(flow().getAttribute("data-phase")).toBe("1");
+      expect(document.querySelector(".l-gwait")!.textContent).toBe("Checking your rules");
+      act(() => fire(false));
+      act(() => void vi.advanceTimersByTime(10_000));
+      expect(flow().getAttribute("data-phase")).toBe("1");
+      act(() => fire(true));
+      act(() => void vi.advanceTimersByTime(GATE_STEP_MS[1]!));
+      expect(flow().getAttribute("data-phase")).toBe("2");
+      expect(document.querySelector(".l-gwait")!.getAttribute("data-on")).toBe("false");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("slides a picked payment in to the gate", () => {
+    motion(false);
+    show(<LandingGate />);
+    pick("Card");
+    expect(flow().getAttribute("data-arrive")).toBe("true");
+  });
+
+  it("holds a payment picked with the picture off screen until it is back in view", () => {
+    motion(false);
+    const fire = stubObserver();
+    vi.useFakeTimers();
+    try {
+      show(<LandingGate />);
+      act(() => fire(true));
+      act(() => void vi.advanceTimersByTime(GATE_STEP_MS[0]! + GATE_STEP_MS[1]!));
+      act(() => fire(false));
+      pick("Wallet");
+      act(() => void vi.advanceTimersByTime(10_000));
+      expect(flow().getAttribute("data-phase")).toBe("0");
+      act(() => fire(true));
+      act(() => void vi.advanceTimersByTime(GATE_STEP_MS[0]!));
+      expect(flow().getAttribute("data-phase")).toBe("1");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("starts the clock again on a new pick, so a timer from the payment before never moves it on", () => {
+    motion(false);
+    vi.useFakeTimers();
+    try {
+      show(<LandingGate />);
+      act(() => void vi.advanceTimersByTime(GATE_STEP_MS[0]! - 100));
+      pick("Invoice");
+      act(() => void vi.advanceTimersByTime(100));
+      expect(flow().getAttribute("data-phase")).toBe("0");
+      act(() => void vi.advanceTimersByTime(GATE_STEP_MS[0]! - 100));
+      expect(flow().getAttribute("data-phase")).toBe("1");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("clears the rule marks at once for a new payment, and ticks them one by one", () => {
+    motion(false);
+    vi.useFakeTimers();
+    try {
+      show(<LandingGate />);
+      const delays = () =>
+        [...document.querySelectorAll<HTMLElement>(".l-rulebar li")].map(
+          (li) => li.style.transitionDelay,
+        );
+      expect(delays()).toEqual(["", "", "", ""]);
+      act(() => void vi.advanceTimersByTime(GATE_STEP_MS[0]!));
+      expect(delays()).toEqual(["0ms", "250ms", "500ms", "750ms"]);
+      pick("Card");
+      expect(delays()).toEqual(["", "", "", ""]);
     } finally {
       vi.useRealTimers();
     }
@@ -327,9 +459,11 @@ describe("the Index section", () => {
       ["01", "95", "20"],
       ["02", "60", "90"],
     ]);
-    // On the page for everyone, and nothing else beside it: no chart.
+    // On the page for everyone. The map above it is drawn from the same rows, and is hidden from
+    // assistive technology: the table is its text version, so nothing on the map can be tabbed to.
     expect(screen.getByRole("table").className).not.toContain("sr-only");
     expect(screen.queryAllByRole("button")).toHaveLength(0);
+    expect(document.querySelector(".l-map")!.getAttribute("aria-hidden")).toBe("true");
     expect(screen.getByRole("link", { name: /See the full Index/ }).getAttribute("href")).toBe(
       "/index",
     );
@@ -352,8 +486,15 @@ describe("the Index section", () => {
     } as BondedIndexEntry;
     show(<LandingIndex index={index([entry("a", "Model A", 95, 20), unmeasured])} />);
     const row = screen.getByRole("rowheader", { name: "Model U" }).closest("tr")!;
-    expect(within(row).getByLabelText("not measured").textContent).toBe("–");
+    // A dash on screen, said as words to a screen reader.
+    expect(within(row).getByText("Not measured").className).toBe("sr-only");
+    expect(within(row).getByText("–").getAttribute("aria-hidden")).toBe("true");
     expect(within(row).queryByText("0")).toBeNull();
+  });
+
+  it("scrolls inside its own box on a narrow screen rather than widening the page", () => {
+    show(<LandingIndex index={index([entry("a", "Model A", 95, 20)])} />);
+    expect(screen.getByRole("table").parentElement!.className).toContain("l-tablewrap");
   });
 
   it("shows every model in the published Index", () => {
@@ -364,22 +505,6 @@ describe("the Index section", () => {
   it("is left out when no model is rated", () => {
     const { container } = show(<LandingIndex index={index([])} />);
     expect(container.innerHTML).toBe("");
-  });
-});
-
-describe("the score scale", () => {
-  it("shows every tier with its range and the bond it needs, from the contracts' own rules", () => {
-    show(<ScoreScale />);
-    const tiers = within(screen.getByRole("list")).getAllByRole("listitem");
-    expect(tiers.map((t) => t.textContent)).toEqual([
-      "AAA90 to 100Bond of at least 10% of the cover",
-      "AA80 to 89Bond of at least 10% of the cover",
-      "A70 to 79Bond of at least 10% of the cover",
-      "BBB60 to 69Bond of at least 10% of the cover",
-      "BB45 to 59Bond of at least 20% of the cover",
-      "B25 to 44Bond of at least 30% of the cover",
-      "CCC0 to 24Not insurable",
-    ]);
   });
 });
 
@@ -625,7 +750,18 @@ describe("the page's ground", () => {
   it("holds everything still for readers who ask for less motion", () => {
     const still = css.slice(css.lastIndexOf("@media (prefers-reduced-motion: reduce)"));
     // The cage never drops, nothing waits to be revealed, and nothing loops.
-    for (const part of [".l-cage", ".l-rv", ".l-verdict", ".l-mq", ".l-tape", ".l-orbit"])
+    for (const part of [
+      ".l-cage",
+      ".l-rv",
+      ".l-verdict",
+      ".l-mq",
+      ".l-tape",
+      ".l-orbit",
+      ".l-pulse",
+      ".l-asset",
+      ".l-wire-out",
+      "[data-beat]",
+    ])
       expect(still, part).toContain(part);
   });
 
@@ -636,6 +772,14 @@ describe("the page's ground", () => {
     const selectors = rule.slice(rule.lastIndexOf("}") + 1);
     for (const part of [".l-cage", ".l-tapes", ".logo-track", ".l-lean"])
       expect(selectors, part).toContain(part);
+  });
+
+  it("keeps the hero's buttons above the headline, whose line boxes span the full width", () => {
+    // The headline's lines are full-width boxes drawn after the buttons; without this they took
+    // every click on "See how it works" and "Test your agent, free".
+    const rule = css.slice(css.indexOf(".l-intro {"), css.indexOf("}", css.indexOf(".l-intro {")));
+    expect(rule).toMatch(/z-index: [1-9]/);
+    expect(rule).toContain("position: absolute");
   });
 
   it("sets its own ground on the landing page only", () => {

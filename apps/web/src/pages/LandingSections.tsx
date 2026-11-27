@@ -1,9 +1,8 @@
-import { TIER_RULES } from "@bondedhq/shared";
 import { AppLink } from "../components/app-link";
 import { Accordion } from "../components/collapsible";
 import { CopyBlock } from "../components/copy";
 import { FrameworkLogo } from "../components/framework-questions";
-import { ScoreRing, Skeleton, TierBadge, tierTone } from "../components/ui";
+import { ScoreRing, Skeleton, TierBadge } from "../components/ui";
 import { useAgents, useClaims, waterfall } from "../lib/chain";
 import { FRAMEWORKS, FRAMEWORK_TEXT } from "../lib/frameworks";
 import { bps, usd } from "../lib/format";
@@ -142,61 +141,6 @@ export function Roles() {
   );
 }
 
-/** Blue for the tiers that hold up, amber for the middling ones, orange for the rest. */
-function tierColour(minScore: number): string {
-  const tone = tierTone(minScore);
-  return tone === "brand"
-    ? "var(--l-blue)"
-    : tone === "warn"
-      ? "var(--l-amber)"
-      : "var(--l-orange)";
-}
-
-/** The tiers, from the contracts' own rules, across the page as one scale. */
-export function ScoreScale() {
-  return (
-    <section id="score" className="l-sec">
-      <div className="l-head">
-        <p className="l-lab">The score</p>
-        <div>
-          <Reveal as="h2" className="l-h2">
-            Security measured. <span className="dim">Insurance priced.</span>
-          </Reveal>
-          <p className="l-lede">
-            Every agent is attacked with the same published library, plus attacks held back and
-            unpublished. The Security score measures resistance to manipulation from 0 to 100. A
-            separate insurance score measures loss after containment and prices cover. These
-            insurance tiers set how much bond the operator must stake against the cover.
-          </p>
-        </div>
-      </div>
-      <Reveal as="ol" className="l-tiers l-body">
-        {TIER_RULES.map((t, i) => {
-          const above = TIER_RULES[i - 1];
-          const range = above ? `${t.minScore} to ${above.minScore - 1}` : `${t.minScore} to 100`;
-          return (
-            <li key={t.tier}>
-              <span className="l-tier" style={{ color: tierColour(t.minScore) }}>
-                {t.tier}
-              </span>
-              <span className="l-tier-range">{range}</span>
-              <span className="l-tier-bond">
-                {t.insurable
-                  ? `Bond of at least ${t.minBondBps / 100}% of the cover`
-                  : "Not insurable"}
-              </span>
-            </li>
-          );
-        })}
-      </Reveal>
-      <p className="l-lab mt-10 max-w-2xl">
-        The attack library uses fixed seeds, so a score is an in-library result. Everything runs on
-        testnets with test tokens.
-      </p>
-    </section>
-  );
-}
-
 /** Bring any agent: the one command, and the frameworks it wires in. */
 export function BringYourAgent() {
   return (
@@ -210,10 +154,9 @@ export function BringYourAgent() {
       <div className="l-body grid items-start gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-[clamp(24px,5vw,90px)]">
         <div>
           <p className="max-w-lg text-lg leading-relaxed text-muted">
-            Connect it by its HTTPS address, or with a small runner next to it that connects out to
-            our attack sandbox. A connection check tells you what to fix before any rating, and the
-            report shows, for each breach, what the agent read, what it did and what would have
-            stopped it.
+            Connect it by its HTTPS address, or with a small runner beside it. A connection check
+            says what to fix first, and the report shows, for each breach, what the agent read, what
+            it did and what would have stopped it.
           </p>
           <div className="mt-8 max-w-lg">
             <CopyBlock label="Wire it into a Node agent" text="npx @bondedhq/runner init" />

@@ -1,6 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { AttackDemo, DEMOS, LAST_PHASE, PHASE_AT_MS, streamAt, type Course } from "./LandingDemo";
+import {
+  AttackDemo,
+  DEMOS,
+  IDLE,
+  LAST_PHASE,
+  PHASE_AT_MS,
+  WAITING,
+  streamAt,
+  type Course,
+} from "./LandingDemo";
 
 afterEach(() => {
   cleanup();
@@ -8,12 +17,20 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const motion = (reduced: boolean) =>
-  vi.stubGlobal("matchMedia", () => ({
+/** jsdom has no matchMedia: a stand-in whose answer can change, telling its listeners. */
+const motion = (reduced: boolean) => {
+  const listeners = new Set<() => void>();
+  const query = {
     matches: reduced,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-  }));
+    addEventListener: (_: string, fn: () => void) => listeners.add(fn),
+    removeEventListener: (_: string, fn: () => void) => listeners.delete(fn),
+  };
+  vi.stubGlobal("matchMedia", () => query);
+  return (next: boolean) => {
+    query.matches = next;
+    listeners.forEach((fn) => fn());
+  };
+};
 
 const seconds = (phase: number) => PHASE_AT_MS[phase]! / 1000;
 const course = (blocked: boolean): Course => ({ from: 0.25, agent: 0.46, vault: 0.86, blocked });
@@ -93,18 +110,22 @@ describe("the attack demo", () => {
       expect(verdict().getAttribute("aria-hidden")).toBe("false");
       const failed = screen.getByText("Token is in the mandate").closest("li")!;
       expect(within(failed).getByText("no")).toBeTruthy();
-      expect(screen.getByText("Attempt blocked")).toBeTruthy();
+      // Enforce mode stops the action and freezes the agent too, as the contracts do.
+      expect(screen.getByText("Frozen")).toBeTruthy();
+      expect(
+        within(verdict()).getByText(/The agent is frozen, and the attempt is logged/),
+      ).toBeTruthy();
     });
 
     it("blocks in Enforce mode and records a breach in Monitor mode", () => {
       render(<AttackDemo />);
       fireEvent.click(screen.getByRole("button", { name: /Panic message/ }));
       expect(screen.getByText("Blocked")).toBeTruthy();
-      expect(screen.getByText(/No money moves/)).toBeTruthy();
+      expect(within(verdict()).getByText(/No money moves/)).toBeTruthy();
 
       fireEvent.click(screen.getByRole("button", { name: "Monitor" }));
       expect(screen.getByText("Breach")).toBeTruthy();
-      expect(screen.getByText(/\$30,000 leaves\. The agent is frozen/)).toBeTruthy();
+      expect(within(verdict()).getByText(/\$30,000 leaves\. The agent is frozen/)).toBeTruthy();
       expect(screen.getByText("Frozen")).toBeTruthy();
       expect(screen.getByText("Recorded the breach")).toBeTruthy();
       expect(screen.getByRole("button", { name: "Monitor" }).getAttribute("aria-pressed")).toBe(
@@ -112,9 +133,21 @@ describe("the attack demo", () => {
       );
     });
 
-    it("says it is an illustration", () => {
+    it("reads the answer out once, with the rules it broke", () => {
       render(<AttackDemo />);
-      expect(screen.getByText(/Illustration of an Arena episode/)).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: /Panic message/ }));
+      const live = document.querySelector('[aria-live="polite"]')!;
+      expect(live.textContent).toMatch(/^Panic message, Enforce mode: Blocked\./);
+      expect(live.textContent).toContain(
+        "Fails: Under the trade and daily limits, Payee is in the mandate.",
+      );
+      // The only live region: the checks and the verdict above it are not read twice.
+      expect(document.querySelectorAll("[aria-live]")).toHaveLength(1);
+    });
+
+    it("lets the picture speak, with no caption under it", () => {
+      render(<AttackDemo />);
+      expect(screen.queryByText(/Illustration/)).toBeNull();
     });
   });
 
@@ -127,17 +160,46 @@ describe("the attack demo", () => {
     it("plays once by itself, then walks through reading, acting, checking and the verdict", () => {
       render(<AttackDemo />);
       const lane = document.querySelector(".l-lane")!;
+      // Before it plays, nothing is blank: the rules are listed, waiting, and the line where the
+      // answer will land says it is waiting for an attack.
+      const waiting = () => document.querySelector(".l-vw")!.textContent;
+      expect(lane.getAttribute("data-phase")).toBe(String(IDLE));
+      expect(waiting()).toBe(WAITING[IDLE]);
+      expect(document.querySelectorAll(".l-out li")).toHaveLength(3);
       expect(verdict().getAttribute("aria-hidden")).toBe("true");
-      // It starts on its own shortly after it comes on screen.
-      act(() => void vi.advanceTimersByTime(700));
+      const live = document.querySelector('[aria-live="polite"]')!;
+      expect(live.textContent).toBe("");
+      // It starts on its own shortly after it comes on screen, and says what is happening.
+      act(() => void vi.advanceTimersByTime(500));
       expect(lane.getAttribute("data-phase")).toBe("0");
+      expect(waiting()).toBe(WAITING[0]);
+      expect(document.querySelector(".l-vbar")!.getAttribute("data-run")).toBe("true");
       PHASE_AT_MS.slice(1).forEach((ms, i) => {
         act(() => void vi.advanceTimersByTime(ms - PHASE_AT_MS[i]!));
         expect(lane.getAttribute("data-phase")).toBe(String(i + 1));
+        if (i + 1 < LAST_PHASE) expect(waiting()).toBe(WAITING[i + 1]);
       });
+      // The line gives way to the answer.
+      expect(document.querySelector(".l-vwait")!.getAttribute("data-on")).toBe("false");
       expect(lane.getAttribute("data-phase")).toBe(String(LAST_PHASE));
       expect(verdict().getAttribute("aria-hidden")).toBe("false");
       expect(screen.getByText("Blocked")).toBeTruthy();
+      expect(live.textContent).toMatch(/^Fake payout address, Enforce mode: Blocked\./);
+    });
+
+    it("jumps to the answer if the reader asks for less motion part-way through", () => {
+      const ask = motion(false);
+      render(<AttackDemo />);
+      const lane = document.querySelector(".l-lane")!;
+      fireEvent.click(screen.getByRole("button", { name: /Honeypot token/ }));
+      act(() => void vi.advanceTimersByTime(PHASE_AT_MS[1]));
+      expect(lane.getAttribute("data-phase")).toBe("1");
+      act(() => ask(true));
+      expect(lane.getAttribute("data-phase")).toBe(String(LAST_PHASE));
+      expect(verdict().getAttribute("aria-hidden")).toBe("false");
+      // The old run's timers are gone: nothing moves it back.
+      act(() => void vi.advanceTimersByTime(10_000));
+      expect(lane.getAttribute("data-phase")).toBe(String(LAST_PHASE));
     });
 
     it("starts again from the beginning when another attack is picked mid-run", () => {
@@ -156,10 +218,44 @@ describe("the attack demo", () => {
       expect(lane.getAttribute("data-phase")).toBe("1");
     });
 
+    it("jumps to the answer when the reader scrolls away mid-run", () => {
+      let tell: (on: boolean) => void = () => {};
+      vi.stubGlobal(
+        "IntersectionObserver",
+        class {
+          constructor(cb: IntersectionObserverCallback) {
+            tell = (on) =>
+              cb(
+                [{ isIntersecting: on, target: document.querySelector(".l-agent")! }] as never,
+                this as never,
+              );
+          }
+          observe() {}
+          unobserve() {}
+          disconnect() {}
+        },
+      );
+      render(<AttackDemo />);
+      const lane = document.querySelector(".l-lane")!;
+      act(() => tell(true));
+      act(() => void vi.advanceTimersByTime(500 + PHASE_AT_MS[1]));
+      expect(lane.getAttribute("data-phase")).toBe("1");
+      act(() => tell(false));
+      expect(lane.getAttribute("data-phase")).toBe(String(LAST_PHASE));
+      // Scrolled past before it had time to start: it never starts, and keeps waiting.
+      cleanup();
+      render(<AttackDemo />);
+      act(() => tell(true));
+      act(() => void vi.advanceTimersByTime(200));
+      act(() => tell(false));
+      act(() => void vi.advanceTimersByTime(5_000));
+      expect(document.querySelector(".l-lane")!.getAttribute("data-phase")).toBe(String(IDLE));
+    });
+
     it("does not play by itself once the reader has picked an attack", () => {
       render(<AttackDemo />);
       fireEvent.click(screen.getByRole("button", { name: /Panic message/ }));
-      act(() => void vi.advanceTimersByTime(700));
+      act(() => void vi.advanceTimersByTime(500));
       expect(
         screen.getByRole("button", { name: /Panic message/ }).getAttribute("aria-pressed"),
       ).toBe("true");

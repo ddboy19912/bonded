@@ -5,9 +5,8 @@ import { AppLink } from "../components/app-link";
 import { deployment } from "../config";
 import { totalPaid, useClaims } from "../lib/chain";
 import { usd } from "../lib/format";
-import { useInView } from "../lib/reveal";
+import { useInView, useReducedMotion } from "../lib/reveal";
 import { APP_HOME, TEST_AGENT } from "../lib/routes";
-import { useReducedMotion } from "./LandingSentinel";
 
 /** What the red team plants, by class: the text that runs behind the headline, each one held. */
 export const EXAMPLE_ATTACKS = [
@@ -37,7 +36,10 @@ const FREE_WEIGHT = 300;
 
 /**
  * Each letter of the headline has its own weight. It starts heavy while the cage is down, relaxes as
- * the bars lift, then thickens near the pointer. With no pointer about, a slow wave runs through it.
+ * the bars lift, then thickens near the pointer; when the pointer has been still for a moment, a
+ * slow wave runs through it instead, so the headline is always alive while it is on screen. The
+ * loop stops while the hero is off screen (and the browser pauses it in a hidden tab). Letter
+ * positions are measured again once the headline has relaxed, since lighter letters are narrower.
  */
 function useKineticHeadline(host: RefObject<HTMLElement | null>, reduced: boolean) {
   useEffect(() => {
@@ -49,7 +51,7 @@ function useKineticHeadline(host: RefObject<HTMLElement | null>, reduced: boolea
       x: 0,
       y: 0,
     }));
-    const pointer = { x: -9999, y: -9999, at: 0 };
+    const pointer = { x: -9999, y: -9999, at: -Infinity };
     const measure = () => {
       for (const c of chars) {
         const r = c.node.getBoundingClientRect();
@@ -57,29 +59,20 @@ function useKineticHeadline(host: RefObject<HTMLElement | null>, reduced: boolea
         c.y = r.top + r.height / 2 + window.scrollY;
       }
     };
-    const onMove = (e: PointerEvent) => {
-      pointer.x = e.clientX + window.scrollX;
-      pointer.y = e.clientY + window.scrollY;
-      pointer.at = performance.now();
-    };
-    measure();
-    window.addEventListener("resize", measure);
-    window.addEventListener("pointermove", onMove);
-    void document.fonts?.ready.then(measure);
 
     let visible = true;
-    const io =
-      typeof IntersectionObserver === "undefined"
-        ? null
-        : new IntersectionObserver(([e]) => (visible = !!e?.isIntersecting));
-    io?.observe(el);
-
+    let frame = 0;
+    let measuredRelaxed = false;
     const start = performance.now();
-    let frame = requestAnimationFrame(function tick(now) {
-      frame = requestAnimationFrame(tick);
+    const tick = (now: number) => {
+      frame = 0;
       if (!visible) return;
       const t = (now - start) / 1000;
       const relax = Math.min(1, Math.max(0, (t - 0.45) / 1.5));
+      if (relax === 1 && !measuredRelaxed) {
+        measuredRelaxed = true;
+        measure();
+      }
       const base = CAGED_WEIGHT - (CAGED_WEIGHT - FREE_WEIGHT) * (1 - (1 - relax) ** 4);
       const alive = Math.min(1, Math.max(0, (t - 1.6) / 1.2));
       const idle = now - pointer.at > 2500;
@@ -94,40 +87,85 @@ function useKineticHeadline(host: RefObject<HTMLElement | null>, reduced: boolea
         c.weight += (target - c.weight) * 0.12;
         c.node.style.fontVariationSettings = `"wght" ${c.weight.toFixed(0)}`;
       });
-    });
+      frame = requestAnimationFrame(tick);
+    };
+    const wake = () => {
+      if (!frame && visible) frame = requestAnimationFrame(tick);
+    };
+    const onMove = (e: PointerEvent) => {
+      pointer.x = e.clientX + window.scrollX;
+      pointer.y = e.clientY + window.scrollY;
+      pointer.at = performance.now();
+      wake();
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    window.addEventListener("pointermove", onMove, { passive: true });
+    void document.fonts?.ready.then(measure);
+
+    const io =
+      typeof IntersectionObserver === "undefined"
+        ? null
+        : new IntersectionObserver(([e]) => {
+            visible = !!e?.isIntersecting;
+            if (visible) wake();
+          });
+    io?.observe(el);
+    wake();
     return () => {
       cancelAnimationFrame(frame);
       io?.disconnect();
       window.removeEventListener("resize", measure);
       window.removeEventListener("pointermove", onMove);
+      for (const c of chars) c.node.style.fontVariationSettings = "";
     };
   }, [host, reduced]);
 }
 
-/** A number that counts up to its value once it is known. */
-function CountUp({ value, prefix = "" }: { value: number | undefined; prefix?: string }) {
+/**
+ * A number that counts up to its value once it is known. When a later read moves it, it runs on
+ * from where it was rather than from zero; if the read failed it says so with a dash.
+ */
+function CountUp({
+  value,
+  failed = false,
+  prefix = "",
+}: {
+  value: number | undefined;
+  failed?: boolean;
+  prefix?: string;
+}) {
   const reduced = useReducedMotion();
   const [shown, setShown] = useState<number | undefined>(undefined);
+  const from = useRef(0);
   useEffect(() => {
     if (value === undefined) return;
     if (reduced || typeof requestAnimationFrame === "undefined") {
+      from.current = value;
       setShown(value);
       return;
     }
+    const begin = from.current;
     const start = performance.now();
     let frame = requestAnimationFrame(function tick(now) {
       const p = Math.min(1, (now - start) / 1600);
-      setShown(Math.round(value * (1 - (1 - p) ** 4)));
+      const n = Math.round(begin + (value - begin) * (1 - (1 - p) ** 4));
+      from.current = n;
+      setShown(n);
       if (p < 1) frame = requestAnimationFrame(tick);
     });
     return () => cancelAnimationFrame(frame);
   }, [value, reduced]);
-  return <b>{shown === undefined ? "…" : `${prefix}${shown.toLocaleString("en-US")}`}</b>;
+  if (shown === undefined) return <b>{failed ? "–" : "…"}</b>;
+  return <b>{`${prefix}${shown.toLocaleString("en-US")}`}</b>;
 }
 
 const whole = (amount: bigint) => Number(usd(amount, 0).replace(/,/g, ""));
 
-/** The three numbers under the headline, read from the chain. */
+/**
+ * The three numbers under the headline, read from the chain. They are testnet figures in test
+ * dollars (tUSDG), and the row says so.
+ */
 function Ledger() {
   const reads = useReadContracts({
     contracts: [
@@ -142,21 +180,29 @@ function Ledger() {
   return (
     <div id="numbers" className="l-ledger l-late">
       <span>
-        <CountUp value={agents?.result !== undefined ? Number(agents.result) : undefined} />
+        <CountUp
+          value={agents?.result !== undefined ? Number(agents.result) : undefined}
+          failed={reads.isError || agents?.status === "failure"}
+        />
         agents registered
       </span>
       <span>
         <CountUp
           value={pool?.result !== undefined ? whole(pool.result as bigint) : undefined}
+          failed={reads.isError || pool?.status === "failure"}
           prefix="$"
         />
         in the cover pool
       </span>
       <span>
-        <CountUp value={paid !== undefined ? whole(paid) : undefined} prefix="$" />
+        <CountUp
+          value={paid !== undefined ? whole(paid) : undefined}
+          failed={claims.isError}
+          prefix="$"
+        />
         paid out, zero forms
       </span>
-      <span aria-hidden>Scroll ↓</span>
+      <span className="l-live">Live on testnet</span>
     </div>
   );
 }
@@ -201,29 +247,34 @@ export function Hero() {
           );
         })}
       </div>
-      <div className="l-intro l-late">
-        <p className="l-lab">Safety ratings and protection for AI agents that move money</p>
-        <p>Bonded measures how much money an AI agent can be tricked into losing, and stops it.</p>
-        <div className="l-actions">
-          <a href="#how" className="l-btn l-btn-p">
-            See how it works <span aria-hidden>↓</span>
-          </a>
-          <AppLink to={TEST_AGENT} className="l-btn l-btn-s">
-            Test your agent, free
-          </AppLink>
+      {/* The headline and the line beside it, so the line can sit level with the headline's top. */}
+      <div className="l-headrow">
+        <div className="l-intro l-late">
+          <p className="l-lab">Safety ratings and protection for AI agents that move money</p>
+          <p>
+            Bonded measures how much money an AI agent can be tricked into losing, and stops it.
+          </p>
+          <div className="l-actions">
+            <a href="#try" className="l-btn l-btn-p">
+              See how it works <span aria-hidden>↓</span>
+            </a>
+            <AppLink to={TEST_AGENT} className="l-btn l-btn-s">
+              Test your agent, free
+            </AppLink>
+          </div>
         </div>
+        <h1 className="l-h1" aria-label="Don't cage your agent. Bond it.">
+          {HEADLINE.map((line) => (
+            <span key={line.text} className={`l-ln ${line.tone}`} aria-hidden>
+              {[...line.text].map((char, i) => (
+                <span key={i} className="l-ch">
+                  {char === " " ? " " : char}
+                </span>
+              ))}
+            </span>
+          ))}
+        </h1>
       </div>
-      <h1 className="l-h1" aria-label="Don't cage your agent. Bond it.">
-        {HEADLINE.map((line) => (
-          <span key={line.text} className={`l-ln ${line.tone}`} aria-hidden>
-            {[...line.text].map((char, i) => (
-              <span key={i} className="l-ch">
-                {char === " " ? " " : char}
-              </span>
-            ))}
-          </span>
-        ))}
-      </h1>
       <Ledger />
     </section>
   );

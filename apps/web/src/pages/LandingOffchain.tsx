@@ -2,17 +2,22 @@ import type { BondedIndex } from "@bondedhq/shared";
 import { AppLink } from "../components/app-link";
 import { useEffect, useState, type CSSProperties } from "react";
 import { byScore, loadBondedIndex, taskScore } from "../lib/bonded-index";
-import { Reveal, useInView } from "../lib/reveal";
+import { Reveal, useOnScreen, useReducedMotion } from "../lib/reveal";
 import { DOCS_GATE } from "../lib/routes";
-import { useReducedMotion } from "./LandingSentinel";
+import { Dots } from "./LandingDemo";
+import { IndexMap, ProviderMark, mapPoints } from "./LandingIndexMap";
 
 /**
- * The Index's models as one ledger, hardest to trick first, each with its two scores side by side,
- * from config/bonded-index.json. A model whose Task score was not measured is still listed, with a
- * dash in place of a number.
+ * The Index's models, from config/bonded-index.json: first as one ledger, hardest to trick first,
+ * each with its provider's logo and its two scores side by side; then on one map, Security across
+ * and Task up. Pointing at a row lights its marker and pointing at a marker lights its row. A
+ * model whose Task score was not measured is listed with a dash, and left off the map.
  */
 export function LandingIndex({ index = loadBondedIndex() }: { index?: BondedIndex }) {
+  const [active, setActive] = useState<string | null>(null);
   if (index.entries.length === 0) return null;
+  const points = mapPoints(index.entries);
+  const unplotted = index.entries.length - points.length;
   return (
     <section id="index" className="l-sec">
       <div className="l-head">
@@ -28,30 +33,59 @@ export function LandingIndex({ index = loadBondedIndex() }: { index?: BondedInde
           </p>
         </div>
       </div>
-      <table className="l-ledger-table l-body">
-        <caption className="sr-only">AI models by Security score, with their Task score</caption>
-        <thead>
-          <tr>
-            <th scope="col">No.</th>
-            <th scope="col">Model</th>
-            <th scope="col">Security: harder to trick</th>
-            <th scope="col">Task: still pays the real bills</th>
-          </tr>
-        </thead>
-        <tbody>
-          {byScore(index.entries).map((entry, i) => {
-            const task = taskScore(entry);
-            return (
-              <tr key={entry.model}>
-                <td className="n">{String(i + 1).padStart(2, "0")}</td>
-                <th scope="row">{entry.label}</th>
-                <td>{entry.score}</td>
-                <td>{task ?? <span aria-label="not measured">–</span>}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div className="l-tablewrap l-body" onMouseLeave={() => setActive(null)}>
+        <table className="l-ledger-table">
+          <caption className="sr-only">AI models by Security score, with their Task score</caption>
+          <thead>
+            <tr>
+              <th scope="col">No.</th>
+              <th scope="col">Model</th>
+              <th scope="col">
+                Security<span className="l-th-sub">: harder to trick</span>
+              </th>
+              <th scope="col">
+                Task<span className="l-th-sub">: still pays the real bills</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {byScore(index.entries).map((entry, i) => {
+              const task = taskScore(entry);
+              return (
+                <tr
+                  key={entry.model}
+                  data-active={active === entry.model}
+                  onMouseEnter={() => setActive(task === null ? null : entry.model)}
+                >
+                  <td className="n">{String(i + 1).padStart(2, "0")}</td>
+                  <th scope="row">
+                    <ProviderMark provider={entry.provider} className="l-plogo" />
+                    {entry.label}
+                  </th>
+                  <td>{entry.score}</td>
+                  <td>
+                    {task ?? (
+                      <>
+                        <span aria-hidden>–</span>
+                        <span className="sr-only">Not measured</span>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="l-mapwrap">
+        <IndexMap points={points} active={active} onActive={setActive} />
+        {unplotted > 0 && (
+          <p className="l-lab mt-4">
+            {unplotted === 1 ? "One model has" : `${unplotted} models have`} no Task score yet, so{" "}
+            {unplotted === 1 ? "it is" : "they are"} in the list above but not on the map.
+          </p>
+        )}
+      </div>
       <div className="l-actions">
         <AppLink to="/index" className="l-link">
           See the full Index <span aria-hidden>→</span>
@@ -276,26 +310,36 @@ function PlaceGlyph({ place }: { place: Place }) {
  * the owner's four rules are ticked or crossed, and one word says what happened. An allowed payment
  * carries on to its payee; a blocked one stops at the gate. The wallet payment arrives by Watch,
  * which only sees it after it has left, so it gets through and the gate raises a breach. The rules
- * sit above the picture so they are read first, and the first payment waits until the picture is
- * well up the screen, plays once, and then holds; nothing loops. Reduced-motion readers get each
- * one finished.
+ * sit above the picture so they are read first. The payment is drawn from the start, and until the
+ * answer lands a line in its place says the rules are being checked. It plays while the picture is
+ * well up the screen and pauses when it is not; a picked payment arrives at the gate afresh. Nothing
+ * loops. Reduced-motion readers get each one finished.
  */
 function GateDemo() {
   const reduced = useReducedMotion();
-  // Not on first sight: only once the picture is 40% of the way up the screen, so the reader
-  // has the rules and the payment in view before anything happens.
-  const [ref, seen] = useInView<HTMLDivElement>("0px 0px -40% 0px");
-  // It opens on the bank change: a payment the gate stops, for one rule.
+  // Not on first sight: only while the picture is a quarter of the way up the screen, so the
+  // reader has the rules and the payment in view before anything happens.
+  const [ref, onScreen] = useOnScreen<HTMLDivElement>("0px 0px -25% 0px");
+  // It opens on the bank change: a payment the gate stops, for one rule. The payment is drawn from
+  // the start; until the answer lands, its place says the rules are being checked.
   const [index, setIndex] = useState(1);
   const [step, setStep] = useState(0);
+  // Counts the picks, so a picked payment is drawn afresh and arrives at the gate.
+  const [run, setRun] = useState(0);
   const s = STOPS[index]!;
   const phase = reduced ? DECIDED : step;
 
+  // A reader who asks for less motion part-way through gets the answer, and keeps it after.
   useEffect(() => {
-    if (reduced || !seen || step >= DECIDED) return;
+    if (reduced) setStep(DECIDED);
+  }, [reduced]);
+
+  // A new pick restarts the clock, so a timer left from the payment before never moves it on early.
+  useEffect(() => {
+    if (reduced || !onScreen || step >= DECIDED) return;
     const t = setTimeout(() => setStep(step + 1), GATE_STEP_MS[step]);
     return () => clearTimeout(t);
-  }, [step, reduced, seen]);
+  }, [step, reduced, onScreen, index]);
 
   const decided = phase >= DECIDED;
   const allowed = s.breaks.length === 0;
@@ -315,7 +359,8 @@ function GateDemo() {
               aria-pressed={i === index}
               onClick={() => {
                 setIndex(i);
-                setStep(0);
+                setStep(reduced ? DECIDED : 0);
+                setRun((r) => r + 1);
               }}
             >
               <svg viewBox="0 0 24 24" aria-hidden>
@@ -325,7 +370,6 @@ function GateDemo() {
             </button>
           ))}
         </div>
-        <span className="l-lab">Illustration</span>
       </div>
 
       <div className="l-rulebar">
@@ -338,7 +382,8 @@ function GateDemo() {
                 key={rule.id}
                 data-on={phase >= 1}
                 data-ok={ok}
-                style={{ transitionDelay: `${i * RULE_GAP_MS}ms` }}
+                // Ticked one after another; cleared all at once when a new payment starts.
+                style={phase >= 1 ? { transitionDelay: `${i * RULE_GAP_MS}ms` } : undefined}
               >
                 <span aria-hidden>{ok ? "✓" : "✕"}</span>
                 {rule.text}
@@ -350,9 +395,10 @@ function GateDemo() {
 
       <div ref={ref}>
         <div
-          key={s.id}
+          key={`${s.id}-${run}`}
           className="l-flow"
-          data-ready={reduced || seen}
+          data-ready={reduced || onScreen}
+          data-arrive={run > 0}
           data-phase={phase}
           data-through={through}
           style={{ "--tone": TONE_COLOUR[s.tone] } as CSSProperties}
@@ -381,25 +427,42 @@ function GateDemo() {
 
           <p className="l-cap l-cap-pay">
             {s.tab}
+            <span className="sr-only">, {s.amount}</span>
             <span className="l-cap-how">{HOW[s.via]}</span>
           </p>
           <div className="l-gout">
-            <p className="l-gverdict" data-on={decided} aria-hidden={!decided}>
-              {s.verdict}
-            </p>
+            {/* Until the answer lands, its place says what the gate is doing. */}
+            <div className="l-gstack">
+              <p className="l-gwait" data-on={!decided} aria-hidden>
+                {phase === 0 ? "On its way to the gate" : "Checking your rules"}
+                <Dots />
+              </p>
+              <p className="l-gverdict" data-on={decided} aria-hidden={!decided}>
+                {s.verdict}
+              </p>
+            </div>
+            {/* On a narrow screen the rules are a screen above: say which one broke. */}
+            {!allowed && (
+              <p className="l-greason" data-on={decided} aria-hidden>
+                {broken.map((rule) => (
+                  <span key={rule}>✕ {rule}</span>
+                ))}
+              </p>
+            )}
             <p className="l-lab l-gnote" data-on={decided} aria-hidden={!decided}>
               {s.receipt ? "Receipt signed by Bonded" : "Alert sent to Slack"}
-            </p>
-            <p className="sr-only" aria-live="polite">
-              {decided &&
-                (allowed
-                  ? `${s.verdict}: it keeps every rule.`
-                  : `${s.verdict}: it breaks ${broken.join(" and ")}.`)}
             </p>
           </div>
           <p className="l-cap l-cap-place">{s.payee}</p>
         </div>
       </div>
+      {/* Outside the picture, which is drawn again for each payment, so every answer is read out. */}
+      <p className="sr-only" aria-live="polite">
+        {decided &&
+          (allowed
+            ? `${s.tab}, ${s.amount}: ${s.verdict}. It keeps every rule.`
+            : `${s.tab}, ${s.amount}: ${s.verdict}. It breaks ${broken.join(" and ")}.`)}
+      </p>
     </div>
   );
 }
@@ -415,8 +478,9 @@ export function LandingGate() {
             Check every payment <span className="dim">before it leaves.</span>
           </Reveal>
           <p className="l-lede">
-            Your rules, checked before your agent pays. Bonded never holds a key that can move your
-            money.
+            Your agent or your card asks first, so a payment that breaks your rules never leaves. A
+            wallet payment is checked once it is sent, and flagged straight away. Bonded never holds
+            a key that can move your money.
           </p>
           <div className="l-actions">
             <AppLink to="/gate" className="l-btn l-btn-p">

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { CONTACT_EMAIL } from "../lib/routes";
 import { usePageTitle } from "../lib/page-title";
+import "./landing.css";
 
 /** What Bonded keeps, for how long. Kept in step with the clean-up in apps/api/src/main.ts. */
 const KEPT: { what: string; detail: string; how: string }[] = [
@@ -46,68 +47,74 @@ const KEPT: { what: string; detail: string; how: string }[] = [
 ];
 
 const mail = (
-  <a className="text-accent hover:underline" href={`mailto:${CONTACT_EMAIL}`}>
+  <a className="l-priv-mail" href={`mailto:${CONTACT_EMAIL}`}>
     {CONTACT_EMAIL}
   </a>
 );
 
+/** One topic: its heading on the left, the text beside it, a thin rule above. */
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="flex flex-col gap-3">
-      <h2 className="text-xl font-semibold text-ink">{title}</h2>
-      <div className="flex flex-col gap-3 leading-relaxed text-soft">{children}</div>
+    <section className="l-priv-sec">
+      <h2>{title}</h2>
+      <div className="l-priv-body">{children}</div>
     </section>
   );
 }
 
-/** The privacy page, on the public site. Retention periods match docs/DATA-HANDLING.md. */
+/**
+ * The privacy page, on the public site, in the landing page's look: the title large, then each
+ * topic as a row with its heading beside the text. Retention periods match docs/DATA-HANDLING.md.
+ */
 export function Privacy() {
   usePageTitle("Privacy · Bonded");
   return (
-    <article className="mx-auto flex max-w-3xl flex-col gap-12 px-4 py-14 sm:px-6 sm:py-20">
-      <header className="flex flex-col gap-4">
-        <h1 className="font-serif text-5xl leading-tight text-ink sm:text-6xl">Privacy</h1>
-        <p className="text-lg leading-relaxed text-soft">
-          What Bonded keeps when you test an agent, how long we keep it, who sees it, and how to
-          have it deleted. Questions: {mail}.
-        </p>
-        <p className="text-sm text-muted">Last updated 16 Nov 2026</p>
+    <article className="landing l-priv">
+      <header className="l-head">
+        <p className="l-lab">Last updated 16 Nov 2026</p>
+        <div>
+          <h1 className="l-h2">Privacy</h1>
+          <p className="l-lede">
+            What Bonded keeps when you test an agent, how long we keep it, who sees it, and how to
+            have it deleted. Questions: {mail}.
+          </p>
+        </div>
       </header>
 
       <Section title="What we keep, and for how long">
-        <dl className="flex flex-col divide-y divide-line rounded-2xl border border-line">
+        <dl className="l-priv-kept">
           {KEPT.map((k) => (
-            <div key={k.what} className="grid gap-1 px-5 py-4 sm:grid-cols-[1fr_14rem] sm:gap-6">
+            <div key={k.what}>
               <div>
-                <dt className="font-medium text-ink">{k.what}</dt>
-                <dd className="mt-1 text-sm text-muted">{k.detail}</dd>
+                <dt>{k.what}</dt>
+                <dd>{k.detail}</dd>
               </div>
-              <dd className="text-sm text-ink sm:text-right">{k.how}</dd>
+              <dd className="l-priv-how">{k.how}</dd>
             </div>
           ))}
         </dl>
       </Section>
 
       <Section title="Who sees it">
-        <ul className="flex list-disc flex-col gap-2 pl-5">
+        <ul>
           <li>
-            <strong className="text-ink">Only you see your previews.</strong> A preview's report is
-            visible only to the account or wallet that started it, unless you make a link to share
-            it. A shared link shows the report and nothing about you, and stops working when you
-            turn it off. We never put a preview on the leaderboard or the Index.
+            <strong>Only you see your previews.</strong> A preview's report is visible only to the
+            account or wallet that started it, unless you make a link to share it. A shared link
+            shows the report and nothing about you, and stops working when you turn it off. We never
+            put a preview on the leaderboard or the Index.
           </li>
           <li>
-            <strong className="text-ink">Official ratings you choose to post are public.</strong> A
-            rating posted on chain can't be removed from the chain. A preview never posts anything.
+            <strong>Official ratings you choose to post are public.</strong> A rating posted on
+            chain can't be removed from the chain. A preview never posts anything.
           </li>
           <li>
-            <strong className="text-ink">AI model providers see the test's messages.</strong> To run
-            a test, its messages go to the model your agent uses, and some results are judged by a
-            model. Those providers' own terms apply.
+            <strong>AI model providers see the test's messages.</strong> To run a test, its messages
+            go to the model your agent uses, and some results are judged by a model. Those
+            providers' own terms apply.
           </li>
           <li>
-            <strong className="text-ink">Nobody else.</strong> We use your data only to run your
-            tests and improve our testing. We don't sell it or share it.
+            <strong>Nobody else.</strong> We use your data only to run your tests and improve our
+            testing. We don't sell it or share it.
           </li>
         </ul>
       </Section>
@@ -121,7 +128,7 @@ export function Privacy() {
       </Section>
 
       <Section title="Services that handle your data">
-        <ul className="flex list-disc flex-col gap-2 pl-5">
+        <ul>
           <li>Vercel hosts the website.</li>
           <li>Railway runs our API and its database.</li>
           <li>Resend sends our emails.</li>

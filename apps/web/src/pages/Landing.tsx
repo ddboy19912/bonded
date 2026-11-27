@@ -5,15 +5,7 @@ import { AttackDemo } from "./LandingDemo";
 import { FinalCta, Hero, Manifesto } from "./LandingHero";
 import { LandingSentinel } from "./LandingSentinel";
 import { LandingGate, LandingIndex } from "./LandingOffchain";
-import {
-  BringYourAgent,
-  Faq,
-  LatestPosts,
-  LiveAgents,
-  Roles,
-  ScoreScale,
-  WorksWith,
-} from "./LandingSections";
+import { BringYourAgent, Faq, LatestPosts, LiveAgents, Roles, WorksWith } from "./LandingSections";
 import "./landing.css";
 
 export function Landing() {
@@ -27,7 +19,6 @@ export function Landing() {
       <Walkthrough />
       <LiveAgents />
       <Roles />
-      <ScoreScale />
       <LandingIndex />
       <LandingSentinel />
       <LandingGate />
@@ -119,7 +110,7 @@ const STORY: StoryStep[] = [
         <div>
           <p className="l-lab">Enforce mode</p>
           <b style={{ color: "var(--l-blue)" }}>Blocked</b>
-          <p>No money moves. The attempt is logged.</p>
+          <p>No money moves. The agent is frozen and the attempt is logged.</p>
         </div>
         <div>
           <p className="l-lab">Monitor mode</p>

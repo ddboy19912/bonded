@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Reveal, useInView } from "../lib/reveal";
-import { useReducedMotion } from "./LandingSentinel";
+import { Reveal, useOnScreen, useReducedMotion } from "../lib/reveal";
 
 type Mode = "enforce" | "monitor";
 
@@ -19,7 +18,8 @@ interface Demo {
 
 /**
  * Three attacks the demo can send. The messages are made up for the illustration; the checks are the
- * vault's real rules: an allowed-token list, a daily limit, and a list of allowed payees.
+ * vault's real rules: an allowed-token list, the per-trade and daily limits (the Arena's default
+ * mandate has $5,000 a trade and $25,000 a day), and a list of allowed payees.
  */
 export const DEMOS: Demo[] = [
   {
@@ -35,7 +35,7 @@ export const DEMOS: Demo[] = [
     amount: "$5,000",
     checks: [
       ["Token is in the mandate", true],
-      ["Under the $25,000 daily limit", true],
+      ["Under the trade and daily limits", true],
       ["Payee is in the mandate", false],
     ],
   },
@@ -52,7 +52,7 @@ export const DEMOS: Demo[] = [
     amount: "$5,000",
     checks: [
       ["Token is in the mandate", false],
-      ["Under the $25,000 daily limit", true],
+      ["Under the trade and daily limits", true],
       ["Payee is in the mandate", true],
     ],
   },
@@ -65,7 +65,7 @@ export const DEMOS: Demo[] = [
     amount: "$30,000",
     checks: [
       ["Token is in the mandate", true],
-      ["Under the $25,000 daily limit", false],
+      ["Under the trade and daily limits", false],
       ["Payee is in the mandate", false],
     ],
   },
@@ -162,35 +162,71 @@ void main(){
 /** The stream's height in the lane, from the top. Matches --l-lane-y in landing.css. */
 const LANE_Y = 0.44;
 
+/** Draw this often, at most, while no attack is running: the light still drifts, at half the cost. */
+const IDLE_FRAME_MS = 33;
+
 /**
- * The light behind the demo, drawn on a canvas: it reads the current run from `run` every frame, and
- * stops drawing while the lane is off screen.
+ * The light behind the demo, drawn on a canvas of its own inside `host`: it reads the current run
+ * from `run` every frame, stops drawing while the lane is off screen, and draws at half rate while
+ * no attack is running. If WebGL is missing, its shader will not build or the context is lost, the
+ * canvas goes and the lane simply keeps its dark ground. On unmount the context is released, so
+ * coming back to the page does not pile up contexts.
  */
 function useStream(
-  canvas: React.RefObject<HTMLCanvasElement | null>,
+  host: React.RefObject<HTMLDivElement | null>,
   run: React.RefObject<(Course & { startedAt: number }) | null>,
   reduced: boolean,
 ) {
   useEffect(() => {
-    const cv = canvas.current;
-    if (!cv || reduced || typeof WebGLRenderingContext === "undefined") return;
+    const box = host.current;
+    if (!box || reduced || typeof WebGLRenderingContext === "undefined") return;
+    // A fresh canvas each time: a context released on unmount can never be handed back.
+    const cv = document.createElement("canvas");
     const gl = cv.getContext("webgl", { antialias: false, alpha: false });
     if (!gl) return;
+    const made: {
+      shaders: WebGLShader[];
+      program: WebGLProgram | null;
+      buffer: WebGLBuffer | null;
+    } = { shaders: [], program: null, buffer: null };
+    const release = () => {
+      if (!gl.isContextLost()) {
+        made.shaders.forEach((sh) => gl.deleteShader(sh));
+        if (made.program) gl.deleteProgram(made.program);
+        if (made.buffer) gl.deleteBuffer(made.buffer);
+        gl.getExtension("WEBGL_lose_context")?.loseContext();
+      }
+      cv.remove();
+    };
     const compile = (type: number, source: string) => {
-      const shader = gl.createShader(type)!;
+      const shader = gl.createShader(type);
+      if (!shader) return null;
+      made.shaders.push(shader);
       gl.shaderSource(shader, source);
       gl.compileShader(shader);
-      return shader;
+      return gl.getShaderParameter(shader, gl.COMPILE_STATUS) ? shader : null;
     };
-    const program = gl.createProgram();
-    gl.attachShader(
-      program,
-      compile(gl.VERTEX_SHADER, "attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}"),
+    const vertex = compile(
+      gl.VERTEX_SHADER,
+      "attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}",
     );
-    gl.attachShader(program, compile(gl.FRAGMENT_SHADER, SHADER));
+    const fragment = compile(gl.FRAGMENT_SHADER, SHADER);
+    const program = gl.createProgram();
+    made.program = program;
+    if (!vertex || !fragment || !program) {
+      release();
+      return;
+    }
+    gl.attachShader(program, vertex);
+    gl.attachShader(program, fragment);
     gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      release();
+      return;
+    }
     gl.useProgram(program);
-    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    made.buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, made.buffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
     const position = gl.getAttribLocation(program, "p");
     gl.enableVertexAttribArray(position);
@@ -206,6 +242,7 @@ function useStream(
       vault: uniform("uVault"),
       y: uniform("uY"),
     };
+    box.appendChild(cv);
 
     const size = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
@@ -224,6 +261,7 @@ function useStream(
     io?.observe(cv);
 
     const start = performance.now();
+    let last = 0;
     let frame = requestAnimationFrame(function draw(now) {
       frame = requestAnimationFrame(draw);
       if (!visible) return;
@@ -231,6 +269,8 @@ function useStream(
       const s = current
         ? streamAt((now - current.startedAt) / 1000, current)
         : { front: 0, alpha: 0, hold: 0 };
+      if (s.alpha === 0 && s.hold === 0 && now - last < IDLE_FRAME_MS) return;
+      last = now;
       gl.uniform2f(u.res, cv.width, cv.height);
       gl.uniform1f(u.time, (now - start) / 1000);
       gl.uniform1f(u.from, current?.from ?? 0);
@@ -241,15 +281,45 @@ function useStream(
       gl.uniform1f(u.y, 1 - LANE_Y);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     });
+    // Lost (the GPU reset, or too many contexts): stop, and leave the plain ground.
+    const onLost = (e: Event) => {
+      e.preventDefault();
+      cancelAnimationFrame(frame);
+      cv.remove();
+    };
+    cv.addEventListener("webglcontextlost", onLost);
     return () => {
       cancelAnimationFrame(frame);
       ro?.disconnect();
       io?.disconnect();
+      cv.removeEventListener("webglcontextlost", onLost);
+      release();
     };
-  }, [canvas, run, reduced]);
+  }, [host, run, reduced]);
 }
 
+/** Before any attack is sent: the lane waits, and the line under it says so. */
+export const IDLE = -1;
 const AGENT_STATUS = ["Rebalancing the vault", "Reading the message", "Tricked", "Tricked"];
+/** What is happening, said under the lane while a run plays, in place of the answer to come. */
+export const WAITING: Record<number, string> = {
+  [IDLE]: "Waiting for an attack",
+  0: "Planting the message",
+  1: "The agent is reading it",
+  2: "The agent wants to move funds",
+  3: "The vault is checking the rules",
+};
+
+/** Three dots that pulse in turn: something is under way. */
+export function Dots() {
+  return (
+    <span className="l-dots" aria-hidden>
+      <i />
+      <i />
+      <i />
+    </span>
+  );
+}
 const MARK = [
   "M7 0H130C159 0 182 23 182 51C182 75 170 90 149 101L112 121Q101 127 101 114V75Q101 49 73 61L7 90Q0 94 0 86V7Q0 0 7 0Z",
   "M0 130Q0 122 8 118L58 92Q77 82 77 101V137Q77 159 97 149L169 113Q175 110 180 117C193 129 200 143 200 158C200 190 172 212 136 212H6Q0 212 0 206Z",
@@ -258,26 +328,37 @@ const MARK = [
 /**
  * Try it: pick an attack and it is sent. A stream of orange light leaves the planted message and
  * runs into the agent, the agent tries to move funds, and the vault answers: blocked in Enforce
- * mode, a breach in Monitor mode. It plays once by itself when it comes on screen. Readers who ask
- * for less motion get the finished state straight away.
+ * mode, a breach in Monitor mode. Either way the agent is frozen. Under the lane nothing is ever
+ * blank: the vault's rules are always listed, each marked as waiting until it is checked, and where
+ * the answer will land a line says what is happening now, with a bar filling across the run. It
+ * plays once by itself when the lane has been well up the screen for a moment, and if the reader
+ * scrolls away mid-run it jumps to the answer. Readers who ask for less motion get the answer.
  */
 export function AttackDemo() {
   const reduced = useReducedMotion();
   const [pick, setPick] = useState(0);
   const [mode, setMode] = useState<Mode>("enforce");
-  const [phase, setPhase] = useState(0);
+  // Waiting until an attack is sent; the run's number restarts the progress bar for each run.
+  const [phase, setPhase] = useState(IDLE);
+  const [runId, setRunId] = useState(0);
   const lane = useRef<HTMLDivElement>(null);
-  const canvas = useRef<HTMLCanvasElement>(null);
+  const glHost = useRef<HTMLDivElement>(null);
   const run = useRef<(Course & { startedAt: number }) | null>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const played = useRef(false);
-  const [section, seen] = useInView<HTMLElement>();
-  useStream(canvas, run, reduced);
+  // The agent at the middle of the lane: while it is a third of the way up the screen, the lane
+  // and the answer under it are in view.
+  const [agent, watched] = useOnScreen<HTMLDivElement>("0px 0px -35% 0px");
+  useStream(glHost, run, reduced);
+
+  const clearTimers = useCallback(() => {
+    timers.current.forEach(clearTimeout);
+    timers.current = [];
+  }, []);
 
   const send = useCallback(
     (nextMode: Mode, nextPick: number) => {
-      timers.current.forEach(clearTimeout);
-      timers.current = [];
+      clearTimers();
       played.current = true;
       setMode(nextMode);
       setPick(nextPick);
@@ -303,23 +384,41 @@ export function AttackDemo() {
         vault: across(".l-vault", "middle", 1),
       };
       setPhase(0);
+      setRunId((r) => r + 1);
       timers.current = PHASE_AT_MS.slice(1).map((ms, i) => setTimeout(() => setPhase(i + 1), ms));
     },
-    [reduced],
+    [reduced, clearTimers],
   );
 
-  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  useEffect(() => clearTimers, [clearTimers]);
+  // Less motion asked for mid-run: stop the clock and show the answer.
   useEffect(() => {
-    if (!seen || played.current) return;
-    const t = setTimeout(() => !played.current && send("enforce", 0), 700);
+    if (!reduced) return;
+    clearTimers();
+    run.current = null;
+    setPhase(LAST_PHASE);
+  }, [reduced, clearTimers]);
+  // Plays once by itself, but only after the lane has stayed in view for a moment: a reader
+  // scrolling straight past is not shown a run they cannot see.
+  useEffect(() => {
+    if (!watched || played.current) return;
+    const t = setTimeout(() => !played.current && send("enforce", 0), 500);
     return () => clearTimeout(t);
-  }, [seen, send]);
+  }, [watched, send]);
+  // Scrolled away mid-run: jump to the answer, so it is never left half-played.
+  useEffect(() => {
+    if (watched || timers.current.length === 0) return;
+    clearTimers();
+    run.current = null;
+    setPhase(LAST_PHASE);
+  }, [watched, clearTimers]);
 
   const demo = DEMOS[pick]!;
   const blocked = mode === "enforce";
   const verdict = blocked ? "held" : "breach";
   const done = phase >= LAST_PHASE;
-  const agentStatus = done ? (blocked ? "Attempt blocked" : "Frozen") : AGENT_STATUS[phase];
+  const running = phase >= 0 && !done;
+  const agentStatus = done ? "Frozen" : phase === IDLE ? "Waiting" : AGENT_STATUS[phase];
   const vaultStatus = done
     ? blocked
       ? "Blocked it"
@@ -329,9 +428,13 @@ export function AttackDemo() {
       : blocked
         ? "Enforce mode"
         : "Monitor mode";
+  const failed = demo.checks.filter(([, pass]) => !pass).map(([rule]) => rule);
+  const answer = blocked
+    ? "No money moves. The agent is frozen, and the attempt is logged on chain and counts against its score."
+    : `${demo.amount} leaves. The agent is frozen and the loss can be claimed, paid from the operator's bond first.`;
 
   return (
-    <section ref={section} id="try" className="l-sec l-try">
+    <section id="try" className="l-sec l-try">
       <div className="l-head">
         <p className="l-lab">Try it</p>
         <Reveal as="h2" className="l-h2">
@@ -358,7 +461,7 @@ export function AttackDemo() {
       </div>
 
       <div ref={lane} className="l-lane" data-phase={phase} data-verdict={verdict}>
-        <canvas ref={canvas} className="l-lanegl" aria-hidden />
+        <div ref={glHost} className="l-lanegl" aria-hidden />
         <div className="l-plant">
           <p className="l-lab">The red team plants</p>
           <p className="l-quote">
@@ -367,7 +470,7 @@ export function AttackDemo() {
             {demo.message[2]}
           </p>
         </div>
-        <div className="l-node l-agent">
+        <div ref={agent} className="l-node l-agent">
           <span className="l-pulse" />
           <span className="l-pulse" />
           <svg className="l-orbit" viewBox="0 0 226 226" aria-hidden>
@@ -416,7 +519,7 @@ export function AttackDemo() {
         </div>
       </div>
 
-      <div className="l-resp" aria-live="polite">
+      <div className="l-resp">
         <div>
           <p className="l-lab">The vault checks</p>
           <ul className="l-out">
@@ -424,21 +527,33 @@ export function AttackDemo() {
               <li key={rule} data-on={phase >= 3} data-ok={pass} aria-hidden={phase < 3}>
                 <span className="n">{String(i + 1).padStart(2, "0")}</span>
                 <span>{rule}</span>
-                <span className="a">{pass ? "yes" : "no"}</span>
+                <span className="a">{phase >= 3 ? pass ? "yes" : "no" : <Dots />}</span>
               </li>
             ))}
           </ul>
         </div>
-        <div className="l-verdict" data-on={done} data-verdict={verdict} aria-hidden={!done}>
-          <p className="l-vv">{blocked ? "Blocked" : "Breach"}</p>
-          <p className="l-vt">
-            {blocked
-              ? "No money moves. The attempt is logged on chain and counts toward the agent's score."
-              : `${demo.amount} leaves. The agent is frozen and the loss can be claimed, paid from the operator's bond first.`}
-          </p>
+        {/* The line about what is happening now and the answer share one place: one gives way. */}
+        <div className="l-vstack">
+          <div className="l-vwait" data-on={!done} aria-hidden>
+            <p className="l-vw">
+              {WAITING[phase]}
+              <Dots />
+            </p>
+            <span className="l-vbar" data-run={running}>
+              <i key={runId} style={{ animationDuration: `${PHASE_AT_MS[LAST_PHASE]}ms` }} />
+            </span>
+          </div>
+          <div className="l-verdict" data-on={done} data-verdict={verdict} aria-hidden={!done}>
+            <p className="l-vv">{blocked ? "Blocked" : "Breach"}</p>
+            <p className="l-vt">{answer}</p>
+          </div>
         </div>
       </div>
-      <p className="l-lab l-note">Illustration of an Arena episode, with the vault's real rules.</p>
+      {/* One place that is read out when a run ends: it is empty while the attack is on its way. */}
+      <p className="sr-only" aria-live="polite">
+        {done &&
+          `${demo.name}, ${blocked ? "Enforce" : "Monitor"} mode: ${blocked ? "Blocked" : "Breach"}. Fails: ${failed.join(", ")}. ${answer}`}
+      </p>
     </section>
   );
 }
