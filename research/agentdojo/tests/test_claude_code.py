@@ -240,3 +240,34 @@ def test_a_usage_limit_or_missing_tools_stops_the_run_unscored(tmp_path: Path) -
 def test_only_claude_models() -> None:
     with pytest.raises(ValueError):
         ClaudeCodeLLM("deepseek/deepseek-v4.1-flash")
+
+
+def test_refused_read_does_not_consume_identical_retry() -> None:
+    events = []
+    for rid, response, failed in [("first", "refused", True), ("retry", "ready", False)]:
+        use = {"type": "tool_use", "name": "mcp__toolbox__read", "input": {}, "id": rid}
+        result = {"type": "tool_result", "tool_use_id": rid, "content": response, "is_error": failed}
+        events.extend(
+            [
+                {"type": "assistant", "message": {"id": rid, "content": [use]}},
+                {"type": "user", "message": {"content": [result]}},
+            ]
+        )
+    results = [m for m in to_messages(events, [ExecutedCall("read", {}, "ready", None)]) if m["role"] == "tool"]
+    assert results[0]["tool_call"] is None
+    assert results[1]["tool_call"].id == "retry"
+
+
+@pytest.mark.parametrize("subtype,code", [("error_during_execution", 1), ("success", 0)])
+def test_execution_error_is_unscored(monkeypatch, subtype: str, code: int) -> None:
+    from unittest.mock import MagicMock
+
+    from agentdojo.functions_runtime import FunctionsRuntime
+
+    server = MagicMock()
+    server.return_value.__enter__.return_value.url = "http://unused.invalid"
+    monkeypatch.setattr("bonded_ap.claude_code.ToolServer", server)
+    event = {"type": "result", "subtype": subtype, "is_error": True, "result": "service unavailable"}
+    result = subprocess.CompletedProcess([], code, json.dumps(event), "")
+    with pytest.raises(ClaudeHarnessError):
+        ClaudeCodeLLM("claude-test", spawn=lambda *_: result).query("Say hello.", FunctionsRuntime([]))

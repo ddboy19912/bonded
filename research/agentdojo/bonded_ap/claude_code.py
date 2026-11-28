@@ -200,18 +200,19 @@ class ExecutedCall:
     args: dict[str, Any]
     text: str
     error: str | None
+    raw_args: dict[str, Any] | None = None
 
 
 def to_messages(events: Sequence[dict[str, Any]], executed: Sequence[ExecutedCall]) -> list[ChatMessage]:
     """Claude Code's turns as AgentDojo messages.
 
     Assistant events that share a message id are one turn. A tool result's tool_call is the call the
-    tool server ran, matched in order by name and arguments, so summarize.py replays exactly the calls
+    tool server ran, matched by name, original arguments and result, so summarize.py replays exactly the calls
     that ran. A call Claude Code refused before it reached the server gets no tool_call.
     """
     messages: list[ChatMessage] = []
     pending = list(executed)
-    calls: dict[str, FunctionCall | None] = {}
+    calls: dict[str, FunctionCall] = {}
     turn: ChatAssistantMessage | None = None
     current_id: str | None = None
     for event in events:
@@ -230,12 +231,7 @@ def to_messages(events: Sequence[dict[str, Any]], executed: Sequence[ExecutedCal
                     args = block.get("input") if isinstance(block.get("input"), dict) else {}
                     call = FunctionCall(function=name, args=args, id=block.get("id"))
                     turn["tool_calls"] = [*(turn["tool_calls"] or []), call]
-                    ran = next((c for c in pending if c.function == name and c.args == args), None)
-                    if ran is not None:
-                        pending.remove(ran)
-                    calls[str(block.get("id"))] = (
-                        FunctionCall(function=ran.function, args=ran.args, id=block.get("id")) if ran else None
-                    )
+                    calls[str(block.get("id"))] = call
         elif event.get("type") == "user":
             turn, current_id = None, None
             for block in (event.get("message") or {}).get("content") or []:
@@ -247,15 +243,32 @@ def to_messages(events: Sequence[dict[str, Any]], executed: Sequence[ExecutedCal
                     if isinstance(content, list)
                     else str(content or "")
                 )
+                rid = str(block.get("tool_use_id"))
+                request = calls.pop(rid, None)
+                matched = None
+                if request is not None:
+                    for record in pending:
+                        original = record.raw_args if record.raw_args is not None else record.args
+                        if (record.function, original, record.error is not None, record.text) == (
+                            request.function,
+                            request.args,
+                            bool(block.get("is_error")),
+                            text,
+                        ):
+                            pending.remove(record)
+                            matched = FunctionCall(function=record.function, args=record.args, id=rid)
+                            break
                 messages.append(
                     ChatToolResultMessage(
                         role="tool",
                         content=[text_content_block_from_string(text)],
-                        tool_call_id=str(block.get("tool_use_id")),
-                        tool_call=calls.get(str(block.get("tool_use_id"))),  # type: ignore[typeddict-item]
+                        tool_call_id=rid,
+                        tool_call=matched,  # type: ignore[typeddict-item]
                         error=text if block.get("is_error") else None,
                     )
                 )
+    if pending:
+        raise ClaudeHarnessError("The transcript is missing a matching result for an executed tool call")
     return messages
 
 
@@ -407,10 +420,12 @@ class ClaudeCodeLLM(BasePipelineElement):
 
         def call(name: str, args: dict[str, Any]) -> tuple[str, bool]:
             # As ToolsExecutor: string-encoded lists become lists, then the runtime runs the call.
-            args = {k: literal_eval(v) if isinstance(v, str) and is_string_list(v) else v for k, v in args.items()}
-            result, error = runtime.run_function(env, name, args)
+            normalized = {
+                k: literal_eval(v) if isinstance(v, str) and is_string_list(v) else v for k, v in args.items()
+            }
+            result, error = runtime.run_function(env, name, normalized)
             text = error or tool_result_to_str(result)
-            executed.append(ExecutedCall(name, dict(args), text, error))
+            executed.append(ExecutedCall(name, normalized, text, error, raw_args=args))
             return text, error is not None
 
         folder = Path(tempfile.mkdtemp(prefix="agent-"))
@@ -440,6 +455,10 @@ class ClaudeCodeLLM(BasePipelineElement):
             raise ClaudeHarnessError("Claude Code started without the episode's tools")
         if run.subtype is None:
             raise ClaudeHarnessError(f"Claude Code exited ({done.returncode}) without a result: {done.stderr[-500:]}")
+        if run.subtype != "error_max_turns" and (run.is_error or done.returncode != 0):
+            raise ClaudeHarnessError(
+                f"Claude Code failed ({done.returncode}, {run.subtype}): {(run.final or done.stderr)[-500:]}"
+            )
         new = to_messages(run.events, executed)
         if not new or new[-1]["role"] != "assistant":
             # Claude Code stopped on a tool result (the turn cap): end on its final message, if any.
