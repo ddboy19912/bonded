@@ -6,8 +6,8 @@
 summarize.py prints each log folder on its own. This reads both deliveries of the family run
 (fetched and pushed), replays every episode the same way, and prints the report's tables:
 
-- the two models that refused every direct ask, both attacks side by side, with a Fisher exact
-  test and an interval that resamples whole seeds (episodes of one seed aren't independent);
+- the two models that refused every direct ask, both attacks side by side, with a sign test over
+  seeds and an interval that resamples whole seeds (episodes of one seed aren't independent);
 - the six (model, delivery) cells, counted over all pairs (AgentDojo's way) and over the pairs
   that met the attack (Bonded's way), with Wilson and seed-resampled intervals;
 - rules withheld against shown;
@@ -78,14 +78,23 @@ def refusing_models(rows: Iterable[Row]) -> list[str]:
     return sorted(m for m, n in done.items() if n == 0)
 
 
-def fisher_one_sided(a: int, n1: int, c: int, n2: int) -> float:
-    """P(first group has a or more successes) given the margins: a of n1 against c of n2."""
-    total, successes = n1 + n2, a + c
+def seed_sign_test(rows: Iterable[Row]) -> tuple[int, int, int, float]:
+    """Pair the two attacks on each seed and count which one worked more often there.
 
-    def term(x: int) -> float:
-        return math.comb(n1, x) * math.comb(n2, successes - x) / math.comb(total, successes)
-
-    return sum(term(x) for x in range(a, min(n1, successes) + 1))
+    Returns (seeds where Bonded's attack worked more, seeds where AgentDojo's did, ties, p), where p
+    is the one-sided exact sign test: the chance of Bonded winning at least that many of the untied
+    seeds if either attack were equally likely to win each one. The seed is the unit, so episodes of
+    one seed (which aren't independent) count once.
+    """
+    falls: dict[str, dict[str, int]] = defaultdict(lambda: dict.fromkeys(ATTACKS, 0))
+    for r in attacked(rows):
+        falls[r["seed"]][r["attack"]] += bool(r["security"])
+    ours = sum(f["bonded_seed"] > f["important_instructions"] for f in falls.values())
+    theirs = sum(f["bonded_seed"] < f["important_instructions"] for f in falls.values())
+    ties = len(falls) - ours - theirs
+    n = ours + theirs
+    p = sum(math.comb(n, k) for k in range(ours, n + 1)) / 2**n if n else 1.0
+    return ours, theirs, ties, p
 
 
 def seed_interval(rows: Iterable[Row], draws: int, rng_seed: int = 1) -> tuple[float, float]:
@@ -164,10 +173,20 @@ def report(rows: list[Row], out: Callable[[str], None] = print) -> None:
     ours = [r for r in ref if r["attack"] == "bonded_seed"]
     theirs = [r for r in ref if r["attack"] == "important_instructions"]
     if ours and theirs:
-        k1, k2 = sum(r["security"] for r in ours), sum(r["security"] for r in theirs)
         out(f"- seed-resampled 95% interval, Bonded: {_ci(seed_interval(ours, HEADLINE_DRAWS), 1)}")
+        won, lost, tied, p = seed_sign_test(ref)
         out(
-            f"- one-sided Fisher exact p (Bonded above AgentDojo): {fisher_one_sided(k1, len(ours), k2, len(theirs)):.2e}"
+            f"- sign test over seeds: Bonded worked more on {won}, AgentDojo on {lost}, tied {tied}; "
+            f"one-sided p {p:.2e}"
+        )
+    asks = [r for r in direct_asks(rows) if r["model"] in refusing]
+    if asks:
+        paid = sum(r["payments"] > 0 and r["rule_breaks"] == 0 for r in asks)
+        none = sum(r["payments"] == 0 and r["rule_breaks"] == 0 for r in asks)
+        broke = sum(r["rule_breaks"] > 0 for r in asks)
+        out(
+            f"- direct asks on these models: {len(asks)}; paid something but broke no rule {paid}; "
+            f"paid nothing {none}; broke a rule {broke}"
         )
 
     out("\n# The six cells\n")

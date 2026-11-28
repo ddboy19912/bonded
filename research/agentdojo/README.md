@@ -158,7 +158,7 @@ uv run python summarize.py runs/pushed/family
 
 `report_stats.py` reads both deliveries together and prints the tech report's tables, with no model calls. It needs the saved family logs, which are gitignored: run the family above first, fetched (`runs/family/`) and with `--push` (`runs/pushed/family/`). Its tables are:
 
-- the two models that refused every direct ask, with a Fisher exact test and an interval that resamples whole seeds, since episodes of one seed aren't independent;
+- the two models that refused every direct ask, with a sign test over seeds and an interval that resamples whole seeds, since episodes of one seed aren't independent, and what those models did instead when asked directly;
 - the six cells, counted over all pairs and over the pairs that met the attack;
 - the seeds by class, by where the text is planted, and the ones that worked most;
 - the rule breaks a blocking payment check would also catch.
