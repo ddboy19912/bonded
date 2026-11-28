@@ -9,6 +9,12 @@ import {
   SolanaAgentKitAgent,
 } from "@bonded/demo-agents";
 import {
+  ClaudeCodeAgent,
+  ClaudeUsageGate,
+  claudeModel,
+  isClaudeCodeAgent,
+} from "../claude-code/agent.js";
+import {
   type ArenaAgent,
   type ChatClient,
   chatClientFromEnv,
@@ -59,9 +65,13 @@ With --fresh, a model also drafts one new variant of each seed for this run; the
 saved, and --replay runs a saved set again exactly.
 
   --max-usd <n>              stop starting episodes once model spend reaches this (required)
-  --agent <name>             payables | agentkit | solana-agent-kit (default: payables)
+  --agent <name>             payables | agentkit | solana-agent-kit | claude-code (default:
+                             payables). claude-code runs payables-agent's prompt and tools
+                             through Claude Code on your Claude subscription: --model takes a
+                             Claude model id (claude-sonnet-5-5), the agent spends nothing, and
+                             --max-usd caps O6's counterparty alone (docs/CLAUDE-CODE.md)
   --model <id>               the agent's model (default: ${DEFAULT_AGENT_MODEL})
-  --vision                   payables: show invoice images to the model
+  --vision                   payables, claude-code: show invoice images to the model
   --text-only                serve attachments' text layers only, never their images
   --mandate <row>            shown | hidden | both: tell the agent the mandate's rules, only its
                              job, or run both rows (default: both; the ledger enforces either way)
@@ -119,8 +129,16 @@ saved, and --replay runs a saved set again exactly.
   --parallel <n>             episodes at once (default: 4)
   --out <dir>                where to write results (default: ratings/offchain-<agent>-<time>)`;
 
-function agentFor(name: string, model: string, client: ChatClient, vision: boolean): ArenaAgent {
+function agentFor(
+  name: string,
+  model: string,
+  client: ChatClient,
+  vision: boolean,
+  gate?: ClaudeUsageGate,
+): ArenaAgent {
   if (name === "payables") return new LlmPayablesAgent({ client, model, vision });
+  if (isClaudeCodeAgent(name))
+    return new ClaudeCodeAgent({ model, world: "offchain", vision, ...(gate ? { gate } : {}) });
   if (name === "agentkit") return new AgentKitAgent(model, undefined, "offchain");
   if (name === "solana-agent-kit") return new SolanaAgentKitAgent(model, undefined, "offchain");
   throw new Error(`unknown --agent ${name}`);
@@ -201,8 +219,11 @@ async function main() {
     : undefined;
 
   // An estimate is a local sum. Keys are checked only when a run will call a model.
+  const claudeCode = isClaudeCodeAgent(values.agent);
+  if (claudeCode) claudeModel(values.model);
+  // Claude Code needs no API key: its model isn't one of the run's API models.
   const models = [
-    values.model,
+    ...(claudeCode ? [] : [values.model]),
     ...(values.fresh && !values.replay ? [values["generator-model"]] : []),
     ...(draftCount !== undefined ? [values["generator-model"]] : []),
     values["counterparty-model"],
@@ -359,6 +380,14 @@ async function main() {
     maxUsd,
   );
   console.log(describeEstimate(estimate, maxUsd));
+  if (claudeCode)
+    console.log(
+      `claude-code: ${values.model} runs on your Claude subscription and costs nothing here; ` +
+        "--max-usd caps O6's counterparty. Runs pause when the 5-hour window is 90% used and " +
+        "stop at 80% of the week's",
+    );
+  // One gate for the run: every episode pauses and stops on the plan's usage together.
+  const claudeGate = claudeCode ? new ClaudeUsageGate() : undefined;
   if (values.enforce) {
     console.log(
       "enforce: the ledger blocks a payment that breaks the mandate; a blocked attack still " +
@@ -367,8 +396,8 @@ async function main() {
   }
   if (values.estimate) return;
   const { episodes, notShown, skipped, accountStop, counterpartyTurns } = await runOffchainBatch({
-    agent: () => agentFor(values.agent, values.model, client!, values.vision),
-    seesImages: values.agent === "payables" && values.vision,
+    agent: () => agentFor(values.agent, values.model, client!, values.vision, claudeGate),
+    seesImages: (values.agent === "payables" || claudeCode) && values.vision,
     images: !values["text-only"],
     attackSeeds,
     ...(channels ? { channels } : {}),

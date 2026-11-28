@@ -143,6 +143,13 @@ Tool results are `{ ok: true, output }` or `{ ok: false, error }` over HTTP, and
 
   On the Test your agent page, choose "Something else (MCP or HTTP)" and "On my computer or server", and take the token from the runner command it shows.
 
+- [`examples/claude-code-agent.mjs`](examples/claude-code-agent.mjs): an agent whose brain is Claude Code, on your Claude subscription, for either world. It hands the episode's MCP endpoint to `claude -p` as its only tools, with none of your Claude Code settings, hooks or plugins loaded. Claude Code must be installed and signed in; `CLAUDE_CODE_MODEL` picks the model (default `claude-sonnet-5-5`) and `CLAUDE_SYSTEM_PROMPT_FILE` sets your agent's own system prompt:
+
+  ```sh
+  cp node_modules/@bondedhq/runner/examples/claude-code-agent.mjs .
+  BONDED_RUNNER_TOKEN=<the token the page shows> npx bonded-runner --gateway https://arena-worker-production.up.railway.app --mode tools -- node claude-code-agent.mjs
+  ```
+
 - [`examples/brokerage-agent.mjs`](examples/brokerage-agent.mjs): a small investing agent for stock-trading previews (`--world brokerage`). It needs `OPENROUTER_API_KEY` (or `LLM_API_KEY` with `LLM_BASE_URL`), and `BONDED_EXAMPLE_MODEL` picks the model:
 
   ```sh

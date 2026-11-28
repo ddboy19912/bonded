@@ -34,6 +34,12 @@ import { assertHeldOutOffMetaApi } from "./held-out-guard.js";
 import { type CheckEvent, runConnectionCheck } from "./check.js";
 import { runControls } from "./controls.js";
 import { loadDotEnv, usesLanguageModel } from "./env.js";
+import {
+  ClaudeCodeAgent,
+  ClaudeUsageGate,
+  claudeModel,
+  isClaudeCodeAgent,
+} from "./claude-code/agent.js";
 import { type EpisodeResult, runEpisode, saveEpisode } from "./episode.js";
 import { positiveInt } from "./flags.js";
 import { type AgentTransport, ArenaGateway } from "./gateway/index.js";
@@ -66,13 +72,16 @@ const USAGE = `Usage:
                                                      (no score). Takes the remote agent options
 
 Agent:
-  --agent <vulnerable|hardened|partial|decision|agentkit|solana-agent-kit|memory-bot|remote>
+  --agent <vulnerable|hardened|partial|decision|agentkit|solana-agent-kit|memory-bot|claude-code|remote>
                            agent to test (default: vulnerable). agentkit and solana-agent-kit run
                            those frameworks' template agents with the Arena's tools (needs
                            OPENROUTER_API_KEY; --model picks the model). remote rates your own
                            agent wherever it runs, through the Arena Gateway and @bondedhq/runner
                            (see "Remote agents" below). memory-bot keeps notes between sessions
-                           and always uses a model (--model picks it)
+                           and always uses a model (--model picks it). claude-code runs
+                           vulnerable-agent's prompt and tools through Claude Code on your Claude
+                           subscription (--model claude-sonnet-5-5 or another Claude model; no
+                           API key, nothing spent; docs/CLAUDE-CODE.md)
   --brain <scripted|llm>   scripted needs nothing; llm needs OPENROUTER_API_KEY (default: scripted)
   --model <id>             model for an llm brain or the decision agent, any OpenRouter model id
                            (LLM_BASE_URL switches to another OpenAI-compatible endpoint), or a
@@ -596,6 +605,14 @@ function buildAgent(values: {
   "sentinel-questions"?: string;
   "sentinel-policy"?: string;
 }): ArenaAgent {
+  if (isClaudeCodeAgent(values.agent)) {
+    if (values["sentinel-model"]) throw new Error("--sentinel-model doesn't work with claude-code");
+    return new ClaudeCodeAgent({
+      model: claudeModel(values.model),
+      world: "vault",
+      gate: new ClaudeUsageGate(),
+    });
+  }
   const brain = values.brain;
   if (brain !== "scripted" && brain !== "llm") throw new Error(`unknown brain ${brain}`);
   const llm = values.model ? { model: values.model } : {};
@@ -640,7 +657,7 @@ function buildAgent(values: {
     }
     default:
       throw new Error(
-        `unknown agent ${values.agent} (vulnerable, hardened, partial, decision, agentkit, solana-agent-kit or memory-bot)`,
+        `unknown agent ${values.agent} (vulnerable, hardened, partial, decision, agentkit, solana-agent-kit, memory-bot or claude-code)`,
       );
   }
 }

@@ -12,7 +12,10 @@ export function budgetModels(options: {
   "sentinel-policy"?: string;
 }): (string | undefined)[] {
   const models: (string | undefined)[] = [];
-  if (options.agent === "decision") models.push(options.model ?? DEFAULT_DECISION_MODEL);
+  // Claude Code runs on the user's subscription: no API model to price.
+  if (options.agent === "claude-code") {
+    // nothing
+  } else if (options.agent === "decision") models.push(options.model ?? DEFAULT_DECISION_MODEL);
   else if (
     options.brain === "llm" ||
     options.agent === "memory-bot" ||
