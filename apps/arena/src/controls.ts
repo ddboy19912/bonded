@@ -83,6 +83,10 @@ export async function runControls(
       ...(options.vault ? { vault: options.vault } : {}),
     });
     cap.add(result.agentSummary.usage);
+    if (result.agentSummary.batchStopReason) {
+      stoppedEarly = result.agentSummary.batchStopReason;
+      break;
+    }
     episodes.push(result);
     if (tracesDir) saveEpisode(result, tracesDir);
     rows.push(...datasetRows(result));

@@ -34,7 +34,7 @@ import {
   type SignedAttestation,
   signAttestation,
 } from "./attestation.js";
-import { SpendingCap, type TokenPrice } from "./budget.js";
+import { BatchStopped, SpendingCap, type TokenPrice } from "./budget.js";
 import { datasetRows, type SentinelRow, writeDataset } from "./dataset.js";
 import { ratingDollarsAtRisk } from "./dollars-at-risk.js";
 import type { BenignSeed } from "./benign.js";
@@ -746,6 +746,10 @@ export async function rateAgent(sandbox: Sandbox, options: RatingOptions): Promi
         `stopped: Bonded couldn't call the agent's URL in episode ${index + 1} of ${jobs.length} (${bonded}); not the agent's fault`,
       );
     cap.add(result.agentSummary.usage);
+    if (result.agentSummary.batchStopReason) {
+      stoppedEarly = result.agentSummary.batchStopReason;
+      break;
+    }
     if (tracesDir) saveEpisode(result, tracesDir);
     if (job.benign) {
       // Not Sentinel rows: their planted content is true, which the dataset has no label for yet.
@@ -793,6 +797,12 @@ export async function rateAgent(sandbox: Sandbox, options: RatingOptions): Promi
         `Memory: Bonded couldn't call the agent's URL (${bonded})`,
       );
   };
+  const checkBatchStop = (result: EpisodeResult) => {
+    if (result.agentSummary.batchStopReason) {
+      stoppedEarly = result.agentSummary.batchStopReason;
+      throw new BatchStopped(stoppedEarly);
+    }
+  };
   const s1Episodes: EpisodeResult[] = [];
   const s1Results: S1PairResult[] = [];
   if (s1Config && !stoppedEarly) {
@@ -810,6 +820,7 @@ export async function rateAgent(sandbox: Sandbox, options: RatingOptions): Promi
           }
         : {}),
       onEpisode: async (result) => {
+        checkBatchStop(result);
         const index = episodes.length + benignEpisodes.length + s1Episodes.length;
         s1Episodes.push(result);
         if (tracesDir) saveEpisode(result, tracesDir);
@@ -824,7 +835,7 @@ export async function rateAgent(sandbox: Sandbox, options: RatingOptions): Promi
     });
     s1Results.push(...battery.results);
     if (battery.stoppedEarly)
-      stoppedEarly = "spending cap reached before completing the S1 battery";
+      stoppedEarly ??= "spending cap reached before completing the S1 battery";
   }
   // Optional inline memory-poisoning battery, same pattern: the agent's notes are read and wiped
   // between attempts, so it only runs for an agent that exposes them.
@@ -866,6 +877,7 @@ export async function rateAgent(sandbox: Sandbox, options: RatingOptions): Promi
   let worldTwins = 0;
   if (options.worldState && !stoppedEarly) {
     const onWorldEpisode = async (result: EpisodeResult) => {
+      checkBatchStop(result);
       const index =
         episodes.length +
         benignEpisodes.length +
@@ -899,26 +911,31 @@ export async function rateAgent(sandbox: Sandbox, options: RatingOptions): Promi
         ...(episode ? { episode } : {}),
       })),
     );
-    for (let r = 0; r < benignRuns; r++)
+    for (let r = 0; r < benignRuns && !stoppedEarly; r++)
       for (const twin of options.worldState.twins ?? []) {
         if (cap.exceeded) break;
-        await runWorldTwin({
-          sandbox,
-          agent: options.agent,
-          twin,
-          round: r,
-          cap,
-          worldSeed: `${worldSecret}:world-twin:${twin.id}:${r}`,
-          onEpisode: onWorldEpisode,
-          ...(episode ? { episode } : {}),
-        });
+        try {
+          await runWorldTwin({
+            sandbox,
+            agent: options.agent,
+            twin,
+            round: r,
+            cap,
+            worldSeed: `${worldSecret}:world-twin:${twin.id}:${r}`,
+            onEpisode: onWorldEpisode,
+            ...(episode ? { episode } : {}),
+          });
+        } catch (error) {
+          if (error instanceof BatchStopped) break;
+          throw error;
+        }
         worldTwins++;
       }
     if (
       worldResults.length < options.worldState.seeds.length * worldRounds ||
       worldTwins < (options.worldState.twins?.length ?? 0) * benignRuns
     )
-      stoppedEarly = "spending cap reached before completing the world-state battery";
+      stoppedEarly ??= "spending cap reached before completing the world-state battery";
   }
   const worldObs = worldObservations(worldResults);
   const memoryObs = [...importedMemory, ...memoryObservations(memoryResults)];

@@ -102,6 +102,10 @@ export async function runBrokerQueue(
         await options.beforeRerun?.();
         result = await run();
       }
+      if (result.agentSummary.batchStopReason) {
+        stoppedEarly ??= result.agentSummary.batchStopReason;
+        return;
+      }
       results.push(result);
       await options.onResult?.(result, scenario);
       unreached = neverRan(result) ? unreached + 1 : 0;

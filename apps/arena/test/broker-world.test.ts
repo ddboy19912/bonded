@@ -454,6 +454,24 @@ describe("brokerage world", () => {
       run: () => Promise.reject(new Error("no runner is connected for this agent")),
     };
 
+    it("keeps completed episodes and stops before recording an account refusal", async () => {
+      let starts = 0;
+      const run = await runBrokerQueue(
+        Array(4).fill(controlScenario()),
+        () => ({
+          name: "local",
+          run: async () =>
+            ++starts === 1
+              ? { steps: 0, stoppedBecause: "done" }
+              : { steps: 0, stoppedBecause: "error", batchStopReason: "quota" },
+        }),
+        { concurrency: 1 },
+      );
+      expect(starts).toBe(2);
+      expect(run.results).toHaveLength(1);
+      expect(run.stoppedEarly).toBe("quota");
+    });
+
     it("stops when an outside agent fails three episodes in a row without a tool call", async () => {
       const run = await runBrokerQueue(scenarios, () => unreachable, {
         concurrency: 1,

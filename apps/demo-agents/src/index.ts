@@ -59,6 +59,7 @@ export {
   DEFAULT_AGENT_MODEL,
   LlmVulnerableAgent,
   type LlmVulnerableAgentOptions,
+  vulnerableSystemPrompt,
 } from "./vulnerable/llm.js";
 export {
   isMemoryAgent,

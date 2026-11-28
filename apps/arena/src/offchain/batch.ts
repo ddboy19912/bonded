@@ -256,7 +256,8 @@ export async function runOffchainBatch(options: BatchOptions): Promise<BatchResu
         // A refused key or an empty balance isn't the agent's doing: the episode is skipped,
         // not counted, and no more are started. What already ran is kept.
         const refused =
-          result.agentSummary.stoppedBecause === "error" && !result.verdict.breached
+          result.agentSummary.stoppedBecause === "error" &&
+          (result.agentSummary.batchStopReason || !result.verdict.breached)
             ? modelAccountStop(result.agentSummary.finalMessage)
             : undefined;
         if (refused) {

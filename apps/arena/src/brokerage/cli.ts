@@ -3,6 +3,7 @@ import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { DEFAULT_AGENT_MODEL, LlmBrokerAgent } from "@bonded/demo-agents";
+import { ClaudeCodeAgent, ClaudeUsageGate, claudeModel } from "../claude-code/agent.js";
 import {
   type ArenaAgent,
   BROKER_TOOL_PROFILES,
@@ -34,6 +35,7 @@ import {
 
 const USAGE = `Usage: pnpm --filter @bonded/arena broker --max-usd <n> [options]
        pnpm --filter @bonded/arena broker --agent remote [--agent-url <url>] [options]
+       pnpm --filter @bonded/arena broker --agent claude-code --model <claude model> [options]
 
 Runs broker-agent (or your own agent, with --agent remote) on the brokerage world (docs/BROKERAGE.md): the control, every attack
 and every benign twin in the library (and the staged ones, with --staged), judged by the broker
@@ -61,7 +63,10 @@ or its own URL. Bonded spends nothing and episodes run one at a time (your agent
 model), so --max-usd, --model and --concurrency can't be used with it. An episode your agent
 doesn't finish is listed as that, never as an attack held, and the run stops after ${UNREACHED_TO_STOP} episodes
 in a row that it fails without making a tool call.
-  --agent <name>     broker (default) or remote
+  --agent <name>     broker (default), claude-code or remote. claude-code runs broker-agent's
+                     prompt and tools through Claude Code on your Claude subscription (--model
+                     claude-sonnet-5-5 or another Claude model; no API key, nothing spent,
+                     so no --max-usd; docs/CLAUDE-CODE.md)
   --agent-url <url>  Agent URL mode instead of a runner (http to this machine is allowed)
   --agent-owner <w>  the wallet in your handler's owner (or BONDED_AGENT_OWNER): each call is
                      signed for it, with a key this run makes and publishes
@@ -104,8 +109,8 @@ async function main(): Promise<void> {
     console.log(USAGE);
     return;
   }
-  if (values.agent !== "broker" && values.agent !== "remote") {
-    console.error("--agent must be broker or remote");
+  if (values.agent !== "broker" && values.agent !== "remote" && values.agent !== "claude-code") {
+    console.error("--agent must be broker, claude-code or remote");
     process.exitCode = 1;
     return;
   }
@@ -122,9 +127,12 @@ async function main(): Promise<void> {
     process.exitCode = 1;
     return;
   }
-  const model = values.model ?? DEFAULT_AGENT_MODEL;
-  // Bonded's own agent spends on a model; a remote agent spends on its own.
-  const maxUsd = remote ? Number.POSITIVE_INFINITY : Number(values["max-usd"]);
+  const claudeCode = values.agent === "claude-code";
+  const model = claudeCode ? claudeModel(values.model) : (values.model ?? DEFAULT_AGENT_MODEL);
+  // Bonded's own agent spends on a model; a remote agent spends on its own, and Claude Code runs
+  // on the user's subscription.
+  const spendsNothing = remote || claudeCode;
+  const maxUsd = spendsNothing ? Number.POSITIVE_INFINITY : Number(values["max-usd"]);
   const runs = Number(values.runs);
   const concurrency = remote ? 1 : Number(values.concurrency ?? "4");
   if (!(maxUsd > 0) || !Number.isInteger(runs) || runs < 1 || !(concurrency >= 1)) {
@@ -165,7 +173,7 @@ async function main(): Promise<void> {
   let remoteAgent: RemoteAgent | undefined;
   let gateway: ArenaGateway | undefined;
   let run: BrokerRun;
-  const cap = remote ? undefined : new SpendingCap({ maxUsd, ...metaCapFallback(model) });
+  const cap = spendsNothing ? undefined : new SpendingCap({ maxUsd, ...metaCapFallback(model) });
   // The gateway is closed however the run ends, so a failure never leaves its port taken.
   try {
     if (remote) {
@@ -176,6 +184,11 @@ async function main(): Promise<void> {
       gateway = started.gateway;
       const agent = started.agent;
       remoteAgent = agent;
+      makeAgent = () => agent;
+    } else if (claudeCode) {
+      // One gate for the run: every episode pauses and stops on the plan's usage together.
+      const gate = new ClaudeUsageGate();
+      const agent = new ClaudeCodeAgent({ model, world: "brokerage", gate });
       makeAgent = () => agent;
     } else {
       loadDotEnv();
@@ -207,7 +220,7 @@ async function main(): Promise<void> {
   }
 
   const { results, stoppedByCap, stoppedEarly } = run;
-  const agentName = remoteAgent?.name ?? `broker-agent/${model}`;
+  const agentName = remoteAgent?.name ?? (claudeCode ? makeAgent().name : `broker-agent/${model}`);
   const spend = cap?.summary();
   // What the outside agent said its own model cost (posted at /done). Reported, never checked.
   const agentReportedUsd = remoteAgent?.episodes.reduce(
