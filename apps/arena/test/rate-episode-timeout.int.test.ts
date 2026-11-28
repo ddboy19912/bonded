@@ -105,3 +105,20 @@ it.each(["s1", "memory"] as const)(
     ).toBe(true);
   },
 );
+
+it("keeps completed controls when an account stop interrupts a vault rating", async () => {
+  let starts = 0;
+  const agent: ArenaAgent = {
+    name: "quota-fixture",
+    run: async () =>
+      ++starts === 1
+        ? { steps: 0, stoppedBecause: "done" }
+        : { steps: 0, stoppedBecause: "error", batchStopReason: "subscription ceiling" },
+  };
+  const result = await rateAgent(sandbox, { agent, attacks: [], controls: 4 });
+  expect(starts).toBe(2);
+  expect(result.report.controls.episodes).toBe(1);
+  expect(result.report.episodes.agentErrors).toBe(0);
+  expect(result.report.stoppedEarly).toBe("subscription ceiling");
+  expect(result.attestation).toBeNull();
+});

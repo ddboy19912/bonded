@@ -4,6 +4,7 @@ import { createServer, type IncomingMessage, type Server as HttpServer } from "n
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { randomBytes } from "node:crypto";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -136,6 +137,7 @@ export interface UsageGateOptions {
  */
 export class ClaudeUsageGate {
   private latest: RateLimitInfo | undefined;
+  private readonly stopped = new AbortController();
   private readonly pauseAt: number;
   private readonly stopAtWeekly: number;
   private readonly now: () => number;
@@ -151,12 +153,35 @@ export class ClaudeUsageGate {
     )
       throw new RangeError("usage thresholds must be above 0 and at most 1");
     this.now = options.now ?? Date.now;
-    this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+    this.sleep =
+      options.sleep ??
+      (async (ms) => {
+        try {
+          await delay(ms, undefined, { signal: this.stopped.signal });
+        } catch (error) {
+          if (!this.stopped.signal.aborted) throw error;
+        }
+      });
     this.log = options.log ?? ((line) => console.error(line));
   }
 
   observe(info: RateLimitInfo): void {
     this.latest = info;
+    const weekly = info.unifiedWindows?.seven_day?.utilization ?? 0;
+    if (weekly >= this.stopAtWeekly && !this.stopReason) {
+      this.log(
+        `claude-code: the 7-day window is ${pct(weekly)} used (ceiling ${pct(this.stopAtWeekly)})`,
+      );
+      this.stop(USAGE_LIMIT_MESSAGE);
+    }
+  }
+
+  stop(reason: string): void {
+    if (!this.stopped.signal.aborted) this.stopped.abort(reason);
+  }
+
+  get stopReason(): string | undefined {
+    return this.stopped.signal.aborted ? String(this.stopped.signal.reason) : undefined;
   }
 
   get last(): RateLimitInfo | undefined {
@@ -164,17 +189,11 @@ export class ClaudeUsageGate {
   }
 
   /** Waits if the 5-hour window needs to reset; "stop" if the week's ceiling is reached. */
-  async beforeEpisode(): Promise<"go" | "stop"> {
+  async beforeEpisode(waitForReset = true): Promise<"go" | "stop"> {
     for (;;) {
+      if (this.stopReason) return "stop";
       const info = this.latest;
       if (!info) return "go";
-      const week = info.unifiedWindows?.seven_day;
-      if ((week?.utilization ?? 0) >= this.stopAtWeekly) {
-        this.log(
-          `claude-code: the 7-day window is ${pct(week?.utilization)} used (ceiling ${pct(this.stopAtWeekly)}): no more episodes`,
-        );
-        return "stop";
-      }
       const hours = info.unifiedWindows?.five_hour;
       const rejected = info.status === "rejected";
       if (!rejected && (hours?.utilization ?? 0) < this.pauseAt) return "go";
@@ -184,11 +203,17 @@ export class ClaudeUsageGate {
         this.latest = undefined;
         return "go";
       }
+      if (!waitForReset) {
+        this.stop(
+          "Claude Code paused at the five-hour usage threshold (402); restart after the window resets",
+        );
+        return "stop";
+      }
       this.log(
         `claude-code: the 5-hour window is ${rejected ? "at its limit" : `${pct(hours?.utilization)} used`}; waiting ${Math.ceil(waitMs / 60_000)} min for it to reset`,
       );
       await this.sleep(waitMs);
-      this.latest = undefined;
+      if (this.latest === info) this.latest = undefined;
     }
   }
 }
@@ -218,50 +243,53 @@ export function readClaudeStream(
   lines: readonly string[],
   onRateLimit?: (info: RateLimitInfo) => void,
 ): ClaudeRunResult {
-  const result: ClaudeRunResult = {
-    isError: true,
-    usage: { inputTokens: 0, outputTokens: 0 },
-    limited: false,
-  };
-  for (const line of lines) {
-    if (!line.trim()) continue;
-    let event: Record<string, unknown>;
-    try {
-      event = JSON.parse(line) as Record<string, unknown>;
-    } catch {
-      continue;
-    }
-    if (event.type === "system" && event.subtype === "init") {
-      if (typeof event.model === "string") result.model = event.model;
-      if (Array.isArray(event.tools)) result.tools = event.tools.map(String);
-      if (Array.isArray(event.mcp_server_errors) && event.mcp_server_errors.length > 0)
-        result.mcpErrors = event.mcp_server_errors.map((e: { message?: unknown }) =>
-          String(e?.message ?? JSON.stringify(e)),
-        );
-    } else if (event.type === "rate_limit_event") {
-      const info = (event.rate_limit_info ?? {}) as RateLimitInfo;
-      if (info.status === "rejected") result.limited = true;
-      onRateLimit?.(info);
-    } else if (event.type === "result") {
-      result.subtype = typeof event.subtype === "string" ? event.subtype : undefined;
-      result.isError = event.is_error === true || result.subtype !== "success";
-      if (typeof event.result === "string") result.finalMessage = event.result;
-      if (typeof event.num_turns === "number") result.numTurns = event.num_turns;
-      const u = (event.usage ?? {}) as Record<string, unknown>;
-      const n = (k: string) => (typeof u[k] === "number" ? (u[k] as number) : 0);
-      result.usage = {
-        inputTokens:
-          n("input_tokens") + n("cache_read_input_tokens") + n("cache_creation_input_tokens"),
-        outputTokens: n("output_tokens"),
-      };
-      if (
-        result.isError &&
-        /usage limit|limit reached|rate.?limit/i.test(result.finalMessage ?? "")
-      )
-        result.limited = true;
-    }
-  }
+  const result = emptyRun();
+  for (const line of lines) readClaudeLine(result, line, onRateLimit);
   return result;
+}
+
+function emptyRun(): ClaudeRunResult {
+  return { isError: true, usage: { inputTokens: 0, outputTokens: 0 }, limited: false };
+}
+
+function readClaudeLine(
+  result: ClaudeRunResult,
+  line: string,
+  onRateLimit?: (info: RateLimitInfo) => void,
+): void {
+  let event: Record<string, unknown>;
+  try {
+    event = JSON.parse(line) as Record<string, unknown>;
+    if (!event || typeof event !== "object") return;
+  } catch {
+    return;
+  }
+  if (event.type === "system" && event.subtype === "init") {
+    if (typeof event.model === "string") result.model = event.model;
+    if (Array.isArray(event.tools)) result.tools = event.tools.map(String);
+    if (Array.isArray(event.mcp_server_errors) && event.mcp_server_errors.length > 0)
+      result.mcpErrors = event.mcp_server_errors.map((e: { message?: unknown }) =>
+        String(e?.message ?? JSON.stringify(e)),
+      );
+  } else if (event.type === "rate_limit_event") {
+    const info = (event.rate_limit_info ?? {}) as RateLimitInfo;
+    if (info.status === "rejected") result.limited = true;
+    onRateLimit?.(info);
+  } else if (event.type === "result") {
+    result.subtype = typeof event.subtype === "string" ? event.subtype : undefined;
+    result.isError = event.is_error === true || result.subtype !== "success";
+    if (typeof event.result === "string") result.finalMessage = event.result;
+    if (typeof event.num_turns === "number") result.numTurns = event.num_turns;
+    const u = (event.usage ?? {}) as Record<string, unknown>;
+    const n = (k: string) => (typeof u[k] === "number" ? (u[k] as number) : 0);
+    result.usage = {
+      inputTokens:
+        n("input_tokens") + n("cache_read_input_tokens") + n("cache_creation_input_tokens"),
+      outputTokens: n("output_tokens"),
+    };
+    if (result.isError && /usage limit|limit reached|rate.?limit/i.test(result.finalMessage ?? ""))
+      result.limited = true;
+  }
 }
 
 export interface ClaudeCodeLoopOptions {
@@ -275,6 +303,8 @@ export interface ClaudeCodeLoopOptions {
   /** Show tool images (invoice scans) to the model. Off by default, as for runToolLoop. */
   vision?: boolean;
   gate?: ClaudeUsageGate;
+  /** Timed vault episodes stop before waiting beyond their deadline. */
+  waitForReset?: boolean;
   /** The Claude Code executable (default `claude`, or CLAUDE_CODE_BIN). */
   claudeBin?: string;
   /** Ends the run if Claude Code is still going (default 20 minutes). */
@@ -312,14 +342,15 @@ export async function runClaudeCodeLoop(options: ClaudeCodeLoopOptions): Promise
     usage,
   });
 
-  if (options.gate && (await options.gate.beforeEpisode()) === "stop")
-    return summary("error", USAGE_LIMIT_MESSAGE);
+  const batchStop = (reason: string): AgentRunSummary => {
+    options.gate?.stop(reason);
+    return { ...summary("error", reason), batchStopReason: reason };
+  };
+  if (options.gate && (await options.gate.beforeEpisode(options.waitForReset)) === "stop")
+    return batchStop(options.gate.stopReason ?? USAGE_LIMIT_MESSAGE);
   if (tools.signal?.aborted) return summary("error", "the episode ended");
 
-  const callTool = async (name: string, args: unknown): Promise<CallToolResult> => {
-    if (steps >= task.maxSteps)
-      return textResult({ error: `step limit of ${task.maxSteps} reached` }, true);
-    steps++;
+  const executeTool = async (name: string, args: unknown): Promise<CallToolResult> => {
     const result = await tools.call(name, args ?? {});
     if (!result.ok) return textResult({ error: result.error }, true);
     const { rest, image } = splitToolImage(result.output);
@@ -338,11 +369,33 @@ export async function runClaudeCodeLoop(options: ClaudeCodeLoopOptions): Promise
     };
   };
 
-  const server = await serveTools(definitions, callTool);
+  let activeCalls = 0;
+  let stopAtCap: (() => void) | undefined;
+  let capReached = false;
+  const server = await serveTools(definitions, async (name, args) => {
+    if (steps >= task.maxSteps) return textResult({ error: "step limit reached" }, true);
+    steps++;
+    activeCalls++;
+    try {
+      return await executeTool(name, args);
+    } finally {
+      activeCalls--;
+      if (steps >= task.maxSteps && activeCalls === 0) {
+        capReached = true;
+        stopAtCap?.();
+      }
+    }
+  });
   const dir = mkdtempSync(join(tmpdir(), "agent-"));
   const workdir = join(dir, "workspace");
-  const lines: string[] = [];
+  const run = emptyRun();
+  const consume = (line: string) =>
+    readClaudeLine(run, line, (info) => {
+      options.gate?.observe(info);
+      if (info.status === "rejected") options.gate?.stop(USAGE_LIMIT_MESSAGE);
+    });
   let stderr = "";
+  let timedOut = false;
   try {
     mkdirSync(workdir);
     const mcpConfigFile = join(dir, "mcp.json");
@@ -359,52 +412,79 @@ export async function runClaudeCodeLoop(options: ClaudeCodeLoopOptions): Promise
     });
     const command = options.claudeBin ?? process.env.CLAUDE_CODE_BIN ?? "claude";
     const env = claudeEnv(process.env);
+    if (tools.signal?.aborted) return summary("error", "the episode ended");
+    if (options.gate?.stopReason) return batchStop(options.gate.stopReason);
     const child = options.spawn
       ? options.spawn(command, args, workdir, env)
       : spawnProcess(command, args, { cwd: workdir, env, stdio: ["ignore", "pipe", "pipe"] });
     const exit = await new Promise<{ code: number | null; error?: Error }>((resolve) => {
       let buffered = "";
+      let graceTimer: NodeJS.Timeout | undefined;
+      let settled = false;
+      const finish = (code: number | null, error?: Error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        clearTimeout(graceTimer);
+        tools.signal?.removeEventListener("abort", stop);
+        stopAtCap = undefined;
+        if (buffered) consume(buffered);
+        resolve(error ? { code, error } : { code });
+      };
+      const stop = () => {
+        if (settled || graceTimer) return;
+        graceTimer = setTimeout(() => {
+          child.kill("SIGKILL");
+          child.stdout?.destroy();
+          child.stderr?.destroy();
+          finish(null);
+        }, 1000);
+        child.kill("SIGTERM");
+      };
+      const timer = setTimeout(
+        () => {
+          timedOut = true;
+          stop();
+        },
+        options.timeoutMs ?? 20 * 60_000,
+      );
+      child.once("error", (error) => finish(null, error));
+      child.once("close", (code) => finish(code));
       child.stdout?.setEncoding("utf8");
       child.stdout?.on("data", (chunk: string) => {
         buffered += chunk;
         const parts = buffered.split("\n");
         buffered = parts.pop() ?? "";
-        lines.push(...parts);
+        for (const line of parts) consume(line);
       });
       child.stderr?.setEncoding("utf8");
       child.stderr?.on("data", (chunk: string) => {
         stderr = (stderr + chunk).slice(-4000);
       });
-      const stop = () => child.kill("SIGTERM");
+      stopAtCap = stop;
       tools.signal?.addEventListener("abort", stop, { once: true });
-      const timer = setTimeout(stop, options.timeoutMs ?? 20 * 60_000);
-      child.on("error", (error) => {
-        clearTimeout(timer);
-        resolve({ code: null, error });
-      });
-      child.on("close", (code) => {
-        clearTimeout(timer);
-        tools.signal?.removeEventListener("abort", stop);
-        if (buffered) lines.push(buffered);
-        resolve({ code });
-      });
+      if (tools.signal?.aborted || capReached) stop();
     });
-    const run = readClaudeStream(lines, (info) => options.gate?.observe(info));
     usage.inputTokens = run.usage.inputTokens;
     usage.outputTokens = run.usage.outputTokens;
     if (exit.error) return summary("error", `could not start Claude Code: ${exit.error.message}`);
-    if (run.limited) return summary("error", USAGE_LIMIT_MESSAGE);
+    if (run.limited) options.gate?.stop(USAGE_LIMIT_MESSAGE);
+    if (tools.signal?.aborted) return summary("error", "the episode ended");
+    if (timedOut) return summary("error", "Claude Code timed out");
+    if (capReached) {
+      // A terminated CLI may never emit its final token counts.
+      return run.subtype ? summary("max_steps") : { steps, stoppedBecause: "max_steps" };
+    }
+    if (run.limited) return batchStop(USAGE_LIMIT_MESSAGE);
     // The model never saw the episode's tools: the harness failed, not the agent. The status in
     // the message makes a batch skip the episode and stop, as for a refused key (modelAccountStop).
-    if (run.mcpErrors?.length)
-      return summary("error", `${NO_TOOLS_MESSAGE}: ${run.mcpErrors.join("; ")}`);
+    if (run.mcpErrors?.length) return batchStop(`${NO_TOOLS_MESSAGE}: ${run.mcpErrors.join("; ")}`);
     if (
       definitions.length > 0 &&
       run.tools &&
       !run.tools.some((t) => t.startsWith(`mcp__${TOOL_SERVER_NAME}__`))
     )
-      return summary("error", NO_TOOLS_MESSAGE);
-    if (tools.signal?.aborted) return summary("error", "the episode ended");
+      return batchStop(NO_TOOLS_MESSAGE);
     if (run.subtype === undefined)
       return summary(
         "error",

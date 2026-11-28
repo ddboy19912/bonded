@@ -393,7 +393,7 @@ ${agent.name}: Task score ${t.score === null ? "not measured" : `${t.score}/100 
       if (result.stoppedEarly) console.log(`  stopped early: ${result.stoppedEarly}`);
       for (const [name, path] of Object.entries(result.files))
         console.log(`  ${name.padEnd(12)}${path}`);
-      return 0;
+      return isClaudeCodeAgent(values.agent) && result.stoppedEarly ? 1 : 0;
     }
     if (command === "rate") {
       const outDir = values.out ?? `ratings/${agent.name.replaceAll("/", "_")}`;
@@ -524,7 +524,7 @@ ${agent.name}: Task score ${t.score === null ? "not measured" : `${t.score}/100 
         );
       for (const [name, path] of Object.entries(result.files))
         console.log(`  ${name.padEnd(12)}${path}`);
-      return 0;
+      return isClaudeCodeAgent(values.agent) && result.report.stoppedEarly ? 1 : 0;
     }
 
     const attacks =
@@ -536,6 +536,10 @@ ${agent.name}: Task score ${t.score === null ? "not measured" : `${t.score}/100 
     const results: EpisodeResult[] = [];
     for (const attack of attacks) {
       const result = await runEpisode(sandbox, { agent, attack, ...(vault ? { vault } : {}) });
+      if (result.agentSummary.batchStopReason) {
+        console.error(result.agentSummary.batchStopReason);
+        return 1;
+      }
       results.push(result);
       const path = saveEpisode(result, values.traces);
       console.log(`\n${attack?.id ?? "control (no attack)"}`);

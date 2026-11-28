@@ -185,6 +185,15 @@ describe("the usage gate", () => {
     return { g, waits };
   };
 
+  it("retains the weekly stop reported while another episode is waiting", async () => {
+    const g: ClaudeUsageGate = new ClaudeUsageGate({
+      sleep: async () => g.observe({ unifiedWindows: { seven_day: { utilization: 0.81 } } }),
+      log: () => {},
+    });
+    g.observe({ unifiedWindows: { five_hour: { utilization: 0.91 } } });
+    expect(await g.beforeEpisode()).toBe("stop");
+  });
+
   it("lets an episode start when nothing is known or the window has room", async () => {
     const { g, waits } = gate();
     expect(await g.beforeEpisode()).toBe("go");
@@ -261,9 +270,7 @@ describe("an episode through Claude Code", () => {
     });
     expect(tools.calls).toHaveLength(2);
     expect(summary.stoppedBecause).toBe("max_steps");
-    expect(summary.finalMessage).toContain(
-      JSON.stringify(JSON.stringify({ error: "step limit of 2 reached" })).slice(1, -1),
-    );
+    expect(summary.finalMessage).toBeUndefined();
   });
 
   it("offers only the tools the episode has", async () => {
@@ -325,6 +332,66 @@ describe("an episode through Claude Code", () => {
     });
     expect(summary.finalMessage).toBe(USAGE_LIMIT_MESSAGE);
     expect(tools.calls).toEqual([]);
+  });
+
+  it("stops a timed vault run before a quota sleep or spawn", async () => {
+    const gate = new ClaudeUsageGate({
+      sleep: () => {
+        throw new Error("unexpected wait");
+      },
+    });
+    gate.observe({ unifiedWindows: { five_hour: { utilization: 0.95 } } });
+    const agent = new ClaudeCodeAgent({
+      model: "claude-test",
+      world: "vault",
+      gate,
+      loop: {
+        spawn: () => {
+          throw new Error("unexpected spawn");
+        },
+      },
+    });
+    const result = await agent.run(task(), toolbox());
+    expect(result.steps).toBe(0);
+    expect(result.batchStopReason).toContain("five-hour");
+  });
+
+  it("consumes quota while the child is alive and kills a child that ignores cancellation", async () => {
+    const controller = new AbortController();
+    const gate = new ClaudeUsageGate();
+    const observe = gate.observe.bind(gate);
+    gate.observe = (info) => {
+      observe(info);
+      controller.abort();
+    };
+    const result = await runClaudeCodeLoop({
+      model: "claude-test",
+      system: "",
+      task: task(),
+      tools: { ...toolbox(), signal: controller.signal },
+      gate,
+      spawn: fake("stubborn").spawn,
+      timeoutMs: 10_000,
+    });
+    expect(gate.last?.status).toBe("allowed");
+    expect(result.finalMessage).toBe("the episode ended");
+  });
+
+  it("observes cancellation during listener installation", async () => {
+    const controller = new AbortController();
+    const child = fake("stubborn");
+    const result = await runClaudeCodeLoop({
+      model: "claude-test",
+      system: "",
+      task: task(),
+      tools: { ...toolbox(), signal: controller.signal },
+      spawn: (...args) => {
+        controller.abort();
+        return child.spawn(...args);
+      },
+      timeoutMs: 10_000,
+    });
+    expect(result.finalMessage).toBe("the episode ended");
   });
 
   it("reports a crash as the agent's error, with Claude Code's stderr", async () => {

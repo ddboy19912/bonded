@@ -5,6 +5,9 @@ import {
   OPENROUTER_BASE_URL,
 } from "@bondedhq/shared";
 
+/** End the current batch before recording an episode the provider could not run. */
+export class BatchStopped extends Error {}
+
 /** A model's price, USD per million tokens. */
 export interface TokenPrice {
   inputPerMillion: number;

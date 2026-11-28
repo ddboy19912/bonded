@@ -8,6 +8,7 @@
  * is out of usage), crash (exits with no result). FAKE_RECORD: a file to write its argv and env to.
  */
 import { readFileSync, writeFileSync } from "node:fs";
+import { setInterval } from "node:timers";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
@@ -21,6 +22,11 @@ if (process.env.FAKE_RECORD)
   );
 const emit = (event) => process.stdout.write(`${JSON.stringify(event)}\n`);
 
+if (mode === "stubborn") {
+  process.on("SIGTERM", () => {});
+  emit({ type: "rate_limit_event", rate_limit_info: { status: "allowed" } });
+  await new Promise(() => setInterval(() => {}, 60_000));
+}
 if (mode === "crash") {
   process.stderr.write("boom\n");
   process.exit(3);

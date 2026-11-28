@@ -1,4 +1,5 @@
 import type { AttackSpec } from "@bondedhq/shared";
+import { BatchStopped } from "./budget.js";
 import { goalOk } from "./harbinger/goals.js";
 import { selectS1Seeds } from "./s1-seeds.js";
 import { runS1Pair, S1BudgetExceeded, type S1Options, type S1PairResult } from "./s1.js";
@@ -28,7 +29,7 @@ export async function runS1Battery(
       }
     }
   } catch (error) {
-    if (!(error instanceof S1BudgetExceeded)) throw error;
+    if (!(error instanceof S1BudgetExceeded || error instanceof BatchStopped)) throw error;
     return { results, stoppedEarly: true };
   }
   return { results, stoppedEarly: false };

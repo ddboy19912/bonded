@@ -11,6 +11,7 @@
  * CLAUDE_CODE_BIN). No API key is used: the run's environment drops ANTHROPIC_API_KEY so Claude
  * Code bills the subscription, not the API.
  *
+ * This example uses its own short prompt and has no cross-episode subscription gate.
  * - CLAUDE_CODE_MODEL picks the model (default claude-sonnet-5-5).
  * - CLAUDE_SYSTEM_PROMPT_FILE replaces the default system prompt below with your agent's own.
  *   The mandate is added after it either way.
@@ -83,51 +84,98 @@ const args = [
   "stream-json",
   "--verbose",
 ];
-const child = spawn(process.env.CLAUDE_CODE_BIN || "claude", args, {
-  cwd,
-  env,
-  stdio: ["ignore", "pipe", "inherit"],
-});
-// Stop a little before the runner's deadline, so the done call still goes out.
-const timer = setTimeout(() => child.kill("SIGTERM"), Math.max(5_000, deadline - 10_000));
-process.on("SIGTERM", () => child.kill("SIGTERM"));
-
-let result;
-let buffered = "";
-child.stdout.setEncoding("utf8");
-child.stdout.on("data", (chunk) => {
-  buffered += chunk;
-  const lines = buffered.split("\n");
-  buffered = lines.pop() ?? "";
-  for (const line of lines) {
+async function runClaude() {
+  const child = spawn(process.env.CLAUDE_CODE_BIN || "claude", args, {
+    cwd,
+    env,
+    stdio: ["ignore", "pipe", "inherit"],
+  });
+  let cancelled = false;
+  let grace;
+  const stop = () => {
+    if (cancelled) return;
+    cancelled = true;
+    child.kill("SIGTERM");
+    grace = setTimeout(() => child.kill("SIGKILL"), 1000);
+  };
+  const timer = setTimeout(stop, Math.max(1, deadline - 10_000));
+  process.once("SIGTERM", stop);
+  let result;
+  let ready = false;
+  let refused = false;
+  let buffered = "";
+  function consume(line) {
+    let event;
     try {
-      const event = JSON.parse(line);
-      if (event.type === "result") result = event;
+      event = JSON.parse(line);
     } catch {
-      // not a stream event
+      return;
     }
+    if (event?.type === "system" && event.subtype === "init")
+      ready =
+        !event.mcp_server_errors?.length &&
+        event.tools?.some((name) => name.startsWith("mcp__toolbox__"));
+    if (event?.type === "rate_limit_event" && event.rate_limit_info?.status === "rejected")
+      refused = true;
+    if (event?.type === "result") result = event;
   }
-});
-await new Promise((resolve) => child.on("close", resolve));
-clearTimeout(timer);
-rmSync(dir, { recursive: true, force: true });
+  child.stdout.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => {
+    buffered += chunk;
+    const lines = buffered.split("\n");
+    buffered = lines.pop() ?? "";
+    for (const line of lines) consume(line);
+  });
+  try {
+    const code = await new Promise((resolve, reject) => {
+      child.once("error", reject);
+      child.once("close", resolve);
+    });
+    if (buffered) consume(buffered);
+    if (
+      code !== 0 ||
+      cancelled ||
+      refused ||
+      !ready ||
+      result?.subtype !== "success" ||
+      result.is_error
+    )
+      throw new Error(
+        `Claude Code did not complete the episode (exit ${code}, ${result?.subtype ?? "no result"})`,
+      );
+    return result;
+  } finally {
+    clearTimeout(timer);
+    clearTimeout(grace);
+    process.removeListener("SIGTERM", stop);
+  }
+}
 
-const u = result?.usage ?? {};
-const finalMessage = (result?.result ?? "Claude Code ended without a result").trim();
-await fetch(process.env.BONDED_DONE_URL, {
-  method: "POST",
-  headers: { "content-type": "application/json" },
-  body: JSON.stringify({
-    finalMessage,
-    usage: {
-      inputTokens:
-        (u.input_tokens ?? 0) +
-        (u.cache_read_input_tokens ?? 0) +
-        (u.cache_creation_input_tokens ?? 0),
-      outputTokens: u.output_tokens ?? 0,
-      // The subscription pays, so the run reports no spend.
-      costUsd: 0,
-    },
-  }),
-});
-console.log(finalMessage);
+try {
+  const result = await runClaude();
+  const u = result.usage ?? {};
+  const finalMessage = (result.result ?? "").trim().slice(0, 4000);
+  const response = await fetch(process.env.BONDED_DONE_URL, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      finalMessage,
+      usage: {
+        inputTokens:
+          (u.input_tokens ?? 0) +
+          (u.cache_read_input_tokens ?? 0) +
+          (u.cache_creation_input_tokens ?? 0),
+        outputTokens: u.output_tokens ?? 0,
+        costUsd: 0,
+      },
+    }),
+  });
+  if (!response.ok)
+    throw new Error(`Gateway rejected episode completion (HTTP ${response.status})`);
+  console.log(finalMessage);
+} catch (error) {
+  console.error(error.message);
+  process.exitCode = 1;
+} finally {
+  rmSync(dir, { recursive: true, force: true });
+}

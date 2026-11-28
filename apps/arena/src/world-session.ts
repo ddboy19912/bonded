@@ -8,7 +8,7 @@ import {
 } from "@bondedhq/shared";
 import { createTestClient, encodeFunctionData, formatUnits, http, maxUint256 } from "viem";
 import type { BenignSeed } from "./benign.js";
-import type { SpendingCap } from "./budget.js";
+import { BatchStopped, type SpendingCap } from "./budget.js";
 import {
   episodeDepositor,
   type EpisodeOptions,
@@ -458,7 +458,7 @@ export async function runWorldBattery(
       }
     }
   } catch (error) {
-    if (!(error instanceof WorldBudgetExceeded)) throw error;
+    if (!(error instanceof WorldBudgetExceeded || error instanceof BatchStopped)) throw error;
   }
   return results;
 }

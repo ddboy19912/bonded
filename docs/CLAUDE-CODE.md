@@ -1,6 +1,6 @@
 # Running Claude through Claude Code
 
-Bonded can rate Claude models through Claude Code, on a Claude subscription, instead of through an API key. The agent is the world's usual Index agent with Claude Code in place of the API call: the same system prompt, the same tools, the same task and the same judging. Nothing is billed to an API account.
+Bonded can rate Claude models through Claude Code, on a Claude subscription, instead of through an API key. The in-process agent is the world's usual Index agent with Claude Code in place of the API call: the same system prompt, the same tools, the same task and the same judging. Nothing is billed to an API account.
 
 This works in all three worlds, and through the runner:
 
@@ -9,7 +9,10 @@ This works in all three worlds, and through the runner:
 | Off-chain (supplier payments) | `pnpm --filter @bonded/arena offchain --agent claude-code --model claude-sonnet-5-5 --push-channels all --max-usd 1 --parallel 2` |
 | Vault (crypto) | `pnpm --filter @bonded/arena arena rate --agent claude-code --model claude-sonnet-5-5` |
 | Brokerage (stocks) | `pnpm --filter @bonded/arena broker --agent claude-code --model claude-sonnet-5-5 --concurrency 2` |
-| Any world, through the runner | `bonded-runner --gateway <url> --mode tools -- node claude-code-agent.mjs` (`apps/runner/examples/claude-code-agent.mjs`) |
+| Vault through the runner | `bonded-runner --gateway <url> --mode tools -- node claude-code-agent.mjs` (`apps/runner/examples/claude-code-agent.mjs`) |
+| Brokerage through the runner | `bonded-runner --gateway <url> --mode tools --world brokerage -- node claude-code-agent.mjs` |
+
+Set `BONDED_RUNNER_TOKEN` for runner commands. The runner example has its own shorter default prompts. Identify those runs separately when comparing reports. `CLAUDE_SYSTEM_PROMPT_FILE` selects an explicit prompt.
 
 `--model` takes a Claude model id, such as `claude-sonnet-5-5` or `claude-opus-5-5`. Use the full id: the short alias `sonnet` picks an older model.
 
@@ -20,13 +23,13 @@ This works in all three worlds, and through the runner:
 
 ## What the model sees
 
-Each episode runs `claude -p` once, set up to match the Index agent as closely as Claude Code allows:
+Each in-process episode runs `claude -p` once, set up to match the Index agent as closely as Claude Code allows:
 
 - **System prompt:** replaced with the Index agent's own (payables-agent's, vulnerable-agent's or broker-agent's), with the mandate added, exactly as the API agent sends it.
 - **First message:** `Task: <the episode's goal>`, as the API agent sends it.
 - **Tools:** only the episode's tools, served from a local MCP server on 127.0.0.1, with the same names, descriptions and schemas. Claude Code's own tools (shell, files, web search) are switched off.
 - **Tool results:** the same JSON text the API agent's loop sends, with the step cap counted the same way.
-- **Nothing of yours:** no user or project settings, hooks, plugins, skills, CLAUDE.md or memory. Each episode runs in a new, empty folder, and its environment keeps only what Claude Code needs to find its login. API keys are removed, so Claude Code bills the subscription and never the API. A parent Claude Code session's variables (your account email among them) are removed too.
+- **Nothing of yours:** no user or project settings, hooks, plugins, skills, CLAUDE.md or memory. Each in-process episode runs in a new, empty folder, and its environment keeps only what Claude Code needs to find its login. API keys are removed, so Claude Code bills the subscription and never the API. A parent Claude Code session's variables (your account email among them) are removed too.
 
 Three things differ from an API run, and a report should say so:
 
@@ -38,9 +41,9 @@ So a Claude Code row is its own kind of row, "Claude through Claude Code". Compa
 
 ## Usage limits
 
-Claude Code reports the plan's usage after every request: a 5-hour window and a 7-day window. A run reads these reports and acts on them:
+Claude Code reports the plan's usage after every request: a 5-hour window and a 7-day window. The in-process commands share usage across episodes. The runner example launches a fresh process per episode and cannot enforce the five-hour pause or weekly ceiling across the batch.
 
-- **5-hour window:** when it is 90% used, the run waits for it to reset before starting another episode.
+- **5-hour window:** at 90%, off-chain and brokerage runs wait for the reset. A timed vault run stops and records the reason so its episode deadline cannot expire during the wait. Start a new run after the reset.
 - **7-day window:** at 80%, the run starts no more episodes, which leaves the plan room for your own work.
 - **A refused request:** if the plan refuses a request mid-episode, that episode is skipped, not scored, and the run stops. The off-chain batch treats this like an API account that ran out of credits.
 

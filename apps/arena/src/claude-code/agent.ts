@@ -51,6 +51,7 @@ export class ClaudeCodeAgent implements ArenaAgent {
       system,
       task,
       tools,
+      waitForReset: this.options.world !== "vault",
       toolDefinitions,
       ...(this.options.vision ? { vision: true } : {}),
       ...(this.options.gate ? { gate: this.options.gate } : {}),

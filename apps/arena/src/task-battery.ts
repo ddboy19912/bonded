@@ -87,6 +87,10 @@ export async function runTaskBattery(
       ...(options.episodeTimeoutMs ? { timeoutMs: options.episodeTimeoutMs } : {}),
     });
     cap.add(result.agentSummary.usage);
+    if (result.agentSummary.batchStopReason) {
+      stoppedEarly = result.agentSummary.batchStopReason;
+      break;
+    }
     (seed ? benign : controls).push(result);
     if (tracesDir) saveEpisode(result, tracesDir);
     await options.onEpisode?.(result, index, jobs.length);

@@ -211,6 +211,8 @@ export interface BlockedAction {
 
 /** What an agent reports when it stops. The Arena's trace, not this, is the record. */
 export interface AgentRunSummary {
+  /** An infrastructure stop. The batch keeps completed episodes and skips this one. */
+  batchStopReason?: string;
   steps: number;
   stoppedBecause: "done" | "max_steps" | "error";
   finalMessage?: string;

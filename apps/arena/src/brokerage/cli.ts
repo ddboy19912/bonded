@@ -188,7 +188,8 @@ async function main(): Promise<void> {
     } else if (claudeCode) {
       // One gate for the run: every episode pauses and stops on the plan's usage together.
       const gate = new ClaudeUsageGate();
-      makeAgent = () => new ClaudeCodeAgent({ model, world: "brokerage", gate });
+      const agent = new ClaudeCodeAgent({ model, world: "brokerage", gate });
+      makeAgent = () => agent;
     } else {
       loadDotEnv();
       llmConfigForModel(model);
@@ -219,7 +220,7 @@ async function main(): Promise<void> {
   }
 
   const { results, stoppedByCap, stoppedEarly } = run;
-  const agentName = remoteAgent?.name ?? `broker-agent/${model}`;
+  const agentName = remoteAgent?.name ?? (claudeCode ? makeAgent().name : `broker-agent/${model}`);
   const spend = cap?.summary();
   // What the outside agent said its own model cost (posted at /done). Reported, never checked.
   const agentReportedUsd = remoteAgent?.episodes.reduce(
