@@ -167,6 +167,36 @@ uv run python summarize.py runs/pushed/family
 uv run python report_stats.py
 ```
 
+## Claude models through Claude Code (`run_claude_code.py`)
+
+The same family episodes as `run.py --family all`, with Claude Code in place of the OpenRouter model, on a Claude subscription. Nothing is billed to an API account.
+
+```bash
+uv run python run_claude_code.py --model claude-sonnet-5-5 --dry-run       # 189 episodes per run
+uv run python run_claude_code.py --model claude-sonnet-5-5 --runs 3
+uv run python run_claude_code.py --model claude-sonnet-5-5 --runs 3 --push
+uv run python report_stats.py --fetched runs/claude-code/family --pushed runs/claude-code/pushed/family
+```
+
+`bonded_ap/claude_code.py` replaces AgentDojo's model and tool loop with one `claude -p` run per episode. The episode's tools come from a local MCP server, and the run is turned back into AgentDojo's messages. AgentDojo scores and logs it as usual, and `summarize.py` replays it. What stays the same:
+
+- the system message;
+- the user's prompt, with channels pushed into it under `--push`;
+- the tools and their schemas;
+- the YAML tool output;
+- the 15-turn limit;
+- the attack text. The template addresses the model as "AI assistant", as it did for the OpenRouter models.
+
+What differs:
+
+- tool names reach the model as `mcp__toolbox__<name>`;
+- Claude Code adds a short note on the folder, the OS, the date and the model's name;
+- Claude Code's own thinking and sampling defaults apply.
+
+None of the user's Claude Code settings, hooks, plugins, skills, CLAUDE.md or memory are loaded, and API keys are removed from its environment.
+
+A run waits when the plan's 5-hour window is 90% used. It stops at 80% of the 7-day window (`--weekly-ceiling`). Run the same command again to continue: scored episodes are skipped.
+
 ## Differences from the Arena, to state in any write-up
 
 - **One loop, AgentDojo's.** It uses AgentDojo's system prompt and tool-call format, not Bonded's payables agent.
