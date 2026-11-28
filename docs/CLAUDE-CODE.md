@@ -12,7 +12,7 @@ This works in all three worlds, and through the runner:
 | Vault through the runner | `bonded-runner --gateway <url> --mode tools -- node claude-code-agent.mjs` (`apps/runner/examples/claude-code-agent.mjs`) |
 | Brokerage through the runner | `bonded-runner --gateway <url> --mode tools --world brokerage -- node claude-code-agent.mjs` |
 
-Set `BONDED_RUNNER_TOKEN` for runner commands. The runner example has its own shorter default prompts. Identify those runs separately when comparing reports. `CLAUDE_SYSTEM_PROMPT_FILE` selects an explicit prompt.
+Set `BONDED_RUNNER_TOKEN` for runner commands. The runner example has its own shorter default prompts. When starting the Arena gateway for this example, pass `--name claude-code-runner/default-prompt` to `arena rate --agent remote` or `broker --agent remote`. Both commands write that name into the report. `CLAUDE_SYSTEM_PROMPT_FILE` selects an explicit prompt.
 
 `--model` takes a Claude model id, such as `claude-sonnet-5-5` or `claude-opus-5-5`. Use the full id: the short alias `sonnet` picks an older model.
 
